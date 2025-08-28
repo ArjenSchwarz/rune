@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__devtools__think",
+      "mcp__devtools__gemini-agent",
+      "mcp__devtools__q-developer-agent",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
