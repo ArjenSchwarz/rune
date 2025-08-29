@@ -123,3 +123,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tests for searching in task details and references
   - Filter tests for status, depth, and parent ID filtering
   - Complex multi-criteria filtering tests with nested task hierarchies
+- Find command implementation with pattern-based task searching
+  - Support for pattern matching in task titles, details, and references
+  - Multiple output formats (table, JSON, markdown) for search results
+  - Filtering options for status, hierarchy depth, and parent task ID
+  - Case-sensitive and case-insensitive search modes with include-parent option
+- Comprehensive find command unit tests
+  - Full test coverage for all search patterns and filtering options
+  - Output format validation tests for table, JSON, and markdown formats
+  - Advanced feature testing including hierarchy depth and parent ID filtering
+  - Edge case testing with empty files and special characters in patterns
