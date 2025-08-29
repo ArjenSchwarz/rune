@@ -78,7 +78,7 @@
 
 ## 5. Search and Query Functionality
 
-- [ ] 5.1. Create search and filter unit tests
+- [x] 5.1. Create search and filter unit tests
   - Test find command with title content matching
   - Test case-sensitive and case-insensitive search
   - Test filtering by status (pending, in-progress, completed)
@@ -86,7 +86,7 @@
   - Test searching within details and references
   - References: Requirements 6.1-6.7
 
-- [ ] 5.2. Implement search and query methods
+- [x] 5.2. Implement search and query methods
   - Create search.go with Find and Filter functions
   - Implement pattern matching for task titles
   - Add status filtering capabilities

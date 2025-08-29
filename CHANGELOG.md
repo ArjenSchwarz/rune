@@ -86,3 +86,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tests for task details and references formatting
   - Indentation validation tests ensuring 2-space consistency
   - Round-trip tests verifying parse → render → parse integrity
+- Task search and query functionality implementation
+  - Find method for pattern-based searching in task titles, details, and references
+  - Filter method for task filtering by status, depth, parent ID, and title patterns
+  - QueryOptions for configurable search behavior (case sensitivity, search scope)
+  - QueryFilter for flexible filtering criteria with multiple conditions
+- Comprehensive search functionality unit tests
+  - Case-sensitive and case-insensitive search pattern tests
+  - Tests for searching in task details and references
+  - Filter tests for status, depth, and parent ID filtering
+  - Complex multi-criteria filtering tests with nested task hierarchies
