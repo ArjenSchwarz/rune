@@ -72,3 +72,42 @@
 **Features**: Search by title/content, filter by status/hierarchy, JSON output, case sensitivity options  
 **Alternatives Considered**: Basic filtering only, external search tools  
 **Impact**: Enhanced AI agent usability, additional implementation complexity for search algorithms
+
+## Decision 11: Resolution of ID Auto-Correction Conflict
+**Date**: 2025-08-28
+**Decision**: For MVP, follow Decision #2 strictly - report errors without auto-correction
+**Rationale**: Consistency and predictability are more important than convenience for initial version
+**Supersedes**: Decision #6 is deferred to future version
+**Alternatives Considered**: Configurable strictMode, auto-correction with warnings
+**Impact**: Users must fix malformed files manually, clearer error reporting
+
+## Decision 12: Batch Operations Transaction Model
+**Date**: 2025-08-28
+**Decision**: All batch operations must be atomic - all succeed or all fail
+**Rationale**: Prevents partial state and data corruption in multi-operation scenarios
+**Implementation**: Deep copy original, validate all ops, apply to copy, atomic write
+**Alternatives Considered**: Best-effort with partial success, operation-level rollback
+**Impact**: Simpler mental model, potential performance impact for large batches
+
+## Decision 13: Security and Resource Limits
+**Date**: 2025-08-28
+**Decision**: Implement strict input validation and resource limits
+**Rationale**: Prevent security vulnerabilities and DoS attacks
+**Limits**: 10MB files, 10K tasks, 10 hierarchy levels, 1MB JSON, 100 batch ops
+**Security**: Path traversal protection, input sanitization, atomic writes
+**Impact**: Safe for production use, may need tuning based on real usage
+
+## Decision 14: Design Simplification for MVP
+**Date**: 2025-08-28
+**Decision**: Simplify design to remove unnecessary complexity while preserving all requirements
+**Rationale**: Original design was over-engineered with premature abstractions and optimizations
+**Changes Made**:
+  - Consolidated packages from 7+ to just 2 (cmd/ and internal/task/)
+  - Removed interfaces with single implementations
+  - Used standard Go error handling instead of complex error types
+  - Removed premature optimizations (index maps, complex concurrency)
+  - Simplified batch operations (validate-then-apply pattern)
+  - Direct recursive parsing instead of complex stack-based approach
+  - Kept CLI commands as separate files for clarity (per user preference)
+**Alternatives Considered**: Keep complex design, partial simplification
+**Impact**: Easier implementation, testing, and maintenance without losing any functionality
