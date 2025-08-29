@@ -25,7 +25,7 @@
 
 ## 2. Markdown Parser Implementation
 
-- [ ] 2.1. Create comprehensive parser unit tests
+- [x] 2.1. Create comprehensive parser unit tests
   - Test valid markdown parsing with various formats
   - Test malformed content error reporting (per Decision #2)
   - Test hierarchy building from indentation
@@ -33,7 +33,7 @@
   - Test details and references extraction
   - References: Requirements 3.1-3.8
 
-- [ ] 2.2. Implement markdown parser
+- [x] 2.2. Implement markdown parser
   - Create parse.go with ParseMarkdown and ParseFile functions
   - Implement line-by-line parsing with indentation tracking
   - Extract task titles, status, details, and references

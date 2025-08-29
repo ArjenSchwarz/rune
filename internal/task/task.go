@@ -6,40 +6,54 @@ import (
 	"time"
 )
 
+const (
+	// Checkbox markers for task status
+	checkboxPending    = "[ ]"
+	checkboxInProgress = "[-]"
+	checkboxCompleted  = "[x]"
+)
+
+// Status represents the state of a task
 type Status int
 
 const (
+	// Pending indicates a task that has not been started
 	Pending Status = iota
+	// InProgress indicates a task that is currently being worked on
 	InProgress
+	// Completed indicates a task that has been finished
 	Completed
 )
 
+// String returns the checkbox representation of the status
 func (s Status) String() string {
 	switch s {
 	case Pending:
-		return "[ ]"
+		return checkboxPending
 	case InProgress:
-		return "[-]"
+		return checkboxInProgress
 	case Completed:
-		return "[x]"
+		return checkboxCompleted
 	default:
-		return "[ ]"
+		return checkboxPending
 	}
 }
 
+// ParseStatus converts a checkbox string to a Status
 func ParseStatus(s string) (Status, error) {
 	switch s {
-	case "[ ]":
+	case checkboxPending:
 		return Pending, nil
-	case "[-]":
+	case checkboxInProgress:
 		return InProgress, nil
-	case "[x]", "[X]":
+	case checkboxCompleted, "[X]":
 		return Completed, nil
 	default:
 		return Pending, fmt.Errorf("invalid status: %s", s)
 	}
 }
 
+// Task represents a single task in a hierarchical task list
 type Task struct {
 	ID         string
 	Title      string
@@ -52,6 +66,7 @@ type Task struct {
 
 var taskIDPattern = regexp.MustCompile(`^\d+(\.\d+)*$`)
 
+// Validate checks if the task has valid data
 func (t *Task) Validate() error {
 	if t.Title == "" {
 		return fmt.Errorf("task title cannot be empty")
@@ -69,6 +84,7 @@ func isValidID(id string) bool {
 	return taskIDPattern.MatchString(id)
 }
 
+// TaskList represents a collection of tasks with metadata
 type TaskList struct {
 	Title    string
 	Tasks    []Task
@@ -76,6 +92,7 @@ type TaskList struct {
 	Modified time.Time
 }
 
+// FindTask searches for a task by ID in the task hierarchy
 func (tl *TaskList) FindTask(taskID string) *Task {
 	if taskID == "" {
 		return nil
@@ -95,6 +112,7 @@ func findTaskRecursive(tasks []Task, taskID string) *Task {
 	return nil
 }
 
+// AddTask adds a new task to the task list under the specified parent
 func (tl *TaskList) AddTask(parentID, title string) error {
 	if parentID != "" {
 		parent := tl.FindTask(parentID)
@@ -122,6 +140,7 @@ func (tl *TaskList) AddTask(parentID, title string) error {
 	return nil
 }
 
+// RemoveTask removes a task from the task list and renumbers remaining tasks
 func (tl *TaskList) RemoveTask(taskID string) error {
 	if removed := tl.removeTaskRecursive(&tl.Tasks, taskID, ""); removed {
 		tl.renumberTasks()
@@ -131,7 +150,7 @@ func (tl *TaskList) RemoveTask(taskID string) error {
 	return fmt.Errorf("task %s not found", taskID)
 }
 
-func (tl *TaskList) removeTaskRecursive(tasks *[]Task, taskID string, parentID string) bool {
+func (tl *TaskList) removeTaskRecursive(tasks *[]Task, taskID string, _ string) bool {
 	for i := 0; i < len(*tasks); i++ {
 		if (*tasks)[i].ID == taskID {
 			*tasks = append((*tasks)[:i], (*tasks)[i+1:]...)
@@ -159,6 +178,7 @@ func renumberChildren(parent *Task) {
 	}
 }
 
+// UpdateStatus changes the status of a task
 func (tl *TaskList) UpdateStatus(taskID string, status Status) error {
 	task := tl.FindTask(taskID)
 	if task == nil {
@@ -169,6 +189,7 @@ func (tl *TaskList) UpdateStatus(taskID string, status Status) error {
 	return nil
 }
 
+// UpdateTask modifies the title, details, and references of a task
 func (tl *TaskList) UpdateTask(taskID, title string, details, refs []string) error {
 	task := tl.FindTask(taskID)
 	if task == nil {
