@@ -33,3 +33,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Unit test-first approach for all components
   - Detailed subtasks with requirement references
   - Clear dependencies and implementation order
+
+### Changed
+- Updated task document to mark completed items for project setup and core data structures
+
+### Added
+- Git ignore file for Go projects with standard exclusions
+- Core task data models implementation in internal/task package
+  - Task struct with hierarchical ID support, validation, and status tracking
+  - TaskList struct with task management operations (add, remove, update, find)
+  - Status enum implementation with string parsing and formatting
+- Comprehensive unit tests for task package
+  - 100% test coverage for all core functionality
+  - Table-driven tests for all methods and edge cases
+  - Tests for hierarchical task operations and ID renumbering

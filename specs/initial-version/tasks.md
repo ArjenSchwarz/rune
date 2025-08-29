@@ -2,21 +2,21 @@
 
 ## 1. Project Setup and Core Data Structures
 
-- [ ] 1.1. Initialize Go module and create basic project structure
+- [x] 1.1. Initialize Go module and create basic project structure
   - Create go.mod with module name `github.com/arjenschwarz/go-tasks`
   - Set up internal/task package directory
   - Set up cmd directory for CLI commands
   - Add .gitignore for Go projects
   - References: Design Package Structure section
 
-- [ ] 1.2. Create unit tests for core data models
+- [x] 1.2. Create unit tests for core data models
   - Write tests for Task struct validation and operations
   - Write tests for TaskList struct and its methods
   - Write tests for Status enum conversions
   - Create test fixtures in testdata directory
   - References: Requirements 2.1-2.6
 
-- [ ] 1.3. Implement core data models (Task and TaskList structs)
+- [x] 1.3. Implement core data models (Task and TaskList structs)
   - Create task.go with Task struct (ID, Title, Status, Details, References, Children, ParentID)
   - Create TaskList struct (Title, Tasks, FilePath, Modified)
   - Implement Status enum (Pending, InProgress, Completed)
