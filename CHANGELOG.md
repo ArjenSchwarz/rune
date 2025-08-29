@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Complete CLI implementation with Cobra framework integration
+  - Root command with global flags (verbose, format, dry-run) and version information
+  - Create command for generating new task markdown files with title specification
+  - List command with multiple output formats (table, markdown, JSON) and filtering options
+  - Input validation and security checks for file path operations
+- Main executable entry point for the go-tasks CLI application
+- Comprehensive CLI command unit tests
+  - Full test coverage for create and list commands
+  - File creation and parsing validation tests
+  - Path traversal security validation tests
+  - Output format validation tests (JSON, markdown, table)
+- Go module dependencies integration
+  - Cobra CLI framework for command structure
+  - go-output/v2 library for formatted table output
+  - Complete dependency management with go.sum
 - Task operations module with core task management functionality
   - AddTask method for adding tasks with parent-child hierarchy support
   - RemoveTask method with automatic ID renumbering for consistency

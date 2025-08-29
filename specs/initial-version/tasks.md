@@ -96,21 +96,21 @@
 
 ## 6. CLI Foundation and Basic Commands
 
-- [ ] 6.1. Set up Cobra CLI structure
+- [x] 6.1. Set up Cobra CLI structure
   - Create cmd/root.go with root command setup
   - Add global flags (verbose, format, dry-run)
   - Configure command hierarchy
   - Add version information
   - References: Requirements 4.1, Decision #4
 
-- [ ] 6.2. Implement create command tests and functionality
+- [x] 6.2. Implement create command tests and functionality
   - Test file creation with specified title
   - Test validation of file paths
   - Implement cmd/create.go using Cobra
   - Generate new task files with clean structure
   - References: Requirements 1.1, 4.2
 
-- [ ] 6.3. Implement list command tests and functionality
+- [x] 6.3. Implement list command tests and functionality
   - Test table, markdown, and JSON output formats
   - Test filtering options
   - Implement cmd/list.go with go-output/v2 integration

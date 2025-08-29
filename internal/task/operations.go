@@ -2,6 +2,9 @@ package task
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -120,5 +123,73 @@ func findTaskRecursive(tasks []Task, taskID string) *Task {
 			return found
 		}
 	}
+	return nil
+}
+
+// NewTaskList creates a new TaskList with the specified title
+func NewTaskList(title string) *TaskList {
+	return &TaskList{
+		Title:    title,
+		Tasks:    []Task{},
+		Modified: time.Now(),
+	}
+}
+
+// WriteFile saves the TaskList to a markdown file using atomic writes
+func (tl *TaskList) WriteFile(filePath string) error {
+	// Validate file path
+	if err := validateFilePath(filePath); err != nil {
+		return err
+	}
+
+	// Generate markdown content
+	content := RenderMarkdown(tl)
+
+	// Write to temp file first for atomic operation
+	tmpFile := filePath + ".tmp"
+	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
+		return fmt.Errorf("writing temp file: %w", err)
+	}
+
+	// Atomic rename
+	if err := os.Rename(tmpFile, filePath); err != nil {
+		// Clean up temp file on failure
+		os.Remove(tmpFile)
+		return fmt.Errorf("atomic rename: %w", err)
+	}
+
+	// Update file path in TaskList
+	tl.FilePath = filePath
+	return nil
+}
+
+// validateFilePath ensures the file path is safe and valid
+func validateFilePath(path string) error {
+	// Clean and resolve path
+	cleanPath := filepath.Clean(path)
+
+	// Get working directory for safety check
+	workDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("getting working directory: %w", err)
+	}
+
+	// Resolve both paths to absolute
+	workDirAbs, err := filepath.Abs(workDir)
+	if err != nil {
+		return fmt.Errorf("resolving working directory: %w", err)
+	}
+
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return fmt.Errorf("resolving file path: %w", err)
+	}
+
+	// Ensure resolved path is within working directory tree
+	// This prevents both absolute and relative path traversal attacks
+	if !strings.HasPrefix(absPath, workDirAbs+string(filepath.Separator)) && absPath != workDirAbs {
+		return fmt.Errorf("path traversal attempt detected")
+	}
+
 	return nil
 }
