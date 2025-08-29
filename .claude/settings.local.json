@@ -11,7 +11,8 @@
       "Bash(make fmt:*)",
       "Bash(modernize ./...)",
       "Bash(make lint:*)",
-      "Bash(make test:*)"
+      "Bash(make test:*)",
+      "Bash(make:*)"
     ],
     "deny": [],
     "ask": []

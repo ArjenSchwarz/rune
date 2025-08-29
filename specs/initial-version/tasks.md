@@ -43,14 +43,14 @@
 
 ## 3. Markdown Renderer Implementation
 
-- [ ] 3.1. Create renderer unit tests
+- [x] 3.1. Create renderer unit tests
   - Test consistent formatting output
   - Test 2-space indentation per hierarchy level
   - Test round-trip operations (parse → render → parse)
   - Test empty task list handling
   - References: Requirements 3.4-3.8
 
-- [ ] 3.2. Implement markdown renderer
+- [x] 3.2. Implement markdown renderer
   - Create render.go with RenderMarkdown function
   - Implement consistent 2-space indentation
   - Format tasks with hierarchical numbering (1, 1.1, 1.2.1)

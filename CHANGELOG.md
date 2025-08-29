@@ -62,3 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 100% test coverage for all core functionality
   - Table-driven tests for all methods and edge cases
   - Tests for hierarchical task operations and ID renumbering
+- Markdown renderer implementation for task lists
+  - RenderMarkdown function for converting TaskList to markdown format
+  - Consistent 2-space indentation per hierarchy level
+  - Support for task status, details, and references rendering
+  - RenderJSON function for JSON output format
+- Comprehensive renderer unit tests
+  - Tests for empty, simple, and hierarchical task lists
+  - Tests for task details and references formatting
+  - Indentation validation tests ensuring 2-space consistency
+  - Round-trip tests verifying parse → render → parse integrity
