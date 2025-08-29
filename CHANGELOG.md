@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Task operations module with core task management functionality
+  - AddTask method for adding tasks with parent-child hierarchy support
+  - RemoveTask method with automatic ID renumbering for consistency
+  - UpdateStatus method for changing task status (Pending/InProgress/Completed)
+  - UpdateTask method for modifying task title, details, and references
+  - FindTask method for searching tasks by ID in the hierarchy
+- Comprehensive test suite for task operations
+  - Full test coverage for all CRUD operations
+  - Parent-child relationship integrity validation
+  - ID renumbering tests for task removal scenarios
+  - Edge case handling and error validation
 - Task parser module for reading and parsing markdown task files
   - Comprehensive parser with support for hierarchical task structures
   - Validation for indentation, status markers, and task formatting
@@ -50,6 +61,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Clear dependencies and implementation order
 
 ### Changed
+- Refactored task module structure for better separation of concerns
+  - Moved task operations from task.go to dedicated operations.go file
+  - Reorganized tests into operations_test.go to match new module structure
 - Updated task document to mark completed items for project setup and core data structures
 
 ### Added

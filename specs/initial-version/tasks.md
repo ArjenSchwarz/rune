@@ -60,7 +60,7 @@
 
 ## 4. Task Operations and Mutations
 
-- [ ] 4.1. Create unit tests for task operations
+- [x] 4.1. Create unit tests for task operations
   - Test AddTask at all hierarchy levels
   - Test RemoveTask with automatic renumbering
   - Test UpdateStatus for all three states
@@ -68,7 +68,7 @@
   - Test parent-child relationship integrity
   - References: Requirements 1.1-1.7
 
-- [ ] 4.2. Implement task mutation methods
+- [x] 4.2. Implement task mutation methods
   - Create operations.go with TaskList methods
   - Implement AddTask with automatic ID assignment
   - Implement RemoveTask with renumbering logic
