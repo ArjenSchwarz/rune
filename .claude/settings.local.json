@@ -4,7 +4,11 @@
       "mcp__devtools__think",
       "mcp__devtools__gemini-agent",
       "mcp__devtools__q-developer-agent",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "mcp__devtools__resolve_library_id",
+      "mcp__devtools__get_library_docs",
+      "mcp__devtools__internet_search",
+      "Bash(make fmt:*)"
     ],
     "deny": [],
     "ask": []
