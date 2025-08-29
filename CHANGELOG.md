@@ -133,3 +133,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Output format validation tests for table, JSON, and markdown formats
   - Advanced feature testing including hierarchy depth and parent ID filtering
   - Edge case testing with empty files and special characters in patterns
+- Batch command for executing multiple task operations atomically
+  - Batch processing functionality with dry-run support and JSON/table output formats
+  - Operation validation and atomic execution guarantees
+  - Support for add, remove, update_status, and update operations in batch mode
+  - CLI support for batch operations via stdin, file, or string input
+  - Comprehensive test coverage for batch operations and CLI integration

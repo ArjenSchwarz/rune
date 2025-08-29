@@ -159,7 +159,7 @@
 
 ## 9. JSON API and Batch Operations
 
-- [ ] 9.1. Create batch operations unit tests
+- [x] 9.1. Create batch operations unit tests
   - Test atomic batch execution (all succeed or all fail)
   - Test validation before applying changes
   - Test dry-run mode
@@ -167,7 +167,7 @@
   - Test error reporting for invalid operations
   - References: Requirements 5.1-5.6, Decision #12
 
-- [ ] 9.2. Implement batch command and JSON API
+- [x] 9.2. Implement batch command and JSON API
   - Implement cmd/batch.go for batch operations
   - Create JSON schema structures
   - Implement validation for all operation types
