@@ -119,28 +119,28 @@
 
 ## 7. Task Manipulation Commands
 
-- [ ] 7.1. Implement add command tests and functionality
+- [x] 7.1. Implement add command tests and functionality
   - Test adding tasks with parent specification
   - Test validation of parent IDs
   - Implement cmd/add.go
   - Support adding tasks at any hierarchy level
   - References: Requirements 1.4, 4.4
 
-- [ ] 7.2. Implement complete and uncomplete command tests and functionality
+- [x] 7.2. Implement complete and uncomplete command tests and functionality
   - Test status changes for all states
   - Test error handling for invalid task IDs
   - Implement cmd/complete.go and cmd/uncomplete.go
   - Update task status with validation
   - References: Requirements 1.3, 4.5
 
-- [ ] 7.3. Implement update command tests and functionality
+- [x] 7.3. Implement update command tests and functionality
   - Test updating title, details, and references
   - Test partial updates
   - Implement cmd/update.go
   - Modify task content independently
   - References: Requirements 1.6, 4.6
 
-- [ ] 7.4. Implement remove command tests and functionality
+- [x] 7.4. Implement remove command tests and functionality
   - Test task removal with renumbering
   - Test removing tasks with children
   - Implement cmd/remove.go

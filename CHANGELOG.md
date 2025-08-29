@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Task management CLI commands implementation
+  - Add command for creating new tasks with optional parent hierarchy support
+  - Complete command for marking tasks as completed with [x] status
+  - Progress command for marking tasks as in-progress with [-] status  
+  - Remove command for deleting tasks with automatic ID renumbering
+  - Uncomplete command for marking completed tasks back to pending status
+  - Update command for modifying task titles and details
+- Comprehensive CLI command unit tests
+  - Full test coverage for all task management commands
+  - Dry-run functionality testing for safe operations
+  - Parent-child relationship validation tests
+  - Error handling and edge case tests
 - Complete CLI implementation with Cobra framework integration
   - Root command with global flags (verbose, format, dry-run) and version information
   - Create command for generating new task markdown files with title specification

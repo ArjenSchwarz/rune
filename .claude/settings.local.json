@@ -8,11 +8,10 @@
       "mcp__devtools__resolve_library_id",
       "mcp__devtools__get_library_docs",
       "mcp__devtools__internet_search",
-      "Bash(make fmt:*)",
       "Bash(modernize ./...)",
-      "Bash(make lint:*)",
-      "Bash(make test:*)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(cat:*)",
+      "Bash(./go-tasks:*)"
     ],
     "deny": [],
     "ask": []
