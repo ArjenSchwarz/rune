@@ -29,12 +29,26 @@ func ParseFile(filepath string) (*TaskList, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading file: %w", err)
 	}
-	return ParseMarkdown(content)
+	taskList, err := ParseMarkdown(content)
+	if err != nil {
+		return nil, err
+	}
+	taskList.FilePath = filepath
+	return taskList, nil
 }
 
 func parseContent(content string) (*TaskList, error) {
-	lines := strings.Split(content, "\n")
 	taskList := &TaskList{}
+
+	// Extract front matter first if present
+	frontMatter, remainingContent, err := ParseFrontMatter(content)
+	if err != nil {
+		return nil, fmt.Errorf("parsing front matter: %w", err)
+	}
+	taskList.FrontMatter = frontMatter
+
+	// Now parse the remaining content
+	lines := strings.Split(remainingContent, "\n")
 
 	// Clean up lines - handle different line endings
 	for i := range lines {

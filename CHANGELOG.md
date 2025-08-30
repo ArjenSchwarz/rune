@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Front matter parsing integration into task file processing
+  - Updated ParseFile to set FilePath and handle front matter extraction
+  - Modified parseContent to extract and process YAML front matter before task parsing
+  - Added FrontMatter field to TaskList structure for storing references and metadata
+  - Preserved backward compatibility with files without front matter
+  - Comprehensive test suite for front matter parsing with various edge cases
+  - Tests for unclosed blocks, invalid YAML, and different front matter configurations
+
+### Added
 - Git branch discovery functionality for automated task file location
   - New internal/config/discovery.go with DiscoverFileFromBranch function
   - Git branch detection using rev-parse with timeout and error handling
