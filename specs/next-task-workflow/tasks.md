@@ -1,0 +1,296 @@
+# Next Task Workflow Implementation
+
+- [x] 1. Set up configuration management infrastructure
+  - Create internal/config package structure
+  - Implement config struct with GitDiscovery fields
+  - Add configuration loading logic with precedence order
+  - Create default configuration function
+  - Ensure yaml v3 dependency is available
+  - References: Requirements 6.1, 6.2, 6.3, 6.4, 6.5
+  - [x] 1.1. Write unit tests for configuration loading
+    - Test loading from .go-tasks.yml in current directory
+    - Test loading from ~/.config/go-tasks/config.yml
+    - Test precedence order handling
+    - Test invalid YAML error handling
+    - Test default configuration fallback
+    - References: Requirements 6.1, 6.2, 6.5
+  - [x] 1.2. Implement configuration loading functions
+    - Implement LoadConfig() function
+    - Implement loadConfigFile() helper
+    - Implement expandHome() for home directory expansion
+    - Add YAML unmarshalling with error handling
+    - Implement configuration caching for performance
+    - References: Requirements 6.1, 6.2, 6.3, 6.4
+- [ ] 2. Implement git branch discovery functionality
+  - Create internal/config/discovery.go file
+  - Implement getCurrentBranch() using git command
+  - Add branch sanitization for security
+  - Implement template substitution logic
+  - Add special git state detection
+  - References: Requirements 2.1, 2.3, 2.4, 2.5, 2.9
+  - [ ] 2.1. Write unit tests for git discovery
+    - Test getCurrentBranch with mock git output
+    - Test branch name sanitization
+    - Test template substitution with {branch} placeholder
+    - Test special git state handling (detached HEAD)
+    - Test file existence validation
+    - References: Requirements 2.3, 2.4, 2.5, 2.6, 2.9
+  - [ ] 2.2. Implement DiscoverFileFromBranch function
+    - Execute git rev-parse command with timeout
+    - Handle git command errors and timeouts
+    - Replace {branch} placeholder in template
+    - Validate file existence
+    - Return appropriate errors for each failure case
+    - References: Requirements 2.3, 2.4, 2.5, 2.6, 2.7
+- [ ] 3. Create front matter parsing infrastructure
+  - Create internal/task/references.go file
+  - Define FrontMatter struct with References and Metadata fields
+  - Implement ParseFrontMatter function
+  - Add YAML front matter delimiter detection
+  - Implement path validation for security
+  - References: Requirements 3.1, 3.2, 3.3, 3.7
+  - [ ] 3.1. Write unit tests for front matter parsing
+    - Test parsing valid YAML front matter
+    - Test files without front matter
+    - Test unclosed front matter blocks
+    - Test invalid YAML syntax handling
+    - Test path traversal detection
+    - References: Requirements 3.2, 3.7, 3.8
+  - [ ] 3.2. Implement front matter serialization
+    - Implement SerializeWithFrontMatter function
+    - Handle empty front matter gracefully
+    - Preserve front matter formatting
+    - Ensure proper YAML marshalling
+    - Test round-trip parsing and serialization
+    - References: Requirements 3.2, 3.9
+- [ ] 4. Update task parsing to handle front matter
+  - Modify internal/task/parse.go ParseFile function
+  - Extract front matter before markdown parsing
+  - Store references in TaskList structure
+  - Pass remaining content to existing markdown parser
+  - Ensure backward compatibility with files without front matter
+  - References: Requirements 3.1, 3.4, 3.9, 5.7
+  - [ ] 4.1. Write tests for updated parsing
+    - Test parsing files with front matter
+    - Test parsing files without front matter
+    - Test that references are properly stored
+    - Test that task content is correctly parsed
+    - Test backward compatibility
+    - References: Requirements 3.1, 3.4, 5.7
+  - [ ] 4.2. Update TaskList structure
+    - Add FrontMatter field to TaskList struct
+    - Update constructor and factory functions
+    - Ensure references are accessible from TaskList
+    - Update any dependent code
+    - Run tests to verify no breakage
+    - References: Requirements 3.4, 3.5
+- [ ] 5. Implement next task finding algorithm
+  - Create internal/task/next.go file
+  - Define TaskWithContext structure
+  - Implement FindNextIncompleteTask function
+  - Add depth-first traversal logic
+  - Handle both pending and in-progress states as incomplete
+  - References: Requirements 1.2, 1.3, 1.4, 1.5
+  - [ ] 5.1. Write comprehensive tests for next task finder
+    - Test finding next task in flat list
+    - Test finding next task in nested hierarchy
+    - Test when all tasks are complete
+    - Test mixed completion states
+    - Test in-progress task handling
+    - References: Requirements 1.2, 1.3, 1.4, 1.5, 1.8
+  - [ ] 5.2. Implement helper functions for next task
+    - Implement hasIncompleteWork with depth protection
+    - Implement filterIncompleteChildren function
+    - Add cycle detection to prevent infinite loops
+    - Return task with only incomplete subtasks
+    - Handle edge cases and malformed hierarchies
+    - References: Requirements 1.2, 1.5, 1.6
+- [ ] 6. Create next command in CLI
+  - Create cmd/next.go file
+  - Define cobra.Command structure
+  - Add command description and usage
+  - Register command with root command
+  - Implement basic command skeleton
+  - References: Requirements 1.1, 1.7
+  - [ ] 6.1. Write unit tests for next command
+    - Test command registration
+    - Test with explicit filename
+    - Test without filename (git discovery)
+    - Test output formats (table, markdown, JSON)
+    - Test error handling scenarios
+    - References: Requirements 1.7, 1.9, 2.8
+  - [ ] 6.2. Implement next command logic
+    - Implement runNext function
+    - Add filename resolution with git discovery fallback
+    - Call FindNextIncompleteTask from task package
+    - Handle all-complete scenario with appropriate message
+    - Implement output rendering with references
+    - References: Requirements 1.1, 1.6, 1.8, 1.9, 2.8
+- [ ] 7. Implement automatic parent task completion
+  - Create internal/task/autocomplete.go file
+  - Define AutoCompleteParents method on TaskList
+  - Implement recursive parent checking logic
+  - Add cycle detection for safety
+  - Return list of auto-completed parent IDs
+  - References: Requirements 4.1, 4.2, 4.3
+  - [ ] 7.1. Write tests for auto-completion
+    - Test single-level parent completion
+    - Test multi-level recursive completion
+    - Test partial subtask completion scenarios
+    - Test already-complete parent handling
+    - Test cycle detection and prevention
+    - References: Requirements 4.1, 4.2, 4.3, 4.6
+  - [ ] 7.2. Integrate auto-completion with complete command
+    - Modify cmd/complete.go to call AutoCompleteParents
+    - Update command output to show auto-completed tasks
+    - Ensure file is saved after auto-completion
+    - Test integration with existing complete command
+    - Verify parent tasks are marked correctly
+    - References: Requirements 4.4, 4.7
+- [ ] 8. Update batch operations for auto-completion
+  - Modify internal/task/batch.go complete operation
+  - Call AutoCompleteParents after each complete operation
+  - Accumulate all auto-completed parent IDs
+  - Include auto-completed tasks in batch result
+  - Ensure atomic operation behavior is maintained
+  - References: Requirements 4.5, 4.7
+  - [ ] 8.1. Write tests for batch auto-completion
+    - Test batch complete with auto-completion
+    - Test multiple completes triggering same parent
+    - Test error handling doesn't break atomicity
+    - Test result reporting includes auto-completed tasks
+    - Verify file consistency after batch operations
+    - References: Requirements 4.5, 4.7
+  - [ ] 8.2. Implement batch operation changes
+    - Update executeBatchOperations function
+    - Track auto-completed tasks in batch result
+    - Ensure proper error handling
+    - Update batch result structure if needed
+    - Test with complex batch scenarios
+    - References: Requirements 4.5
+- [ ] 9. Update output rendering for references
+  - Modify internal/task/render.go functions
+  - Add reference section to table output
+  - Add References heading to markdown output
+  - Include references array in JSON output
+  - Ensure consistent formatting across formats
+  - References: Requirements 3.5, 5.4, 5.5, 5.6
+  - [ ] 9.1. Write tests for reference rendering
+    - Test table output with references
+    - Test markdown output with references
+    - Test JSON output with references
+    - Test empty references handling
+    - Test formatting consistency
+    - References: Requirements 5.4, 5.5, 5.6
+  - [ ] 9.2. Implement reference rendering functions
+    - Update RenderTable to include references
+    - Update RenderMarkdown with References section
+    - Update RenderJSON to include references array
+    - Handle nil or empty references gracefully
+    - Ensure backward compatibility
+    - References: Requirements 3.5, 5.4, 5.5, 5.6, 5.7
+- [ ] 10. Integrate git discovery with existing commands
+  - Update cmd/list.go to use filename resolution
+  - Update cmd/show.go to use filename resolution
+  - Update other file-accepting commands
+  - Extract common filename resolution logic
+  - Test all commands with git discovery
+  - References: Requirements 5.1, 5.2, 5.8
+  - [ ] 10.1. Write integration tests for git discovery
+    - Test list command with git discovery
+    - Test show command with git discovery
+    - Test with explicit file overriding discovery
+    - Test error messages when discovery fails
+    - Test in non-git directories
+    - References: Requirements 2.8, 5.8
+  - [ ] 10.2. Implement resolveFilename helper
+    - Create shared filename resolution function
+    - Check for explicit filename first
+    - Load config and check if discovery enabled
+    - Call DiscoverFileFromBranch if enabled
+    - Return appropriate errors
+    - References: Requirements 2.8, 5.8, 6.6
+- [ ] 11. Create end-to-end integration tests
+  - Create comprehensive integration test file
+  - Test complete workflow with git discovery
+  - Test next command with various task states
+  - Test auto-completion through multiple levels
+  - Test reference inclusion in all output formats
+  - References: Requirements 1.1-1.9, 2.1-2.9, 3.1-3.10, 4.1-4.7, 5.1-5.8
+  - [ ] 11.1. Write git integration tests
+    - Set up test git repository
+    - Test branch switching and file discovery
+    - Test detached HEAD handling
+    - Test rebasing state handling
+    - Clean up test repository after tests
+    - References: Requirements 2.3, 2.6, 2.9
+  - [ ] 11.2. Write configuration integration tests
+    - Test config file precedence
+    - Test environment variable overrides if supported
+    - Test missing config file handling
+    - Test invalid config error messages
+    - Test discovery enable/disable behavior
+    - References: Requirements 6.1, 6.2, 6.4, 6.5, 6.6
+- [ ] 12. Update existing commands to preserve front matter
+  - Audit all commands that modify task files
+  - Update file writing to use SerializeWithFrontMatter
+  - Ensure add, remove, update commands preserve front matter
+  - Test that modifications don't lose references
+  - Verify backward compatibility
+  - References: Requirements 3.9, 5.7
+  - [ ] 12.1. Write tests for front matter preservation
+    - Test add command preserves front matter
+    - Test remove command preserves front matter
+    - Test update command preserves front matter
+    - Test complete command preserves front matter
+    - Test batch operations preserve front matter
+    - References: Requirements 3.9
+  - [ ] 12.2. Implement front matter preservation
+    - Update WriteToFile method in TaskList
+    - Use SerializeWithFrontMatter when saving
+    - Ensure front matter is never lost during operations
+    - Test with various modification scenarios
+    - Verify file integrity after operations
+    - References: Requirements 3.9
+- [ ] 13. Performance optimization and benchmarking
+  - Create benchmark tests for next task finding
+  - Create benchmark tests for auto-completion
+  - Optimize deep hierarchy traversal
+  - Add caching where beneficial
+  - Profile and identify bottlenecks
+  - References: Requirements 1.3, 4.3
+  - [ ] 13.1. Write benchmark tests
+    - Implement BenchmarkFindNextTask with large task lists
+    - Implement BenchmarkAutoComplete with deep hierarchies
+    - Create task list generators for testing
+    - Run benchmarks with different data sizes
+    - Document performance characteristics
+    - References: Requirements 1.3, 4.3
+  - [ ] 13.2. Implement performance optimizations
+    - Add early termination in next task search
+    - Implement configuration caching
+    - Cache git branch name for session
+    - Optimize recursive functions
+    - Verify optimizations don't break functionality
+    - References: Requirements 1.3
+- [ ] 14. Documentation and final testing
+  - Update README with new commands
+  - Document configuration file format
+  - Add examples for all new features
+  - Run full test suite
+  - Perform manual testing of all workflows
+  - References: Requirements 1.1, 2.1, 3.1, 4.1, 6.1
+  - [ ] 14.1. Create user documentation
+    - Document next command usage
+    - Document configuration file setup
+    - Document front matter format
+    - Add troubleshooting section
+    - Include migration guide if needed
+    - References: Requirements 1.1, 6.3
+  - [ ] 14.2. Final integration testing
+    - Run all unit tests
+    - Run all integration tests
+    - Test on different platforms if applicable
+    - Verify backward compatibility
+    - Check for any regressions
+    - References: Requirements 5.7, 5.8

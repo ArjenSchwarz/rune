@@ -536,7 +536,7 @@ func TestConcurrentAccessSafety(t *testing.T) {
 		numGoroutines := 10
 		done := make(chan error, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(id int) {
 				tl := NewTaskList("Test Tasks")
 				err := tl.AddTask("", "Task from goroutine")
@@ -556,14 +556,14 @@ func TestConcurrentAccessSafety(t *testing.T) {
 		}
 
 		// Wait for all goroutines to complete
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			if err := <-done; err != nil {
 				t.Errorf("Goroutine %d failed: %v", i, err)
 			}
 		}
 
 		// Verify all files were created
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			fileName := filepath.Join("concurrent", "tasks-"+string(rune(i+'0'))+".md")
 			if _, err := os.Stat(fileName); os.IsNotExist(err) {
 				t.Errorf("File %s was not created", fileName)

@@ -80,8 +80,8 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		newDetails = []string{}
 	} else if updateDetails != "" {
 		// Split by comma and trim whitespace
-		parts := strings.Split(updateDetails, ",")
-		for _, part := range parts {
+		parts := strings.SplitSeq(updateDetails, ",")
+		for part := range parts {
 			if trimmed := strings.TrimSpace(part); trimmed != "" {
 				newDetails = append(newDetails, trimmed)
 			}
@@ -93,8 +93,8 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		newReferences = []string{}
 	} else if updateReferences != "" {
 		// Split by comma and trim whitespace
-		parts := strings.Split(updateReferences, ",")
-		for _, part := range parts {
+		parts := strings.SplitSeq(updateReferences, ",")
+		for part := range parts {
 			if trimmed := strings.TrimSpace(part); trimmed != "" {
 				newReferences = append(newReferences, trimmed)
 			}
