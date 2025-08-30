@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Next task workflow specification and design documentation
+  - Comprehensive requirements document defining sequential task management capabilities
+  - Detailed design document with technical architecture and implementation approach
+  - Decision log documenting key design choices for workflow features
+- Enhanced Claude Code configuration
+  - Updated CLAUDE.md with project-specific guidance for development commands
+  - Added integration test commands and code quality tooling instructions
+
+### Added
 - Comprehensive project documentation and examples
   - Complete README.md with installation, usage guide, and command reference
   - Agent instruction documentation for AI integration patterns
