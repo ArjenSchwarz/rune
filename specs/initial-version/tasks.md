@@ -195,7 +195,7 @@
 
 ## 11. Integration Testing and Documentation
 
-- [ ] 11.1. Create comprehensive integration tests
+- [x] 11.1. Create comprehensive integration tests
   - Test complete workflows (create → add → update → remove)
   - Test large file handling (100+ tasks)
   - Test all CLI commands end-to-end
@@ -203,7 +203,7 @@
   - Test error handling and recovery
   - References: Design Testing Strategy section
 
-- [ ] 11.2. Add documentation and examples
+- [x] 11.2. Add documentation and examples
   - Create README.md with usage instructions
   - Add example task files in examples directory
   - Document JSON API schema

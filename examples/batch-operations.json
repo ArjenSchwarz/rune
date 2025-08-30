@@ -1,0 +1,67 @@
+{
+  "file": "project-tasks.md",
+  "operations": [
+    {
+      "type": "add",
+      "title": "Security Implementation",
+      "details": [
+        "Implement authentication system",
+        "Add authorization middleware",
+        "Security audit and testing"
+      ],
+      "references": ["security-requirements.md"]
+    },
+    {
+      "type": "add", 
+      "parent": "1",
+      "title": "OAuth Integration",
+      "details": [
+        "Research OAuth providers",
+        "Implement OAuth flow",
+        "Add social login options"
+      ]
+    },
+    {
+      "type": "add",
+      "parent": "1", 
+      "title": "Session Management",
+      "details": [
+        "Design session storage",
+        "Implement session middleware",
+        "Add session timeout handling"
+      ]
+    },
+    {
+      "type": "update_status",
+      "id": "2",
+      "status": 1
+    },
+    {
+      "type": "update",
+      "id": "3",
+      "title": "Enhanced API Documentation", 
+      "details": [
+        "Document all endpoints",
+        "Add request/response examples",
+        "Include authentication details",
+        "Create interactive API explorer"
+      ],
+      "references": ["api-spec.yaml", "docs-template.md"]
+    },
+    {
+      "type": "add",
+      "title": "Performance Optimization",
+      "details": [
+        "Profile application performance",
+        "Optimize database queries",
+        "Implement caching strategy",
+        "Add performance monitoring"
+      ]
+    },
+    {
+      "type": "remove",
+      "id": "4"
+    }
+  ],
+  "dry_run": false
+}

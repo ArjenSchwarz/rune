@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Comprehensive project documentation and examples
+  - Complete README.md with installation, usage guide, and command reference
+  - Agent instruction documentation for AI integration patterns
+  - Task creation guide with format specifications and validation rules
+  - JSON API documentation with batch operations and schema definitions
+  - Example files demonstrating simple, project, and complex task structures
+  - Integration test suite with comprehensive workflow testing
+- Claude Code configuration updates
+  - Added integration test command allowlists for test automation
+  - Enhanced development tooling configuration
+
+### Added
 - Comprehensive file operations and security test suite (612 lines)
   - File size limit validation tests (10MB maximum with multiple test cases)
   - Path traversal protection tests with malicious path detection
