@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Next command implementation**: Complete next task workflow functionality
+  - Finds first incomplete task using depth-first traversal algorithm  
+  - Supports git-based file discovery when no filename is provided
+  - Multiple output formats: table (default), JSON, markdown with reference documents
+  - Comprehensive error handling, validation, and edge case management
+  - Full test coverage including unit tests and integration tests (363 lines)
+  - cmd/next.go and cmd/next_test.go implementing next task workflow requirements
+
+### Changed
+- **Code quality improvements**: Replace magic strings with constants in list command format switch
+
+### Fixed
+- **Linting issues**: Use formatJSON and formatMarkdown constants instead of string literals in cmd/list.go
+
+### Added
 - Next task finding algorithm implementation for workflow support
   - Created internal/task/next.go with FindNextIncompleteTask function
   - TaskWithContext structure for tasks with their incomplete subtasks

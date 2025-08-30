@@ -65,9 +65,9 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	// Create output document based on format
 	switch format {
-	case "json":
+	case formatJSON:
 		return outputJSON(taskList)
-	case "markdown":
+	case formatMarkdown:
 		return outputMarkdown(taskList)
 	default:
 		return outputTable(taskList.Title, taskData)
