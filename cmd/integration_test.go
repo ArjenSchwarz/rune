@@ -717,7 +717,7 @@ func TestLargeFileHandling(t *testing.T) {
 
 	// Test batch operations on large file
 	batchOps := make([]task.Operation, 20)
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		batchOps[i] = task.Operation{
 			Type:   "update_status",
 			ID:     fmt.Sprintf("%d.%d", (i%10)+1, (i%15)+1),

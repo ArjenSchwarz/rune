@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Configuration management infrastructure
+  - Complete internal/config package with YAML configuration loading
+  - Support for .go-tasks.yml in current directory and ~/.config/go-tasks/config.yml
+  - Configuration precedence handling with default fallback
+  - GitDiscovery configuration structure for branch-based file discovery
+  - Comprehensive test suite with precedence and error handling validation
+- Next-task-workflow implementation tasks document
+  - Detailed 296-line implementation plan in specs/next-task-workflow/tasks.md
+  - Comprehensive task breakdown covering configuration, git discovery, and CLI integration
+  - Step-by-step implementation guide with requirements references
+
+### Enhanced
+- Batch operations functionality
+  - Add operations now support details and references in batch mode
+  - Enhanced applyOperation to handle details and references for newly added tasks
+  - Automatic task ID resolution for updating newly added tasks with additional metadata
+
+### Changed
+- Modernized Go code patterns throughout codebase
+  - Updated loop patterns to use `for i := range n` syntax
+  - Replaced `strings.Split()` with `strings.SplitSeq()` in range loops
+  - Applied modern Go conventions following language modernization guidelines
+
+### Added
 - Next task workflow specification and design documentation
   - Comprehensive requirements document defining sequential task management capabilities
   - Detailed design document with technical architecture and implementation approach

@@ -129,7 +129,27 @@ func validateOperation(tl *TaskList, op Operation) error {
 func applyOperation(tl *TaskList, op Operation) error {
 	switch strings.ToLower(op.Type) {
 	case "add":
-		return tl.AddTask(op.Parent, op.Title)
+		// First add the task
+		if err := tl.AddTask(op.Parent, op.Title); err != nil {
+			return err
+		}
+		// If details or references are provided, update the newly added task
+		if len(op.Details) > 0 || len(op.References) > 0 {
+			// Find the newly added task ID
+			var newTaskID string
+			if op.Parent != "" {
+				parent := tl.FindTask(op.Parent)
+				if parent != nil && len(parent.Children) > 0 {
+					newTaskID = parent.Children[len(parent.Children)-1].ID
+				}
+			} else if len(tl.Tasks) > 0 {
+				newTaskID = tl.Tasks[len(tl.Tasks)-1].ID
+			}
+			if newTaskID != "" {
+				return tl.UpdateTask(newTaskID, "", op.Details, op.References)
+			}
+		}
+		return nil
 	case "remove":
 		return tl.RemoveTask(op.ID)
 	case "update_status":
