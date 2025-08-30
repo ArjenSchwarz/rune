@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Comprehensive file operations and security test suite (612 lines)
+  - File size limit validation tests (10MB maximum with multiple test cases)
+  - Path traversal protection tests with malicious path detection
+  - Atomic write operation tests ensuring data integrity
+  - Input sanitization tests for null bytes and control characters
+  - Concurrent access safety tests for multi-goroutine scenarios
+  - Task ID validation tests preventing invalid ID formats (e.g., leading zeros)
+- Enhanced security measures in task operations
+  - Resource limits enforcement (MaxTaskCount: 10000, MaxHierarchyDepth: 10, MaxDetailLength: 1000)
+  - Input validation for all task creation and update operations
+  - File path validation with null byte and control character detection
+  - Validation functions for task input, details, and references with length restrictions
 - Task management CLI commands implementation
   - Add command for creating new tasks with optional parent hierarchy support
   - Complete command for marking tasks as completed with [x] status
@@ -88,6 +100,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Clear dependencies and implementation order
 
 ### Changed
+- Improved task ID validation regex to prevent invalid ID patterns
+  - Updated regex pattern to disallow task IDs starting with zero (e.g., "01", "0.1" now invalid)
+  - Ensures consistent ID numbering with natural numbers only
 - Refactored task module structure for better separation of concerns
   - Moved task operations from task.go to dedicated operations.go file
   - Reorganized tests into operations_test.go to match new module structure

@@ -8,8 +8,24 @@ import (
 	"time"
 )
 
+// Resource limits for security
+const (
+	MaxTaskCount      = 10000 // Maximum number of tasks
+	MaxHierarchyDepth = 10    // Maximum hierarchy depth
+	MaxDetailLength   = 1000  // Maximum characters per detail line
+)
+
 // AddTask adds a new task to the task list under the specified parent
 func (tl *TaskList) AddTask(parentID, title string) error {
+	// Validate input
+	if err := validateTaskInput(title); err != nil {
+		return err
+	}
+
+	// Check resource limits
+	if err := tl.checkResourceLimits(parentID); err != nil {
+		return err
+	}
 	if parentID != "" {
 		parent := tl.FindTask(parentID)
 		if parent == nil {
@@ -92,13 +108,23 @@ func (tl *TaskList) UpdateTask(taskID, title string, details, refs []string) err
 		return fmt.Errorf("task %s not found", taskID)
 	}
 
+	// Validate input
 	if title != "" {
+		if err := validateTaskInput(title); err != nil {
+			return err
+		}
 		task.Title = title
 	}
 	if details != nil {
+		if err := validateDetails(details); err != nil {
+			return err
+		}
 		task.Details = details
 	}
 	if refs != nil {
+		if err := validateReferences(refs); err != nil {
+			return err
+		}
 		task.References = refs
 	}
 
@@ -165,6 +191,11 @@ func (tl *TaskList) WriteFile(filePath string) error {
 
 // validateFilePath ensures the file path is safe and valid
 func validateFilePath(path string) error {
+	// Check for null bytes and control characters
+	if containsNullByte(path) {
+		return fmt.Errorf("path contains null bytes or control characters")
+	}
+
 	// Clean and resolve path
 	cleanPath := filepath.Clean(path)
 
@@ -192,4 +223,94 @@ func validateFilePath(path string) error {
 	}
 
 	return nil
+}
+
+// validateTaskInput sanitizes and validates task input
+func validateTaskInput(input string) error {
+	// Check for null bytes and control characters
+	if containsNullByte(input) {
+		return fmt.Errorf("input contains null bytes or control characters")
+	}
+
+	// Length validation is handled by Task.Validate()
+	return nil
+}
+
+// validateDetails validates task details
+func validateDetails(details []string) error {
+	for i, detail := range details {
+		if containsNullByte(detail) {
+			return fmt.Errorf("detail %d contains null bytes or control characters", i+1)
+		}
+		if len(detail) > MaxDetailLength {
+			return fmt.Errorf("detail %d exceeds maximum length of %d characters", i+1, MaxDetailLength)
+		}
+	}
+	return nil
+}
+
+// validateReferences validates task references
+func validateReferences(refs []string) error {
+	for i, ref := range refs {
+		if containsNullByte(ref) {
+			return fmt.Errorf("reference %d contains null bytes or control characters", i+1)
+		}
+		if len(ref) > 500 {
+			return fmt.Errorf("reference %d exceeds maximum length of 500 characters", i+1)
+		}
+	}
+	return nil
+}
+
+// containsNullByte checks for null bytes and dangerous control characters
+func containsNullByte(s string) bool {
+	for _, r := range s {
+		if r == 0 || (r < 32 && r != '\t' && r != '\n' && r != '\r') {
+			return true
+		}
+	}
+	return false
+}
+
+// checkResourceLimits enforces resource limits
+func (tl *TaskList) checkResourceLimits(parentID string) error {
+	// Count total tasks
+	totalTasks := tl.countTotalTasks()
+	if totalTasks >= MaxTaskCount {
+		return fmt.Errorf("maximum task limit of %d reached", MaxTaskCount)
+	}
+
+	// Check hierarchy depth if adding to a parent
+	if parentID != "" {
+		depth := tl.getTaskDepth(parentID)
+		if depth >= MaxHierarchyDepth {
+			return fmt.Errorf("maximum hierarchy depth of %d reached", MaxHierarchyDepth)
+		}
+	}
+
+	return nil
+}
+
+// countTotalTasks counts all tasks in the hierarchy
+func (tl *TaskList) countTotalTasks() int {
+	count := 0
+	for _, task := range tl.Tasks {
+		count += 1 + countTasksRecursive(&task)
+	}
+	return count
+}
+
+// countTasksRecursive counts tasks recursively
+func countTasksRecursive(task *Task) int {
+	count := 0
+	for _, child := range task.Children {
+		count += 1 + countTasksRecursive(&child)
+	}
+	return count
+}
+
+// getTaskDepth calculates the depth of a task in the hierarchy
+func (tl *TaskList) getTaskDepth(taskID string) int {
+	parts := strings.Split(taskID, ".")
+	return len(parts)
 }

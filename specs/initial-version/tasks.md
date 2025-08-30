@@ -177,7 +177,7 @@
 
 ## 10. File Operations and Security
 
-- [ ] 10.1. Create file operations and security tests
+- [x] 10.1. Create file operations and security tests
   - Test file size limits (10MB maximum)
   - Test path traversal protection
   - Test atomic write operations
@@ -185,7 +185,7 @@
   - Test concurrent access safety
   - References: Design Security Considerations section, Decision #13
 
-- [ ] 10.2. Implement secure file operations
+- [x] 10.2. Implement secure file operations
   - Add file path validation
   - Implement atomic writes with temp files
   - Add input sanitization for user content

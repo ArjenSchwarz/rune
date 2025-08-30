@@ -64,7 +64,7 @@ type Task struct {
 	ParentID   string
 }
 
-var taskIDPattern = regexp.MustCompile(`^\d+(\.\d+)*$`)
+var taskIDPattern = regexp.MustCompile(`^[1-9]\d*(\.[1-9]\d*)*$`)
 
 // Validate checks if the task has valid data
 func (t *Task) Validate() error {
