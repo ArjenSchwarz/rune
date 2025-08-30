@@ -63,21 +63,21 @@
     - Ensure proper YAML marshalling
     - Test round-trip parsing and serialization
     - References: Requirements 3.2, 3.9
-- [ ] 4. Update task parsing to handle front matter
+- [x] 4. Update task parsing to handle front matter
   - Modify internal/task/parse.go ParseFile function
   - Extract front matter before markdown parsing
   - Store references in TaskList structure
   - Pass remaining content to existing markdown parser
   - Ensure backward compatibility with files without front matter
   - References: Requirements 3.1, 3.4, 3.9, 5.7
-  - [ ] 4.1. Write tests for updated parsing
+  - [x] 4.1. Write tests for updated parsing
     - Test parsing files with front matter
     - Test parsing files without front matter
     - Test that references are properly stored
     - Test that task content is correctly parsed
     - Test backward compatibility
     - References: Requirements 3.1, 3.4, 5.7
-  - [ ] 4.2. Update TaskList structure
+  - [x] 4.2. Update TaskList structure
     - Add FrontMatter field to TaskList struct
     - Update constructor and factory functions
     - Ensure references are accessible from TaskList

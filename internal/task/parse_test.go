@@ -2,10 +2,16 @@ package task
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// writeTestFile is a helper to write content to a file for testing
+func writeTestFile(path, content string) error {
+	return os.WriteFile(path, []byte(content), 0644)
+}
 
 func TestParseMarkdown(t *testing.T) {
 	tests := map[string]struct {
@@ -601,5 +607,307 @@ func TestParsePerformance(t *testing.T) {
 	_, err := ParseMarkdown(data)
 	if err != nil {
 		t.Skip("Skipping performance test - ParseMarkdown not yet implemented")
+	}
+}
+
+func TestParseMarkdownWithFrontMatter(t *testing.T) {
+	tests := map[string]struct {
+		content        string
+		wantTitle      string
+		wantTasks      int
+		wantReferences []string
+		wantMetadata   map[string]any
+		wantErr        bool
+		errContains    string
+	}{
+		"with_front_matter_and_references": {
+			content: `---
+references:
+  - ./docs/architecture.md
+  - ./specs/api-specification.yaml
+metadata:
+  project: backend-api
+  created: "2024-01-30"
+---
+# Project Tasks
+
+- [ ] 1. Setup development environment
+  - [x] 1.1. Install dependencies
+  - [ ] 1.2. Configure database
+- [x] 2. Implement authentication`,
+			wantTitle: "Project Tasks",
+			wantTasks: 2,
+			wantReferences: []string{
+				"./docs/architecture.md",
+				"./specs/api-specification.yaml",
+			},
+			wantMetadata: map[string]any{
+				"project": "backend-api",
+				"created": "2024-01-30",
+			},
+		},
+		"with_empty_front_matter": {
+			content: `---
+---
+# Tasks
+
+- [ ] 1. First task
+- [ ] 2. Second task`,
+			wantTitle:      "Tasks",
+			wantTasks:      2,
+			wantReferences: nil,
+			wantMetadata:   nil,
+		},
+		"without_front_matter": {
+			content: `# Regular Tasks
+
+- [ ] 1. Task one
+- [x] 2. Task two
+- [-] 3. Task three`,
+			wantTitle:      "Regular Tasks",
+			wantTasks:      3,
+			wantReferences: nil,
+			wantMetadata:   nil,
+		},
+		"front_matter_only_references": {
+			content: `---
+references:
+  - ../shared/database-schema.sql
+  - ./docs/setup.md
+---
+# Setup Tasks
+
+- [ ] 1. Initialize project`,
+			wantTitle: "Setup Tasks",
+			wantTasks: 1,
+			wantReferences: []string{
+				"../shared/database-schema.sql",
+				"./docs/setup.md",
+			},
+			wantMetadata: nil,
+		},
+		"front_matter_only_metadata": {
+			content: `---
+metadata:
+  version: 1.0.0
+  author: John Doe
+---
+# Version Tasks
+
+- [ ] 1. Update version`,
+			wantTitle:      "Version Tasks",
+			wantTasks:      1,
+			wantReferences: nil,
+			wantMetadata: map[string]any{
+				"version": "1.0.0",
+				"author":  "John Doe",
+			},
+		},
+		"unclosed_front_matter": {
+			content: `---
+references:
+  - ./docs/test.md
+# This should fail
+
+- [ ] 1. Task`,
+			wantErr:     true,
+			errContains: "unclosed front matter block",
+		},
+		"invalid_yaml_in_front_matter": {
+			content: `---
+references: [
+  - item1
+  - item2
+---
+# Tasks
+
+- [ ] 1. Task`,
+			wantErr:     true,
+			errContains: "parsing front matter",
+		},
+		"tasks_immediately_after_front_matter": {
+			content: `---
+references:
+  - ./README.md
+---
+- [ ] 1. First task without title
+- [ ] 2. Second task`,
+			wantTitle: "",
+			wantTasks: 2,
+			wantReferences: []string{
+				"./README.md",
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			taskList, err := ParseMarkdown([]byte(tc.content))
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("Expected error but got none")
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("Error = %v, want error containing %q", err, tc.errContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if taskList.Title != tc.wantTitle {
+				t.Errorf("Title = %q, want %q", taskList.Title, tc.wantTitle)
+			}
+
+			if len(taskList.Tasks) != tc.wantTasks {
+				t.Errorf("Tasks count = %d, want %d", len(taskList.Tasks), tc.wantTasks)
+			}
+
+			// Check references
+			if tc.wantReferences == nil {
+				if taskList.FrontMatter != nil && len(taskList.FrontMatter.References) > 0 {
+					t.Errorf("Expected no references, but got %v", taskList.FrontMatter.References)
+				}
+			} else {
+				if taskList.FrontMatter == nil {
+					t.Fatal("Expected front matter but got nil")
+				}
+				if len(taskList.FrontMatter.References) != len(tc.wantReferences) {
+					t.Errorf("References count = %d, want %d", len(taskList.FrontMatter.References), len(tc.wantReferences))
+				} else {
+					for i, ref := range taskList.FrontMatter.References {
+						if ref != tc.wantReferences[i] {
+							t.Errorf("Reference[%d] = %q, want %q", i, ref, tc.wantReferences[i])
+						}
+					}
+				}
+			}
+
+			// Check metadata
+			if tc.wantMetadata == nil {
+				if taskList.FrontMatter != nil && len(taskList.FrontMatter.Metadata) > 0 {
+					t.Errorf("Expected no metadata, but got %v", taskList.FrontMatter.Metadata)
+				}
+			} else {
+				if taskList.FrontMatter == nil {
+					t.Fatal("Expected front matter but got nil")
+				}
+				if len(taskList.FrontMatter.Metadata) != len(tc.wantMetadata) {
+					t.Errorf("Metadata count = %d, want %d", len(taskList.FrontMatter.Metadata), len(tc.wantMetadata))
+				} else {
+					for key, wantVal := range tc.wantMetadata {
+						if gotVal, ok := taskList.FrontMatter.Metadata[key]; !ok {
+							t.Errorf("Metadata missing key %q", key)
+						} else if gotVal != wantVal {
+							t.Errorf("Metadata[%q] = %v, want %v", key, gotVal, wantVal)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestParseFileWithFrontMatter(t *testing.T) {
+	// Create a temporary file with front matter
+	content := `---
+references:
+  - ./docs/test.md
+metadata:
+  test: true
+---
+# Test File
+
+- [ ] 1. Test task`
+
+	tmpFile := filepath.Join(t.TempDir(), "test_with_frontmatter.md")
+	if err := writeTestFile(tmpFile, content); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	taskList, err := ParseFile(tmpFile)
+	if err != nil {
+		t.Fatalf("ParseFile failed: %v", err)
+	}
+
+	// Verify FilePath is set
+	if taskList.FilePath != tmpFile {
+		t.Errorf("FilePath = %q, want %q", taskList.FilePath, tmpFile)
+	}
+
+	// Verify front matter is parsed
+	if taskList.FrontMatter == nil {
+		t.Fatal("Expected front matter but got nil")
+	}
+
+	if len(taskList.FrontMatter.References) != 1 || taskList.FrontMatter.References[0] != "./docs/test.md" {
+		t.Errorf("References = %v, want [./docs/test.md]", taskList.FrontMatter.References)
+	}
+
+	// Verify task content is still parsed correctly
+	if taskList.Title != "Test File" {
+		t.Errorf("Title = %q, want %q", taskList.Title, "Test File")
+	}
+
+	if len(taskList.Tasks) != 1 {
+		t.Errorf("Tasks count = %d, want 1", len(taskList.Tasks))
+	}
+}
+
+func TestBackwardCompatibility(t *testing.T) {
+	// Test that files without front matter continue to work
+	tests := map[string]struct {
+		content   string
+		wantTitle string
+		wantTasks int
+	}{
+		"simple_markdown": {
+			content: `# My Tasks
+
+- [ ] 1. First task
+- [x] 2. Completed task`,
+			wantTitle: "My Tasks",
+			wantTasks: 2,
+		},
+		"no_title": {
+			content: `- [ ] 1. Task one
+- [ ] 2. Task two`,
+			wantTitle: "",
+			wantTasks: 2,
+		},
+		"with_subtasks": {
+			content: `# Project
+
+- [ ] 1. Main
+  - [ ] 1.1. Sub one
+  - [x] 1.2. Sub two`,
+			wantTitle: "Project",
+			wantTasks: 1,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			taskList, err := ParseMarkdown([]byte(tc.content))
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if taskList.Title != tc.wantTitle {
+				t.Errorf("Title = %q, want %q", taskList.Title, tc.wantTitle)
+			}
+
+			if len(taskList.Tasks) != tc.wantTasks {
+				t.Errorf("Tasks count = %d, want %d", len(taskList.Tasks), tc.wantTasks)
+			}
+
+			// Ensure FrontMatter is empty but not nil for backward compatibility
+			if taskList.FrontMatter == nil {
+				t.Error("FrontMatter should not be nil for backward compatibility")
+			}
+		})
 	}
 }

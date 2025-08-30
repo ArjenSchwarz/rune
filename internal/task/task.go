@@ -86,8 +86,9 @@ func isValidID(id string) bool {
 
 // TaskList represents a collection of tasks with metadata
 type TaskList struct {
-	Title    string
-	Tasks    []Task
-	FilePath string
-	Modified time.Time
+	Title       string
+	Tasks       []Task
+	FrontMatter *FrontMatter
+	FilePath    string
+	Modified    time.Time
 }
