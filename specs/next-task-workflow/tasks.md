@@ -84,21 +84,21 @@
     - Update any dependent code
     - Run tests to verify no breakage
     - References: Requirements 3.4, 3.5
-- [ ] 5. Implement next task finding algorithm
+- [x] 5. Implement next task finding algorithm
   - Create internal/task/next.go file
   - Define TaskWithContext structure
   - Implement FindNextIncompleteTask function
   - Add depth-first traversal logic
   - Handle both pending and in-progress states as incomplete
   - References: Requirements 1.2, 1.3, 1.4, 1.5
-  - [ ] 5.1. Write comprehensive tests for next task finder
+  - [x] 5.1. Write comprehensive tests for next task finder
     - Test finding next task in flat list
     - Test finding next task in nested hierarchy
     - Test when all tasks are complete
     - Test mixed completion states
     - Test in-progress task handling
     - References: Requirements 1.2, 1.3, 1.4, 1.5, 1.8
-  - [ ] 5.2. Implement helper functions for next task
+  - [x] 5.2. Implement helper functions for next task
     - Implement hasIncompleteWork with depth protection
     - Implement filterIncompleteChildren function
     - Add cycle detection to prevent infinite loops
