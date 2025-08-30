@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Next task finding algorithm implementation for workflow support
+  - Created internal/task/next.go with FindNextIncompleteTask function
+  - TaskWithContext structure for tasks with their incomplete subtasks
+  - Depth-first traversal logic for finding first incomplete task
+  - Helper functions for filtering incomplete children and checking work status
+  - Comprehensive test suite with edge cases including depth protection
+  - Support for pending and in-progress states as incomplete work
 - Front matter parsing integration into task file processing
   - Updated ParseFile to set FilePath and handle front matter extraction
   - Modified parseContent to extract and process YAML front matter before task parsing
