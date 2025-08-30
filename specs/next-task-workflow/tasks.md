@@ -105,21 +105,21 @@
     - Return task with only incomplete subtasks
     - Handle edge cases and malformed hierarchies
     - References: Requirements 1.2, 1.5, 1.6
-- [ ] 6. Create next command in CLI
+- [x] 6. Create next command in CLI
   - Create cmd/next.go file
   - Define cobra.Command structure
   - Add command description and usage
   - Register command with root command
   - Implement basic command skeleton
   - References: Requirements 1.1, 1.7
-  - [ ] 6.1. Write unit tests for next command
+  - [x] 6.1. Write unit tests for next command
     - Test command registration
     - Test with explicit filename
     - Test without filename (git discovery)
     - Test output formats (table, markdown, JSON)
     - Test error handling scenarios
     - References: Requirements 1.7, 1.9, 2.8
-  - [ ] 6.2. Implement next command logic
+  - [x] 6.2. Implement next command logic
     - Implement runNext function
     - Add filename resolution with git discovery fallback
     - Call FindNextIncompleteTask from task package
