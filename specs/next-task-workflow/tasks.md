@@ -21,42 +21,42 @@
     - Add YAML unmarshalling with error handling
     - Implement configuration caching for performance
     - References: Requirements 6.1, 6.2, 6.3, 6.4
-- [ ] 2. Implement git branch discovery functionality
+- [x] 2. Implement git branch discovery functionality
   - Create internal/config/discovery.go file
   - Implement getCurrentBranch() using git command
   - Add branch sanitization for security
   - Implement template substitution logic
   - Add special git state detection
   - References: Requirements 2.1, 2.3, 2.4, 2.5, 2.9
-  - [ ] 2.1. Write unit tests for git discovery
+  - [x] 2.1. Write unit tests for git discovery
     - Test getCurrentBranch with mock git output
     - Test branch name sanitization
     - Test template substitution with {branch} placeholder
     - Test special git state handling (detached HEAD)
     - Test file existence validation
     - References: Requirements 2.3, 2.4, 2.5, 2.6, 2.9
-  - [ ] 2.2. Implement DiscoverFileFromBranch function
+  - [x] 2.2. Implement DiscoverFileFromBranch function
     - Execute git rev-parse command with timeout
     - Handle git command errors and timeouts
     - Replace {branch} placeholder in template
     - Validate file existence
     - Return appropriate errors for each failure case
     - References: Requirements 2.3, 2.4, 2.5, 2.6, 2.7
-- [ ] 3. Create front matter parsing infrastructure
+- [x] 3. Create front matter parsing infrastructure
   - Create internal/task/references.go file
   - Define FrontMatter struct with References and Metadata fields
   - Implement ParseFrontMatter function
   - Add YAML front matter delimiter detection
   - Implement path validation for security
   - References: Requirements 3.1, 3.2, 3.3, 3.7
-  - [ ] 3.1. Write unit tests for front matter parsing
+  - [x] 3.1. Write unit tests for front matter parsing
     - Test parsing valid YAML front matter
     - Test files without front matter
     - Test unclosed front matter blocks
     - Test invalid YAML syntax handling
     - Test path traversal detection
     - References: Requirements 3.2, 3.7, 3.8
-  - [ ] 3.2. Implement front matter serialization
+  - [x] 3.2. Implement front matter serialization
     - Implement SerializeWithFrontMatter function
     - Handle empty front matter gracefully
     - Preserve front matter formatting

@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Git branch discovery functionality for automated task file location
+  - New internal/config/discovery.go with DiscoverFileFromBranch function
+  - Git branch detection using rev-parse with timeout and error handling
+  - Template substitution for {branch} placeholder in file paths
+  - Branch name sanitization to prevent command injection vulnerabilities
+  - Special git state detection (detached HEAD, rebase/merge) with fallback handling
+  - Comprehensive unit tests with mock git command testing and integration tests
+- Front matter parsing infrastructure for task file metadata
+  - New internal/task/references.go with YAML front matter parsing capabilities
+  - FrontMatter struct supporting references and arbitrary metadata fields
+  - ParseFrontMatter function for extracting YAML from markdown files
+  - SerializeWithFrontMatter function for combining front matter with content
+  - Robust error handling for unclosed blocks and invalid YAML syntax
+  - Comprehensive test suite covering edge cases and validation scenarios
+- Code modernization improvements
+  - Updated interface{} usage to any type throughout codebase
+  - Applied Go modernization patterns for better language compatibility
 - Configuration management infrastructure
   - Complete internal/config package with YAML configuration loading
   - Support for .go-tasks.yml in current directory and ~/.config/go-tasks/config.yml
