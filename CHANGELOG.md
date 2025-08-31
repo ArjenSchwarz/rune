@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Auto-completion of parent tasks**: Automatically marks parent tasks as complete when all children are done
+  - Recursive parent checking up the task hierarchy
+  - Multi-level auto-completion support (e.g., completing grandparents when all descendants are done)
+  - Cycle detection for safety with maximum depth protection
+  - Integration with complete command to display auto-completed parent tasks
+  - Comprehensive test coverage for all auto-completion scenarios
+  - New internal/task/autocomplete.go with AutoCompleteParents functionality
 - **Next command implementation**: Complete next task workflow functionality
   - Finds first incomplete task using depth-first traversal algorithm  
   - Supports git-based file discovery when no filename is provided

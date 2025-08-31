@@ -102,9 +102,72 @@ func TestRunComplete(t *testing.T) {
 				if child.Status != task.Completed {
 					t.Fatalf("Expected child task to be completed, got status %v", child.Status)
 				}
-				// Parent should remain unchanged
-				if tl.Tasks[0].Status != task.Pending {
-					t.Fatalf("Expected parent task to remain pending, got status %v", tl.Tasks[0].Status)
+				// Parent should be auto-completed since all children are complete
+				if tl.Tasks[0].Status != task.Completed {
+					t.Fatalf("Expected parent task to be auto-completed, got status %v", tl.Tasks[0].Status)
+				}
+			},
+		},
+		"complete last subtask auto-completes parent": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				tl.AddTask("", "Parent task")
+				tl.AddTask("1", "Child task 1")
+				tl.AddTask("1", "Child task 2")
+				// Complete first child
+				tl.UpdateStatus("1.1", task.Completed)
+				return tl.WriteFile(filename)
+			},
+			taskID:      "1.2",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				// Both children should be completed
+				if tl.Tasks[0].Children[0].Status != task.Completed {
+					t.Fatalf("Expected first child to be completed, got status %v", tl.Tasks[0].Children[0].Status)
+				}
+				if tl.Tasks[0].Children[1].Status != task.Completed {
+					t.Fatalf("Expected second child to be completed, got status %v", tl.Tasks[0].Children[1].Status)
+				}
+				// Parent should be auto-completed
+				if tl.Tasks[0].Status != task.Completed {
+					t.Fatalf("Expected parent task to be auto-completed, got status %v", tl.Tasks[0].Status)
+				}
+			},
+		},
+		"multi-level auto-completion": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				tl.AddTask("", "Grandparent task")
+				tl.AddTask("1", "Parent task")
+				tl.AddTask("1.1", "Child task 1")
+				tl.AddTask("1.1", "Child task 2")
+				// Complete first child
+				tl.UpdateStatus("1.1.1", task.Completed)
+				return tl.WriteFile(filename)
+			},
+			taskID:      "1.1.2",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				// All tasks in the chain should be completed
+				grandchild := &tl.Tasks[0].Children[0].Children[1]
+				if grandchild.Status != task.Completed {
+					t.Fatalf("Expected grandchild to be completed, got status %v", grandchild.Status)
+				}
+				parent := &tl.Tasks[0].Children[0]
+				if parent.Status != task.Completed {
+					t.Fatalf("Expected parent to be auto-completed, got status %v", parent.Status)
+				}
+				grandparent := &tl.Tasks[0]
+				if grandparent.Status != task.Completed {
+					t.Fatalf("Expected grandparent to be auto-completed, got status %v", grandparent.Status)
 				}
 			},
 		},

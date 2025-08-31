@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ArjenSchwarz/go-tasks/internal/task"
 	"github.com/spf13/cobra"
@@ -63,6 +64,12 @@ func runComplete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to update task status: %w", err)
 	}
 
+	// Auto-complete parent tasks if all their children are now complete
+	autoCompleted, err := tl.AutoCompleteParents(taskID)
+	if err != nil {
+		return fmt.Errorf("failed to auto-complete parent tasks: %w", err)
+	}
+
 	// Write the updated file
 	if err := tl.WriteFile(filename); err != nil {
 		return fmt.Errorf("failed to write updated file: %w", err)
@@ -73,8 +80,14 @@ func runComplete(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Task ID: %s\n", taskID)
 		fmt.Printf("Title: %s\n", targetTask.Title)
 		fmt.Printf("Status: completed [x]\n")
+		if len(autoCompleted) > 0 {
+			fmt.Printf("Auto-completed parent tasks: %s\n", strings.Join(autoCompleted, ", "))
+		}
 	} else {
 		fmt.Printf("Completed task %s: %s\n", taskID, targetTask.Title)
+		if len(autoCompleted) > 0 {
+			fmt.Printf("Auto-completed parent tasks: %s\n", strings.Join(autoCompleted, ", "))
+		}
 	}
 
 	return nil
