@@ -210,63 +210,84 @@
     - Call DiscoverFileFromBranch if enabled
     - Return appropriate errors
     - References: Requirements 2.8, 5.8, 6.6
-- [ ] 11. Create end-to-end integration tests
+- [ ] 11. Enhance next command to include task details and task-level references
+  - Update next command to include task Details field content in output
+  - Update next command to include task-level References in addition to front matter references
+  - Modify output rendering to display both types of references distinctly
+  - Update all output formats (table, markdown, JSON) to include task details
+  - Ensure backward compatibility with tasks without details or references
+  - References: Requirements 1.10, 1.11, 5.3, 5.4, 5.5, 5.6
+  - [ ] 11.1. Write tests for task details and references in next command
+    - Test next command output includes task Details field content
+    - Test next command output includes task-level References
+    - Test output distinguishes between front matter and task-level references
+    - Test all output formats (table, markdown, JSON) include details
+    - Test backward compatibility with tasks without details/references
+    - References: Requirements 1.10, 1.11, 5.3, 5.4, 5.5, 5.6
+  - [ ] 11.2. Update next command implementation to include task details and task-level references
+    - Modify cmd/next.go to include task details in output rendering
+    - Update rendering functions to display task-level references separately from front matter references
+    - Ensure RenderTable includes details and both reference types
+    - Ensure RenderMarkdown includes details and both reference types  
+    - Ensure RenderJSON includes details and both reference types
+    - References: Requirements 1.10, 1.11, 5.3, 5.4, 5.5, 5.6
+- [ ] 12. Create end-to-end integration tests
   - Create comprehensive integration test file
   - Test complete workflow with git discovery
   - Test next command with various task states
   - Test auto-completion through multiple levels
   - Test reference inclusion in all output formats
   - References: Requirements 1.1-1.9, 2.1-2.9, 3.1-3.10, 4.1-4.7, 5.1-5.8
-  - [ ] 11.1. Write git integration tests
+  - [ ] 12.1. Write git integration tests
     - Set up test git repository
     - Test branch switching and file discovery
     - Test detached HEAD handling
     - Test rebasing state handling
     - Clean up test repository after tests
     - References: Requirements 2.3, 2.6, 2.9
-  - [ ] 11.2. Write configuration integration tests
+  - [ ] 12.2. Write configuration integration tests
     - Test config file precedence
     - Test environment variable overrides if supported
     - Test missing config file handling
     - Test invalid config error messages
     - Test discovery enable/disable behavior
     - References: Requirements 6.1, 6.2, 6.4, 6.5, 6.6
-- [ ] 12. Update existing commands to preserve front matter
+- [ ] 13. Update existing commands to preserve front matter
   - Audit all commands that modify task files
   - Update file writing to use SerializeWithFrontMatter
   - Ensure add, remove, update commands preserve front matter
   - Test that modifications don't lose references
   - Verify backward compatibility
   - References: Requirements 3.9, 5.7
-  - [ ] 12.1. Write tests for front matter preservation
+  - [ ] 13.1. Write tests for front matter preservation
     - Test add command preserves front matter
     - Test remove command preserves front matter
     - Test update command preserves front matter
     - Test complete command preserves front matter
     - Test batch operations preserve front matter
     - References: Requirements 3.9
-  - [ ] 12.2. Implement front matter preservation
+  - [ ] 13.2. Implement front matter preservation
     - Update WriteToFile method in TaskList
     - Use SerializeWithFrontMatter when saving
     - Ensure front matter is never lost during operations
     - Test with various modification scenarios
     - Verify file integrity after operations
     - References: Requirements 3.9
-- [ ] 13. Documentation and final testing
+- [ ] 14. Documentation and final testing
   - Update README with new commands
   - Document configuration file format
   - Add examples for all new features
   - Run full test suite
   - Perform manual testing of all workflows
   - References: Requirements 1.1, 2.1, 3.1, 4.1, 6.1
-  - [ ] 13.1. Create user documentation
+  - [ ] 14.1. Create user documentation
     - Document next command usage
     - Document configuration file setup
     - Document front matter format
     - Add troubleshooting section
     - Include migration guide if needed
     - References: Requirements 1.1, 6.3
-  - [ ] 13.2. Final integration testing
+  - [ ] 14.2. Final integration testing
     - Run all unit tests
     - Run all integration tests
     - Test on different platforms if applicable
