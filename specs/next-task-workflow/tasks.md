@@ -48,7 +48,7 @@ references:
     - Validate file existence
     - Return appropriate errors for each failure case
     - References: Requirements 2.3, 2.4, 2.5, 2.6, 2.7
-- [x] 3. Create front matter parsing infrastructure
+- [x] 3. Updated task title
   - Create internal/task/references.go file
   - Define FrontMatter struct with References and Metadata fields
   - Implement ParseFrontMatter function
@@ -258,21 +258,21 @@ references:
     - Test invalid config error messages
     - Test discovery enable/disable behavior
     - References: Requirements 6.1, 6.2, 6.4, 6.5, 6.6
-- [ ] 13. Update existing commands to preserve front matter
+- [x] 13. Update existing commands to preserve front matter
   - Audit all commands that modify task files
   - Update file writing to use SerializeWithFrontMatter
   - Ensure add, remove, update commands preserve front matter
   - Test that modifications don't lose references
   - Verify backward compatibility
   - References: Requirements 3.9, 5.7
-  - [ ] 13.1. Write tests for front matter preservation
+  - [x] 13.1. Write tests for front matter preservation
     - Test add command preserves front matter
     - Test remove command preserves front matter
     - Test update command preserves front matter
     - Test complete command preserves front matter
     - Test batch operations preserve front matter
     - References: Requirements 3.9
-  - [ ] 13.2. Implement front matter preservation
+  - [x] 13.2. Implement front matter preservation
     - Update WriteToFile method in TaskList
     - Use SerializeWithFrontMatter when saving
     - Ensure front matter is never lost during operations
@@ -300,3 +300,6 @@ references:
     - Verify backward compatibility
     - Check for any regressions
     - References: Requirements 5.7, 5.8
+- [ ] 15. New CLI test task
+  - [ ] 15.1. Subtask test
+- [ ] 16. New task without front matter
