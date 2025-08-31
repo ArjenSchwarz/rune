@@ -70,7 +70,7 @@ func runList(cmd *cobra.Command, args []string) error {
 	case formatMarkdown:
 		return outputMarkdown(taskList)
 	default:
-		return outputTable(taskList.Title, taskData)
+		return outputTable(taskList, taskData)
 	}
 }
 
@@ -179,17 +179,29 @@ func countAllTasks(tasks []task.Task) int {
 	return count
 }
 
-func outputTable(title string, taskData []map[string]any) error {
+func outputTable(taskList *task.TaskList, taskData []map[string]any) error {
 	// Build table keys based on what we want to show
 	keys := []string{"ID", "Title", "Status", "Level"}
 	if showAll {
 		keys = append(keys, "Details", "References")
 	}
 
-	// Create document using go-output/v2
-	doc := output.New().
-		Table(fmt.Sprintf("Tasks: %s", title), taskData, output.WithKeys(keys...)).
-		Build()
+	// Create document builder
+	docBuilder := output.New().
+		Table(fmt.Sprintf("Tasks: %s", taskList.Title), taskData, output.WithKeys(keys...))
+
+	// Add TaskList references section if present
+	if taskList.FrontMatter != nil && len(taskList.FrontMatter.References) > 0 {
+		referencesData := make([]map[string]any, len(taskList.FrontMatter.References))
+		for i, ref := range taskList.FrontMatter.References {
+			referencesData[i] = map[string]any{
+				"Reference": ref,
+			}
+		}
+		docBuilder = docBuilder.Table("References", referencesData, output.WithKeys("Reference"))
+	}
+
+	doc := docBuilder.Build()
 
 	// Configure output format
 	var outputFormat output.Format

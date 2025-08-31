@@ -7,6 +7,7 @@ import (
 )
 
 // RenderMarkdown converts a TaskList to markdown format with consistent formatting
+// Preserves frontmatter structure as per design decision #11
 func RenderMarkdown(tl *TaskList) []byte {
 	var buf strings.Builder
 
@@ -22,7 +23,9 @@ func RenderMarkdown(tl *TaskList) []byte {
 		renderTask(&buf, &task, 0)
 	}
 
-	return []byte(buf.String())
+	// Use SerializeWithFrontMatter to preserve frontmatter structure
+	content := buf.String()
+	return []byte(SerializeWithFrontMatter(tl.FrontMatter, content))
 }
 
 // renderTask recursively renders a task and its children with proper indentation
@@ -54,4 +57,12 @@ func renderTask(buf *strings.Builder, task *Task, depth int) {
 // RenderJSON converts a TaskList to indented JSON format
 func RenderJSON(tl *TaskList) ([]byte, error) {
 	return json.MarshalIndent(tl, "", "  ")
+}
+
+// FormatTaskListReferences formats TaskList-level references for display in table output
+func FormatTaskListReferences(refs []string) string {
+	if len(refs) == 0 {
+		return ""
+	}
+	return strings.Join(refs, ", ")
 }
