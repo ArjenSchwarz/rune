@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Front matter preservation tests for task file operations
+
 ### Enhanced
 - **Next command output formatting**: Complete implementation of task details and references in next command output
   - Added task details and task-level references to JSON, markdown, and table output formats
