@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Auto-completion functionality for batch operations that automatically completes parent tasks when all children are completed
+  - Tracking and reporting of auto-completed tasks in batch operation responses  
+  - Visual feedback for auto-completed tasks in batch command output with 🎯 emoji indicators
+  - Integration with existing auto-completion infrastructure from complete command
+  - Comprehensive test suite covering complex hierarchy scenarios and error handling
 - **Auto-completion of parent tasks**: Automatically marks parent tasks as complete when all children are done
   - Recursive parent checking up the task hierarchy
   - Multi-level auto-completion support (e.g., completing grandparents when all descendants are done)
@@ -24,9 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - cmd/next.go and cmd/next_test.go implementing next task workflow requirements
 
 ### Changed
+- Enhanced `BatchResponse` struct to include `AutoCompleted` field for tracking auto-completed parent tasks
+- Updated batch operation execution to call auto-completion after status updates
+- Improved deep copy functionality in batch operations to preserve front matter metadata
 - **Code quality improvements**: Replace magic strings with constants in list command format switch
 
 ### Fixed
+- Static analysis issues: extracted string constant for `update_status` operations and replaced manual loop with `copy()` function
 - **Linting issues**: Use formatJSON and formatMarkdown constants instead of string literals in cmd/list.go
 
 ### Added

@@ -140,6 +140,15 @@ func outputBatchText(cmd *cobra.Command, response *task.BatchResponse, isDryRun 
 
 	if isDryRun {
 		fmt.Fprintf(out, "✅ Dry run successful - %d operations validated\n", response.Applied)
+
+		// Show auto-completed tasks if any
+		if len(response.AutoCompleted) > 0 {
+			fmt.Fprintf(out, "\n🎯 Auto-completed parent tasks:\n")
+			for _, taskID := range response.AutoCompleted {
+				fmt.Fprintf(out, "  - Task %s\n", taskID)
+			}
+		}
+
 		fmt.Fprintf(out, "\nPreview of changes:\n")
 		fmt.Fprintf(out, "---\n")
 		fmt.Fprint(out, response.Preview)
@@ -147,6 +156,14 @@ func outputBatchText(cmd *cobra.Command, response *task.BatchResponse, isDryRun 
 		fmt.Fprintf(out, "\nUse --dry-run=false to apply these changes.\n")
 	} else {
 		fmt.Fprintf(out, "✅ Batch operation successful - %d operations applied\n", response.Applied)
+
+		// Show auto-completed tasks if any
+		if len(response.AutoCompleted) > 0 {
+			fmt.Fprintf(out, "\n🎯 Auto-completed parent tasks:\n")
+			for _, taskID := range response.AutoCompleted {
+				fmt.Fprintf(out, "  - Task %s\n", taskID)
+			}
+		}
 
 		// Save the updated file
 		if err := taskList.WriteFile(filename); err != nil {
