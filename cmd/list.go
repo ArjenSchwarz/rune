@@ -14,13 +14,17 @@ var listCmd = &cobra.Command{
 	Short: "List tasks from a file",
 	Long: `List all tasks from the specified task file in various output formats.
 
+If no filename is provided and git discovery is enabled in configuration, the file
+will be automatically discovered based on the current git branch using the configured
+template pattern.
+
 Supports multiple output formats:
 - table: Human-readable table format (default)
 - json: Structured JSON data
 - markdown: Markdown format
 
 The output includes task IDs, titles, statuses, and hierarchy information.`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runList,
 }
 
@@ -37,7 +41,15 @@ func init() {
 }
 
 func runList(cmd *cobra.Command, args []string) error {
-	filename := args[0]
+	// Resolve filename using git discovery if needed
+	filename, err := resolveFilename(args)
+	if err != nil {
+		return err
+	}
+
+	if verbose {
+		fmt.Printf("Using task file: %s\n", filename)
+	}
 
 	// Parse the task file
 	taskList, err := task.ParseFile(filename)
@@ -46,13 +58,12 @@ func runList(cmd *cobra.Command, args []string) error {
 	}
 
 	if verbose {
-		fmt.Printf("Loaded task file: %s\n", filename)
 		fmt.Printf("Title: %s\n", taskList.Title)
 		fmt.Printf("Total tasks: %d\n", countAllTasks(taskList.Tasks))
 	}
 
 	// Convert tasks to a flat structure for display
-	taskData := flattenTasks(taskList.Tasks, "", listFilter)
+	taskData := flattenTasks(taskList.Tasks, listFilter)
 
 	if len(taskData) == 0 {
 		if listFilter != "" {
@@ -75,7 +86,7 @@ func runList(cmd *cobra.Command, args []string) error {
 }
 
 // flattenTasks converts hierarchical tasks to a flat structure for table display
-func flattenTasks(tasks []task.Task, parentPath string, statusFilter string) []map[string]any {
+func flattenTasks(tasks []task.Task, statusFilter string) []map[string]any {
 	var result []map[string]any
 
 	for _, t := range tasks {
@@ -105,7 +116,7 @@ func flattenTasks(tasks []task.Task, parentPath string, statusFilter string) []m
 		result = append(result, taskRecord)
 
 		// Recursively add children
-		children := flattenTasks(t.Children, t.ID, statusFilter)
+		children := flattenTasks(t.Children, statusFilter)
 		result = append(result, children...)
 	}
 

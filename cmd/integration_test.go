@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/ArjenSchwarz/go-tasks/internal/task"
@@ -42,6 +44,11 @@ func TestIntegrationWorkflows(t *testing.T) {
 			name:        "Error Handling and Recovery",
 			description: "Test error scenarios and recovery",
 			workflow:    testErrorHandlingRecovery,
+		},
+		"git_discovery_integration": {
+			name:        "Git Discovery Integration",
+			description: "Test git branch discovery with various commands",
+			workflow:    testGitDiscoveryIntegration,
 		},
 	}
 
@@ -734,4 +741,169 @@ func TestLargeFileHandling(t *testing.T) {
 	}
 
 	t.Logf("Large file handling test passed successfully (160 tasks processed)")
+}
+
+func testGitDiscoveryIntegration(t *testing.T, tempDir string) {
+	// Initialize git repository
+	runCommand(t, "git", "init")
+	runCommand(t, "git", "config", "user.email", "test@example.com")
+	runCommand(t, "git", "config", "user.name", "Test User")
+
+	// Create test directory structure
+	if err := os.MkdirAll("specs/test-feature", 0755); err != nil {
+		t.Fatalf("failed to create test directory: %v", err)
+	}
+
+	// Create config file enabling git discovery
+	configContent := `discovery:
+  enabled: true
+  template: "specs/{branch}/tasks.md"
+`
+	if err := os.WriteFile(".go-tasks.yml", []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to create config file: %v", err)
+	}
+
+	// Create test branch and switch to it
+	runCommand(t, "git", "checkout", "-b", "feature/test-feature")
+
+	// Create tasks file in the expected location
+	taskContent := `---
+references:
+  - ./docs/feature-spec.md
+  - ./tests/test-plan.md
+---
+# Test Feature Tasks
+
+- [ ] 1. Setup development environment
+  - [x] 1.1. Install dependencies  
+  - [ ] 1.2. Configure database
+- [ ] 2. Implement core functionality
+  - [ ] 2.1. Design API
+  - [ ] 2.2. Write tests
+`
+	taskFile := "specs/feature/test-feature/tasks.md"
+	if err := os.MkdirAll("specs/feature/test-feature", 0755); err != nil {
+		t.Fatalf("failed to create task directory: %v", err)
+	}
+	if err := os.WriteFile(taskFile, []byte(taskContent), 0644); err != nil {
+		t.Fatalf("failed to create task file: %v", err)
+	}
+
+	// Test 1: List command with git discovery
+	t.Run("list_with_git_discovery", func(t *testing.T) {
+		output := runGoCommand(t, "list", "-f", "json")
+		if !containsString(output, "Setup development environment") {
+			t.Errorf("expected task content in output, got: %s", output)
+		}
+		if !containsString(output, "references") && !containsString(output, "feature-spec.md") {
+			t.Errorf("expected references in output, got: %s", output)
+		}
+	})
+
+	// Test 2: Next command with git discovery
+	t.Run("next_with_git_discovery", func(t *testing.T) {
+		output := runGoCommand(t, "next", "-f", "table")
+		if !containsString(output, "1") || !containsString(output, "Setup development environment") {
+			t.Errorf("expected next task in output, got: %s", output)
+		}
+		if !containsString(output, "Reference Documents") {
+			t.Errorf("expected references section in output, got: %s", output)
+		}
+	})
+
+	// Test 3: Complete command with git discovery (single argument)
+	t.Run("complete_with_git_discovery", func(t *testing.T) {
+		runGoCommand(t, "complete", "1.2")
+
+		// Verify the task was completed
+		output := runGoCommand(t, "list", "-f", "json")
+		if !containsString(output, `"id":"1.2"`) || !containsString(output, `"status":"Completed"`) {
+			t.Errorf("task 1.2 should be completed, got: %s", output)
+		}
+	})
+
+	// Test 4: Find command with git discovery
+	t.Run("find_with_git_discovery", func(t *testing.T) {
+		output := runGoCommand(t, "find", "-p", "API", "-f", "table")
+		if !containsString(output, "2.1") || !containsString(output, "Design API") {
+			t.Errorf("expected to find API task, got: %s", output)
+		}
+	})
+
+	// Test 5: Add task with git discovery
+	t.Run("add_with_git_discovery", func(t *testing.T) {
+		runGoCommand(t, "add", "--title", "Write documentation", "--parent", "2")
+
+		// Verify the task was added
+		output := runGoCommand(t, "list", "-f", "json")
+		if !containsString(output, "Write documentation") {
+			t.Errorf("expected to find added task, got: %s", output)
+		}
+	})
+
+	// Test 6: Error when git discovery fails (wrong branch)
+	t.Run("git_discovery_error", func(t *testing.T) {
+		// Switch to a branch without corresponding task file
+		runCommand(t, "git", "checkout", "-b", "nonexistent-branch")
+
+		output := runGoCommandWithError(t, "list")
+		if !containsString(output, "branch-based file not found") && !containsString(output, "git discovery failed") {
+			t.Errorf("expected git discovery error, got: %s", output)
+		}
+	})
+
+	// Test 7: Explicit file overrides git discovery
+	t.Run("explicit_file_overrides_discovery", func(t *testing.T) {
+		// Create a different task file
+		explicitContent := `# Explicit Tasks
+- [ ] 1. Explicit task`
+		explicitFile := "explicit-tasks.md"
+		if err := os.WriteFile(explicitFile, []byte(explicitContent), 0644); err != nil {
+			t.Fatalf("failed to create explicit task file: %v", err)
+		}
+
+		output := runGoCommand(t, "list", explicitFile, "-f", "json")
+		if !containsString(output, "Explicit task") {
+			t.Errorf("expected explicit task content, got: %s", output)
+		}
+		if containsString(output, "Setup development environment") {
+			t.Errorf("should not contain git-discovered content, got: %s", output)
+		}
+	})
+
+	t.Logf("Git discovery integration test completed successfully")
+}
+
+// Helper functions for the integration tests
+
+func runCommand(t *testing.T, name string, args ...string) {
+	cmd := exec.Command(name, args...)
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("command %s %v failed: %v", name, args, err)
+	}
+}
+
+func runCommandWithOutput(t *testing.T, name string, args ...string) string {
+	cmd := exec.Command(name, args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("command %s %v failed: %v, output: %s", name, args, err, output)
+	}
+	return string(output)
+}
+
+func runGoCommand(t *testing.T, args ...string) string {
+	cmdArgs := append([]string{"run", "../main.go"}, args...)
+	return runCommandWithOutput(t, "go", cmdArgs...)
+}
+
+func runGoCommandWithError(_ *testing.T, args ...string) string {
+	cmdArgs := append([]string{"run", "../main.go"}, args...)
+	cmd := exec.Command("go", cmdArgs...)
+	output, _ := cmd.CombinedOutput()
+	return string(output)
+}
+
+func containsString(haystack, needle string) bool {
+	return strings.Contains(haystack, needle)
 }

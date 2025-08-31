@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Git discovery integration with all commands**: Complete integration of git branch-based file discovery
+  - Updated all commands (add, complete, find, list, progress, remove, uncomplete, update) to support optional filenames
+  - Automatic filename resolution using git discovery when no explicit file is provided
+  - New shared filename resolution helper across commands for consistent behavior
+  - Enhanced command argument patterns to support both traditional and git-discovery modes
+- **Comprehensive integration tests for git discovery**: End-to-end testing of git discovery workflow
+  - Git repository setup and branch-based file discovery testing
+  - Integration tests covering list, next, complete, find, and add commands with git discovery
+  - Error handling tests for missing files and invalid branch states
+  - Explicit file override testing to ensure precedence works correctly
+
+### Changed
+- **Configuration defaults updated**: Git discovery now enabled by default for better user experience
+  - Default configuration sets Discovery.Enabled to true
+  - Default template uses "{branch}/tasks.md" pattern for simpler branch-based workflows
+  - Updated tests and specifications to match enabled-by-default behavior
+
+### Fixed
+- **Configuration test alignment**: Fixed test expectations to match new default configuration
+  - Updated TestLoadConfig and TestDefaultConfig to expect discovery enabled by default
+  - Aligned specification documentation with actual implementation behavior
+
+### Added
 - **Reference rendering support**: Enhanced output formats to include FrontMatter references
   - Added references section to table output format with dedicated references table
   - Preserved FrontMatter structure in markdown rendering using SerializeWithFrontMatter

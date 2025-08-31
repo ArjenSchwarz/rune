@@ -40,7 +40,7 @@ discovery:
 				return ""
 			},
 			cleanup:     func(string) {},
-			wantEnabled: false,
+			wantEnabled: true,
 		},
 	}
 
@@ -155,11 +155,11 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("defaultConfig returned nil")
 	}
-	if cfg.Discovery.Enabled {
-		t.Error("default config should have Discovery.Enabled = false")
+	if !cfg.Discovery.Enabled {
+		t.Error("default config should have Discovery.Enabled = true")
 	}
-	if cfg.Discovery.Template != "specs/{branch}/tasks.md" {
-		t.Errorf("Discovery.Template = %q, want %q", cfg.Discovery.Template, "specs/{branch}/tasks.md")
+	if cfg.Discovery.Template != "{branch}/tasks.md" {
+		t.Errorf("Discovery.Template = %q, want %q", cfg.Discovery.Template, "{branch}/tasks.md")
 	}
 }
 
