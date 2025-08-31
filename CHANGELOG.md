@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Enhanced next command specification to include task details and task-level references in output
+  - New requirement 1.10 for including task details (multi-line descriptions or notes) in output
+  - New requirement 1.11 for including task-level references in addition to front matter references
+  - New task 11 "Enhance next command to include task details and task-level references" with subtasks for testing and implementation
+
+### Changed
+- Updated requirement 1.6 to specify returning task details and task-level references
+- Updated requirements 5.3-5.6 to include both task details and reference types in all output formats
+- Updated design document examples to show tasks with details and references
+- Updated TaskWithContext structure documentation to clarify included fields
+- Renumbered tasks 11-13 to 12-14 to accommodate new task 11
+
+### Added
 - **Git discovery integration with all commands**: Complete integration of git branch-based file discovery
   - Updated all commands (add, complete, find, list, progress, remove, uncomplete, update) to support optional filenames
   - Automatic filename resolution using git discovery when no explicit file is provided

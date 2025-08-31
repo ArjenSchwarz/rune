@@ -127,8 +127,8 @@ func runNext(cmd *cobra.Command, args []string) error {
         return nil
     }
     
-    // Render output with references
-    return renderTaskWithReferences(nextTask, taskList.References)
+    // Render output with references and task details
+    return renderTaskWithDetailsAndReferences(nextTask, taskList.FrontMatter)
 }
 ```
 
@@ -321,6 +321,8 @@ func filterIncompleteChildren(children []Task) []Task {
 type TaskWithContext struct {
     *Task
     IncompleteChildren []Task // Only incomplete subtasks for focused work
+    // Task inherits Details []string and References []string fields
+    // which should be included in all output formats
 }
 ```
 
@@ -519,9 +521,11 @@ type GitDiscovery struct {
 
 ```go
 type NextTaskResult struct {
-    Task       *Task
-    Children   []Task
-    References []string
+    Task              *Task       // Complete task with all details
+    Children          []Task      // Incomplete subtasks with their details
+    FrontMatterRefs   []string    // References from file front matter
+    // Note: Task-level references are included in Task.References field
+    // Task details are included in Task.Details field
 }
 ```
 
@@ -699,13 +703,24 @@ metadata:
 # Test Task File
 
 - [ ] 1. Setup environment
+  This task involves setting up the complete development environment
+  including all necessary tools and configurations.
+  References: ./setup-guide.md, ./environment.yml
   - [x] 1.1. Install dependencies
   - [ ] 1.2. Configure database
+    Set up PostgreSQL database with proper schemas and migrations.
+    Make sure to configure connection pooling for optimal performance.
+    References: ./db/schema.sql, ./db/migrations/
     - [ ] 1.2.1. Create schema
+      Execute the initial database schema creation scripts.
     - [ ] 1.2.2. Load test data
+      Populate database with realistic test data for development.
 - [-] 2. Implement features
+  Core application features implementation phase.
   - [x] 2.1. User authentication
   - [ ] 2.2. API endpoints
+    Implement REST API endpoints following OpenAPI specification.
+    References: ./api/openapi.yml
 ```
 
 ### Benchmark Tests

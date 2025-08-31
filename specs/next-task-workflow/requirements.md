@@ -16,10 +16,12 @@ The next-task-workflow feature enhances the go-tasks CLI tool to better support 
 1.3. The system SHALL traverse the task hierarchy in depth-first order to find the first incomplete task
 1.4. The system SHALL treat both "pending" `[ ]` and "in-progress" `[-]` states as incomplete
 1.5. The system SHALL consider a task complete only when both the task itself AND all its subtasks are marked as completed `[x]`
-1.6. The system SHALL return the found task and all its subtasks (regardless of their completion status) when an incomplete task is found
+1.6. The system SHALL return the found task and all its subtasks (regardless of their completion status) when an incomplete task is found, including all task details and task-level references
 1.7. The system SHALL support an optional filename parameter for specifying the task file
 1.8. The system SHALL return a message indicating all tasks are complete when no incomplete tasks are found
 1.9. The system SHALL preserve the existing output format options (table, markdown, JSON)
+1.10. The system SHALL include task details (multi-line descriptions or notes) in the output when present
+1.11. The system SHALL include task-level references (references specific to individual tasks) in addition to front matter references
 
 ### 2. Git Branch-Based File Discovery
 
@@ -72,10 +74,10 @@ The next-task-workflow feature enhances the go-tasks CLI tool to better support 
 **Acceptance Criteria:**
 5.1. The system SHALL include reference document paths when using the "list" command
 5.2. The system SHALL include reference document paths when using the "show" command  
-5.3. The system SHALL include reference document paths when using the new "next" command
-5.4. The system SHALL include reference document paths in JSON output as an array of path strings
-5.5. The system SHALL include reference paths in table output as an additional section
-5.6. The system SHALL include reference paths in markdown output under a "References" heading
+5.3. The system SHALL include both front matter reference document paths and task-level references when using the new "next" command, along with all task details
+5.4. The system SHALL include reference document paths and task details in JSON output with appropriate structure
+5.5. The system SHALL include reference paths and task details in table output as additional sections
+5.6. The system SHALL include reference paths and task details in markdown output under appropriate headings
 5.7. The system SHALL maintain backward compatibility by gracefully handling task files without reference sections
 5.8. The system SHALL apply git branch-based file discovery to all commands that accept a filename parameter when no file is specified
 
@@ -108,8 +110,14 @@ metadata:
 # Project Tasks
 
 - [ ] 1. Setup development environment
+  This involves setting up the complete development stack
+  including Docker containers and environment variables.
+  References: ./setup-guide.md, ./docker-compose.yml
   - [x] 1.1. Install dependencies
   - [ ] 1.2. Configure database
+    Create database schema and initial migrations.
+    Make sure to use the latest PostgreSQL version.
+    References: ./db/migrations/
 - [x] 2. Implement authentication
 - [ ] 3. Build API endpoints
   - [ ] 3.1. User endpoints
