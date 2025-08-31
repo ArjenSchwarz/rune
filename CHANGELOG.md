@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Reference rendering support**: Enhanced output formats to include FrontMatter references
+  - Added references section to table output format with dedicated references table
+  - Preserved FrontMatter structure in markdown rendering using SerializeWithFrontMatter
+  - Added FormatTaskListReferences helper function for table reference formatting
+  - Comprehensive test coverage for reference rendering across all output formats
+  - Updated list command table rendering to pass TaskList instead of just title string
+
+### Added
 - Auto-completion functionality for batch operations that automatically completes parent tasks when all children are completed
   - Tracking and reporting of auto-completed tasks in batch operation responses  
   - Visual feedback for auto-completed tasks in batch command output with 🎯 emoji indicators

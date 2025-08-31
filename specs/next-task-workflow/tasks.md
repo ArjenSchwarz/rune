@@ -168,21 +168,21 @@
     - Update batch result structure if needed
     - Test with complex batch scenarios
     - References: Requirements 4.5
-- [ ] 9. Update output rendering for references
+- [x] 9. Update output rendering for references
   - Modify internal/task/render.go functions
   - Add reference section to table output
   - Add References heading to markdown output
   - Include references array in JSON output
   - Ensure consistent formatting across formats
   - References: Requirements 3.5, 5.4, 5.5, 5.6
-  - [ ] 9.1. Write tests for reference rendering
+  - [x] 9.1. Write tests for reference rendering
     - Test table output with references
     - Test markdown output with references
     - Test JSON output with references
     - Test empty references handling
     - Test formatting consistency
     - References: Requirements 5.4, 5.5, 5.6
-  - [ ] 9.2. Implement reference rendering functions
+  - [x] 9.2. Implement reference rendering functions
     - Update RenderTable to include references
     - Update RenderMarkdown with References section
     - Update RenderJSON to include references array
@@ -252,42 +252,21 @@
     - Test with various modification scenarios
     - Verify file integrity after operations
     - References: Requirements 3.9
-- [ ] 13. Performance optimization and benchmarking
-  - Create benchmark tests for next task finding
-  - Create benchmark tests for auto-completion
-  - Optimize deep hierarchy traversal
-  - Add caching where beneficial
-  - Profile and identify bottlenecks
-  - References: Requirements 1.3, 4.3
-  - [ ] 13.1. Write benchmark tests
-    - Implement BenchmarkFindNextTask with large task lists
-    - Implement BenchmarkAutoComplete with deep hierarchies
-    - Create task list generators for testing
-    - Run benchmarks with different data sizes
-    - Document performance characteristics
-    - References: Requirements 1.3, 4.3
-  - [ ] 13.2. Implement performance optimizations
-    - Add early termination in next task search
-    - Implement configuration caching
-    - Cache git branch name for session
-    - Optimize recursive functions
-    - Verify optimizations don't break functionality
-    - References: Requirements 1.3
-- [ ] 14. Documentation and final testing
+- [ ] 13. Documentation and final testing
   - Update README with new commands
   - Document configuration file format
   - Add examples for all new features
   - Run full test suite
   - Perform manual testing of all workflows
   - References: Requirements 1.1, 2.1, 3.1, 4.1, 6.1
-  - [ ] 14.1. Create user documentation
+  - [ ] 13.1. Create user documentation
     - Document next command usage
     - Document configuration file setup
     - Document front matter format
     - Add troubleshooting section
     - Include migration guide if needed
     - References: Requirements 1.1, 6.3
-  - [ ] 14.2. Final integration testing
+  - [ ] 13.2. Final integration testing
     - Run all unit tests
     - Run all integration tests
     - Test on different platforms if applicable

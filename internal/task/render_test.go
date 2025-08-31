@@ -387,6 +387,170 @@ func TestRenderJSON(t *testing.T) {
 	}
 }
 
+func TestRenderTaskListReferences(t *testing.T) {
+	// Test rendering of TaskList-level references from FrontMatter
+	tests := map[string]struct {
+		input              *TaskList
+		wantMarkdownSuffix string
+		wantJSONReferences []string
+	}{
+		"no_references": {
+			input: &TaskList{
+				Title: "No References",
+				Tasks: []Task{
+					{ID: "1", Title: "Simple task", Status: Pending},
+				},
+				FrontMatter: &FrontMatter{},
+			},
+			wantMarkdownSuffix: "",
+			wantJSONReferences: nil,
+		},
+		"single_reference": {
+			input: &TaskList{
+				Title: "Single Reference",
+				Tasks: []Task{
+					{ID: "1", Title: "Simple task", Status: Pending},
+				},
+				FrontMatter: &FrontMatter{
+					References: []string{"./docs/guide.md"},
+				},
+			},
+			wantMarkdownSuffix: "", // Will be checked differently since frontmatter is at the beginning
+			wantJSONReferences: []string{"./docs/guide.md"},
+		},
+		"multiple_references": {
+			input: &TaskList{
+				Title: "Multiple References",
+				Tasks: []Task{
+					{ID: "1", Title: "Simple task", Status: Pending},
+				},
+				FrontMatter: &FrontMatter{
+					References: []string{"./docs/requirements.md", "./docs/design.md", "./specs/api.yaml"},
+				},
+			},
+			wantMarkdownSuffix: "", // Will be checked differently since frontmatter is at the beginning
+			wantJSONReferences: []string{"./docs/requirements.md", "./docs/design.md", "./specs/api.yaml"},
+		},
+		"nil_frontmatter": {
+			input: &TaskList{
+				Title: "Nil FrontMatter",
+				Tasks: []Task{
+					{ID: "1", Title: "Simple task", Status: Pending},
+				},
+				FrontMatter: nil,
+			},
+			wantMarkdownSuffix: "",
+			wantJSONReferences: nil,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Test Markdown rendering
+			got := string(RenderMarkdown(tc.input))
+
+			// Check for proper frontmatter handling
+			if tc.input.FrontMatter != nil && len(tc.input.FrontMatter.References) > 0 {
+				// Should start with frontmatter
+				if !strings.HasPrefix(got, "---\n") {
+					t.Errorf("Markdown with references should start with frontmatter delimiter")
+				}
+				// Should contain references in YAML format
+				for _, ref := range tc.input.FrontMatter.References {
+					if !strings.Contains(got, ref) {
+						t.Errorf("Markdown should contain reference %q", ref)
+					}
+				}
+				// Should not contain markdown references section
+				if strings.Contains(got, "## References") {
+					t.Errorf("Markdown should not contain References section when using frontmatter")
+				}
+			} else {
+				// Should not contain frontmatter when no references
+				if strings.HasPrefix(got, "---\n") {
+					t.Errorf("Markdown should not start with frontmatter when no references present")
+				}
+			}
+
+			// Test JSON rendering
+			jsonBytes, err := RenderJSON(tc.input)
+			if err != nil {
+				t.Fatalf("RenderJSON() error: %v", err)
+			}
+
+			var parsed TaskList
+			if err := json.Unmarshal(jsonBytes, &parsed); err != nil {
+				t.Fatalf("Failed to unmarshal JSON: %v", err)
+			}
+
+			// Check FrontMatter references in JSON
+			if tc.wantJSONReferences == nil {
+				if parsed.FrontMatter != nil && len(parsed.FrontMatter.References) > 0 {
+					t.Errorf("JSON should not contain references when none expected, got: %v", parsed.FrontMatter.References)
+				}
+			} else {
+				if parsed.FrontMatter == nil {
+					t.Errorf("JSON should contain FrontMatter with references")
+				} else if len(parsed.FrontMatter.References) != len(tc.wantJSONReferences) {
+					t.Errorf("JSON references count mismatch: got %d, want %d", len(parsed.FrontMatter.References), len(tc.wantJSONReferences))
+				} else {
+					for i, ref := range tc.wantJSONReferences {
+						if parsed.FrontMatter.References[i] != ref {
+							t.Errorf("JSON reference[%d] mismatch: got %q, want %q", i, parsed.FrontMatter.References[i], ref)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestRenderTableReferences(t *testing.T) {
+	// Test that table rendering includes references section when FrontMatter has references
+	// Note: This tests the data preparation, actual table output is handled by go-output/v2
+	tests := map[string]struct {
+		input              *TaskList
+		expectReferencesIn string
+	}{
+		"with_references": {
+			input: &TaskList{
+				Title: "Test with References",
+				Tasks: []Task{
+					{ID: "1", Title: "Test task", Status: Pending},
+				},
+				FrontMatter: &FrontMatter{
+					References: []string{"./docs/guide.md", "./specs/api.yaml"},
+				},
+			},
+			expectReferencesIn: "./docs/guide.md, ./specs/api.yaml",
+		},
+		"without_references": {
+			input: &TaskList{
+				Title: "Test without References",
+				Tasks: []Task{
+					{ID: "1", Title: "Test task", Status: Pending},
+				},
+				FrontMatter: &FrontMatter{},
+			},
+			expectReferencesIn: "",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// This test verifies the helper functions used in table rendering
+			// The actual table output is handled by the go-output/v2 library
+
+			if tc.input.FrontMatter != nil && len(tc.input.FrontMatter.References) > 0 {
+				refs := FormatTaskListReferences(tc.input.FrontMatter.References)
+				if refs != tc.expectReferencesIn {
+					t.Errorf("FormatTaskListReferences() = %q, want %q", refs, tc.expectReferencesIn)
+				}
+			}
+		})
+	}
+}
+
 func TestRenderEmptyTaskList(t *testing.T) {
 	// Test handling of nil/empty task lists
 	tests := map[string]*TaskList{
