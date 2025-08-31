@@ -279,27 +279,25 @@ references:
     - Test with various modification scenarios
     - Verify file integrity after operations
     - References: Requirements 3.9
-- [ ] 14. Documentation and final testing
+- [x] 14. Documentation and final testing
   - Update README with new commands
   - Document configuration file format
   - Add examples for all new features
   - Run full test suite
   - Perform manual testing of all workflows
   - References: Requirements 1.1, 2.1, 3.1, 4.1, 6.1
-  - [ ] 14.1. Create user documentation
+  - [x] 14.1. Create user documentation
     - Document next command usage
     - Document configuration file setup
     - Document front matter format
     - Add troubleshooting section
     - Include migration guide if needed
     - References: Requirements 1.1, 6.3
-  - [ ] 14.2. Final integration testing
+  - [x] 14.2. Final integration testing
     - Run all unit tests
     - Run all integration tests
     - Test on different platforms if applicable
     - Verify backward compatibility
     - Check for any regressions
     - References: Requirements 5.7, 5.8
-- [ ] 15. New CLI test task
-  - [ ] 15.1. Subtask test
-- [ ] 16. New task without front matter
+

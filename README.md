@@ -11,6 +11,10 @@ A standalone Go command-line tool designed for AI agents and developers to creat
 - **Batch Operations**: Execute multiple operations atomically via JSON API
 - **Search & Filtering**: Find tasks by content, status, hierarchy level, or parent
 - **Multiple Output Formats**: View tasks as tables, markdown, or JSON
+- **Next Task Discovery**: Automatically find the next incomplete task to work on
+- **Git Branch Integration**: Automatic file discovery based on current git branch
+- **Reference Documents**: Link task files to related documentation and resources
+- **Automatic Parent Completion**: Parent tasks auto-complete when all subtasks are done
 - **AI Agent Optimized**: Structured JSON API with comprehensive error reporting
 
 ## Installation
@@ -192,6 +196,39 @@ go-tasks find tasks.md "test" --in-details --status pending
 go-tasks find tasks.md "api" --parent 2 --max-depth 3
 ```
 
+### next - Get Next Incomplete Task
+
+Retrieve the next incomplete task from your task list using intelligent depth-first traversal.
+
+```bash
+go-tasks next [file] [options]
+```
+
+**Options:**
+- `--format [table|markdown|json]` - Output format (default: table)
+
+**Examples:**
+```bash
+# Get next task (uses git branch discovery if configured)
+go-tasks next
+
+# Get next task from specific file
+go-tasks next tasks.md
+
+# Output in JSON format
+go-tasks next --format json
+
+# Output in markdown format  
+go-tasks next --format markdown
+```
+
+**How it works:**
+- Finds the first task with incomplete work (task itself or any subtask not completed)
+- Uses depth-first traversal through the task hierarchy
+- Returns the task and all its incomplete subtasks for focused work
+- Includes task details and references in the output
+- Supports git branch-based file discovery when configured
+
 ### batch - Execute Multiple Operations
 
 Execute multiple operations atomically from JSON input.
@@ -291,7 +328,62 @@ go-tasks batch tasks.md --operations updates.json --dry-run
 }
 ```
 
+## Configuration
+
+go-tasks supports configuration files to customize behavior, including git branch-based file discovery.
+
+### Configuration File Locations
+
+Configuration is loaded in the following order of precedence:
+
+1. `./.go-tasks.yml` (project-local configuration)
+2. `~/.config/go-tasks/config.yml` (user-global configuration)
+
+### Configuration Schema
+
+```yaml
+# Example configuration file
+discovery:
+  enabled: true
+  template: "{branch}/tasks.md"
+```
+
+**Configuration Options:**
+
+- `discovery.enabled` (boolean) - Enable/disable git branch-based file discovery (default: true)
+- `discovery.template` (string) - Path template for branch-based files (default: "{branch}/tasks.md")
+
+### Git Branch Discovery
+
+When enabled, go-tasks automatically discovers task files based on your current git branch:
+
+**Examples:**
+- Branch `feature/auth` with template `specs/{branch}/tasks.md` → `specs/feature/auth/tasks.md`
+- Branch `bugfix/login` with template `tasks/{branch}.md` → `tasks/bugfix/login.md`
+- Branch `main` with template `{branch}-tasks.md` → `main-tasks.md`
+
+**Requirements:**
+- Must be in a git repository
+- Git must be available in PATH
+- Target file must exist
+- Works with branch names containing slashes (treated as path separators)
+
+**Special Cases:**
+- Detached HEAD: Requires explicit filename
+- During rebase/merge: Requires explicit filename
+- Non-git directory: Requires explicit filename
+
+### Default Behavior
+
+If no configuration file exists, go-tasks uses these defaults:
+- Git discovery enabled
+- Template: `{branch}/tasks.md`
+
 ## File Format
+
+go-tasks supports two file formats: plain markdown and markdown with YAML front matter.
+
+### Basic Markdown Format
 
 go-tasks generates consistent markdown with the following structure:
 
@@ -315,6 +407,55 @@ go-tasks generates consistent markdown with the following structure:
 - 2-space indentation per hierarchy level
 - Details as indented bullet points
 - References with "References: " prefix, comma-separated
+
+### Extended Format with YAML Front Matter
+
+Task files can include YAML front matter for metadata and reference documents:
+
+```markdown
+---
+references:
+  - ./docs/architecture.md
+  - ./specs/api-specification.yaml
+  - ../shared/database-schema.sql
+metadata:
+  project: backend-api
+  created: 2024-01-30
+---
+# Project Tasks
+
+- [ ] 1. Setup development environment
+  This involves setting up the complete development stack
+  including Docker containers and environment variables.
+  References: ./setup-guide.md, ./docker-compose.yml
+  - [x] 1.1. Install dependencies
+  - [ ] 1.2. Configure database
+    Create database schema and initial migrations.
+    Make sure to use the latest PostgreSQL version.
+    References: ./db/migrations/
+- [x] 2. Implement authentication
+- [ ] 3. Build API endpoints
+  - [ ] 3.1. User endpoints
+  - [ ] 3.2. Product endpoints
+```
+
+**Front Matter Fields:**
+
+- `references` (array) - List of reference document paths
+  - Can be relative or absolute paths
+  - Included in all task retrieval commands
+  - Path validation for security (no directory traversal)
+  - File existence not validated (paths stored as-is)
+
+- `metadata` (object) - Optional metadata fields
+  - Extensible for future features
+  - Not processed by current commands
+  - Preserved when modifying tasks
+
+**Reference Documents vs Task References:**
+
+- **Front Matter References**: Apply to the entire task file, included in all outputs
+- **Task References**: Apply to specific tasks, shown with task details
 
 ## Examples
 
@@ -389,6 +530,72 @@ go-tasks follows strict error reporting without auto-correction:
 - **Sub-second Response**: Optimized for files with 100+ tasks
 - **Memory Efficient**: Handles large task lists without excessive memory usage
 - **Fast Search**: Efficient filtering and search algorithms
+
+## Troubleshooting
+
+### Common Issues
+
+**"Failed to read task file" errors:**
+- Verify the file path exists and is readable
+- Check file permissions (read/write access required)
+- Ensure file size is under 10MB limit
+
+**Git discovery not working:**
+- Confirm you're in a git repository: `git status`
+- Check that git is installed and in PATH: `git --version`
+- Verify the target file exists at the computed path
+- Use `--verbose` flag to see the resolved file path: `go-tasks next --verbose`
+
+**"No filename specified and git discovery failed" error:**
+- Either specify a filename explicitly: `go-tasks next tasks.md`
+- Or configure git discovery in `.go-tasks.yml`
+- Or ensure you're in a git repository with the expected file structure
+
+**Configuration file not loading:**
+- Verify YAML syntax with an online YAML validator
+- Check file permissions on config directories
+- Use absolute paths if relative paths don't work
+- Ensure config file is in expected location (`./.go-tasks.yml` or `~/.config/go-tasks/config.yml`)
+
+**"All tasks are complete" when tasks remain:**
+- Check task completion status - both parent and all children must be `[x]` to be considered complete
+- Use `go-tasks list --status pending` to see incomplete tasks
+- Verify task syntax matches expected format
+
+**Front matter parsing errors:**
+- Ensure YAML front matter is properly delimited with `---` lines
+- Validate YAML syntax (proper indentation, no tabs)
+- Check that front matter appears at the very beginning of the file
+
+### Debug Options
+
+**Verbose Mode:**
+```bash
+go-tasks next --verbose
+# Shows file resolution, task parsing details, and discovery logic
+```
+
+**Validate Configuration:**
+```bash
+# Test git discovery
+go-tasks next --format json
+# Check if correct file is being used
+
+# Manual file specification to bypass discovery
+go-tasks next /full/path/to/tasks.md
+```
+
+### Performance Issues
+
+**Large Files:**
+- Files over 1MB may have slower parse times
+- Consider splitting large task lists into multiple files
+- Use `--depth` flag to limit hierarchy traversal: `go-tasks list --depth 2`
+
+**Deep Task Hierarchies:**
+- Maximum recommended depth: 10 levels
+- Deep hierarchies may impact performance and readability
+- Consider flattening structure or using multiple files
 
 ## License
 

@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Comprehensive project documentation**: Complete documentation overhaul with user guides and troubleshooting
+  - Next command documentation with usage examples, options, and behavior explanation
+  - Configuration system documentation covering git branch discovery and file locations
+  - Extended file format documentation for YAML front matter and reference documents
+  - Troubleshooting section with common issues, debug options, and performance guidance
+  - Enhanced README with complete feature coverage and migration examples
 - Front matter preservation tests for task file operations
 
 ### Enhanced
