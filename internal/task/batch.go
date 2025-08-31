@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+const (
+	updateStatusOperation = "update_status"
+)
+
 // Operation represents a single operation in a batch
 type Operation struct {
 	Type       string   `json:"type"`
@@ -25,18 +29,20 @@ type BatchRequest struct {
 
 // BatchResponse represents the response from a batch operation
 type BatchResponse struct {
-	Success bool     `json:"success"`
-	Applied int      `json:"applied"`
-	Errors  []string `json:"errors,omitempty"`
-	Preview string   `json:"preview,omitempty"`
+	Success       bool     `json:"success"`
+	Applied       int      `json:"applied"`
+	Errors        []string `json:"errors,omitempty"`
+	Preview       string   `json:"preview,omitempty"`
+	AutoCompleted []string `json:"auto_completed,omitempty"`
 }
 
 // ExecuteBatch validates and executes a batch of operations atomically
 func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, error) {
 	response := &BatchResponse{
-		Success: true,
-		Applied: 0,
-		Errors:  []string{},
+		Success:       true,
+		Applied:       0,
+		Errors:        []string{},
+		AutoCompleted: []string{},
 	}
 
 	// Create a deep copy to test all operations first (per Decision #12)
@@ -44,6 +50,9 @@ func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, 
 	if err != nil {
 		return nil, fmt.Errorf("creating test copy: %w", err)
 	}
+
+	// Track auto-completed tasks for test copy
+	testAutoCompleted := make(map[string]bool)
 
 	// Validate and apply operations to test copy sequentially
 	for i, op := range ops {
@@ -54,11 +63,16 @@ func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, 
 		}
 
 		// Apply operation to test copy for subsequent validations
-		if err := applyOperation(testList, op); err != nil {
+		if err := applyOperationWithAutoComplete(testList, op, testAutoCompleted); err != nil {
 			response.Success = false
 			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
 			return response, nil
 		}
+	}
+
+	// Convert test auto-completed map to slice for response
+	for taskID := range testAutoCompleted {
+		response.AutoCompleted = append(response.AutoCompleted, taskID)
 	}
 
 	// For dry run, return preview without applying to original
@@ -68,12 +82,21 @@ func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, 
 		return response, nil
 	}
 
+	// Track auto-completed tasks for actual operations
+	autoCompleted := make(map[string]bool)
+
 	// Apply all operations to original (atomic - all succeed or all fail)
 	for _, op := range ops {
-		if err := applyOperation(tl, op); err != nil {
+		if err := applyOperationWithAutoComplete(tl, op, autoCompleted); err != nil {
 			return nil, fmt.Errorf("applying operation: %w", err)
 		}
 		response.Applied++
+	}
+
+	// Clear and rebuild auto-completed list from actual operations
+	response.AutoCompleted = []string{}
+	for taskID := range autoCompleted {
+		response.AutoCompleted = append(response.AutoCompleted, taskID)
 	}
 
 	return response, nil
@@ -99,7 +122,7 @@ func validateOperation(tl *TaskList, op Operation) error {
 		if tl.FindTask(op.ID) == nil {
 			return fmt.Errorf("task %s not found", op.ID)
 		}
-	case "update_status":
+	case updateStatusOperation:
 		if op.ID == "" {
 			return fmt.Errorf("update_status operation requires id")
 		}
@@ -152,7 +175,7 @@ func applyOperation(tl *TaskList, op Operation) error {
 		return nil
 	case "remove":
 		return tl.RemoveTask(op.ID)
-	case "update_status":
+	case updateStatusOperation:
 		return tl.UpdateStatus(op.ID, op.Status)
 	case "update":
 		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References)
@@ -161,14 +184,51 @@ func applyOperation(tl *TaskList, op Operation) error {
 	}
 }
 
+// applyOperationWithAutoComplete executes a single operation and tracks auto-completed tasks
+func applyOperationWithAutoComplete(tl *TaskList, op Operation, autoCompleted map[string]bool) error {
+	// Apply the operation
+	if err := applyOperation(tl, op); err != nil {
+		return err
+	}
+
+	// Check for auto-completion only on update_status operations that mark tasks as completed
+	if strings.ToLower(op.Type) == updateStatusOperation && op.Status == Completed {
+		// Check and auto-complete parent tasks
+		completed, err := tl.AutoCompleteParents(op.ID)
+		if err != nil {
+			// Log error but don't fail the operation
+			// Auto-completion is a bonus feature, not critical to the operation
+			return nil
+		}
+
+		// Track auto-completed tasks (avoid duplicates)
+		for _, taskID := range completed {
+			autoCompleted[taskID] = true
+		}
+	}
+
+	return nil
+}
+
 // deepCopy creates a deep copy of the TaskList for dry-run operations
 func (tl *TaskList) deepCopy() (*TaskList, error) {
 	// Simple approach: render to markdown and parse back
 	content := RenderMarkdown(tl)
-	copy, err := ParseMarkdown(content)
+	copyList, err := ParseMarkdown(content)
 	if err != nil {
 		return nil, fmt.Errorf("creating deep copy: %w", err)
 	}
-	copy.FilePath = tl.FilePath
-	return copy, nil
+	copyList.FilePath = tl.FilePath
+	// Preserve front matter
+	if tl.FrontMatter != nil {
+		copyList.FrontMatter = &FrontMatter{
+			References: make([]string, len(tl.FrontMatter.References)),
+			Metadata:   make(map[string]any),
+		}
+		copy(copyList.FrontMatter.References, tl.FrontMatter.References)
+		for k, v := range tl.FrontMatter.Metadata {
+			copyList.FrontMatter.Metadata[k] = v
+		}
+	}
+	return copyList, nil
 }

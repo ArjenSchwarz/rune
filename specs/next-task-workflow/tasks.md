@@ -147,21 +147,21 @@
     - Test integration with existing complete command
     - Verify parent tasks are marked correctly
     - References: Requirements 4.4, 4.7
-- [ ] 8. Update batch operations for auto-completion
+- [x] 8. Update batch operations for auto-completion
   - Modify internal/task/batch.go complete operation
   - Call AutoCompleteParents after each complete operation
   - Accumulate all auto-completed parent IDs
   - Include auto-completed tasks in batch result
   - Ensure atomic operation behavior is maintained
   - References: Requirements 4.5, 4.7
-  - [ ] 8.1. Write tests for batch auto-completion
+  - [x] 8.1. Write tests for batch auto-completion
     - Test batch complete with auto-completion
     - Test multiple completes triggering same parent
     - Test error handling doesn't break atomicity
     - Test result reporting includes auto-completed tasks
     - Verify file consistency after batch operations
     - References: Requirements 4.5, 4.7
-  - [ ] 8.2. Implement batch operation changes
+  - [x] 8.2. Implement batch operation changes
     - Update executeBatchOperations function
     - Track auto-completed tasks in batch result
     - Ensure proper error handling

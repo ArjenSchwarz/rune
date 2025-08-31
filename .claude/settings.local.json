@@ -14,7 +14,8 @@
       "Bash(./go-tasks:*)",
       "Bash(INTEGRATION=1 go test -run TestIntegrationWorkflows/batch_operations_complex -v ./cmd)",
       "Bash(INTEGRATION=1 go test -run TestIntegrationWorkflows/error_handling_recovery -v ./cmd)",
-      "Bash(git rev-parse:*)"
+      "Bash(git rev-parse:*)",
+      "Read(/private/tmp/**)"
     ],
     "deny": [],
     "ask": []
