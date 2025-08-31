@@ -18,7 +18,7 @@ This indicates that work on the task has started but is not yet complete.
 Examples:
   go-tasks progress tasks.md 1
   go-tasks progress tasks.md 1.2.3`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.RangeArgs(1, 2),
 	RunE: runProgress,
 }
 
@@ -27,8 +27,27 @@ func init() {
 }
 
 func runProgress(cmd *cobra.Command, args []string) error {
-	filename := args[0]
-	taskID := args[1]
+	var filename, taskID string
+
+	// Handle different argument patterns
+	if len(args) == 2 {
+		// Traditional: progress [file] [task-id]
+		filename = args[0]
+		taskID = args[1]
+	} else {
+		// New: progress [task-id] with git discovery
+		taskID = args[0]
+		var err error
+		filename, err = resolveFilename([]string{})
+		if err != nil {
+			return err
+		}
+	}
+
+	if verbose {
+		fmt.Printf("Using task file: %s\n", filename)
+		fmt.Printf("Marking task %s as in-progress\n", taskID)
+	}
 
 	// Check if file exists
 	if _, err := os.Stat(filename); err != nil {

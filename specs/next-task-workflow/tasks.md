@@ -189,21 +189,21 @@
     - Handle nil or empty references gracefully
     - Ensure backward compatibility
     - References: Requirements 3.5, 5.4, 5.5, 5.6, 5.7
-- [ ] 10. Integrate git discovery with existing commands
+- [x] 10. Integrate git discovery with existing commands
   - Update cmd/list.go to use filename resolution
   - Update cmd/show.go to use filename resolution
   - Update other file-accepting commands
   - Extract common filename resolution logic
   - Test all commands with git discovery
   - References: Requirements 5.1, 5.2, 5.8
-  - [ ] 10.1. Write integration tests for git discovery
+  - [x] 10.1. Write integration tests for git discovery
     - Test list command with git discovery
     - Test show command with git discovery
     - Test with explicit file overriding discovery
     - Test error messages when discovery fails
     - Test in non-git directories
     - References: Requirements 2.8, 5.8
-  - [ ] 10.2. Implement resolveFilename helper
+  - [x] 10.2. Implement resolveFilename helper
     - Create shared filename resolution function
     - Check for explicit filename first
     - Load config and check if discovery enabled

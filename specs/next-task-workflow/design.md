@@ -174,8 +174,8 @@ func LoadConfig() (*Config, error) {
 func defaultConfig() *Config {
     return &Config{
         Discovery: GitDiscovery{
-            Enabled:  false,
-            Template: "specs/{branch}/tasks.md",
+            Enabled:  true,
+            Template: "{branch}/tasks.md",
         },
     }
 }
@@ -773,8 +773,8 @@ func BenchmarkAutoComplete(b *testing.B) {
    - No breaking changes to data structures
 
 2. **Configuration Migration**
-   - Default configuration with discovery disabled
-   - Users opt-in to git discovery feature
+   - Default configuration with discovery enabled
+   - Users can opt-out of git discovery feature if needed
    - Clear documentation for setup
 
 3. **Command Compatibility**

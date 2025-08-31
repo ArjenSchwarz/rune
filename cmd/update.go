@@ -22,7 +22,7 @@ Examples:
   go-tasks update tasks.md 1.1 --details "First detail,Second detail"
   go-tasks update tasks.md 2 --references "doc.md,spec.md"
   go-tasks update tasks.md 3 --title "Updated" --details "New detail"`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.RangeArgs(1, 2),
 	RunE: runUpdate,
 }
 
@@ -44,8 +44,27 @@ func init() {
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
-	filename := args[0]
-	taskID := args[1]
+	var filename, taskID string
+
+	// Handle different argument patterns
+	if len(args) == 2 {
+		// Traditional: update [file] [task-id]
+		filename = args[0]
+		taskID = args[1]
+	} else {
+		// New: update [task-id] with git discovery
+		taskID = args[0]
+		var err error
+		filename, err = resolveFilename([]string{})
+		if err != nil {
+			return err
+		}
+	}
+
+	if verbose {
+		fmt.Printf("Using task file: %s\n", filename)
+		fmt.Printf("Updating task %s\n", taskID)
+	}
 
 	// Validate that at least one update field is provided
 	if updateTitle == "" && updateDetails == "" && updateReferences == "" && !clearDetails && !clearReferences {

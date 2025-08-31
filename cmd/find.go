@@ -21,6 +21,10 @@ var findCmd = &cobra.Command{
 	Short: "Find tasks matching a search pattern",
 	Long: `Search for tasks in the specified file that match the given pattern.
 
+If no filename is provided and git discovery is enabled in configuration, the file
+will be automatically discovered based on the current git branch using the configured
+template pattern.
+
 The search can be performed across:
 - Task titles (default)
 - Task details (with --search-details)
@@ -28,7 +32,7 @@ The search can be performed across:
 
 Results can be filtered by status and hierarchy level. The command returns
 hierarchical context for search results when requested.`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runFind,
 }
 
@@ -63,10 +67,18 @@ func init() {
 }
 
 func runFind(cmd *cobra.Command, args []string) error {
-	filename := args[0]
+	// Resolve filename using git discovery if needed
+	filename, err := resolveFilename(args)
+	if err != nil {
+		return err
+	}
 
 	// Get pattern from flag
 	findPattern = cmd.Flag("pattern").Value.String()
+
+	if verbose {
+		fmt.Printf("Using task file: %s\n", filename)
+	}
 
 	// Parse the task file
 	taskList, err := task.ParseFile(filename)
@@ -75,7 +87,6 @@ func runFind(cmd *cobra.Command, args []string) error {
 	}
 
 	if verbose {
-		fmt.Printf("Searching task file: %s\n", filename)
 		fmt.Printf("Pattern: %s\n", findPattern)
 		fmt.Printf("Total tasks: %d\n", countAllTasks(taskList.Tasks))
 	}

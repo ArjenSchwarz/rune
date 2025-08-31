@@ -14,10 +14,14 @@ var completeCmd = &cobra.Command{
 	Short: "Mark a task as completed",
 	Long: `Mark the specified task as completed by changing its status to [x].
 
+If only a task-id is provided and git discovery is enabled in configuration, the file
+will be automatically discovered based on the current git branch using the configured
+template pattern.
+
 Examples:
   go-tasks complete tasks.md 1
-  go-tasks complete tasks.md 1.2.3`,
-	Args: cobra.ExactArgs(2),
+  go-tasks complete 1.2.3`,
+	Args: cobra.RangeArgs(1, 2),
 	RunE: runComplete,
 }
 
@@ -26,8 +30,27 @@ func init() {
 }
 
 func runComplete(cmd *cobra.Command, args []string) error {
-	filename := args[0]
-	taskID := args[1]
+	var filename, taskID string
+
+	// Handle different argument patterns
+	if len(args) == 2 {
+		// Traditional: complete [file] [task-id]
+		filename = args[0]
+		taskID = args[1]
+	} else {
+		// New: complete [task-id] with git discovery
+		taskID = args[0]
+		var err error
+		filename, err = resolveFilename([]string{})
+		if err != nil {
+			return err
+		}
+	}
+
+	if verbose {
+		fmt.Printf("Using task file: %s\n", filename)
+		fmt.Printf("Marking task %s as complete\n", taskID)
+	}
 
 	// Check if file exists
 	if _, err := os.Stat(filename); err != nil {

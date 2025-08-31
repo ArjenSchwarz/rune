@@ -13,13 +13,17 @@ var addCmd = &cobra.Command{
 	Short: "Add a new task to a task file",
 	Long: `Add a new task or subtask to the specified task file.
 
+If no filename is provided and git discovery is enabled in configuration, the file
+will be automatically discovered based on the current git branch using the configured
+template pattern.
+
 Use --parent to add the task as a subtask under an existing task.
 Without --parent, the task will be added as a top-level task.
 
 Examples:
   go-tasks add tasks.md --title "Write documentation"
-  go-tasks add tasks.md --title "Write API docs" --parent "1"`,
-	Args: cobra.ExactArgs(1),
+  go-tasks add --title "Write API docs" --parent "1"`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runAdd,
 }
 
@@ -36,7 +40,15 @@ func init() {
 }
 
 func runAdd(cmd *cobra.Command, args []string) error {
-	filename := args[0]
+	// Resolve filename using git discovery if needed
+	filename, err := resolveFilename(args)
+	if err != nil {
+		return err
+	}
+
+	if verbose {
+		fmt.Printf("Using task file: %s\n", filename)
+	}
 
 	// Check if file exists
 	if _, err := os.Stat(filename); err != nil {

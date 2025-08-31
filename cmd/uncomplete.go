@@ -18,7 +18,7 @@ This command can be used to revert a completed task back to pending status.
 Examples:
   go-tasks uncomplete tasks.md 1
   go-tasks uncomplete tasks.md 1.2.3`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.RangeArgs(1, 2),
 	RunE: runUncomplete,
 }
 
@@ -27,8 +27,27 @@ func init() {
 }
 
 func runUncomplete(cmd *cobra.Command, args []string) error {
-	filename := args[0]
-	taskID := args[1]
+	var filename, taskID string
+
+	// Handle different argument patterns
+	if len(args) == 2 {
+		// Traditional: uncomplete [file] [task-id]
+		filename = args[0]
+		taskID = args[1]
+	} else {
+		// New: uncomplete [task-id] with git discovery
+		taskID = args[0]
+		var err error
+		filename, err = resolveFilename([]string{})
+		if err != nil {
+			return err
+		}
+	}
+
+	if verbose {
+		fmt.Printf("Using task file: %s\n", filename)
+		fmt.Printf("Marking task %s as incomplete\n", taskID)
+	}
 
 	// Check if file exists
 	if _, err := os.Stat(filename); err != nil {
