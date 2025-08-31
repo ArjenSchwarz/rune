@@ -126,21 +126,21 @@
     - Handle all-complete scenario with appropriate message
     - Implement output rendering with references
     - References: Requirements 1.1, 1.6, 1.8, 1.9, 2.8
-- [ ] 7. Implement automatic parent task completion
+- [x] 7. Implement automatic parent task completion
   - Create internal/task/autocomplete.go file
   - Define AutoCompleteParents method on TaskList
   - Implement recursive parent checking logic
   - Add cycle detection for safety
   - Return list of auto-completed parent IDs
   - References: Requirements 4.1, 4.2, 4.3
-  - [ ] 7.1. Write tests for auto-completion
+  - [x] 7.1. Write tests for auto-completion
     - Test single-level parent completion
     - Test multi-level recursive completion
     - Test partial subtask completion scenarios
     - Test already-complete parent handling
     - Test cycle detection and prevention
     - References: Requirements 4.1, 4.2, 4.3, 4.6
-  - [ ] 7.2. Integrate auto-completion with complete command
+  - [x] 7.2. Integrate auto-completion with complete command
     - Modify cmd/complete.go to call AutoCompleteParents
     - Update command output to show auto-completed tasks
     - Ensure file is saved after auto-completion
