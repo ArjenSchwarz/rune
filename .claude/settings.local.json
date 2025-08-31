@@ -15,7 +15,10 @@
       "Bash(INTEGRATION=1 go test -run TestIntegrationWorkflows/batch_operations_complex -v ./cmd)",
       "Bash(INTEGRATION=1 go test -run TestIntegrationWorkflows/error_handling_recovery -v ./cmd)",
       "Bash(git rev-parse:*)",
-      "Read(/private/tmp/**)"
+      "Read(/private/tmp/**)",
+      "Bash(INTEGRATION=1 go test -v ./cmd -run TestIntegrationWorkflows/git_discovery_integration)",
+      "Bash(INTEGRATION=1 go test -v ./cmd -run TestDebugGitDiscovery)",
+      "Bash(INTEGRATION=1 go test -v ./cmd -run TestIntegrationWorkflows/git_discovery_integration/complete_with_git_discovery)"
     ],
     "deny": [],
     "ask": []

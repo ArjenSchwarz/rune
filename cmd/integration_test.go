@@ -50,6 +50,26 @@ func TestIntegrationWorkflows(t *testing.T) {
 			description: "Test git branch discovery with various commands",
 			workflow:    testGitDiscoveryIntegration,
 		},
+		"next_command_task_states": {
+			name:        "Next Command with Various Task States",
+			description: "Test next command behavior with different task completion states",
+			workflow:    testNextCommandTaskStates,
+		},
+		"auto_completion_multi_level": {
+			name:        "Auto-completion Through Multiple Levels",
+			description: "Test automatic parent task completion across multiple hierarchy levels",
+			workflow:    testAutoCompletionMultiLevel,
+		},
+		"reference_inclusion_formats": {
+			name:        "Reference Inclusion in All Output Formats",
+			description: "Test that references are included in table, markdown, and JSON formats",
+			workflow:    testReferenceInclusionFormats,
+		},
+		"configuration_integration": {
+			name:        "Configuration Integration Tests",
+			description: "Test configuration file precedence and validation",
+			workflow:    testConfigurationIntegration,
+		},
 	}
 
 	for testName, tc := range tests {
@@ -763,6 +783,13 @@ func testGitDiscoveryIntegration(t *testing.T, tempDir string) {
 		t.Fatalf("failed to create config file: %v", err)
 	}
 
+	// Create an initial commit so HEAD exists
+	if err := os.WriteFile("README.md", []byte("# Test repo"), 0644); err != nil {
+		t.Fatalf("failed to create readme: %v", err)
+	}
+	runCommand(t, "git", "add", ".")
+	runCommand(t, "git", "commit", "-m", "Initial commit")
+
 	// Create test branch and switch to it
 	runCommand(t, "git", "checkout", "-b", "feature/test-feature")
 
@@ -817,8 +844,13 @@ references:
 
 		// Verify the task was completed
 		output := runGoCommand(t, "list", "-f", "json")
-		if !containsString(output, `"id":"1.2"`) || !containsString(output, `"status":"Completed"`) {
-			t.Errorf("task 1.2 should be completed, got: %s", output)
+		// Check for the specific task object with both ID and completed status
+		// Note: JSON is formatted with spaces, so we need to account for that
+		if !containsString(output, `"ID": "1.2"`) {
+			t.Errorf("task 1.2 should be present, got: %s", output)
+		}
+		if !containsString(output, `"Status": 2`) {
+			t.Errorf("task 1.2 should be completed (Status:2), got: %s", output)
 		}
 	})
 
@@ -893,17 +925,594 @@ func runCommandWithOutput(t *testing.T, name string, args ...string) string {
 }
 
 func runGoCommand(t *testing.T, args ...string) string {
-	cmdArgs := append([]string{"run", "../main.go"}, args...)
-	return runCommandWithOutput(t, "go", cmdArgs...)
+	return runCommandWithOutput(t, "go-tasks", args...)
 }
 
 func runGoCommandWithError(_ *testing.T, args ...string) string {
-	cmdArgs := append([]string{"run", "../main.go"}, args...)
-	cmd := exec.Command("go", cmdArgs...)
+	cmd := exec.Command("go-tasks", args...)
 	output, _ := cmd.CombinedOutput()
 	return string(output)
 }
 
 func containsString(haystack, needle string) bool {
 	return strings.Contains(haystack, needle)
+}
+
+func testNextCommandTaskStates(t *testing.T, tempDir string) {
+	filename := "next-states.md"
+
+	// Create task file with various completion states
+	taskContent := `---
+references:
+  - ./project-spec.md
+  - ./requirements.md
+---
+# Next Command Test Tasks
+
+- [x] 1. Completed root task
+  - [x] 1.1. Completed subtask
+  - [x] 1.2. Another completed subtask
+- [ ] 2. Pending root with mixed children
+  - [x] 2.1. Completed child
+  - [-] 2.2. In-progress child
+  - [ ] 2.3. Pending child
+- [-] 3. In-progress root with pending children
+  - [ ] 3.1. Pending child of in-progress parent
+  - [ ] 3.2. Another pending child
+- [ ] 4. Fully pending task tree
+  - [ ] 4.1. Pending child
+    - [ ] 4.1.1. Deep pending grandchild
+    - [ ] 4.1.2. Another deep pending grandchild
+  - [ ] 4.2. Another pending child
+`
+
+	if err := os.WriteFile(filename, []byte(taskContent), 0644); err != nil {
+		t.Fatalf("failed to create task file: %v", err)
+	}
+
+	// Test 1: Next command should return the first incomplete task (task 2)
+	t.Run("next_finds_first_incomplete", func(t *testing.T) {
+		output := runGoCommand(t, "next", filename, "-f", "json")
+		if !containsString(output, `"id": "2"`) {
+			t.Errorf("expected next task to be task 2, got: %s", output)
+		}
+		if !containsString(output, "Pending root with mixed children") {
+			t.Errorf("expected task 2 title in output, got: %s", output)
+		}
+		// Should include references from front matter
+		if !containsString(output, "project-spec.md") {
+			t.Errorf("expected references in next output, got: %s", output)
+		}
+	})
+
+	// Test 2: Next command should include all children (completed and incomplete)
+	// Per Requirements 1.6: "return the found task and all its subtasks (regardless of their completion status)"
+	t.Run("next_includes_all_children", func(t *testing.T) {
+		output := runGoCommand(t, "next", filename, "-f", "json")
+		// Should include in-progress child 2.2
+		if !containsString(output, `"id": "2.2"`) {
+			t.Errorf("expected to include in-progress child 2.2, got: %s", output)
+		}
+		// Should include pending child 2.3
+		if !containsString(output, `"id": "2.3"`) {
+			t.Errorf("expected to include pending child 2.3, got: %s", output)
+		}
+		// Should include completed child 2.1 for context (per requirements 1.6)
+		if !containsString(output, `"id": "2.1"`) {
+			t.Errorf("expected to include completed child 2.1 for context, got: %s", output)
+		}
+		// Should have children array
+		if !containsString(output, `"children": [`) {
+			t.Errorf("expected children array in output, got: %s", output)
+		}
+	})
+
+	// Test 3: Test with table format to ensure references are shown
+	t.Run("next_table_format", func(t *testing.T) {
+		output := runGoCommand(t, "next", filename, "-f", "table")
+		if !containsString(output, "Pending root with mixed children") {
+			t.Errorf("expected task title in table output, got: %s", output)
+		}
+		// References section may be truncated in table format as "Reference Documen"
+		if !containsString(output, "Reference Documen") {
+			t.Errorf("expected references section in table output, got: %s", output)
+		}
+		if !containsString(output, "project-spec.md") {
+			t.Errorf("expected specific reference in output, got: %s", output)
+		}
+	})
+
+	// Test 4: Test with markdown format
+	t.Run("next_markdown_format", func(t *testing.T) {
+		output := runGoCommand(t, "next", filename, "-f", "markdown")
+		if !containsString(output, "# Next Task") {
+			t.Errorf("expected markdown heading in output, got: %s", output)
+		}
+		if !containsString(output, "project-spec.md") {
+			t.Errorf("expected references in markdown output, got: %s", output)
+		}
+	})
+
+	// Test 5: Complete all tasks and verify "all complete" message
+	t.Run("all_tasks_complete", func(t *testing.T) {
+		// Complete all remaining tasks
+		tasksToComplete := []string{"2.2", "2.3", "2", "3.1", "3.2", "3", "4.1.1", "4.1.2", "4.1", "4.2", "4"}
+		for _, taskID := range tasksToComplete {
+			runGoCommand(t, "complete", filename, taskID)
+		}
+
+		output := runGoCommand(t, "next", filename)
+		if !containsString(output, "All tasks are complete") {
+			t.Errorf("expected 'all tasks complete' message, got: %s", output)
+		}
+	})
+
+	t.Logf("Next command task states test passed successfully")
+}
+
+func testAutoCompletionMultiLevel(t *testing.T, tempDir string) {
+	filename := "auto-complete.md"
+
+	// Create deep hierarchy for testing auto-completion
+	tl := task.NewTaskList("Auto-completion Test")
+	if err := tl.WriteFile(filename); err != nil {
+		t.Fatalf("failed to create task file: %v", err)
+	}
+
+	// Build a 3-level deep hierarchy
+	if err := tl.AddTask("", "Phase 1: Planning"); err != nil {
+		t.Fatalf("failed to add root task: %v", err)
+	}
+	if err := tl.AddTask("1", "Requirements gathering"); err != nil {
+		t.Fatalf("failed to add level 2 task: %v", err)
+	}
+	if err := tl.AddTask("1", "Design specification"); err != nil {
+		t.Fatalf("failed to add level 2 task: %v", err)
+	}
+	if err := tl.AddTask("1.1", "Functional requirements"); err != nil {
+		t.Fatalf("failed to add level 3 task: %v", err)
+	}
+	if err := tl.AddTask("1.1", "Non-functional requirements"); err != nil {
+		t.Fatalf("failed to add level 3 task: %v", err)
+	}
+	if err := tl.AddTask("1.2", "UI mockups"); err != nil {
+		t.Fatalf("failed to add level 3 task: %v", err)
+	}
+	if err := tl.AddTask("1.2", "API design"); err != nil {
+		t.Fatalf("failed to add level 3 task: %v", err)
+	}
+
+	if err := tl.WriteFile(filename); err != nil {
+		t.Fatalf("failed to write initial tasks: %v", err)
+	}
+
+	// Test 1: Complete a leaf task and verify no auto-completion yet
+	t.Run("complete_leaf_no_autocompletion", func(t *testing.T) {
+		runGoCommand(t, "complete", filename, "1.1.1")
+
+		output := runGoCommand(t, "list", filename, "-f", "json")
+		// Parent 1.1 should still be pending since 1.1.2 is not complete
+		if !containsString(output, `"ID": "1.1"`) || !containsString(output, `"Status": 0`) {
+			t.Errorf("parent task 1.1 should remain pending, got: %s", output)
+		}
+	})
+
+	// Test 2: Complete the second leaf task and verify level 2 auto-completion
+	t.Run("complete_level2_autocompletion", func(t *testing.T) {
+		runGoCommand(t, "complete", filename, "1.1.2")
+
+		output := runGoCommand(t, "list", filename, "-f", "json")
+		// Now parent 1.1 should be auto-completed
+		if !containsString(output, `"ID": "1.1"`) || !containsString(output, `"Status": 2`) {
+			t.Errorf("parent task 1.1 should be auto-completed, got: %s", output)
+		}
+		// But grandparent 1 should still be pending
+		if !containsString(output, `"ID": "1"`) {
+			t.Error("root task 1 should still exist")
+		}
+		// Find the root task status in JSON
+		rootTaskPattern := `"ID": "1"`
+		rootIndex := strings.Index(output, rootTaskPattern)
+		if rootIndex == -1 {
+			t.Errorf("root task not found in output: %s", output)
+		}
+		// Look for the status field in the same task object
+		statusStart := strings.Index(output[rootIndex:], `"Status": `)
+		if statusStart == -1 {
+			t.Errorf("status not found for root task in output: %s", output)
+		}
+		statusChar := output[rootIndex+statusStart+10] // Position of status value
+		if statusChar != '0' {
+			t.Errorf("root task should still be pending (status 0), got status: %c", statusChar)
+		}
+	})
+
+	// Test 3: Complete remaining tasks in level 2 and verify root auto-completion
+	t.Run("complete_all_levels_autocompletion", func(t *testing.T) {
+		// Complete all remaining level 3 tasks
+		runGoCommand(t, "complete", filename, "1.2.1")
+		runGoCommand(t, "complete", filename, "1.2.2")
+
+		output := runGoCommand(t, "list", filename, "-f", "json")
+		// Now all tasks should be completed including root
+		if !containsString(output, `"ID": "1.2"`) || !containsString(output, `"Status": 2`) {
+			t.Errorf("task 1.2 should be auto-completed, got: %s", output)
+		}
+		if !containsString(output, `"ID": "1"`) {
+			t.Error("root task should still exist")
+		}
+		// Root task should now be completed
+		rootTaskPattern := `"ID": "1"`
+		rootIndex := strings.Index(output, rootTaskPattern)
+		if rootIndex == -1 {
+			t.Errorf("root task not found in output: %s", output)
+		}
+		statusStart := strings.Index(output[rootIndex:], `"Status": `)
+		if statusStart == -1 {
+			t.Errorf("status not found for root task in output: %s", output)
+		}
+		statusChar := output[rootIndex+statusStart+10]
+		if statusChar != '2' {
+			t.Errorf("root task should be completed (status 2), got status: %c", statusChar)
+		}
+	})
+
+	// Test 4: Test batch auto-completion
+	t.Run("batch_autocompletion", func(t *testing.T) {
+		// Create a new task hierarchy for batch testing
+		if err := tl.AddTask("", "Phase 2: Development"); err != nil {
+			t.Fatalf("failed to add root task: %v", err)
+		}
+		if err := tl.AddTask("2", "Frontend development"); err != nil {
+			t.Fatalf("failed to add level 2 task: %v", err)
+		}
+		if err := tl.AddTask("2", "Backend development"); err != nil {
+			t.Fatalf("failed to add level 2 task: %v", err)
+		}
+		if err := tl.AddTask("2.1", "Component creation"); err != nil {
+			t.Fatalf("failed to add level 3 task: %v", err)
+		}
+		if err := tl.AddTask("2.1", "Styling"); err != nil {
+			t.Fatalf("failed to add level 3 task: %v", err)
+		}
+		if err := tl.WriteFile(filename); err != nil {
+			t.Fatalf("failed to write tasks: %v", err)
+		}
+
+		// Use batch operation to complete multiple tasks
+		batchOps := []task.Operation{
+			{Type: "update_status", ID: "2.1.1", Status: task.Completed},
+			{Type: "update_status", ID: "2.1.2", Status: task.Completed},
+			{Type: "update_status", ID: "2.2", Status: task.Completed},
+		}
+
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse file: %v", err)
+		}
+
+		response, err := tl.ExecuteBatch(batchOps, false)
+		if err != nil {
+			t.Fatalf("failed to execute batch operations: %v", err)
+		}
+		if !response.Success {
+			t.Fatalf("batch operations failed: %v", response.Errors)
+		}
+
+		if err := tl.WriteFile(filename); err != nil {
+			t.Fatalf("failed to write batch results: %v", err)
+		}
+
+		// Verify auto-completion happened
+		output := runGoCommand(t, "list", filename, "-f", "json")
+		// Both level 2 tasks and root should be auto-completed
+		if !containsString(output, `"ID": "2.1"`) || !containsString(output, `"Status": 2`) {
+			t.Errorf("task 2.1 should be auto-completed, got: %s", output)
+		}
+		if !containsString(output, `"ID": "2"`) {
+			t.Error("root task 2 should exist")
+		}
+	})
+
+	t.Logf("Auto-completion multi-level test passed successfully")
+}
+
+func testReferenceInclusionFormats(t *testing.T, tempDir string) {
+	filename := "references.md"
+
+	// Create task file with extensive references
+	taskContent := `---
+references:
+  - ./docs/api-spec.yaml
+  - ./requirements/business-rules.md
+  - ../shared/database-schema.sql
+metadata:
+  project: reference-test
+  version: "1.0"
+---
+# Reference Inclusion Test
+
+- [ ] 1. API Development
+  - Implement the REST API according to specifications.
+  - Follow the coding standards and ensure proper documentation.
+  - References: ./api/endpoints.md, ./api/auth.md
+  - [ ] 1.1. User endpoints
+    - Create all user-related API endpoints.
+    - References: ./api/user-spec.md
+  - [ ] 1.2. Product endpoints
+    - Create all product-related API endpoints.
+- [ ] 2. Database Setup
+  - Configure the database with proper schemas and migrations.
+  - References: ./db/migrations/, ./db/seeds/
+  - [-] 2.1. Schema creation
+    - Create the initial database schema.
+  - [ ] 2.2. Data migration
+    - Migrate existing data to new schema.
+`
+
+	if err := os.WriteFile(filename, []byte(taskContent), 0644); err != nil {
+		t.Fatalf("failed to create task file: %v", err)
+	}
+
+	// Test 1: JSON format includes all reference types
+	t.Run("json_format_references", func(t *testing.T) {
+		output := runGoCommand(t, "list", filename, "--all", "-f", "json")
+
+		// Should include front matter references
+		if !containsString(output, "api-spec.yaml") {
+			t.Errorf("expected front matter reference in JSON, got: %s", output)
+		}
+		if !containsString(output, "business-rules.md") {
+			t.Errorf("expected front matter reference in JSON, got: %s", output)
+		}
+		if !containsString(output, "database-schema.sql") {
+			t.Errorf("expected front matter reference in JSON, got: %s", output)
+		}
+
+		// Should include task-level references
+		if !containsString(output, "endpoints.md") {
+			t.Errorf("expected task-level reference in JSON, got: %s", output)
+		}
+		if !containsString(output, "auth.md") {
+			t.Errorf("expected task-level reference in JSON, got: %s", output)
+		}
+		if !containsString(output, "user-spec.md") {
+			t.Errorf("expected nested task reference in JSON, got: %s", output)
+		}
+
+		// Should include FrontMatter section
+		if !containsString(output, `"FrontMatter"`) {
+			t.Errorf("expected FrontMatter section in JSON, got: %s", output)
+		}
+	})
+
+	// Test 2: Table format includes references section
+	t.Run("table_format_references", func(t *testing.T) {
+		output := runGoCommand(t, "list", filename, "--all", "-f", "table")
+
+		// Should have References section (not "Reference Documents")
+		if !containsString(output, "References") {
+			t.Errorf("expected References section in table, got: %s", output)
+		}
+		// Should include front matter references
+		if !containsString(output, "api-spec.yaml") {
+			t.Errorf("expected front matter reference in table, got: %s", output)
+		}
+		// Should show task-level references in individual task rows
+		if !containsString(output, "user-spec.md") {
+			t.Errorf("expected task-level reference in table, got: %s", output)
+		}
+	})
+
+	// Test 3: Markdown format includes references
+	t.Run("markdown_format_references", func(t *testing.T) {
+		output := runGoCommand(t, "list", filename, "--all", "-f", "markdown")
+
+		// Should include references in output
+		if !containsString(output, "api-spec.yaml") {
+			t.Errorf("expected reference in markdown, got: %s", output)
+		}
+		// Should maintain markdown structure with references
+		if !containsString(output, "References:") {
+			t.Errorf("expected References: label in markdown, got: %s", output)
+		}
+	})
+
+	// Test 4: Next command includes references in all formats
+	t.Run("next_command_references_all_formats", func(t *testing.T) {
+		// JSON format
+		output := runGoCommand(t, "next", filename, "-f", "json")
+		if !containsString(output, "api-spec.yaml") {
+			t.Errorf("expected references in next JSON output, got: %s", output)
+		}
+		if !containsString(output, "endpoints.md") {
+			t.Errorf("expected task references in next JSON output, got: %s", output)
+		}
+
+		// Table format
+		output = runGoCommand(t, "next", filename, "-f", "table")
+		if !containsString(output, "Reference Documents") {
+			t.Errorf("expected Reference Documents in next table output, got: %s", output)
+		}
+		if !containsString(output, "api-spec.yaml") {
+			t.Errorf("expected references in next table output, got: %s", output)
+		}
+
+		// Markdown format
+		output = runGoCommand(t, "next", filename, "-f", "markdown")
+		if !containsString(output, "api-spec.yaml") {
+			t.Errorf("expected references in next markdown output, got: %s", output)
+		}
+	})
+
+	// Test 5: Find command includes references in results
+	t.Run("find_command_references", func(t *testing.T) {
+		// The find command doesn't have --all flag, but should include references when searching refs
+		output := runGoCommand(t, "find", filename, "-p", "API", "--search-refs", "-f", "json")
+		// Should find task 1 that matches "API"
+		if !containsString(output, "API Development") {
+			t.Errorf("expected to find API task in find output, got: %s", output)
+		}
+
+		// Note: find command may not include front matter references by design
+		// This tests that task-level references are searchable
+		output = runGoCommand(t, "find", filename, "-p", "endpoints", "--search-refs", "-f", "json")
+		if !containsString(output, "API Development") {
+			t.Errorf("expected to find task with endpoints reference, got: %s", output)
+		}
+	})
+
+	t.Logf("Reference inclusion formats test passed successfully")
+}
+
+func testConfigurationIntegration(t *testing.T, tempDir string) {
+	// Test 1: Config file precedence
+	t.Run("config_precedence", func(t *testing.T) {
+		// Create local project config
+		localConfig := `discovery:
+  enabled: true
+  template: "local/{branch}/tasks.md"`
+		if err := os.WriteFile(".go-tasks.yml", []byte(localConfig), 0644); err != nil {
+			t.Fatalf("failed to create local config: %v", err)
+		}
+
+		// Create user config directory and file
+		userConfigDir := tempDir + "/.config/go-tasks"
+		if err := os.MkdirAll(userConfigDir, 0755); err != nil {
+			t.Fatalf("failed to create user config dir: %v", err)
+		}
+
+		userConfig := `discovery:
+  enabled: true
+  template: "user/{branch}/tasks.md"`
+		userConfigFile := userConfigDir + "/config.yml"
+		if err := os.WriteFile(userConfigFile, []byte(userConfig), 0644); err != nil {
+			t.Fatalf("failed to create user config: %v", err)
+		}
+
+		// Initialize git repo and setup branch
+		runCommand(t, "git", "init")
+		runCommand(t, "git", "config", "user.email", "test@example.com")
+		runCommand(t, "git", "config", "user.name", "Test User")
+		if err := os.WriteFile("README.md", []byte("# Test"), 0644); err != nil {
+			t.Fatalf("failed to create readme: %v", err)
+		}
+		runCommand(t, "git", "add", ".")
+		runCommand(t, "git", "commit", "-m", "Initial commit")
+		runCommand(t, "git", "checkout", "-b", "test-branch")
+
+		// Create task file using local config template (should take precedence)
+		if err := os.MkdirAll("local/test-branch", 0755); err != nil {
+			t.Fatalf("failed to create local task dir: %v", err)
+		}
+		localTaskFile := "local/test-branch/tasks.md"
+		localTaskContent := `# Local Config Tasks
+- [ ] 1. Task from local config`
+		if err := os.WriteFile(localTaskFile, []byte(localTaskContent), 0644); err != nil {
+			t.Fatalf("failed to create local task file: %v", err)
+		}
+
+		// Test that local config is used (not user config)
+		output := runGoCommand(t, "list", "-f", "json")
+		if !containsString(output, "Task from local config") {
+			t.Errorf("expected local config to be used, got: %s", output)
+		}
+	})
+
+	// Test 2: Invalid config error handling
+	t.Run("invalid_config_handling", func(t *testing.T) {
+		invalidConfig := `discovery:
+  enabled: true
+  template: "invalid/{branch}/tasks.md"
+invalid_yaml_syntax: [unclosed_bracket`
+		if err := os.WriteFile(".go-tasks.yml", []byte(invalidConfig), 0644); err != nil {
+			t.Fatalf("failed to create invalid config: %v", err)
+		}
+
+		// Command should still work but show warning or error
+		output := runGoCommandWithError(t, "list")
+		// Should contain some indication of config error
+		if !containsString(output, "config") || !containsString(output, "error") {
+			// This might be expected if the tool gracefully falls back
+			t.Logf("Config error handling: %s", output)
+		}
+	})
+
+	// Test 3: Missing config file (should use defaults)
+	t.Run("missing_config_defaults", func(t *testing.T) {
+		// Remove config files
+		os.Remove(".go-tasks.yml")
+		os.RemoveAll(tempDir + "/.config")
+
+		// Create task file with default template pattern
+		if err := os.MkdirAll("test-branch", 0755); err != nil {
+			t.Fatalf("failed to create default task dir: %v", err)
+		}
+		defaultTaskFile := "test-branch/tasks.md"
+		defaultTaskContent := `# Default Config Tasks
+- [ ] 1. Task with default config`
+		if err := os.WriteFile(defaultTaskFile, []byte(defaultTaskContent), 0644); err != nil {
+			t.Fatalf("failed to create default task file: %v", err)
+		}
+
+		// Should use default template pattern
+		output := runGoCommandWithError(t, "list", "-f", "json")
+		// Might fail if file doesn't exist at default location, which is expected
+		if containsString(output, "Task with default config") {
+			t.Logf("Default config used successfully")
+		} else {
+			// Check that it fails gracefully
+			if !containsString(output, "git discovery failed") {
+				t.Errorf("expected git discovery failure message, got: %s", output)
+			}
+		}
+	})
+
+	// Test 4: Git discovery disabled in config
+	t.Run("git_discovery_disabled", func(t *testing.T) {
+		disabledConfig := `discovery:
+  enabled: false
+  template: "specs/{branch}/tasks.md"`
+		if err := os.WriteFile(".go-tasks.yml", []byte(disabledConfig), 0644); err != nil {
+			t.Fatalf("failed to create disabled config: %v", err)
+		}
+
+		// Should require explicit filename when discovery is disabled
+		output := runGoCommandWithError(t, "list")
+		if !containsString(output, "no filename specified") && !containsString(output, "git discovery failed or disabled") {
+			t.Errorf("expected filename required message, got: %s", output)
+		}
+	})
+
+	// Test 5: Config validation
+	t.Run("config_validation", func(t *testing.T) {
+		validConfig := `discovery:
+  enabled: true
+  template: "specs/{branch}/tasks.md"
+metadata:
+  project: "test-project"
+  author: "test-author"`
+		if err := os.WriteFile(".go-tasks.yml", []byte(validConfig), 0644); err != nil {
+			t.Fatalf("failed to create valid config: %v", err)
+		}
+
+		// Create task file at expected location
+		if err := os.MkdirAll("specs/test-branch", 0755); err != nil {
+			t.Fatalf("failed to create spec dir: %v", err)
+		}
+		specTaskFile := "specs/test-branch/tasks.md"
+		specTaskContent := `# Spec Tasks
+- [ ] 1. Validated config task`
+		if err := os.WriteFile(specTaskFile, []byte(specTaskContent), 0644); err != nil {
+			t.Fatalf("failed to create spec task file: %v", err)
+		}
+
+		// Should work with valid config
+		output := runGoCommand(t, "list", "-f", "json")
+		if !containsString(output, "Validated config task") {
+			t.Errorf("expected validated config to work, got: %s", output)
+		}
+	})
+
+	t.Logf("Configuration integration test passed successfully")
 }

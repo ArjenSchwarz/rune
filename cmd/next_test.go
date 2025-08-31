@@ -160,6 +160,179 @@ func TestNextCommand(t *testing.T) {
 	}
 }
 
+func TestNextCommandWithTaskDetailsAndReferences(t *testing.T) {
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "go-tasks-next-details-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	tests := map[string]struct {
+		fileContent    string
+		fileName       string
+		expectInOutput []string
+		format         string
+	}{
+		"task with details and task-level references": {
+			fileContent: `---
+references:
+  - ./docs/architecture.md
+  - ./specs/api.yaml
+---
+# Project Tasks
+
+- [ ] 1. Setup development environment
+  - This involves setting up the complete development stack
+  - including Docker containers and environment variables.
+  - Make sure to follow the setup guide carefully.
+  - References: ./setup-guide.md, ./docker-compose.yml
+  - [x] 1.1. Install dependencies
+  - [ ] 1.2. Configure database
+    - Create database schema and initial migrations.
+    - Make sure to use the latest PostgreSQL version.
+    - References: ./db/migrations/, ./db/schema.sql
+- [x] 2. Implement authentication
+`,
+			fileName: "test-with-details.md",
+			expectInOutput: []string{
+				"Setup development environment", // task title
+				"This involves setting up",      // task details
+				"./setup-guide.md",              // task-level reference
+				"./docker-compose.yml",          // task-level reference
+				"./docs/architecture.md",        // front matter reference
+				"./specs/api.yaml",              // front matter reference
+			},
+			format: "table",
+		},
+		"nested task with details in markdown format": {
+			fileContent: `# Complex Tasks
+
+- [-] 1. Design Phase
+  - [x] 1.1. User experience design
+    - [x] 1.1.1. User persona development
+      - Primary user research completed
+      - Persona documentation created
+      - References: personas.md
+    - [-] 1.1.2. User journey mapping
+      - Current state mapping in progress
+      - Future state design pending
+      - Pain point identification needed
+      - References: journey-maps.png, research-notes.md
+`,
+			fileName: "test-nested-details.md",
+			expectInOutput: []string{
+				"# Next Task",                       // markdown header
+				"- [-] 1. Design Phase",             // main task
+				"- [-] 1.1.2. User journey mapping", // incomplete subtask
+				"Current state mapping",             // task details
+				"journey-maps.png",                  // task-level reference
+			},
+			format: "markdown",
+		},
+		"json format with details and references": {
+			fileContent: `---
+references:
+  - ./global-api-spec.yaml
+  - ./auth-guide.md
+---
+# JSON Test
+
+- [ ] 1. API Implementation
+  - Implement REST API endpoints following OpenAPI specification.
+  - Ensure proper error handling and validation.
+  - References: api-spec.yaml
+  - [x] 1.1. Authentication endpoints
+  - [ ] 1.2. User endpoints
+    - CRUD operations for user management
+    - Include role-based access control
+    - References: user-api.md, rbac-spec.md
+`,
+			fileName: "test-json-details.md",
+			expectInOutput: []string{
+				`"id": "1"`,                     // task ID
+				`"title": "API Implementation"`, // task title
+				`"details"`,                     // details field
+				`"Implement REST API endpoints following OpenAPI specification."`, // detail content
+				`"references"`,              // references field
+				`"api-spec.yaml"`,           // task-level reference
+				`"task_references"`,         // task references field
+				`"front_matter_references"`, // front matter references field
+			},
+			format: "json",
+		},
+		"task without details or references": {
+			fileContent: `# Simple Tasks
+
+- [ ] 1. Simple task
+- [x] 2. Completed task
+`,
+			fileName: "test-simple.md",
+			expectInOutput: []string{
+				"Simple task", // task title should still appear
+			},
+			format: "table",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Write test file
+			if err := os.WriteFile(tc.fileName, []byte(tc.fileContent), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			// Capture output
+			var buf bytes.Buffer
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			// Run the command with format flag
+			args := []string{"next", tc.fileName}
+			if tc.format != "" {
+				args = append(args, "--format", tc.format)
+			}
+			rootCmd.SetArgs(args)
+			err := rootCmd.Execute()
+
+			// Restore stdout and capture output
+			w.Close()
+			os.Stdout = oldStdout
+			buf.ReadFrom(r)
+			output := buf.String()
+
+			// Reset command args for next test
+			rootCmd.SetArgs([]string{})
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			// Check expected strings in output
+			for _, expected := range tc.expectInOutput {
+				if !strings.Contains(output, expected) {
+					t.Errorf("test %s: expected '%s' in output, got: %s", name, expected, output)
+				}
+			}
+
+			// For JSON, validate it's valid JSON
+			if tc.format == "json" {
+				var jsonObj interface{}
+				if err := json.Unmarshal([]byte(output), &jsonObj); err != nil {
+					t.Errorf("JSON format produced invalid JSON: %v\nOutput: %s", err, output)
+				}
+			}
+		})
+	}
+}
+
 func TestNextCommandOutputFormats(t *testing.T) {
 	// Create temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "go-tasks-next-format-test")
@@ -219,10 +392,10 @@ metadata:
 		"json format": {
 			format: "json",
 			expectInOutput: []string{
-				"\"id\": \"1\"",             // JSON field
-				"\"title\": \"First task\"", // JSON field
-				"\"references\"",            // references field
-				"./docs/architecture.md",    // reference in JSON
+				"\"id\": \"1\"",               // JSON field
+				"\"title\": \"First task\"",   // JSON field
+				"\"front_matter_references\"", // references field
+				"./docs/architecture.md",      // reference in JSON
 			},
 		},
 	}

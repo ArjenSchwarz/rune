@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	output "github.com/ArjenSchwarz/go-output/v2"
 	"github.com/ArjenSchwarz/go-tasks/internal/task"
@@ -114,7 +115,29 @@ func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.Front
 	builder := output.New().
 		Table("Next Task", taskData, output.WithKeys("ID", "Title", "Status", "Level"))
 
-	// Add references section if present
+	// Add task details if present
+	if len(nextTask.Details) > 0 {
+		detailData := make([]map[string]any, len(nextTask.Details))
+		for i, detail := range nextTask.Details {
+			detailData[i] = map[string]any{
+				"Detail": detail,
+			}
+		}
+		builder = builder.Table("Task Details", detailData, output.WithKeys("Detail"))
+	}
+
+	// Add task-level references if present
+	if len(nextTask.References) > 0 {
+		taskRefData := make([]map[string]any, len(nextTask.References))
+		for i, ref := range nextTask.References {
+			taskRefData[i] = map[string]any{
+				"Path": ref,
+			}
+		}
+		builder = builder.Table("Task References", taskRefData, output.WithKeys("Path"))
+	}
+
+	// Add front matter references if present
 	if frontMatter != nil && len(frontMatter.References) > 0 {
 		refData := make([]map[string]any, len(frontMatter.References))
 		for i, ref := range frontMatter.References {
@@ -145,12 +168,27 @@ func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.Fr
 	result += fmt.Sprintf("- %s %s. %s\n",
 		formatStatusMarkdown(nextTask.Status), nextTask.ID, nextTask.Title)
 
+	// Add task details if present
+	if len(nextTask.Details) > 0 {
+		for _, detail := range nextTask.Details {
+			result += fmt.Sprintf("  %s\n", detail)
+		}
+	}
+
 	// Add incomplete children
 	for _, child := range nextTask.IncompleteChildren {
 		result += renderTaskMarkdown(&child, "  ")
 	}
 
-	// Add references if present
+	// Add task-level references if present
+	if len(nextTask.References) > 0 {
+		result += "\n## Task References\n\n"
+		for _, ref := range nextTask.References {
+			result += fmt.Sprintf("- %s\n", ref)
+		}
+	}
+
+	// Add front matter references if present
 	if frontMatter != nil && len(frontMatter.References) > 0 {
 		result += "\n## References\n\n"
 		for _, ref := range frontMatter.References {
@@ -166,15 +204,18 @@ func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.Fr
 func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter) error {
 	// Create a simplified structure for JSON output
 	type TaskJSON struct {
-		ID       string     `json:"id"`
-		Title    string     `json:"title"`
-		Status   string     `json:"status"`
-		Children []TaskJSON `json:"children,omitempty"`
+		ID         string     `json:"id"`
+		Title      string     `json:"title"`
+		Status     string     `json:"status"`
+		Details    []string   `json:"details,omitempty"`
+		References []string   `json:"references,omitempty"`
+		Children   []TaskJSON `json:"children,omitempty"`
 	}
 
 	type OutputJSON struct {
-		NextTask   TaskJSON `json:"next_task"`
-		References []string `json:"references,omitempty"`
+		NextTask              TaskJSON `json:"next_task"`
+		TaskReferences        []string `json:"task_references,omitempty"`
+		FrontMatterReferences []string `json:"front_matter_references,omitempty"`
 	}
 
 	// Convert main task
@@ -184,6 +225,12 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 			ID:     t.ID,
 			Title:  t.Title,
 			Status: formatStatus(t.Status),
+		}
+		if len(t.Details) > 0 {
+			tj.Details = t.Details
+		}
+		if len(t.References) > 0 {
+			tj.References = t.References
 		}
 		for _, child := range t.Children {
 			tj.Children = append(tj.Children, convertTask(&child))
@@ -195,9 +242,14 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 		NextTask: convertTask(nextTask.Task),
 	}
 
-	// Add references if present
+	// Add task-level references if present
+	if len(nextTask.References) > 0 {
+		output.TaskReferences = nextTask.References
+	}
+
+	// Add front matter references if present
 	if frontMatter != nil && len(frontMatter.References) > 0 {
-		output.References = frontMatter.References
+		output.FrontMatterReferences = frontMatter.References
 	}
 
 	jsonData, err := json.MarshalIndent(output, "", "  ")
@@ -233,6 +285,19 @@ func addIncompleteChildrenToData(parentTask *task.Task, taskData *[]map[string]a
 func renderTaskMarkdown(t *task.Task, indent string) string {
 	result := fmt.Sprintf("%s- %s %s. %s\n",
 		indent, formatStatusMarkdown(t.Status), t.ID, t.Title)
+
+	// Add task details if present
+	if len(t.Details) > 0 {
+		for _, detail := range t.Details {
+			result += fmt.Sprintf("%s  %s\n", indent, detail)
+		}
+	}
+
+	// Add task references if present (for individual tasks)
+	if len(t.References) > 0 {
+		refList := strings.Join(t.References, ", ")
+		result += fmt.Sprintf("%s  References: %s\n", indent, refList)
+	}
 
 	for _, child := range t.Children {
 		if child.Status != task.Completed {
