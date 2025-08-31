@@ -1,3 +1,9 @@
+---
+references:
+    - specs/next-task-workflow/design.md
+    - specs/next-task-workflow/requirements.md
+    - specs/next-task-workflow/decision_log.md
+---
 # Next Task Workflow Implementation
 
 - [x] 1. Set up configuration management infrastructure
@@ -210,42 +216,42 @@
     - Call DiscoverFileFromBranch if enabled
     - Return appropriate errors
     - References: Requirements 2.8, 5.8, 6.6
-- [ ] 11. Enhance next command to include task details and task-level references
+- [x] 11. Enhance next command to include task details and task-level references
   - Update next command to include task Details field content in output
   - Update next command to include task-level References in addition to front matter references
   - Modify output rendering to display both types of references distinctly
   - Update all output formats (table, markdown, JSON) to include task details
   - Ensure backward compatibility with tasks without details or references
   - References: Requirements 1.10, 1.11, 5.3, 5.4, 5.5, 5.6
-  - [ ] 11.1. Write tests for task details and references in next command
+  - [x] 11.1. Write tests for task details and references in next command
     - Test next command output includes task Details field content
     - Test next command output includes task-level References
     - Test output distinguishes between front matter and task-level references
     - Test all output formats (table, markdown, JSON) include details
     - Test backward compatibility with tasks without details/references
     - References: Requirements 1.10, 1.11, 5.3, 5.4, 5.5, 5.6
-  - [ ] 11.2. Update next command implementation to include task details and task-level references
+  - [x] 11.2. Update next command implementation to include task details and task-level references
     - Modify cmd/next.go to include task details in output rendering
     - Update rendering functions to display task-level references separately from front matter references
     - Ensure RenderTable includes details and both reference types
-    - Ensure RenderMarkdown includes details and both reference types  
+    - Ensure RenderMarkdown includes details and both reference types
     - Ensure RenderJSON includes details and both reference types
     - References: Requirements 1.10, 1.11, 5.3, 5.4, 5.5, 5.6
-- [ ] 12. Create end-to-end integration tests
+- [x] 12. Create end-to-end integration tests
   - Create comprehensive integration test file
   - Test complete workflow with git discovery
   - Test next command with various task states
   - Test auto-completion through multiple levels
   - Test reference inclusion in all output formats
   - References: Requirements 1.1-1.9, 2.1-2.9, 3.1-3.10, 4.1-4.7, 5.1-5.8
-  - [ ] 12.1. Write git integration tests
+  - [x] 12.1. Write git integration tests
     - Set up test git repository
     - Test branch switching and file discovery
     - Test detached HEAD handling
     - Test rebasing state handling
     - Clean up test repository after tests
     - References: Requirements 2.3, 2.6, 2.9
-  - [ ] 12.2. Write configuration integration tests
+  - [x] 12.2. Write configuration integration tests
     - Test config file precedence
     - Test environment variable overrides if supported
     - Test missing config file handling

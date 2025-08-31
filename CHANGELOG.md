@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Enhanced
+- **Next command output formatting**: Complete implementation of task details and references in next command output
+  - Added task details and task-level references to JSON, markdown, and table output formats
+  - Enhanced TaskWithContext structure to include Details and References fields
+  - Separated task-level references from front matter references in output
+  - Updated outputNextTaskTable, outputNextTaskMarkdown, and outputNextTaskJSON functions
+  - Full compliance with requirements 1.10, 1.11, and 5.3-5.6 for comprehensive task information display
+
+### Added
+- **Comprehensive integration test suite expansion**: Added 582 lines of new integration tests
+  - Next command task states testing with mixed completion scenarios
+  - Auto-completion multi-level testing across task hierarchies  
+  - Reference inclusion testing for all output formats (JSON, table, markdown)
+  - Configuration integration testing for precedence, validation, and git discovery
+  - Enhanced git discovery integration tests with proper repository setup
+- **Test infrastructure improvements**: 
+  - Fixed integration test runner to use compiled binary instead of `go run`
+  - Added HEAD commit creation in git discovery tests for proper repository state
+  - Enhanced JSON response parsing for task status validation
+  - Updated Claude Code settings for additional integration test permissions
+
 ### Added
 - Enhanced next command specification to include task details and task-level references in output
   - New requirement 1.10 for including task details (multi-line descriptions or notes) in output
