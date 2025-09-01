@@ -28,9 +28,9 @@ func TestRunRemove(t *testing.T) {
 		"remove single top-level task": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Task 1")
-				tl.AddTask("", "Task 2")
-				tl.AddTask("", "Task 3")
+				tl.AddTask("", "Task 1", "")
+				tl.AddTask("", "Task 2", "")
+				tl.AddTask("", "Task 3", "")
 				return tl.WriteFile(filename)
 			},
 			taskID: "2",
@@ -55,11 +55,11 @@ func TestRunRemove(t *testing.T) {
 		"remove task with children": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Parent task")
-				tl.AddTask("1", "Child 1")
-				tl.AddTask("1", "Child 2")
-				tl.AddTask("1.1", "Grandchild")
-				tl.AddTask("", "Task 2")
+				tl.AddTask("", "Parent task", "")
+				tl.AddTask("1", "Child 1", "")
+				tl.AddTask("1", "Child 2", "")
+				tl.AddTask("1.1", "Grandchild", "")
+				tl.AddTask("", "Task 2", "")
 				return tl.WriteFile(filename)
 			},
 			taskID: "1",
@@ -80,10 +80,10 @@ func TestRunRemove(t *testing.T) {
 		"remove subtask": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Parent task")
-				tl.AddTask("1", "Child 1")
-				tl.AddTask("1", "Child 2")
-				tl.AddTask("1", "Child 3")
+				tl.AddTask("", "Parent task", "")
+				tl.AddTask("1", "Child 1", "")
+				tl.AddTask("1", "Child 2", "")
+				tl.AddTask("1", "Child 3", "")
 				return tl.WriteFile(filename)
 			},
 			taskID: "1.2",
@@ -111,11 +111,11 @@ func TestRunRemove(t *testing.T) {
 		"remove nested subtask with children": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Parent")
-				tl.AddTask("1", "Child 1")
-				tl.AddTask("1", "Child 2")
-				tl.AddTask("1.1", "Grandchild 1")
-				tl.AddTask("1.1", "Grandchild 2")
+				tl.AddTask("", "Parent", "")
+				tl.AddTask("1", "Child 1", "")
+				tl.AddTask("1", "Child 2", "")
+				tl.AddTask("1.1", "Grandchild 1", "")
+				tl.AddTask("1.1", "Grandchild 2", "")
 				return tl.WriteFile(filename)
 			},
 			taskID: "1.1",
@@ -140,7 +140,7 @@ func TestRunRemove(t *testing.T) {
 		"remove last task": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Only task")
+				tl.AddTask("", "Only task", "")
 				return tl.WriteFile(filename)
 			},
 			taskID: "1",
@@ -158,7 +158,7 @@ func TestRunRemove(t *testing.T) {
 		"non-existent task ID": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Task 1")
+				tl.AddTask("", "Task 1", "")
 				return tl.WriteFile(filename)
 			},
 			taskID:        "999",
@@ -177,11 +177,11 @@ func TestRunRemove(t *testing.T) {
 		"remove from multiple level hierarchy": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Task 1")
-				tl.AddTask("", "Task 2")
-				tl.AddTask("", "Task 3")
-				tl.AddTask("2", "Child of 2")
-				tl.AddTask("3", "Child of 3")
+				tl.AddTask("", "Task 1", "")
+				tl.AddTask("", "Task 2", "")
+				tl.AddTask("", "Task 3", "")
+				tl.AddTask("2", "Child of 2", "")
+				tl.AddTask("3", "Child of 3", "")
 				return tl.WriteFile(filename)
 			},
 			taskID: "2",
@@ -258,10 +258,10 @@ func TestRunRemoveDryRun(t *testing.T) {
 
 	// Create test file with task that has children
 	tl := task.NewTaskList("Test Tasks")
-	tl.AddTask("", "Parent task")
-	tl.AddTask("1", "Child 1")
-	tl.AddTask("1", "Child 2")
-	tl.AddTask("1.1", "Grandchild")
+	tl.AddTask("", "Parent task", "")
+	tl.AddTask("1", "Child 1", "")
+	tl.AddTask("1", "Child 2", "")
+	tl.AddTask("1.1", "Grandchild", "")
 	tl.UpdateStatus("1.1.1", task.InProgress)
 	if err := tl.WriteFile(filename); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
@@ -341,7 +341,7 @@ func TestRunRemoveDryRunSingleTask(t *testing.T) {
 
 	// Create test file with single task
 	tl := task.NewTaskList("Test Tasks")
-	tl.AddTask("", "Single task")
+	tl.AddTask("", "Single task", "")
 	if err := tl.WriteFile(filename); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}

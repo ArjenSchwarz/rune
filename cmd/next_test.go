@@ -34,10 +34,10 @@ func TestNextCommand(t *testing.T) {
 		"find first incomplete task": {
 			setupTasks: func() *task.TaskList {
 				tl := task.NewTaskList("Test Project")
-				tl.AddTask("", "First task")   // 1
-				tl.AddTask("", "Second task")  // 2
-				tl.AddTask("1", "Subtask 1.1") // 1.1
-				tl.AddTask("1", "Subtask 1.2") // 1.2
+				tl.AddTask("", "First task", "")   // 1
+				tl.AddTask("", "Second task", "")  // 2
+				tl.AddTask("1", "Subtask 1.1", "") // 1.1
+				tl.AddTask("1", "Subtask 1.2", "") // 1.2
 				tl.UpdateStatus("1.1", task.Completed)
 				return tl
 			},
@@ -49,10 +49,10 @@ func TestNextCommand(t *testing.T) {
 		"find deeply nested incomplete task": {
 			setupTasks: func() *task.TaskList {
 				tl := task.NewTaskList("Deep Project")
-				tl.AddTask("", "First task")       // 1
-				tl.AddTask("1", "Subtask 1.1")     // 1.1
-				tl.AddTask("1.1", "Subtask 1.1.1") // 1.1.1
-				tl.AddTask("1.1", "Subtask 1.1.2") // 1.1.2
+				tl.AddTask("", "First task", "")       // 1
+				tl.AddTask("1", "Subtask 1.1", "")     // 1.1
+				tl.AddTask("1.1", "Subtask 1.1.1", "") // 1.1.1
+				tl.AddTask("1.1", "Subtask 1.1.2", "") // 1.1.2
 				tl.UpdateStatus("1", task.Completed)
 				tl.UpdateStatus("1.1", task.Completed)
 				tl.UpdateStatus("1.1.1", task.Completed)
@@ -67,9 +67,9 @@ func TestNextCommand(t *testing.T) {
 		"all tasks completed": {
 			setupTasks: func() *task.TaskList {
 				tl := task.NewTaskList("Complete Project")
-				tl.AddTask("", "First task")
-				tl.AddTask("", "Second task")
-				tl.AddTask("1", "Subtask 1.1")
+				tl.AddTask("", "First task", "")
+				tl.AddTask("", "Second task", "")
+				tl.AddTask("1", "Subtask 1.1", "")
 				tl.UpdateStatus("1", task.Completed)
 				tl.UpdateStatus("1.1", task.Completed)
 				tl.UpdateStatus("2", task.Completed)
@@ -82,7 +82,7 @@ func TestNextCommand(t *testing.T) {
 		"in-progress tasks are incomplete": {
 			setupTasks: func() *task.TaskList {
 				tl := task.NewTaskList("In Progress Project")
-				tl.AddTask("", "First task")
+				tl.AddTask("", "First task", "")
 				tl.UpdateStatus("1", task.InProgress)
 				return tl
 			},
@@ -324,7 +324,7 @@ references:
 
 			// For JSON, validate it's valid JSON
 			if tc.format == "json" {
-				var jsonObj interface{}
+				var jsonObj any
 				if err := json.Unmarshal([]byte(output), &jsonObj); err != nil {
 					t.Errorf("JSON format produced invalid JSON: %v\nOutput: %s", err, output)
 				}
@@ -435,7 +435,7 @@ metadata:
 
 			// For JSON, also validate it's valid JSON
 			if tc.format == "json" {
-				var jsonObj interface{}
+				var jsonObj any
 				if err := json.Unmarshal([]byte(output), &jsonObj); err != nil {
 					t.Errorf("JSON format produced invalid JSON: %v", err)
 				}

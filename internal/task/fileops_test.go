@@ -229,7 +229,7 @@ func TestAtomicWriteOperations(t *testing.T) {
 
 	t.Run("successful atomic write", func(t *testing.T) {
 		tl := NewTaskList("Test Tasks")
-		err := tl.AddTask("", "Test task")
+		_, err := tl.AddTask("", "Test task", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -279,7 +279,7 @@ func TestAtomicWriteOperations(t *testing.T) {
 
 		// Create new task list
 		tl := NewTaskList("New Tasks")
-		err = tl.AddTask("", "New task")
+		_, err = tl.AddTask("", "New task", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -319,7 +319,7 @@ func TestAtomicWriteOperations(t *testing.T) {
 		defer os.RemoveAll(testFile)
 
 		tl := NewTaskList("Test")
-		err = tl.AddTask("", "Test task")
+		_, err = tl.AddTask("", "Test task", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -539,7 +539,7 @@ func TestConcurrentAccessSafety(t *testing.T) {
 		for i := range numGoroutines {
 			go func(id int) {
 				tl := NewTaskList("Test Tasks")
-				err := tl.AddTask("", "Task from goroutine")
+				_, err := tl.AddTask("", "Task from goroutine", "")
 				if err != nil {
 					done <- err
 					return
@@ -579,11 +579,11 @@ func TestConcurrentAccessSafety(t *testing.T) {
 		// Create a large task list to increase write time
 		tl := NewTaskList("Large Task List")
 		for i := 1; i <= 100; i++ {
-			tl.AddTask("", "Task with some long content that will take time to write")
+			tl.AddTask("", "Task with some long content that will take time to write", "")
 			if i%10 == 0 {
 				// Add subtasks to some tasks
 				parentID := string(rune(i/10 + '0'))
-				tl.AddTask(parentID, "Subtask with additional content")
+				tl.AddTask(parentID, "Subtask with additional content", "")
 			}
 		}
 

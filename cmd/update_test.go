@@ -33,7 +33,7 @@ func TestRunUpdate(t *testing.T) {
 		"update title only": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Original title")
+				tl.AddTask("", "Original title", "")
 				return tl.WriteFile(filename)
 			},
 			taskID: "1",
@@ -58,7 +58,7 @@ func TestRunUpdate(t *testing.T) {
 		"update details only": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Task with details")
+				tl.AddTask("", "Task with details", "")
 				tl.UpdateTask("1", "", []string{"Old detail"}, []string{})
 				return tl.WriteFile(filename)
 			},
@@ -83,7 +83,7 @@ func TestRunUpdate(t *testing.T) {
 		"update references only": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Task with references")
+				tl.AddTask("", "Task with references", "")
 				return tl.WriteFile(filename)
 			},
 			taskID:     "1",
@@ -107,7 +107,7 @@ func TestRunUpdate(t *testing.T) {
 		"update all fields": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Original task")
+				tl.AddTask("", "Original task", "")
 				tl.UpdateTask("1", "", []string{"Old detail"}, []string{"old.md"})
 				return tl.WriteFile(filename)
 			},
@@ -136,7 +136,7 @@ func TestRunUpdate(t *testing.T) {
 		"clear details": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Task with details")
+				tl.AddTask("", "Task with details", "")
 				tl.UpdateTask("1", "", []string{"Detail to clear"}, []string{})
 				return tl.WriteFile(filename)
 			},
@@ -155,7 +155,7 @@ func TestRunUpdate(t *testing.T) {
 		"clear references": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Task with references")
+				tl.AddTask("", "Task with references", "")
 				tl.UpdateTask("1", "", []string{}, []string{"ref.md"})
 				return tl.WriteFile(filename)
 			},
@@ -174,8 +174,8 @@ func TestRunUpdate(t *testing.T) {
 		"update subtask": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Parent task")
-				tl.AddTask("1", "Child task")
+				tl.AddTask("", "Parent task", "")
+				tl.AddTask("1", "Child task", "")
 				return tl.WriteFile(filename)
 			},
 			taskID: "1.1",
@@ -206,7 +206,7 @@ func TestRunUpdate(t *testing.T) {
 		"no update flags provided": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Task")
+				tl.AddTask("", "Task", "")
 				return tl.WriteFile(filename)
 			},
 			taskID:        "1",
@@ -226,7 +226,7 @@ func TestRunUpdate(t *testing.T) {
 		"details with whitespace handling": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Task")
+				tl.AddTask("", "Task", "")
 				return tl.WriteFile(filename)
 			},
 			taskID:  "1",
@@ -309,7 +309,7 @@ func TestRunUpdateDryRun(t *testing.T) {
 
 	// Create test file
 	tl := task.NewTaskList("Test Tasks")
-	tl.AddTask("", "Original task")
+	tl.AddTask("", "Original task", "")
 	tl.UpdateTask("1", "", []string{"Original detail"}, []string{"original.md"})
 	if err := tl.WriteFile(filename); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)

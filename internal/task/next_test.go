@@ -339,7 +339,7 @@ func TestDepthProtection(t *testing.T) {
 	// This test ensures the function doesn't crash with deep nesting
 	// The max depth is set to 100 in the implementation
 	current := task
-	for i := 0; i < 150; i++ {
+	for range 150 {
 		child := Task{
 			ID:     current.ID + ".1",
 			Title:  "Child",

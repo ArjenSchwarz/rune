@@ -25,15 +25,15 @@ func TestFindCommand(t *testing.T) {
 	tl := task.NewTaskList("Find Test Project")
 
 	// Add tasks with various content
-	tl.AddTask("", "Design system architecture")
-	tl.AddTask("", "Implement parser module")
-	tl.AddTask("", "Write documentation")
+	tl.AddTask("", "Design system architecture", "")
+	tl.AddTask("", "Implement parser module", "")
+	tl.AddTask("", "Write documentation", "")
 
 	// Add subtasks
-	tl.AddTask("1", "Create database schema")
-	tl.AddTask("1", "Design REST API")
-	tl.AddTask("2", "Add markdown parser")
-	tl.AddTask("2", "Create parser tests")
+	tl.AddTask("1", "Create database schema", "")
+	tl.AddTask("1", "Design REST API", "")
+	tl.AddTask("2", "Add markdown parser", "")
+	tl.AddTask("2", "Create parser tests", "")
 
 	// Update task statuses
 	tl.UpdateStatus("1", task.InProgress)
@@ -212,9 +212,9 @@ func TestFindCommandOutputFormats(t *testing.T) {
 
 	// Create a simple test file
 	tl := task.NewTaskList("Format Test")
-	tl.AddTask("", "Parser task")
-	tl.AddTask("", "Database task")
-	tl.AddTask("1", "Parser subtask")
+	tl.AddTask("", "Parser task", "")
+	tl.AddTask("", "Database task", "")
+	tl.AddTask("1", "Parser subtask", "")
 
 	testFile := "format-test.md"
 	if err := tl.WriteFile(testFile); err != nil {
@@ -285,10 +285,10 @@ func TestFindCommandAdvancedFeatures(t *testing.T) {
 
 	// Create a test file with deep hierarchy
 	tl := task.NewTaskList("Advanced Test")
-	tl.AddTask("", "Level 1 Task")
-	tl.AddTask("1", "Level 2 Task")
-	tl.AddTask("1.1", "Level 3 Task")
-	tl.AddTask("1.1.1", "Deep nested task")
+	tl.AddTask("", "Level 1 Task", "")
+	tl.AddTask("1", "Level 2 Task", "")
+	tl.AddTask("1.1", "Level 3 Task", "")
+	tl.AddTask("1.1.1", "Deep nested task", "")
 
 	// Add various statuses
 	tl.UpdateStatus("1", task.InProgress)
@@ -416,8 +416,8 @@ func TestFindCommandEdgeCases(t *testing.T) {
 	// Test with special characters in search pattern
 	t.Run("special characters in pattern", func(t *testing.T) {
 		tl := task.NewTaskList("Special Chars Test")
-		tl.AddTask("", "Task with [brackets] and (parentheses)")
-		tl.AddTask("", "Task with *asterisks* and _underscores_")
+		tl.AddTask("", "Task with [brackets] and (parentheses)", "")
+		tl.AddTask("", "Task with *asterisks* and _underscores_", "")
 
 		specialFile := "special-test.md"
 		if err := tl.WriteFile(specialFile); err != nil {

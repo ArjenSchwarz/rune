@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Improved error handling for invalid operation types and field validation
 
 ### Added
+- **Position insertion functionality**: Added --position flag to add command for inserting tasks at specific positions
+  - Tasks can be inserted at any position, causing existing tasks to be automatically renumbered
+  - Position parameter works with both top-level tasks and subtasks (e.g., --position "1.2" for subtasks)
+  - Enhanced AddTask method to accept position parameter and handle task renumbering logic
+  - Comprehensive test coverage for position insertion scenarios and edge cases
+  - Integration with batch operations for programmatic position-based task insertion
 - **Batch operations simplification implementation tasks**: Comprehensive task breakdown for implementing unified update operations and position-based task insertion
   - Detailed 20-task implementation plan for removing update_status operation type
   - Task breakdown for extending update operation with optional status field

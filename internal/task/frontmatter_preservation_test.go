@@ -27,7 +27,8 @@ metadata:
 - [ ] 1. Existing task
 `,
 			operation: func(tl *TaskList) error {
-				return tl.AddTask("", "New root task")
+				_, err := tl.AddTask("", "New root task", "")
+				return err
 			},
 			wantFrontMatter: &FrontMatter{
 				References: []string{"./docs/requirements.md", "./specs/design.md"},
@@ -47,7 +48,8 @@ references:
 - [ ] 1. Parent task
 `,
 			operation: func(tl *TaskList) error {
-				return tl.AddTask("1", "New subtask")
+				_, err := tl.AddTask("1", "New subtask", "")
+				return err
 			},
 			wantFrontMatter: &FrontMatter{
 				References: []string{"./docs/api.md"},
@@ -120,7 +122,8 @@ metadata:
 - [ ] 1. Simple task
 `,
 			operation: func(tl *TaskList) error {
-				return tl.AddTask("", "Another task")
+				_, err := tl.AddTask("", "Another task", "")
+				return err
 			},
 			wantFrontMatter: &FrontMatter{}, // Should remain empty
 		},
@@ -234,7 +237,7 @@ metadata:
 	operations := []func(tl *TaskList) error{
 		func(tl *TaskList) error { return tl.UpdateStatus("1", Completed) },
 		func(tl *TaskList) error { return tl.UpdateStatus("2.1", InProgress) },
-		func(tl *TaskList) error { return tl.AddTask("3", "New subtask") },
+		func(tl *TaskList) error { _, err := tl.AddTask("3", "New subtask", ""); return err },
 		func(tl *TaskList) error { return tl.UpdateTask("2", "", []string{"Updated detail"}, nil) },
 	}
 
@@ -343,7 +346,7 @@ metadata:
 		t.Fatalf("Failed to update status: %v", err)
 	}
 
-	err = tl.AddTask("", "New complex task")
+	_, err = tl.AddTask("", "New complex task", "")
 	if err != nil {
 		t.Fatalf("Failed to add task: %v", err)
 	}

@@ -18,7 +18,10 @@
       "Read(/private/tmp/**)",
       "Bash(INTEGRATION=1 go test -v ./cmd -run TestIntegrationWorkflows/git_discovery_integration)",
       "Bash(INTEGRATION=1 go test -v ./cmd -run TestDebugGitDiscovery)",
-      "Bash(INTEGRATION=1 go test -v ./cmd -run TestIntegrationWorkflows/git_discovery_integration/complete_with_git_discovery)"
+      "Bash(INTEGRATION=1 go test -v ./cmd -run TestIntegrationWorkflows/git_discovery_integration/complete_with_git_discovery)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(INTEGRATION=1 go test -v ./cmd -timeout 30s)"
     ],
     "deny": [],
     "ask": []

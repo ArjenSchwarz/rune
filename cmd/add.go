@@ -20,22 +20,28 @@ template pattern.
 Use --parent to add the task as a subtask under an existing task.
 Without --parent, the task will be added as a top-level task.
 
+Use --position to insert the task at a specific position, causing existing
+tasks at that position and beyond to be renumbered.
+
 Examples:
   go-tasks add tasks.md --title "Write documentation"
-  go-tasks add --title "Write API docs" --parent "1"`,
+  go-tasks add --title "Write API docs" --parent "1"
+  go-tasks add --title "Urgent task" --position "2"`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runAdd,
 }
 
 var (
-	addTitle  string
-	addParent string
+	addTitle    string
+	addParent   string
+	addPosition string
 )
 
 func init() {
 	rootCmd.AddCommand(addCmd)
 	addCmd.Flags().StringVarP(&addTitle, "title", "t", "", "title for the new task")
 	addCmd.Flags().StringVarP(&addParent, "parent", "p", "", "parent task ID (optional)")
+	addCmd.Flags().StringVar(&addPosition, "position", "", "position to insert task (optional)")
 	addCmd.MarkFlagRequired("title")
 }
 
@@ -82,6 +88,9 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		} else {
 			fmt.Printf("Location: Top-level task\n")
 		}
+		if addPosition != "" {
+			fmt.Printf("Position: %s\n", addPosition)
+		}
 
 		// Calculate what the new task ID would be
 		var newID string
@@ -97,7 +106,8 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Add the task
-	if err := tl.AddTask(addParent, addTitle); err != nil {
+	newTaskID, err := tl.AddTask(addParent, addTitle, addPosition)
+	if err != nil {
 		return fmt.Errorf("failed to add task: %w", err)
 	}
 
@@ -107,14 +117,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	if verbose {
-		// Find the newly added task to get its ID
+		// Find the newly added task to get its details
 		var newTask *task.Task
-		if addParent != "" {
-			if parent := tl.FindTask(addParent); parent != nil && len(parent.Children) > 0 {
-				newTask = &parent.Children[len(parent.Children)-1]
-			}
-		} else if len(tl.Tasks) > 0 {
-			newTask = &tl.Tasks[len(tl.Tasks)-1]
+		if newTaskID != "" {
+			newTask = tl.FindTask(newTaskID)
 		}
 
 		fmt.Printf("Successfully added task to file: %s\n", filename)
@@ -128,15 +134,6 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			}
 		}
 	} else {
-		// Find the newly added task for simple output
-		var newTaskID string
-		if addParent != "" {
-			if parent := tl.FindTask(addParent); parent != nil && len(parent.Children) > 0 {
-				newTaskID = parent.Children[len(parent.Children)-1].ID
-			}
-		} else if len(tl.Tasks) > 0 {
-			newTaskID = tl.Tasks[len(tl.Tasks)-1].ID
-		}
 		fmt.Printf("Added task %s: %s\n", newTaskID, addTitle)
 	}
 
