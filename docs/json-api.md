@@ -34,13 +34,13 @@ This document describes the JSON schema for the go-tasks batch operations API.
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["add", "remove", "update_status", "update"],
+          "enum": ["add", "remove", "update"],
           "description": "Type of operation to perform"
         },
         "id": {
           "type": "string",
           "pattern": "^[1-9]\\d*(\\.[1-9]\\d*)*$",
-          "description": "Task ID (required for remove, update_status, update operations)"
+          "description": "Task ID (required for remove, update operations)"
         },
         "parent": {
           "type": "string", 
@@ -81,13 +81,9 @@ This document describes the JSON schema for the go-tasks batch operations API.
           "then": {"required": ["title"]}
         },
         {
-          "if": {"properties": {"type": {"enum": ["remove", "update_status", "update"]}}},
+          "if": {"properties": {"type": {"enum": ["remove", "update"]}},
           "then": {"required": ["id"]}
         },
-        {
-          "if": {"properties": {"type": {"const": "update_status"}}},
-          "then": {"required": ["status"]}
-        }
       ]
     }
   }
@@ -293,11 +289,11 @@ This document describes the JSON schema for the go-tasks batch operations API.
 }
 ```
 
-### Update Status Operation
+### Status Update via Update Operation
 
 ```json
 {
-  "type": "update_status",
+  "type": "update",
   "id": "1.2",
   "status": 2
 }

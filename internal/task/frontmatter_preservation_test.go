@@ -55,7 +55,7 @@ references:
 				References: []string{"./docs/api.md"},
 			},
 		},
-		"update_status_preserves_front_matter": {
+		"status_update_preserves_front_matter": {
 			initialContent: `---
 references:
   - ./reference.md

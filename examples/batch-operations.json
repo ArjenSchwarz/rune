@@ -32,7 +32,7 @@
       ]
     },
     {
-      "type": "update_status",
+      "type": "update",
       "id": "2",
       "status": 1
     },
