@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Task operations performance optimization**: Improved efficiency of position-based task insertion
+  - Replaced manual character parsing with `strconv.Atoi()` for better performance and error handling
+  - Cached parent task lookups to eliminate redundant `FindTask()` calls during operations
+  - Optimized addTaskAtPosition method to reduce unnecessary function calls
 - **Unified batch operations**: Simplified batch operations by removing `update_status` operation type
   - All status updates now use the unified `update` operation with optional status field
   - Updated CLI help text to reflect unified operation syntax

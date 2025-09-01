@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -37,6 +38,7 @@ func (tl *TaskList) AddTask(parentID, title, position string) (string, error) {
 	// Default append behavior
 	var newTaskID string
 	if parentID != "" {
+		// Cache parent task lookup to avoid redundant calls
 		parent := tl.FindTask(parentID)
 		if parent == nil {
 			return "", fmt.Errorf("parent task %s not found", parentID)
@@ -74,21 +76,19 @@ func (tl *TaskList) addTaskAtPosition(parentID, title, position string) (string,
 	// Parse position to get insertion index
 	parts := strings.Split(position, ".")
 	lastPart := parts[len(parts)-1]
-	targetIndex := 0
-	for _, char := range lastPart {
-		if char < '0' || char > '9' {
-			return "", fmt.Errorf("invalid position format: %s", position)
-		}
-		targetIndex = targetIndex*10 + int(char-'0')
+	targetIndex, err := strconv.Atoi(lastPart)
+	if err != nil {
+		return "", fmt.Errorf("invalid position format: %s", position)
 	}
 	if targetIndex < 1 {
 		return "", fmt.Errorf("invalid position: positions must be >= 1")
 	}
 	targetIndex-- // Convert to 0-based index
 
+	// Cache parent task lookup to avoid redundant FindTask() calls
+	var parent *Task
 	if parentID != "" {
-		// Insert as subtask
-		parent := tl.FindTask(parentID)
+		parent = tl.FindTask(parentID)
 		if parent == nil {
 			return "", fmt.Errorf("parent task %s not found", parentID)
 		}
@@ -131,14 +131,11 @@ func (tl *TaskList) addTaskAtPosition(parentID, title, position string) (string,
 	tl.renumberTasks()
 	tl.Modified = time.Now()
 
-	// After renumbering, find the task that was inserted at the target position
+	// After renumbering, use cached parent reference to avoid redundant FindTask() call
 	var newTaskID string
-	if parentID != "" {
-		parent := tl.FindTask(parentID)
-		if parent != nil && targetIndex < len(parent.Children) {
-			newTaskID = parent.Children[targetIndex].ID
-		}
-	} else if targetIndex < len(tl.Tasks) {
+	if parent != nil && targetIndex < len(parent.Children) {
+		newTaskID = parent.Children[targetIndex].ID
+	} else if parentID == "" && targetIndex < len(tl.Tasks) {
 		newTaskID = tl.Tasks[targetIndex].ID
 	}
 
