@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Batch operations simplification implementation tasks**: Comprehensive task breakdown for implementing unified update operations and position-based task insertion
+  - Detailed 20-task implementation plan for removing update_status operation type
+  - Task breakdown for extending update operation with optional status field
+  - Implementation tasks for position-based task insertion with --position CLI flag
+  - Comprehensive unit and integration test coverage requirements for both features
 - **Critical implementation analysis documentation**: Comprehensive analysis of batch operations simplification challenges
   - New implementation-concerns.md documenting position insertion logic gaps and breaking change impacts
   - Detailed analysis of auto-completion logic inconsistencies and validation requirements
