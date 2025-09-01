@@ -40,5 +40,8 @@ Thumbs.db
 go-tasksgo-tasks
 # Ignore build artifacts
 go-tasks
+
+# Shared scripts
+.claude/scripts
 coverage.out
 coverage.html

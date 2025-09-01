@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Front matter references feature specification**: Complete requirements, design, and implementation plan for CLI-based front matter management
+  - Specification documents for adding front matter content through CLI commands
+  - Requirements for extending create command with --reference and --meta flags for adding front matter during file creation
+  - Requirements for new add-frontmatter command to add metadata and references to existing task files
+  - Comprehensive design document with architecture, component specifications, and merge strategies
+  - Decision log documenting scope simplification, CLI flag design, and merge/append strategy choices
+  - Detailed implementation task breakdown with 5 major sections and 28 subtasks for systematic development
+  - Support for arbitrary metadata key-value pairs using repeatable --meta flags in "key:value" format
+  - Reference path management through repeatable --reference flags for document linking
+
 ### Changed
 - **Task operations performance optimization**: Improved efficiency of position-based task insertion
   - Replaced manual character parsing with `strconv.Atoi()` for better performance and error handling

@@ -1,0 +1,152 @@
+# Front Matter References Implementation Tasks
+
+- [ ] 1. Implement core front matter utilities and merge logic
+  - Build foundational functions for parsing and merging front matter
+  - [ ] 1.1. Write unit tests for ParseMetadataFlags function
+    - Test single key:value parsing
+    - Test multiple values for same key creating arrays
+    - Test invalid format detection
+    - Test empty key/value handling
+    - References: Requirements 1.2, 2.3
+  - [ ] 1.2. Implement ParseMetadataFlags function
+    - Create function to convert 'key:value' strings to map[string]any
+    - Handle multiple values for same key by creating arrays
+    - Keep values as strings by default (no type inference)
+    - Support colon in values by using first colon as separator
+    - References: Requirements 1.2, 2.3
+  - [ ] 1.3. Write unit tests for ValidateMetadataKey function
+    - Test valid YAML key names
+    - Test invalid characters detection
+    - Test maximum nesting depth (3 levels)
+    - Test dot notation parsing
+    - References: Requirements 1.2, 2.3
+  - [ ] 1.4. Implement ValidateMetadataKey and nested key helpers
+    - Create ValidateMetadataKey function for YAML key validation
+    - Implement setNestedValue helper for dot notation support
+    - Implement appendToValue helper for array creation
+    - Enforce maximum 3 levels of nesting
+    - References: Requirements 1.2, 2.3
+  - [ ] 1.5. Write unit tests for MergeFrontMatter function
+    - Test merging empty front matter with new content
+    - Test reference array appending without deduplication
+    - Test metadata scalar replacement
+    - Test metadata array appending
+    - Test type conflict error handling
+    - References: Requirements 2.5, 2.6
+  - [ ] 1.6. Implement MergeFrontMatter and mergeValues functions
+    - Create MergeFrontMatter function for combining structures
+    - Implement mergeValues for type-aware merging
+    - Handle reference appending without deduplication
+    - Support array and scalar metadata merging
+    - References: Requirements 2.5, 2.6
+- [ ] 2. Extend TaskList with front matter support
+  - Modify core TaskList functionality to support front matter operations
+  - [ ] 2.1. Write unit tests for NewTaskList with front matter
+    - Test NewTaskList without front matter (backward compatibility)
+    - Test NewTaskList with front matter parameter
+    - Verify front matter attachment to TaskList
+    - References: Requirements 1.4, 1.5
+  - [ ] 2.2. Modify NewTaskList to accept optional FrontMatter
+    - Update function signature in internal/task/operations.go
+    - Use variadic parameter pattern for optional FrontMatter
+    - Ensure backward compatibility with existing calls
+    - References: Requirements 1.4, 1.5
+  - [ ] 2.3. Write unit tests for AddFrontMatterContent method
+    - Test adding to TaskList without existing front matter
+    - Test merging with existing front matter
+    - Test resource limits (100 references, 100 metadata)
+    - Test invalid input error handling
+    - References: Requirements 2.4, 2.5, 2.6
+  - [ ] 2.4. Implement AddFrontMatterContent method
+    - Create method on TaskList struct
+    - Initialize front matter if missing
+    - Apply merge logic for existing content
+    - Validate resource limits
+    - References: Requirements 2.4, 2.5, 2.6
+  - [ ] 2.5. Write unit tests for atomic file operations
+    - Test successful atomic write
+    - Test cleanup on write failure
+    - Test .md file validation
+    - Test concurrent write scenarios
+    - References: Requirements 2.7
+  - [ ] 2.6. Implement WriteFileAtomic method
+    - Create WriteFileAtomic on TaskList
+    - Implement write-to-temp-then-rename pattern
+    - Validate .md file extension
+    - Handle error cleanup
+    - References: Requirements 2.7
+- [ ] 3. Enhance create command with front matter flags
+  - Add front matter support to the existing create command
+  - [ ] 3.1. Write unit tests for create command front matter flags
+    - Test single --reference flag
+    - Test multiple --reference flags
+    - Test single --meta flag
+    - Test multiple --meta flags
+    - Test combined references and metadata
+    - Test invalid metadata format
+    - Test dry-run mode
+    - References: Requirements 1.1, 1.2, 1.3, 1.6
+  - [ ] 3.2. Add front matter flags to create command
+    - Add createReferences and createMetadata variables
+    - Register --reference and --meta flags with StringSliceVar
+    - Parse flags and create FrontMatter struct when present
+    - Pass front matter to NewTaskList
+    - References: Requirements 1.1, 1.2, 1.3
+  - [ ] 3.3. Implement success feedback for create command
+    - Add feedback showing reference count added
+    - Add feedback showing metadata field count added
+    - Format messages clearly
+    - References: Requirements 2.8
+- [ ] 4. Implement add-frontmatter command
+  - Create new command for adding front matter to existing files
+  - [ ] 4.1. Create add-frontmatter command structure
+    - Create cmd/add_frontmatter.go file
+    - Define addFrontMatterCmd cobra.Command
+    - Add flag variables for references and metadata
+    - Register with root command
+    - References: Requirements 2.1, 2.2, 2.3
+  - [ ] 4.2. Write unit tests for add-frontmatter command
+    - Test adding to file without front matter
+    - Test adding to file with existing front matter
+    - Test metadata merging behavior
+    - Test non-existent file handling
+    - Test invalid file path
+    - Test dry-run mode
+    - References: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.8
+  - [ ] 4.3. Implement runAddFrontMatter function
+    - Parse and validate file argument
+    - Load existing TaskList from file
+    - Parse metadata flags using ParseMetadataFlags
+    - Call AddFrontMatterContent
+    - Support dry-run mode
+    - Write file atomically
+    - References: Requirements 2.1, 2.2, 2.3, 2.4, 2.8
+  - [ ] 4.4. Implement success feedback for add-frontmatter
+    - Show count of references added
+    - Show count of metadata fields merged
+    - Display clear success message
+    - References: Requirements 2.8
+- [ ] 5. Integration testing and edge case handling
+  - Comprehensive integration tests and edge case validation
+  - [ ] 5.1. Create integration tests for front matter features
+    - Test creating file with front matter end-to-end
+    - Test adding front matter to existing file
+    - Test complex nested metadata structures
+    - Test resource limits handling
+    - Verify YAML output validity
+    - References: Requirements 1.5, 2.4, 2.5, 2.6
+  - [ ] 5.2. Test and handle edge cases
+    - Test empty value in key:value format
+    - Test colons in values
+    - Test maximum nesting depth
+    - Test resource limits enforcement
+    - Ensure error path coverage
+    - References: Requirements 1.2, 2.3
+  - [ ] 5.3. Final validation and cleanup
+    - Ensure command registration is correct
+    - Verify all imports
+    - Run go fmt on all files
+    - Run golangci-lint
+    - Execute full test suite
+    - Fix any issues found
+    - References: Requirements 1.1, 1.2, 1.3, 2.1, 2.2, 2.3

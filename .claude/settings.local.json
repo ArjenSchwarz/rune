@@ -21,7 +21,9 @@
       "Bash(INTEGRATION=1 go test -v ./cmd -run TestIntegrationWorkflows/git_discovery_integration/complete_with_git_discovery)",
       "Bash(find:*)",
       "Bash(grep:*)",
-      "Bash(INTEGRATION=1 go test -v ./cmd -timeout 30s)"
+      "Bash(INTEGRATION=1 go test -v ./cmd -timeout 30s)",
+      "Bash(mkdir:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
