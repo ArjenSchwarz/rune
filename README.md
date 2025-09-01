@@ -5,7 +5,7 @@ A standalone Go command-line tool designed for AI agents and developers to creat
 ## Features
 
 - **CRUD Operations**: Create, read, update, and delete hierarchical task structures
-- **Consistent Formatting**: Generate standardized markdown regardless of input variations  
+- **Consistent Formatting**: Generate standardized markdown regardless of input variations
 - **Status Management**: Track tasks as pending `[ ]`, in-progress `[-]`, or completed `[x]`
 - **Hierarchical Structure**: Support nested tasks with automatic ID management (1, 1.1, 1.2.1)
 - **Batch Operations**: Execute multiple operations atomically via JSON API
@@ -98,7 +98,7 @@ go-tasks add [file] --title [title] [options]
 **Options:**
 - `--title [text]` - Task title (required)
 - `--parent [id]` - Parent task ID for subtasks
-- `--details [text,...]` - Comma-separated detail points  
+- `--details [text,...]` - Comma-separated detail points
 - `--references [ref,...]` - Comma-separated references
 
 **Examples:**
@@ -122,7 +122,7 @@ go-tasks complete tasks.md 1
 go-tasks complete tasks.md 2.1
 ```
 
-### uncomplete - Mark Task Pending  
+### uncomplete - Mark Task Pending
 
 Mark a task as pending `[ ]`.
 
@@ -218,7 +218,7 @@ go-tasks next tasks.md
 # Output in JSON format
 go-tasks next --format json
 
-# Output in markdown format  
+# Output in markdown format
 go-tasks next --format markdown
 ```
 
@@ -257,7 +257,7 @@ go-tasks batch tasks.md --operations updates.json --dry-run
   "operations": [
     {
       "type": "add",
-      "parent": "1", 
+      "parent": "1",
       "title": "New task",
       "details": ["Detail 1", "Detail 2"],
       "references": ["doc.md"]
@@ -269,7 +269,7 @@ go-tasks batch tasks.md --operations updates.json --dry-run
     },
     {
       "type": "update",
-      "id": "3", 
+      "id": "3",
       "title": "Updated title",
       "details": ["New detail"],
       "references": ["updated-doc.md"]
@@ -291,7 +291,7 @@ go-tasks batch tasks.md --operations updates.json --dry-run
 
 **Status Values:**
 - `0` = Pending `[ ]`
-- `1` = In Progress `[-]`  
+- `1` = In Progress `[-]`
 - `2` = Completed `[x]`
 
 ### Batch Operations Response
@@ -309,7 +309,7 @@ go-tasks batch tasks.md --operations updates.json --dry-run
 
 ```json
 {
-  "query": "authentication", 
+  "query": "authentication",
   "matches": [
     {
       "id": "1.2",
@@ -320,7 +320,7 @@ go-tasks batch tasks.md --operations updates.json --dry-run
       "path": ["1", "1.2"],
       "parent": {
         "id": "1",
-        "title": "Backend Development"  
+        "title": "Backend Development"
       }
     }
   ],
@@ -425,14 +425,14 @@ metadata:
 # Project Tasks
 
 - [ ] 1. Setup development environment
-  This involves setting up the complete development stack
-  including Docker containers and environment variables.
-  References: ./setup-guide.md, ./docker-compose.yml
+  - This involves setting up the complete development stack
+  - including Docker containers and environment variables.
+  - References: ./setup-guide.md, ./docker-compose.yml
   - [x] 1.1. Install dependencies
   - [ ] 1.2. Configure database
-    Create database schema and initial migrations.
-    Make sure to use the latest PostgreSQL version.
-    References: ./db/migrations/
+    - Create database schema and initial migrations.
+    - Make sure to use the latest PostgreSQL version.
+    - References: ./db/migrations/
 - [x] 2. Implement authentication
 - [ ] 3. Build API endpoints
   - [ ] 3.1. User endpoints
