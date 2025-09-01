@@ -1,0 +1,109 @@
+# Batch Operations Simplification Implementation
+
+- [ ] 1. Remove update_status Operation Type
+  - Remove updateStatusOperation constant and validation case from batch.go
+  - Remove update_status from supported operation types
+  - Update operation type validation to reject update_status operations
+  - References: Requirements 1.1
+- [ ] 2. Write unit tests for update_status removal
+  - Test that update_status operation type is rejected
+  - Test error message when update_status is used
+  - Update existing tests that use update_status to use update instead
+  - References: Requirements 1.1
+- [ ] 3. Extend update operation to accept optional status field
+  - Add status field validation only when status field is provided
+  - Extend existing update case in validateOperation function
+  - Validate status values (0=pending, 1=in-progress, 2=completed) only when present
+  - References: Requirements 1.2, 1.3
+- [ ] 4. Implement unified update operation field handling
+  - Extend applyOperation update case to handle optional status field
+  - Apply all field updates atomically within single operation
+  - Add hasStatusField helper function to detect when status is provided
+  - References: Requirements 1.2, 1.5
+- [ ] 5. Write unit tests for unified update operation
+  - Test update with status field only
+  - Test update with title and status fields combined
+  - Test update with details and references without status
+  - Test empty update operation as no-op behavior
+  - Test title length validation only when title field provided
+  - References: Requirements 1.2, 1.6, 1.7
+- [ ] 6. Update auto-completion logic for unified updates
+  - Extend applyOperationWithAutoComplete to trigger on unified updates
+  - Trigger auto-completion when status field is set to completed
+  - Handle auto-completion regardless of other fields being updated
+  - References: Requirements 1.4
+- [ ] 7. Write unit tests for auto-completion with unified updates
+  - Test auto-completion triggering on status=completed in unified update
+  - Test that title+status update triggers auto-completion
+  - Test that updates without status=completed do not trigger auto-completion
+  - References: Requirements 1.4
+- [ ] 8. Add position field to Operation struct
+  - Add Position field to Operation struct in batch.go
+  - Add JSON tag for position field
+  - Update operation parsing to handle position field
+  - References: Requirements 2.2
+- [ ] 9. Extend AddTask function to accept position parameter
+  - Add position string parameter to AddTask function signature
+  - Implement conditional logic to handle position vs append behavior
+  - Maintain existing append behavior when no position specified
+  - References: Requirements 2.9
+- [ ] 10. Write unit tests for AddTask position parameter
+  - Test AddTask with empty position parameter (existing behavior)
+  - Test position parameter validation and parsing
+  - Test that position exceeding list size results in append behavior
+  - References: Requirements 2.5, 2.9
+- [ ] 11. Implement position-based task insertion logic
+  - Create addTaskAtPosition helper function
+  - Implement array insertion at specified position
+  - Handle both root-level and subtask position insertion
+  - Validate position ID format using task ID regex pattern
+  - References: Requirements 2.3, 2.6, 2.8
+- [ ] 12. Write unit tests for position insertion logic
+  - Test insertion at position 1 (beginning of list)
+  - Test insertion at middle positions
+  - Test insertion at last position vs append behavior
+  - Test position format validation (valid and invalid formats)
+  - Test hierarchical task position insertion
+  - References: Requirements 2.3, 2.6, 2.7
+- [ ] 13. Update batch operation processing for position insertion
+  - Extend applyOperation add case to pass position parameter
+  - Implement reverse order processing for multiple position insertions
+  - Ensure position references use original pre-batch state
+  - References: Requirements 2.10
+- [ ] 14. Write unit tests for batch position insertions
+  - Test single position insertion in batch operation
+  - Test multiple position insertions processed in reverse order
+  - Test position insertion with other operation types in same batch
+  - Test atomic behavior when position insertion fails
+  - References: Requirements 2.10
+- [ ] 15. Add --position flag to CLI add command
+  - Add position string variable and flag definition to add.go
+  - Pass position parameter to AddTask function call
+  - Add position flag to command help text and usage examples
+  - References: Requirements 2.1
+- [ ] 16. Write unit tests for CLI add command with position
+  - Test --position flag functionality with valid positions
+  - Test position validation and error handling in CLI
+  - Test interaction between --position and --parent flags
+  - Test dry-run mode with position insertion
+  - References: Requirements 2.1
+- [ ] 17. Update task ID renumbering for position insertions
+  - Ensure existing renumberTasks function handles position insertions
+  - Verify ID renumbering maintains hierarchical consistency
+  - Test that all affected task IDs are updated atomically
+  - References: Requirements 2.8
+- [ ] 18. Write integration tests for end-to-end workflows
+  - Test complex multi-operation batches with unified updates and position insertions
+  - Test position insertion followed by updates on renumbered tasks
+  - Test error handling and rollback scenarios for both features
+  - Test CLI integration with file operations and git discovery
+  - References: Requirements 1.5, 2.8
+- [ ] 19. Update existing tests for unified update behavior
+  - Convert all update_status test cases to use update operation
+  - Update test expectations for unified update validation
+  - Ensure all existing functionality tests still pass
+  - References: Requirements 1.1
+- [ ] 20. Run linting and formatting validation
+  - Run make check to ensure code quality standards
+  - Apply make modernize for Go pattern updates
+  - Fix any linting or formatting issues
