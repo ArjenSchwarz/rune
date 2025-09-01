@@ -113,3 +113,9 @@ references:
   - Run make check to ensure code quality standards
   - Apply make modernize for Go pattern updates
   - Fix any linting or formatting issues
+- [x] 21. Use strconv.Atoi() for position parsing instead of manual character parsing
+  - Replace manual character-by-character parsing in operations.go:78-82 with Go's standard library strconv.Atoi() function for better performance and error handling
+- [x] 22. Cache parent task lookups to avoid multiple FindTask() calls
+  - Avoid multiple FindTask() calls in the same operation by caching the parent task reference. Currently operations.go has redundant calls on lines 40
+  - 91
+  - and 137
