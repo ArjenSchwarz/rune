@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Front matter utilities and merge logic implementation**: Core functionality for parsing and merging front matter
+  - ParseMetadataFlags function to convert 'key:value' strings to map[string]any with array support
+  - ValidateMetadataKey function for YAML key validation with dot notation support
+  - MergeFrontMatter and mergeValues functions for type-aware merging of front matter structures
+  - Support for nested keys using dot notation with maximum 3 levels of nesting
+  - Comprehensive test suite with 100% coverage for all front matter operations
+  - References array appending without deduplication as per requirements
+  - Type conflict detection and error handling for incompatible merge operations
+
+### Added
 - **Front matter references feature specification**: Complete requirements, design, and implementation plan for CLI-based front matter management
   - Specification documents for adding front matter content through CLI commands
   - Requirements for extending create command with --reference and --meta flags for adding front matter during file creation

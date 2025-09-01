@@ -1,39 +1,45 @@
+---
+references:
+    - specs/batch-operations-simplification/requirements.md
+    - specs/batch-operations-simplification/design.md
+    - specs/batch-operations-simplification/decision_log.md
+---
 # Front Matter References Implementation Tasks
 
-- [ ] 1. Implement core front matter utilities and merge logic
+- [x] 1. Implement core front matter utilities and merge logic
   - Build foundational functions for parsing and merging front matter
-  - [ ] 1.1. Write unit tests for ParseMetadataFlags function
+  - [x] 1.1. Write unit tests for ParseMetadataFlags function
     - Test single key:value parsing
     - Test multiple values for same key creating arrays
     - Test invalid format detection
     - Test empty key/value handling
     - References: Requirements 1.2, 2.3
-  - [ ] 1.2. Implement ParseMetadataFlags function
+  - [x] 1.2. Implement ParseMetadataFlags function
     - Create function to convert 'key:value' strings to map[string]any
     - Handle multiple values for same key by creating arrays
     - Keep values as strings by default (no type inference)
     - Support colon in values by using first colon as separator
     - References: Requirements 1.2, 2.3
-  - [ ] 1.3. Write unit tests for ValidateMetadataKey function
+  - [x] 1.3. Write unit tests for ValidateMetadataKey function
     - Test valid YAML key names
     - Test invalid characters detection
     - Test maximum nesting depth (3 levels)
     - Test dot notation parsing
     - References: Requirements 1.2, 2.3
-  - [ ] 1.4. Implement ValidateMetadataKey and nested key helpers
+  - [x] 1.4. Implement ValidateMetadataKey and nested key helpers
     - Create ValidateMetadataKey function for YAML key validation
     - Implement setNestedValue helper for dot notation support
     - Implement appendToValue helper for array creation
     - Enforce maximum 3 levels of nesting
     - References: Requirements 1.2, 2.3
-  - [ ] 1.5. Write unit tests for MergeFrontMatter function
+  - [x] 1.5. Write unit tests for MergeFrontMatter function
     - Test merging empty front matter with new content
     - Test reference array appending without deduplication
     - Test metadata scalar replacement
     - Test metadata array appending
     - Test type conflict error handling
     - References: Requirements 2.5, 2.6
-  - [ ] 1.6. Implement MergeFrontMatter and mergeValues functions
+  - [x] 1.6. Implement MergeFrontMatter and mergeValues functions
     - Create MergeFrontMatter function for combining structures
     - Implement mergeValues for type-aware merging
     - Handle reference appending without deduplication
