@@ -23,10 +23,10 @@ func TestListCommand(t *testing.T) {
 
 	// Create a test file with some tasks
 	tl := task.NewTaskList("Test Project")
-	tl.AddTask("", "First task")
-	tl.AddTask("", "Second task")
-	tl.AddTask("1", "Subtask 1.1")
-	tl.AddTask("1", "Subtask 1.2")
+	tl.AddTask("", "First task", "")
+	tl.AddTask("", "Second task", "")
+	tl.AddTask("1", "Subtask 1.1", "")
+	tl.AddTask("1", "Subtask 1.2", "")
 
 	// Update some task statuses
 	tl.UpdateStatus("1", task.InProgress)
@@ -122,8 +122,8 @@ func TestListCommandFormats(t *testing.T) {
 
 	// Create a simple test file
 	tl := task.NewTaskList("Format Test")
-	tl.AddTask("", "Task 1")
-	tl.AddTask("", "Task 2")
+	tl.AddTask("", "Task 1", "")
+	tl.AddTask("", "Task 2", "")
 
 	testFile := "format-test.md"
 	if err := tl.WriteFile(testFile); err != nil {

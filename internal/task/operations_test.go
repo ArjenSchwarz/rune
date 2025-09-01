@@ -9,7 +9,7 @@ import (
 func TestAddTask(t *testing.T) {
 	t.Run("add root task", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
-		err := tl.AddTask("", "First task")
+		_, err := tl.AddTask("", "First task", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -37,7 +37,7 @@ func TestAddTask(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
 		for i := 1; i <= 3; i++ {
-			err := tl.AddTask("", fmt.Sprintf("Task %d", i))
+			_, err := tl.AddTask("", fmt.Sprintf("Task %d", i), "")
 			if err != nil {
 				t.Fatalf("AddTask failed: %v", err)
 			}
@@ -58,12 +58,12 @@ func TestAddTask(t *testing.T) {
 	t.Run("add subtask to existing task", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Parent task")
+		_, err := tl.AddTask("", "Parent task", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
-		err = tl.AddTask("1", "Child task")
+		_, err = tl.AddTask("1", "Child task", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -92,17 +92,17 @@ func TestAddTask(t *testing.T) {
 	t.Run("add deep nested subtask", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Level 1")
+		_, err := tl.AddTask("", "Level 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
-		err = tl.AddTask("1", "Level 2")
+		_, err = tl.AddTask("1", "Level 2", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
-		err = tl.AddTask("1.1", "Level 3")
+		_, err = tl.AddTask("1.1", "Level 3", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -122,7 +122,7 @@ func TestAddTask(t *testing.T) {
 	t.Run("add task to non-existent parent", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("99", "Orphan task")
+		_, err := tl.AddTask("99", "Orphan task", "")
 		if err == nil {
 			t.Error("expected error for non-existent parent, got nil")
 		}
@@ -137,7 +137,7 @@ func TestAddTask(t *testing.T) {
 
 		time.Sleep(10 * time.Millisecond)
 
-		err := tl.AddTask("", "New task")
+		_, err := tl.AddTask("", "New task", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -153,7 +153,7 @@ func TestRemoveTask(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
 		for i := 1; i <= 3; i++ {
-			err := tl.AddTask("", fmt.Sprintf("Task %d", i))
+			_, err := tl.AddTask("", fmt.Sprintf("Task %d", i), "")
 			if err != nil {
 				t.Fatalf("AddTask failed: %v", err)
 			}
@@ -180,7 +180,7 @@ func TestRemoveTask(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
 		for i := 1; i <= 5; i++ {
-			err := tl.AddTask("", fmt.Sprintf("Task %d", i))
+			_, err := tl.AddTask("", fmt.Sprintf("Task %d", i), "")
 			if err != nil {
 				t.Fatalf("AddTask failed: %v", err)
 			}
@@ -207,13 +207,13 @@ func TestRemoveTask(t *testing.T) {
 	t.Run("remove subtask with renumbering", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Parent")
+		_, err := tl.AddTask("", "Parent", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
 		for i := 1; i <= 4; i++ {
-			err := tl.AddTask("1", fmt.Sprintf("Child %d", i))
+			_, err := tl.AddTask("1", fmt.Sprintf("Child %d", i), "")
 			if err != nil {
 				t.Fatalf("AddTask failed: %v", err)
 			}
@@ -252,17 +252,17 @@ func TestRemoveTask(t *testing.T) {
 	t.Run("remove task with children", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Parent")
+		_, err := tl.AddTask("", "Parent", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
-		err = tl.AddTask("1", "Child 1")
+		_, err = tl.AddTask("1", "Child 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
-		err = tl.AddTask("1.1", "Grandchild")
+		_, err = tl.AddTask("1.1", "Grandchild", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -291,7 +291,7 @@ func TestRemoveTask(t *testing.T) {
 
 	t.Run("modified timestamp is updated", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
-		err := tl.AddTask("", "Task 1")
+		_, err := tl.AddTask("", "Task 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -314,7 +314,7 @@ func TestUpdateStatus(t *testing.T) {
 	t.Run("update status to completed", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Task 1")
+		_, err := tl.AddTask("", "Task 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -337,7 +337,7 @@ func TestUpdateStatus(t *testing.T) {
 	t.Run("update status to in-progress", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Task 1")
+		_, err := tl.AddTask("", "Task 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -360,7 +360,7 @@ func TestUpdateStatus(t *testing.T) {
 	t.Run("update status transitions", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Task 1")
+		_, err := tl.AddTask("", "Task 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -395,12 +395,12 @@ func TestUpdateStatus(t *testing.T) {
 	t.Run("update status of subtask", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Parent")
+		_, err := tl.AddTask("", "Parent", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
-		err = tl.AddTask("1", "Child")
+		_, err = tl.AddTask("1", "Child", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -434,7 +434,7 @@ func TestUpdateStatus(t *testing.T) {
 
 	t.Run("modified timestamp is updated", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
-		err := tl.AddTask("", "Task 1")
+		_, err := tl.AddTask("", "Task 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -457,7 +457,7 @@ func TestUpdateTask(t *testing.T) {
 	t.Run("update title only", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Original title")
+		_, err := tl.AddTask("", "Original title", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -480,7 +480,7 @@ func TestUpdateTask(t *testing.T) {
 	t.Run("update details only", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Task 1")
+		_, err := tl.AddTask("", "Task 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -510,7 +510,7 @@ func TestUpdateTask(t *testing.T) {
 	t.Run("update references only", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Task 1")
+		_, err := tl.AddTask("", "Task 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -540,7 +540,7 @@ func TestUpdateTask(t *testing.T) {
 	t.Run("update all fields", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Original")
+		_, err := tl.AddTask("", "Original", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -571,7 +571,7 @@ func TestUpdateTask(t *testing.T) {
 	t.Run("clear details and references", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Task 1")
+		_, err := tl.AddTask("", "Task 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -614,7 +614,7 @@ func TestUpdateTask(t *testing.T) {
 	t.Run("preserve existing values when not updating", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Original title")
+		_, err := tl.AddTask("", "Original title", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -646,7 +646,7 @@ func TestUpdateTask(t *testing.T) {
 
 	t.Run("modified timestamp is updated", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
-		err := tl.AddTask("", "Task 1")
+		_, err := tl.AddTask("", "Task 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -665,26 +665,392 @@ func TestUpdateTask(t *testing.T) {
 	})
 }
 
+func TestAddTaskPosition(t *testing.T) {
+	t.Run("empty position parameter uses existing behavior", func(t *testing.T) {
+		tl := &TaskList{Title: "Test Tasks"}
+
+		// Add some root tasks first
+		_, err := tl.AddTask("", "Task 1", "")
+		if err != nil {
+			t.Fatalf("AddTask failed: %v", err)
+		}
+		_, err = tl.AddTask("", "Task 2", "")
+		if err != nil {
+			t.Fatalf("AddTask failed: %v", err)
+		}
+
+		// Add task with empty position - should append at end
+		_, err = tl.AddTask("", "Task 3", "")
+		if err != nil {
+			t.Fatalf("AddTask with empty position failed: %v", err)
+		}
+
+		if len(tl.Tasks) != 3 {
+			t.Errorf("expected 3 tasks, got %d", len(tl.Tasks))
+		}
+
+		// Verify the last task is the one we just added
+		lastTask := tl.Tasks[2]
+		if lastTask.ID != "3" {
+			t.Errorf("expected last task ID '3', got %s", lastTask.ID)
+		}
+		if lastTask.Title != "Task 3" {
+			t.Errorf("expected last task title 'Task 3', got %s", lastTask.Title)
+		}
+
+		// Test with subtask and empty position
+		_, err = tl.AddTask("1", "Subtask", "")
+		if err != nil {
+			t.Fatalf("AddTask subtask with empty position failed: %v", err)
+		}
+
+		parent := tl.FindTask("1")
+		if parent == nil {
+			t.Fatal("parent task not found")
+		}
+		if len(parent.Children) != 1 {
+			t.Errorf("expected 1 child task, got %d", len(parent.Children))
+		}
+		if parent.Children[0].ID != "1.1" {
+			t.Errorf("expected child ID '1.1', got %s", parent.Children[0].ID)
+		}
+	})
+
+	t.Run("position parameter validation and parsing", func(t *testing.T) {
+		tl := &TaskList{Title: "Test Tasks"}
+
+		// Add some initial tasks
+		for i := 1; i <= 3; i++ {
+			_, err := tl.AddTask("", fmt.Sprintf("Task %d", i), "")
+			if err != nil {
+				t.Fatalf("AddTask failed: %v", err)
+			}
+		}
+
+		testCases := map[string]struct {
+			position    string
+			expectError bool
+			errorMsg    string
+		}{
+			"valid position 1":                      {"1", false, ""},
+			"valid position 2":                      {"2", false, ""},
+			"valid position 3":                      {"3", false, ""},
+			"valid hierarchical position":           {"1.1", false, ""},
+			"valid deep position":                   {"1.2.3", false, ""},
+			"invalid position with letters":         {"1a", true, "invalid position format: 1a"},
+			"invalid position starting with 0":      {"0", true, "invalid position format: 0"},
+			"invalid position with dot at end":      {"1.", true, "invalid position format: 1."},
+			"invalid position with multiple dots":   {"1..2", true, "invalid position format: 1..2"},
+			"empty position component":              {"1..2", true, "invalid position format: 1..2"},
+			"negative position":                     {"-1", true, "invalid position format: -1"},
+			"decimal position":                      {"1.5", false, ""}, // This is actually valid - it means task 1.5
+			"position with spaces":                  {"1 2", true, "invalid position format: 1 2"},
+			"position with special chars":           {"1@2", true, "invalid position format: 1@2"},
+			"position starting with 0 in component": {"1.0", true, "invalid position format: 1.0"},
+		}
+
+		for name, tc := range testCases {
+			t.Run(name, func(t *testing.T) {
+				// Create fresh task list for each test
+				testTL := &TaskList{Title: "Test Tasks"}
+				for i := 1; i <= 3; i++ {
+					_, err := testTL.AddTask("", fmt.Sprintf("Task %d", i), "")
+					if err != nil {
+						t.Fatalf("Setup AddTask failed: %v", err)
+					}
+				}
+
+				_, err := testTL.AddTask("", "New Task", tc.position)
+
+				if tc.expectError {
+					if err == nil {
+						t.Errorf("expected error for position %q, got nil", tc.position)
+					} else if tc.errorMsg != "" && err.Error() != tc.errorMsg {
+						t.Errorf("expected error message %q, got %q", tc.errorMsg, err.Error())
+					}
+				} else {
+					if err != nil {
+						t.Errorf("unexpected error for position %q: %v", tc.position, err)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("position insertion at beginning", func(t *testing.T) {
+		tl := &TaskList{Title: "Test Tasks"}
+
+		// Add some initial tasks
+		for i := 1; i <= 3; i++ {
+			_, err := tl.AddTask("", fmt.Sprintf("Task %d", i), "")
+			if err != nil {
+				t.Fatalf("AddTask failed: %v", err)
+			}
+		}
+
+		// Insert at position 1 (beginning)
+		_, err := tl.AddTask("", "New First Task", "1")
+		if err != nil {
+			t.Fatalf("AddTask with position failed: %v", err)
+		}
+
+		// Verify task list length
+		if len(tl.Tasks) != 4 {
+			t.Errorf("expected 4 tasks, got %d", len(tl.Tasks))
+		}
+
+		// Verify new task is at position 1
+		firstTask := tl.Tasks[0]
+		if firstTask.ID != "1" {
+			t.Errorf("expected first task ID '1', got %s", firstTask.ID)
+		}
+		if firstTask.Title != "New First Task" {
+			t.Errorf("expected first task title 'New First Task', got %s", firstTask.Title)
+		}
+
+		// Verify other tasks were renumbered correctly
+		expectedTitles := []string{"New First Task", "Task 1", "Task 2", "Task 3"}
+		expectedIDs := []string{"1", "2", "3", "4"}
+
+		for i, task := range tl.Tasks {
+			if task.ID != expectedIDs[i] {
+				t.Errorf("task %d: expected ID %s, got %s", i, expectedIDs[i], task.ID)
+			}
+			if task.Title != expectedTitles[i] {
+				t.Errorf("task %d: expected title %s, got %s", i, expectedTitles[i], task.Title)
+			}
+		}
+	})
+
+	t.Run("position insertion in middle", func(t *testing.T) {
+		tl := &TaskList{Title: "Test Tasks"}
+
+		// Add some initial tasks
+		for i := 1; i <= 4; i++ {
+			_, err := tl.AddTask("", fmt.Sprintf("Task %d", i), "")
+			if err != nil {
+				t.Fatalf("AddTask failed: %v", err)
+			}
+		}
+
+		// Insert at position 3 (middle)
+		_, err := tl.AddTask("", "New Middle Task", "3")
+		if err != nil {
+			t.Fatalf("AddTask with position failed: %v", err)
+		}
+
+		// Verify task list length
+		if len(tl.Tasks) != 5 {
+			t.Errorf("expected 5 tasks, got %d", len(tl.Tasks))
+		}
+
+		// Verify tasks are in correct order
+		expectedTitles := []string{"Task 1", "Task 2", "New Middle Task", "Task 3", "Task 4"}
+		expectedIDs := []string{"1", "2", "3", "4", "5"}
+
+		for i, task := range tl.Tasks {
+			if task.ID != expectedIDs[i] {
+				t.Errorf("task %d: expected ID %s, got %s", i, expectedIDs[i], task.ID)
+			}
+			if task.Title != expectedTitles[i] {
+				t.Errorf("task %d: expected title %s, got %s", i, expectedTitles[i], task.Title)
+			}
+		}
+	})
+
+	t.Run("position exceeding list size results in append behavior", func(t *testing.T) {
+		tl := &TaskList{Title: "Test Tasks"}
+
+		// Add some initial tasks
+		for i := 1; i <= 3; i++ {
+			_, err := tl.AddTask("", fmt.Sprintf("Task %d", i), "")
+			if err != nil {
+				t.Fatalf("AddTask failed: %v", err)
+			}
+		}
+
+		// Try to insert at position 10 (way beyond list size)
+		_, err := tl.AddTask("", "Appended Task", "10")
+		if err != nil {
+			t.Fatalf("AddTask with position beyond list failed: %v", err)
+		}
+
+		// Verify task list length
+		if len(tl.Tasks) != 4 {
+			t.Errorf("expected 4 tasks, got %d", len(tl.Tasks))
+		}
+
+		// Verify the new task was appended at the end
+		lastTask := tl.Tasks[3]
+		if lastTask.ID != "4" {
+			t.Errorf("expected last task ID '4', got %s", lastTask.ID)
+		}
+		if lastTask.Title != "Appended Task" {
+			t.Errorf("expected last task title 'Appended Task', got %s", lastTask.Title)
+		}
+
+		// Test with subtasks
+		_, err = tl.AddTask("1", "Child 1", "")
+		if err != nil {
+			t.Fatalf("AddTask child failed: %v", err)
+		}
+
+		// Try to insert at position way beyond subtask list size
+		_, err = tl.AddTask("1", "Appended Child", "5")
+		if err != nil {
+			t.Fatalf("AddTask child with position beyond list failed: %v", err)
+		}
+
+		parent := tl.FindTask("1")
+		if parent == nil {
+			t.Fatal("parent task not found")
+		}
+
+		if len(parent.Children) != 2 {
+			t.Errorf("expected 2 children, got %d", len(parent.Children))
+		}
+
+		// Verify the child was appended at the end
+		lastChild := parent.Children[1]
+		if lastChild.ID != "1.2" {
+			t.Errorf("expected last child ID '1.2', got %s", lastChild.ID)
+		}
+		if lastChild.Title != "Appended Child" {
+			t.Errorf("expected last child title 'Appended Child', got %s", lastChild.Title)
+		}
+	})
+
+	t.Run("position insertion with subtasks", func(t *testing.T) {
+		tl := &TaskList{Title: "Test Tasks"}
+
+		// Create hierarchical structure
+		_, err := tl.AddTask("", "Parent 1", "")
+		if err != nil {
+			t.Fatalf("AddTask failed: %v", err)
+		}
+		_, err = tl.AddTask("", "Parent 2", "")
+		if err != nil {
+			t.Fatalf("AddTask failed: %v", err)
+		}
+
+		// Add some children to Parent 1
+		for i := 1; i <= 3; i++ {
+			_, err := tl.AddTask("1", fmt.Sprintf("Child 1.%d", i), "")
+			if err != nil {
+				t.Fatalf("AddTask child failed: %v", err)
+			}
+		}
+
+		// Insert a new child at position 2 within Parent 1's children
+		_, err = tl.AddTask("1", "New Child", "2")
+		if err != nil {
+			t.Fatalf("AddTask with position in subtask failed: %v", err)
+		}
+
+		parent1 := tl.FindTask("1")
+		if parent1 == nil {
+			t.Fatal("parent task not found")
+		}
+
+		if len(parent1.Children) != 4 {
+			t.Errorf("expected 4 children, got %d", len(parent1.Children))
+		}
+
+		// Verify children are in correct order after insertion
+		expectedChildTitles := []string{"Child 1.1", "New Child", "Child 1.2", "Child 1.3"}
+		expectedChildIDs := []string{"1.1", "1.2", "1.3", "1.4"}
+
+		for i, child := range parent1.Children {
+			if child.ID != expectedChildIDs[i] {
+				t.Errorf("child %d: expected ID %s, got %s", i, expectedChildIDs[i], child.ID)
+			}
+			if child.Title != expectedChildTitles[i] {
+				t.Errorf("child %d: expected title %s, got %s", i, expectedChildTitles[i], child.Title)
+			}
+			if child.ParentID != "1" {
+				t.Errorf("child %d: expected ParentID '1', got %s", i, child.ParentID)
+			}
+		}
+	})
+
+	t.Run("position insertion maintains task properties", func(t *testing.T) {
+		tl := &TaskList{Title: "Test Tasks"}
+
+		// Add initial tasks
+		for i := 1; i <= 2; i++ {
+			_, err := tl.AddTask("", fmt.Sprintf("Task %d", i), "")
+			if err != nil {
+				t.Fatalf("AddTask failed: %v", err)
+			}
+		}
+
+		// Insert task at position 2
+		_, err := tl.AddTask("", "Inserted Task", "2")
+		if err != nil {
+			t.Fatalf("AddTask with position failed: %v", err)
+		}
+
+		// Verify inserted task has correct properties
+		insertedTask := tl.FindTask("2")
+		if insertedTask == nil {
+			t.Fatal("inserted task not found")
+		}
+
+		if insertedTask.Status != Pending {
+			t.Errorf("expected status Pending, got %v", insertedTask.Status)
+		}
+		if insertedTask.ParentID != "" {
+			t.Errorf("expected empty ParentID for root task, got %s", insertedTask.ParentID)
+		}
+		if len(insertedTask.Details) != 0 {
+			t.Errorf("expected empty Details, got %v", insertedTask.Details)
+		}
+		if len(insertedTask.References) != 0 {
+			t.Errorf("expected empty References, got %v", insertedTask.References)
+		}
+	})
+
+	t.Run("modified timestamp is updated on position insertion", func(t *testing.T) {
+		tl := &TaskList{Title: "Test Tasks"}
+		_, err := tl.AddTask("", "Task 1", "")
+		if err != nil {
+			t.Fatalf("AddTask failed: %v", err)
+		}
+
+		before := tl.Modified
+		time.Sleep(10 * time.Millisecond)
+
+		_, err = tl.AddTask("", "New Task", "1")
+		if err != nil {
+			t.Fatalf("AddTask with position failed: %v", err)
+		}
+
+		if !tl.Modified.After(before) {
+			t.Error("Modified timestamp was not updated")
+		}
+	})
+}
+
 func TestParentChildRelationshipIntegrity(t *testing.T) {
 	t.Run("maintain parent-child relationships during operations", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Parent 1")
+		_, err := tl.AddTask("", "Parent 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
-		err = tl.AddTask("1", "Child 1.1")
+		_, err = tl.AddTask("1", "Child 1.1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
-		err = tl.AddTask("1", "Child 1.2")
+		_, err = tl.AddTask("1", "Child 1.2", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
-		err = tl.AddTask("1.1", "Grandchild 1.1.1")
+		_, err = tl.AddTask("1.1", "Grandchild 1.1.1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
@@ -722,29 +1088,29 @@ func TestParentChildRelationshipIntegrity(t *testing.T) {
 	t.Run("deep hierarchy renumbering", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.AddTask("", "Task 1")
+		_, err := tl.AddTask("", "Task 1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
-		err = tl.AddTask("", "Task 2")
-		if err != nil {
-			t.Fatalf("AddTask failed: %v", err)
-		}
-
-		err = tl.AddTask("2", "Task 2.1")
-		if err != nil {
-			t.Fatalf("AddTask failed: %v", err)
-		}
-		err = tl.AddTask("2", "Task 2.2")
+		_, err = tl.AddTask("", "Task 2", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
-		err = tl.AddTask("2.1", "Task 2.1.1")
+		_, err = tl.AddTask("2", "Task 2.1", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}
-		err = tl.AddTask("2.1", "Task 2.1.2")
+		_, err = tl.AddTask("2", "Task 2.2", "")
+		if err != nil {
+			t.Fatalf("AddTask failed: %v", err)
+		}
+
+		_, err = tl.AddTask("2.1", "Task 2.1.1", "")
+		if err != nil {
+			t.Fatalf("AddTask failed: %v", err)
+		}
+		_, err = tl.AddTask("2.1", "Task 2.1.2", "")
 		if err != nil {
 			t.Fatalf("AddTask failed: %v", err)
 		}

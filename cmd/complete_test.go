@@ -28,7 +28,7 @@ func TestRunComplete(t *testing.T) {
 		"mark pending task as completed": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Task to complete")
+				tl.AddTask("", "Task to complete", "")
 				return tl.WriteFile(filename)
 			},
 			taskID:      "1",
@@ -49,7 +49,7 @@ func TestRunComplete(t *testing.T) {
 		"mark in-progress task as completed": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Task in progress")
+				tl.AddTask("", "Task in progress", "")
 				tl.UpdateStatus("1", task.InProgress)
 				return tl.WriteFile(filename)
 			},
@@ -68,7 +68,7 @@ func TestRunComplete(t *testing.T) {
 		"mark already completed task as completed": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Already completed task")
+				tl.AddTask("", "Already completed task", "")
 				tl.UpdateStatus("1", task.Completed)
 				return tl.WriteFile(filename)
 			},
@@ -87,8 +87,8 @@ func TestRunComplete(t *testing.T) {
 		"complete subtask": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Parent task")
-				tl.AddTask("1", "Child task")
+				tl.AddTask("", "Parent task", "")
+				tl.AddTask("1", "Child task", "")
 				return tl.WriteFile(filename)
 			},
 			taskID:      "1.1",
@@ -111,9 +111,9 @@ func TestRunComplete(t *testing.T) {
 		"complete last subtask auto-completes parent": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Parent task")
-				tl.AddTask("1", "Child task 1")
-				tl.AddTask("1", "Child task 2")
+				tl.AddTask("", "Parent task", "")
+				tl.AddTask("1", "Child task 1", "")
+				tl.AddTask("1", "Child task 2", "")
 				// Complete first child
 				tl.UpdateStatus("1.1", task.Completed)
 				return tl.WriteFile(filename)
@@ -141,10 +141,10 @@ func TestRunComplete(t *testing.T) {
 		"multi-level auto-completion": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Grandparent task")
-				tl.AddTask("1", "Parent task")
-				tl.AddTask("1.1", "Child task 1")
-				tl.AddTask("1.1", "Child task 2")
+				tl.AddTask("", "Grandparent task", "")
+				tl.AddTask("1", "Parent task", "")
+				tl.AddTask("1.1", "Child task 1", "")
+				tl.AddTask("1.1", "Child task 2", "")
 				// Complete first child
 				tl.UpdateStatus("1.1.1", task.Completed)
 				return tl.WriteFile(filename)
@@ -239,7 +239,7 @@ func TestRunCompleteDryRun(t *testing.T) {
 
 	// Create test file
 	tl := task.NewTaskList("Test Tasks")
-	tl.AddTask("", "Task to complete")
+	tl.AddTask("", "Task to complete", "")
 	if err := tl.WriteFile(filename); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestRunUncomplete(t *testing.T) {
 		"mark completed task as pending": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Completed task")
+				tl.AddTask("", "Completed task", "")
 				tl.UpdateStatus("1", task.Completed)
 				return tl.WriteFile(filename)
 			},
@@ -338,7 +338,7 @@ func TestRunUncomplete(t *testing.T) {
 		"mark in-progress task as pending": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "In progress task")
+				tl.AddTask("", "In progress task", "")
 				tl.UpdateStatus("1", task.InProgress)
 				return tl.WriteFile(filename)
 			},
@@ -409,7 +409,7 @@ func TestRunProgress(t *testing.T) {
 		"mark pending task as in-progress": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Pending task")
+				tl.AddTask("", "Pending task", "")
 				return tl.WriteFile(filename)
 			},
 			taskID:      "1",
@@ -427,7 +427,7 @@ func TestRunProgress(t *testing.T) {
 		"mark completed task as in-progress": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				tl.AddTask("", "Completed task")
+				tl.AddTask("", "Completed task", "")
 				tl.UpdateStatus("1", task.Completed)
 				return tl.WriteFile(filename)
 			},

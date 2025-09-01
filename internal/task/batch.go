@@ -2,11 +2,15 @@ package task
 
 import (
 	"fmt"
+	"maps"
+	"sort"
+	"strconv"
 	"strings"
 )
 
 const (
 	updateOperation = "update"
+	addOperation    = "add"
 )
 
 // StatusPtr returns a pointer to the given status value for use in Operation structs
@@ -19,6 +23,69 @@ func hasStatusField(op Operation) bool {
 	return op.Status != nil
 }
 
+// validateTaskIDFormat validates that a string follows the task ID format
+func validateTaskIDFormat(id string) bool {
+	return isValidID(id)
+}
+
+// sortOperationsForPositionInsertions sorts operations to process position insertions in reverse order
+// This ensures that position references remain valid to the original pre-batch state
+func sortOperationsForPositionInsertions(ops []Operation) []Operation {
+	// Separate position insertions from other operations
+	var positionInsertions []Operation
+	var otherOps []Operation
+
+	for _, op := range ops {
+		if strings.ToLower(op.Type) == addOperation && op.Position != "" {
+			positionInsertions = append(positionInsertions, op)
+		} else {
+			otherOps = append(otherOps, op)
+		}
+	}
+
+	// Sort position insertions in reverse order (higher positions first)
+	sort.Slice(positionInsertions, func(i, j int) bool {
+		return comparePositions(positionInsertions[i].Position, positionInsertions[j].Position) > 0
+	})
+
+	// Combine: position insertions first (in reverse order), then other operations
+	result := make([]Operation, 0, len(ops))
+	result = append(result, positionInsertions...)
+	result = append(result, otherOps...)
+
+	return result
+}
+
+// comparePositions compares two position strings numerically
+// Returns: -1 if a < b, 0 if a == b, 1 if a > b
+func comparePositions(a, b string) int {
+	// Split positions into parts
+	partsA := strings.Split(a, ".")
+	partsB := strings.Split(b, ".")
+
+	// Compare part by part
+	maxLen := max(len(partsB), len(partsA))
+
+	for i := range maxLen {
+		var numA, numB int
+
+		if i < len(partsA) {
+			numA, _ = strconv.Atoi(partsA[i])
+		}
+		if i < len(partsB) {
+			numB, _ = strconv.Atoi(partsB[i])
+		}
+
+		if numA < numB {
+			return -1
+		} else if numA > numB {
+			return 1
+		}
+	}
+
+	return 0
+}
+
 // Operation represents a single operation in a batch
 type Operation struct {
 	Type       string   `json:"type"`
@@ -28,6 +95,7 @@ type Operation struct {
 	Status     *Status  `json:"status,omitempty"`
 	Details    []string `json:"details,omitempty"`
 	References []string `json:"references,omitempty"`
+	Position   string   `json:"position,omitempty"`
 }
 
 // BatchRequest represents a request for multiple operations
@@ -55,6 +123,10 @@ func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, 
 		AutoCompleted: []string{},
 	}
 
+	// Sort operations to process position insertions in reverse order
+	// This ensures position references use original pre-batch state
+	sortedOps := sortOperationsForPositionInsertions(ops)
+
 	// Create a deep copy to test all operations first (per Decision #12)
 	testList, err := tl.deepCopy()
 	if err != nil {
@@ -65,7 +137,7 @@ func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, 
 	testAutoCompleted := make(map[string]bool)
 
 	// Validate and apply operations to test copy sequentially
-	for i, op := range ops {
+	for i, op := range sortedOps {
 		if err := validateOperation(testList, op); err != nil {
 			response.Success = false
 			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
@@ -88,7 +160,7 @@ func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, 
 	// For dry run, return preview without applying to original
 	if dryRun {
 		response.Preview = string(RenderMarkdown(testList))
-		response.Applied = len(ops)
+		response.Applied = len(sortedOps)
 		return response, nil
 	}
 
@@ -96,7 +168,7 @@ func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, 
 	autoCompleted := make(map[string]bool)
 
 	// Apply all operations to original (atomic - all succeed or all fail)
-	for _, op := range ops {
+	for _, op := range sortedOps {
 		if err := applyOperationWithAutoComplete(tl, op, autoCompleted); err != nil {
 			return nil, fmt.Errorf("applying operation: %w", err)
 		}
@@ -115,7 +187,7 @@ func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, 
 // validateOperation checks if an operation is valid without applying it
 func validateOperation(tl *TaskList, op Operation) error {
 	switch strings.ToLower(op.Type) {
-	case "add":
+	case addOperation:
 		if op.Title == "" {
 			return fmt.Errorf("add operation requires title")
 		}
@@ -124,6 +196,11 @@ func validateOperation(tl *TaskList, op Operation) error {
 		}
 		if op.Parent != "" && tl.FindTask(op.Parent) == nil {
 			return fmt.Errorf("parent task %s not found", op.Parent)
+		}
+		if op.Position != "" {
+			if !validateTaskIDFormat(op.Position) {
+				return fmt.Errorf("invalid position format: %s", op.Position)
+			}
 		}
 	case "remove":
 		if op.ID == "" {
@@ -155,23 +232,14 @@ func validateOperation(tl *TaskList, op Operation) error {
 // applyOperation executes a single operation
 func applyOperation(tl *TaskList, op Operation) error {
 	switch strings.ToLower(op.Type) {
-	case "add":
-		// First add the task
-		if err := tl.AddTask(op.Parent, op.Title); err != nil {
+	case addOperation:
+		// Add the task (now supports position parameter)
+		newTaskID, err := tl.AddTask(op.Parent, op.Title, op.Position)
+		if err != nil {
 			return err
 		}
 		// If details or references are provided, update the newly added task
 		if len(op.Details) > 0 || len(op.References) > 0 {
-			// Find the newly added task ID
-			var newTaskID string
-			if op.Parent != "" {
-				parent := tl.FindTask(op.Parent)
-				if parent != nil && len(parent.Children) > 0 {
-					newTaskID = parent.Children[len(parent.Children)-1].ID
-				}
-			} else if len(tl.Tasks) > 0 {
-				newTaskID = tl.Tasks[len(tl.Tasks)-1].ID
-			}
 			if newTaskID != "" {
 				return tl.UpdateTask(newTaskID, "", op.Details, op.References)
 			}
@@ -235,9 +303,7 @@ func (tl *TaskList) deepCopy() (*TaskList, error) {
 			Metadata:   make(map[string]any),
 		}
 		copy(copyList.FrontMatter.References, tl.FrontMatter.References)
-		for k, v := range tl.FrontMatter.Metadata {
-			copyList.FrontMatter.Metadata[k] = v
-		}
+		maps.Copy(copyList.FrontMatter.Metadata, tl.FrontMatter.Metadata)
 	}
 	return copyList, nil
 }

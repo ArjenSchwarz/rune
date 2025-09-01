@@ -43,62 +43,62 @@ references:
   - Test that title+status update triggers auto-completion
   - Test that updates without status=completed do not trigger auto-completion
   - References: Requirements 1.4
-- [ ] 8. Add position field to Operation struct
+- [x] 8. Add position field to Operation struct
   - Add Position field to Operation struct in batch.go
   - Add JSON tag for position field
   - Update operation parsing to handle position field
   - References: Requirements 2.2
-- [ ] 9. Extend AddTask function to accept position parameter
+- [x] 9. Extend AddTask function to accept position parameter
   - Add position string parameter to AddTask function signature
   - Implement conditional logic to handle position vs append behavior
   - Maintain existing append behavior when no position specified
   - References: Requirements 2.9
-- [ ] 10. Write unit tests for AddTask position parameter
+- [x] 10. Write unit tests for AddTask position parameter
   - Test AddTask with empty position parameter (existing behavior)
   - Test position parameter validation and parsing
   - Test that position exceeding list size results in append behavior
   - References: Requirements 2.5, 2.9
-- [ ] 11. Implement position-based task insertion logic
+- [x] 11. Implement position-based task insertion logic
   - Create addTaskAtPosition helper function
   - Implement array insertion at specified position
   - Handle both root-level and subtask position insertion
   - Validate position ID format using task ID regex pattern
   - References: Requirements 2.3, 2.6, 2.8
-- [ ] 12. Write unit tests for position insertion logic
+- [x] 12. Write unit tests for position insertion logic
   - Test insertion at position 1 (beginning of list)
   - Test insertion at middle positions
   - Test insertion at last position vs append behavior
   - Test position format validation (valid and invalid formats)
   - Test hierarchical task position insertion
   - References: Requirements 2.3, 2.6, 2.7
-- [ ] 13. Update batch operation processing for position insertion
+- [x] 13. Update batch operation processing for position insertion
   - Extend applyOperation add case to pass position parameter
   - Implement reverse order processing for multiple position insertions
   - Ensure position references use original pre-batch state
   - References: Requirements 2.10
-- [ ] 14. Write unit tests for batch position insertions
+- [x] 14. Write unit tests for batch position insertions
   - Test single position insertion in batch operation
   - Test multiple position insertions processed in reverse order
   - Test position insertion with other operation types in same batch
   - Test atomic behavior when position insertion fails
   - References: Requirements 2.10
-- [ ] 15. Add --position flag to CLI add command
+- [x] 15. Add --position flag to CLI add command
   - Add position string variable and flag definition to add.go
   - Pass position parameter to AddTask function call
   - Add position flag to command help text and usage examples
   - References: Requirements 2.1
-- [ ] 16. Write unit tests for CLI add command with position
+- [x] 16. Write unit tests for CLI add command with position
   - Test --position flag functionality with valid positions
   - Test position validation and error handling in CLI
   - Test interaction between --position and --parent flags
   - Test dry-run mode with position insertion
   - References: Requirements 2.1
-- [ ] 17. Update task ID renumbering for position insertions
+- [x] 17. Update task ID renumbering for position insertions
   - Ensure existing renumberTasks function handles position insertions
   - Verify ID renumbering maintains hierarchical consistency
   - Test that all affected task IDs are updated atomically
   - References: Requirements 2.8
-- [ ] 18. Write integration tests for end-to-end workflows
+- [x] 18. Write integration tests for end-to-end workflows
   - Test complex multi-operation batches with unified updates and position insertions
   - Test position insertion followed by updates on renumbered tasks
   - Test error handling and rollback scenarios for both features

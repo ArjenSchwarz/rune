@@ -16,32 +16,44 @@ const (
 )
 
 // AddTask adds a new task to the task list under the specified parent
-func (tl *TaskList) AddTask(parentID, title string) error {
+// If position is provided, the task will be inserted at that position, otherwise appended
+// Returns the ID of the newly created task
+func (tl *TaskList) AddTask(parentID, title, position string) (string, error) {
 	// Validate input
 	if err := validateTaskInput(title); err != nil {
-		return err
+		return "", err
 	}
 
 	// Check resource limits
 	if err := tl.checkResourceLimits(parentID); err != nil {
-		return err
+		return "", err
 	}
+
+	// If position is specified, use position-based insertion
+	if position != "" {
+		return tl.addTaskAtPosition(parentID, title, position)
+	}
+
+	// Default append behavior
+	var newTaskID string
 	if parentID != "" {
 		parent := tl.FindTask(parentID)
 		if parent == nil {
-			return fmt.Errorf("parent task %s not found", parentID)
+			return "", fmt.Errorf("parent task %s not found", parentID)
 		}
 
+		newTaskID = fmt.Sprintf("%s.%d", parentID, len(parent.Children)+1)
 		newTask := Task{
-			ID:       fmt.Sprintf("%s.%d", parentID, len(parent.Children)+1),
+			ID:       newTaskID,
 			Title:    title,
 			Status:   Pending,
 			ParentID: parentID,
 		}
 		parent.Children = append(parent.Children, newTask)
 	} else {
+		newTaskID = fmt.Sprintf("%d", len(tl.Tasks)+1)
 		newTask := Task{
-			ID:     fmt.Sprintf("%d", len(tl.Tasks)+1),
+			ID:     newTaskID,
 			Title:  title,
 			Status: Pending,
 		}
@@ -49,7 +61,88 @@ func (tl *TaskList) AddTask(parentID, title string) error {
 	}
 
 	tl.Modified = time.Now()
-	return nil
+	return newTaskID, nil
+}
+
+// addTaskAtPosition inserts a task at the specified position and returns the new task ID
+func (tl *TaskList) addTaskAtPosition(parentID, title, position string) (string, error) {
+	// Validate position format
+	if !isValidID(position) {
+		return "", fmt.Errorf("invalid position format: %s", position)
+	}
+
+	// Parse position to get insertion index
+	parts := strings.Split(position, ".")
+	lastPart := parts[len(parts)-1]
+	targetIndex := 0
+	for _, char := range lastPart {
+		if char < '0' || char > '9' {
+			return "", fmt.Errorf("invalid position format: %s", position)
+		}
+		targetIndex = targetIndex*10 + int(char-'0')
+	}
+	if targetIndex < 1 {
+		return "", fmt.Errorf("invalid position: positions must be >= 1")
+	}
+	targetIndex-- // Convert to 0-based index
+
+	if parentID != "" {
+		// Insert as subtask
+		parent := tl.FindTask(parentID)
+		if parent == nil {
+			return "", fmt.Errorf("parent task %s not found", parentID)
+		}
+
+		// Bounds check - if beyond end, append
+		if targetIndex > len(parent.Children) {
+			targetIndex = len(parent.Children)
+		}
+
+		// Create new task
+		newTask := Task{
+			ID:       "temp", // Will be renumbered
+			Title:    title,
+			Status:   Pending,
+			ParentID: parentID,
+		}
+
+		// Insert at position
+		parent.Children = append(parent.Children[:targetIndex],
+			append([]Task{newTask}, parent.Children[targetIndex:]...)...)
+	} else {
+		// Insert at root level
+		if targetIndex > len(tl.Tasks) {
+			targetIndex = len(tl.Tasks)
+		}
+
+		// Create new task
+		newTask := Task{
+			ID:     "temp", // Will be renumbered
+			Title:  title,
+			Status: Pending,
+		}
+
+		// Insert at position
+		tl.Tasks = append(tl.Tasks[:targetIndex],
+			append([]Task{newTask}, tl.Tasks[targetIndex:]...)...)
+	}
+
+	// Renumber all tasks to maintain consistency
+	tl.renumberTasks()
+	tl.Modified = time.Now()
+
+	// After renumbering, find the task that was inserted at the target position
+	var newTaskID string
+	if parentID != "" {
+		parent := tl.FindTask(parentID)
+		if parent != nil && targetIndex < len(parent.Children) {
+			newTaskID = parent.Children[targetIndex].ID
+		}
+	} else if targetIndex < len(tl.Tasks) {
+		newTaskID = tl.Tasks[targetIndex].ID
+	}
+
+	return newTaskID, nil
 }
 
 // RemoveTask removes a task from the task list and renumbers remaining tasks
