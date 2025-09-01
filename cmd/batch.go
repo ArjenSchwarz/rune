@@ -31,7 +31,7 @@ The JSON format should be:
       "parent": "1"
     },
     {
-      "type": "update_status", 
+      "type": "update", 
       "id": "2",
       "status": 2
     }
@@ -42,8 +42,7 @@ The JSON format should be:
 Operation types:
 - add: Add a new task (requires title, optional parent)
 - remove: Remove a task (requires id)
-- update_status: Change task status (requires id, status: 0=pending, 1=in-progress, 2=completed)
-- update: Update task content (requires id, optional title, details, references)
+- update: Update task fields (requires id, optional title, status, details, references)
 
 All operations are atomic - either all succeed or none are applied.`,
 	RunE: runBatch,
@@ -107,6 +106,13 @@ func runBatch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("executing batch operations: %w", err)
 	}
 
+	// Save the file if not a dry run and operations succeeded
+	if !req.DryRun && response.Success {
+		if err := taskList.WriteFile(req.File); err != nil {
+			return fmt.Errorf("saving updated file: %w", err)
+		}
+	}
+
 	// Handle output based on format
 	switch strings.ToLower(format) {
 	case formatJSON:
@@ -165,10 +171,7 @@ func outputBatchText(cmd *cobra.Command, response *task.BatchResponse, isDryRun 
 			}
 		}
 
-		// Save the updated file
-		if err := taskList.WriteFile(filename); err != nil {
-			return fmt.Errorf("saving updated file: %w", err)
-		}
+		// File is already saved in runBatch function
 
 		if verbose {
 			fmt.Fprintf(out, "\nUpdated file contents:\n")

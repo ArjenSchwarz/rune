@@ -329,7 +329,7 @@ func testComplexBatchOperations(t *testing.T, tempDir string) {
 		{Type: "add", Parent: "1", Title: "Setup package.json"},
 		// Update existing tasks
 		{Type: "update", ID: "2", Title: "Configure CI/CD with GitHub Actions", Details: []string{"Create workflow files", "Setup secrets"}},
-		{Type: "update_status", ID: "3", Status: task.InProgress},
+		{Type: "update", ID: "3", Status: task.StatusPtr(task.InProgress)},
 		// Add references
 		{Type: "update", ID: "4", References: []string{"staging-deploy.md", "env-config.md"}},
 		// Add nested tasks to the security audit (task 5)
@@ -388,7 +388,7 @@ func testComplexBatchOperations(t *testing.T, tempDir string) {
 	// Test batch operation validation (should fail)
 	invalidOps := []task.Operation{
 		{Type: "add", Parent: "nonexistent", Title: "This should fail"},
-		{Type: "update_status", ID: "999", Status: task.Completed},
+		{Type: "update", ID: "999", Status: task.StatusPtr(task.Completed)},
 	}
 
 	response, err = tl.ExecuteBatch(invalidOps, false)
@@ -580,8 +580,8 @@ func testErrorHandlingRecovery(t *testing.T, tempDir string) {
 	// Try batch operation with mixed valid/invalid operations
 	mixedOps := []task.Operation{
 		{Type: "add", Parent: "", Title: "Valid new task"},
-		{Type: "update_status", ID: "1", Status: task.Completed}, // Valid
-		{Type: "remove", ID: "999"},                              // Invalid - should cause entire batch to fail
+		{Type: "update", ID: "1", Status: task.StatusPtr(task.Completed)}, // Valid
+		{Type: "remove", ID: "999"},                                       // Invalid - should cause entire batch to fail
 	}
 
 	originalTaskCount := len(tl.Tasks)
@@ -746,9 +746,9 @@ func TestLargeFileHandling(t *testing.T) {
 	batchOps := make([]task.Operation, 20)
 	for i := range 20 {
 		batchOps[i] = task.Operation{
-			Type:   "update_status",
+			Type:   "update",
 			ID:     fmt.Sprintf("%d.%d", (i%10)+1, (i%15)+1),
-			Status: task.Completed,
+			Status: task.StatusPtr(task.Completed),
 		}
 	}
 
@@ -1181,9 +1181,9 @@ func testAutoCompletionMultiLevel(t *testing.T, tempDir string) {
 
 		// Use batch operation to complete multiple tasks
 		batchOps := []task.Operation{
-			{Type: "update_status", ID: "2.1.1", Status: task.Completed},
-			{Type: "update_status", ID: "2.1.2", Status: task.Completed},
-			{Type: "update_status", ID: "2.2", Status: task.Completed},
+			{Type: "update", ID: "2.1.1", Status: task.StatusPtr(task.Completed)},
+			{Type: "update", ID: "2.1.2", Status: task.StatusPtr(task.Completed)},
+			{Type: "update", ID: "2.2", Status: task.StatusPtr(task.Completed)},
 		}
 
 		tl, err := task.ParseFile(filename)
