@@ -6,8 +6,18 @@ import (
 )
 
 const (
-	updateStatusOperation = "update_status"
+	updateOperation = "update"
 )
+
+// StatusPtr returns a pointer to the given status value for use in Operation structs
+func StatusPtr(s Status) *Status {
+	return &s
+}
+
+// hasStatusField returns true if the operation has a status field provided
+func hasStatusField(op Operation) bool {
+	return op.Status != nil
+}
 
 // Operation represents a single operation in a batch
 type Operation struct {
@@ -15,7 +25,7 @@ type Operation struct {
 	ID         string   `json:"id,omitempty"`
 	Parent     string   `json:"parent,omitempty"`
 	Title      string   `json:"title,omitempty"`
-	Status     Status   `json:"status,omitempty"`
+	Status     *Status  `json:"status,omitempty"`
 	Details    []string `json:"details,omitempty"`
 	References []string `json:"references,omitempty"`
 }
@@ -122,17 +132,7 @@ func validateOperation(tl *TaskList, op Operation) error {
 		if tl.FindTask(op.ID) == nil {
 			return fmt.Errorf("task %s not found", op.ID)
 		}
-	case updateStatusOperation:
-		if op.ID == "" {
-			return fmt.Errorf("update_status operation requires id")
-		}
-		if tl.FindTask(op.ID) == nil {
-			return fmt.Errorf("task %s not found", op.ID)
-		}
-		if op.Status < Pending || op.Status > Completed {
-			return fmt.Errorf("invalid status value: %d", op.Status)
-		}
-	case "update":
+	case updateOperation:
 		if op.ID == "" {
 			return fmt.Errorf("update operation requires id")
 		}
@@ -141,6 +141,10 @@ func validateOperation(tl *TaskList, op Operation) error {
 		}
 		if op.Title != "" && len(op.Title) > 500 {
 			return fmt.Errorf("title exceeds 500 characters")
+		}
+		// Validate status only when status field is provided
+		if hasStatusField(op) && (*op.Status < Pending || *op.Status > Completed) {
+			return fmt.Errorf("invalid status value: %d", *op.Status)
 		}
 	default:
 		return fmt.Errorf("unknown operation type: %s", op.Type)
@@ -175,9 +179,14 @@ func applyOperation(tl *TaskList, op Operation) error {
 		return nil
 	case "remove":
 		return tl.RemoveTask(op.ID)
-	case updateStatusOperation:
-		return tl.UpdateStatus(op.ID, op.Status)
-	case "update":
+	case updateOperation:
+		// Handle status update only when status field is provided
+		if hasStatusField(op) {
+			if err := tl.UpdateStatus(op.ID, *op.Status); err != nil {
+				return err
+			}
+		}
+		// Handle other field updates (title, details, references) if provided
 		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References)
 	default:
 		return fmt.Errorf("unknown operation type: %s", op.Type)
@@ -191,8 +200,8 @@ func applyOperationWithAutoComplete(tl *TaskList, op Operation, autoCompleted ma
 		return err
 	}
 
-	// Check for auto-completion only on update_status operations that mark tasks as completed
-	if strings.ToLower(op.Type) == updateStatusOperation && op.Status == Completed {
+	// Check for auto-completion on update operations that mark tasks as completed
+	if strings.ToLower(op.Type) == updateOperation && hasStatusField(op) && *op.Status == Completed {
 		// Check and auto-complete parent tasks
 		completed, err := tl.AutoCompleteParents(op.ID)
 		if err != nil {

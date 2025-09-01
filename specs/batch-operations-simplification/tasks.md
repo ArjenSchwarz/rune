@@ -1,38 +1,44 @@
+---
+references:
+    - specs/batch-operations-simplification/design.md
+    - specs/batch-operations-simplification/requirements.md
+    - specs/batch-operations-simplification/decision_log.md
+---
 # Batch Operations Simplification Implementation
 
-- [ ] 1. Remove update_status Operation Type
+- [x] 1. Remove update_status Operation Type
   - Remove updateStatusOperation constant and validation case from batch.go
   - Remove update_status from supported operation types
   - Update operation type validation to reject update_status operations
   - References: Requirements 1.1
-- [ ] 2. Write unit tests for update_status removal
+- [x] 2. Write unit tests for update_status removal
   - Test that update_status operation type is rejected
   - Test error message when update_status is used
   - Update existing tests that use update_status to use update instead
   - References: Requirements 1.1
-- [ ] 3. Extend update operation to accept optional status field
+- [x] 3. Extend update operation to accept optional status field
   - Add status field validation only when status field is provided
   - Extend existing update case in validateOperation function
   - Validate status values (0=pending, 1=in-progress, 2=completed) only when present
   - References: Requirements 1.2, 1.3
-- [ ] 4. Implement unified update operation field handling
+- [x] 4. Implement unified update operation field handling
   - Extend applyOperation update case to handle optional status field
   - Apply all field updates atomically within single operation
   - Add hasStatusField helper function to detect when status is provided
   - References: Requirements 1.2, 1.5
-- [ ] 5. Write unit tests for unified update operation
+- [x] 5. Write unit tests for unified update operation
   - Test update with status field only
   - Test update with title and status fields combined
   - Test update with details and references without status
   - Test empty update operation as no-op behavior
   - Test title length validation only when title field provided
   - References: Requirements 1.2, 1.6, 1.7
-- [ ] 6. Update auto-completion logic for unified updates
+- [x] 6. Update auto-completion logic for unified updates
   - Extend applyOperationWithAutoComplete to trigger on unified updates
   - Trigger auto-completion when status field is set to completed
   - Handle auto-completion regardless of other fields being updated
   - References: Requirements 1.4
-- [ ] 7. Write unit tests for auto-completion with unified updates
+- [x] 7. Write unit tests for auto-completion with unified updates
   - Test auto-completion triggering on status=completed in unified update
   - Test that title+status update triggers auto-completion
   - Test that updates without status=completed do not trigger auto-completion

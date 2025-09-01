@@ -42,9 +42,9 @@ func TestBatchCommand_BasicOperations(t *testing.T) {
 				Title: "Second task",
 			},
 			{
-				Type:   "update_status",
+				Type:   "update",
 				ID:     "1",
-				Status: task.InProgress,
+				Status: task.StatusPtr(task.InProgress),
 			},
 		},
 		DryRun: false,
