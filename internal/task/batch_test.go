@@ -921,13 +921,13 @@ func TestExecuteBatch_UnifiedUpdateWithStatus(t *testing.T) {
 	}
 }
 
-func TestExecuteBatch_MixedUpdateStatusOperations(t *testing.T) {
+func TestExecuteBatch_UnifiedUpdateOperations(t *testing.T) {
 	tl := NewTaskList("Test Tasks")
 	tl.AddTask("", "Task 1", "")
 	tl.AddTask("", "Task 2", "")
 	tl.AddTask("", "Task 3", "")
 
-	// Mix of valid update operations and invalid update_status
+	// All unified update operations should succeed
 	ops := []Operation{
 		{
 			Type:   "update",
@@ -935,7 +935,7 @@ func TestExecuteBatch_MixedUpdateStatusOperations(t *testing.T) {
 			Status: StatusPtr(InProgress),
 		},
 		{
-			Type:   "update_status", // This should fail
+			Type:   "update", // Now uses unified update
 			ID:     "2",
 			Status: StatusPtr(Completed),
 		},
@@ -951,35 +951,28 @@ func TestExecuteBatch_MixedUpdateStatusOperations(t *testing.T) {
 		t.Fatalf("ExecuteBatch returned error: %v", err)
 	}
 
-	// Batch should fail due to update_status operation
-	if response.Success {
-		t.Error("Expected batch to fail due to update_status operation")
+	// All operations should succeed with unified update
+	if !response.Success {
+		t.Fatalf("Expected batch to succeed with unified update operations, got errors: %v", response.Errors)
 	}
 
-	// Should have error for operation 2
-	if len(response.Errors) == 0 {
-		t.Error("Expected error for update_status operation")
-	} else if !strings.Contains(response.Errors[0], "operation 2") {
-		t.Errorf("Expected error to reference operation 2, got: %s", response.Errors[0])
+	// All operations should be applied
+	if response.Applied != 3 {
+		t.Errorf("Expected 3 applied operations, got %d", response.Applied)
 	}
 
-	// No operations should be applied (atomic failure)
-	if response.Applied != 0 {
-		t.Errorf("Expected 0 applied operations due to failure, got %d", response.Applied)
-	}
-
-	// All tasks should remain unchanged
+	// All tasks should be updated as expected
 	task1 := tl.FindTask("1")
-	if task1.Status != Pending {
-		t.Errorf("Task 1 should remain Pending, got %v", task1.Status)
+	if task1.Status != InProgress {
+		t.Errorf("Expected Task 1 to be InProgress, got %v", task1.Status)
 	}
 	task2 := tl.FindTask("2")
-	if task2.Status != Pending {
-		t.Errorf("Task 2 should remain Pending, got %v", task2.Status)
+	if task2.Status != Completed {
+		t.Errorf("Expected Task 2 to be Completed, got %v", task2.Status)
 	}
 	task3 := tl.FindTask("3")
-	if task3.Status != Pending {
-		t.Errorf("Task 3 should remain Pending, got %v", task3.Status)
+	if task3.Status != Completed {
+		t.Errorf("Expected Task 3 to be Completed, got %v", task3.Status)
 	}
 }
 
@@ -1993,5 +1986,48 @@ func TestExecuteBatch_UnifiedUpdateAutoCompleteTriggers(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestExecuteBatch_UpdateStatusOperationInvalid tests that update_status operations are no longer supported
+func TestExecuteBatch_UpdateStatusOperationInvalid(t *testing.T) {
+	tl := NewTaskList("Test Tasks")
+	tl.AddTask("", "Task 1", "")
+
+	// update_status operations should now fail validation
+	ops := []Operation{
+		{
+			Type:   "update_status", // This should fail - operation type no longer exists
+			ID:     "1",
+			Status: StatusPtr(Completed),
+		},
+	}
+
+	response, err := tl.ExecuteBatch(ops, false)
+	if err != nil {
+		t.Fatalf("ExecuteBatch returned error: %v", err)
+	}
+
+	// Batch should fail due to invalid operation type
+	if response.Success {
+		t.Error("Expected batch to fail due to invalid update_status operation type")
+	}
+
+	// Should have error for invalid operation type
+	if len(response.Errors) == 0 {
+		t.Error("Expected error for invalid update_status operation type")
+	} else if !strings.Contains(response.Errors[0], "unknown operation type") && !strings.Contains(response.Errors[0], "invalid operation") {
+		t.Errorf("Expected error about unknown operation type, got: %s", response.Errors[0])
+	}
+
+	// No operations should be applied (atomic failure)
+	if response.Applied != 0 {
+		t.Errorf("Expected 0 applied operations due to failure, got %d", response.Applied)
+	}
+
+	// Task should remain unchanged
+	task1 := tl.FindTask("1")
+	if task1.Status != Pending {
+		t.Errorf("Task 1 should remain Pending, got %v", task1.Status)
 	}
 }

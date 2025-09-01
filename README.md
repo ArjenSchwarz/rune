@@ -263,7 +263,7 @@ go-tasks batch tasks.md --operations updates.json --dry-run
       "references": ["doc.md"]
     },
     {
-      "type": "update_status",
+      "type": "update",
       "id": "2",
       "status": 2
     },
@@ -286,8 +286,7 @@ go-tasks batch tasks.md --operations updates.json --dry-run
 **Operation Types:**
 - `add` - Add new task (requires `title`, optional `parent`)
 - `remove` - Delete task (requires `id`)
-- `update_status` - Change task status (requires `id`, `status`)
-- `update` - Modify task content (requires `id`, optional `title`, `details`, `references`)
+- `update` - Modify task content (requires `id`, optional `title`, `details`, `references`, `status`)
 
 **Status Values:**
 - `0` = Pending `[ ]`

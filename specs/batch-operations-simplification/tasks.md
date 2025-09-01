@@ -104,12 +104,12 @@ references:
   - Test error handling and rollback scenarios for both features
   - Test CLI integration with file operations and git discovery
   - References: Requirements 1.5, 2.8
-- [ ] 19. Update existing tests for unified update behavior
+- [x] 19. Update existing tests for unified update behavior
   - Convert all update_status test cases to use update operation
   - Update test expectations for unified update validation
   - Ensure all existing functionality tests still pass
   - References: Requirements 1.1
-- [ ] 20. Run linting and formatting validation
+- [x] 20. Run linting and formatting validation
   - Run make check to ensure code quality standards
   - Apply make modernize for Go pattern updates
   - Fix any linting or formatting issues

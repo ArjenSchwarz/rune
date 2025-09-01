@@ -88,10 +88,10 @@ cat > mark-complete.json << 'EOF'
 {
   "file": "tasks.md",
   "operations": [
-    {"type": "update_status", "id": "1.1", "status": 2},
-    {"type": "update_status", "id": "1.2", "status": 2},
-    {"type": "update_status", "id": "1.3", "status": 2},
-    {"type": "update_status", "id": "2.1", "status": 2}
+    {"type": "update", "id": "1.1", "status": 2},
+    {"type": "update", "id": "1.2", "status": 2},
+    {"type": "update", "id": "1.3", "status": 2},
+    {"type": "update", "id": "2.1", "status": 2}
   ],
   "dry_run": false
 }
