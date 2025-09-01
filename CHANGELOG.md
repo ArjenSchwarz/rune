@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Batch operations simplification specification**: Complete requirements and design documentation for unifying update operations
+  - Unified update operation specification removing artificial separation between `update` and `update_status` operations
+  - Position-based task insertion specification for both CLI and batch operations
+  - Comprehensive decision log documenting design choices and user clarifications
+  - Requirements for `--position` flag in `go-tasks add` command to insert tasks at specific positions
+  - Specification for processing multiple position insertions in reverse order to maintain consistency
 - **Comprehensive project documentation**: Complete documentation overhaul with user guides and troubleshooting
   - Next command documentation with usage examples, options, and behavior explanation
   - Configuration system documentation covering git branch discovery and file locations
