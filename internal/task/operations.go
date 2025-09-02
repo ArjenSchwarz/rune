@@ -242,24 +242,43 @@ func findTaskRecursive(tasks []Task, taskID string) *Task {
 	return nil
 }
 
-// NewTaskList creates a new TaskList with the specified title
-func NewTaskList(title string) *TaskList {
-	return &TaskList{
+// NewTaskList creates a new TaskList with the specified title and optional FrontMatter
+// The FrontMatter parameter is optional to maintain backward compatibility
+func NewTaskList(title string, frontMatter ...*FrontMatter) *TaskList {
+	tl := &TaskList{
 		Title:    title,
 		Tasks:    []Task{},
 		Modified: time.Now(),
 	}
+
+	// If FrontMatter is provided, attach it to the TaskList
+	if len(frontMatter) > 0 && frontMatter[0] != nil {
+		tl.FrontMatter = frontMatter[0]
+	}
+
+	return tl
 }
 
 // WriteFile saves the TaskList to a markdown file using atomic writes
+// This method includes front matter if present
 func (tl *TaskList) WriteFile(filePath string) error {
 	// Validate file path
 	if err := validateFilePath(filePath); err != nil {
 		return err
 	}
 
-	// Generate markdown content
-	content := RenderMarkdown(tl)
+	// Generate markdown content with front matter if present
+	var content []byte
+	if tl.FrontMatter != nil && (len(tl.FrontMatter.References) > 0 || len(tl.FrontMatter.Metadata) > 0) {
+		// Render markdown without front matter
+		markdownContent := RenderMarkdown(tl)
+		// Combine with front matter
+		fullContent := SerializeWithFrontMatter(tl.FrontMatter, string(markdownContent))
+		content = []byte(fullContent)
+	} else {
+		// No front matter, just render markdown
+		content = RenderMarkdown(tl)
+	}
 
 	// Write to temp file first for atomic operation
 	tmpFile := filePath + ".tmp"
@@ -403,4 +422,52 @@ func countTasksRecursive(task *Task) int {
 func (tl *TaskList) getTaskDepth(taskID string) int {
 	parts := strings.Split(taskID, ".")
 	return len(parts)
+}
+
+// AddFrontMatterContent adds or merges front matter content into the TaskList
+// It validates resource limits (100 references, 100 metadata entries)
+func (tl *TaskList) AddFrontMatterContent(references []string, metadata map[string]any) error {
+	// If both are nil, this is a no-op
+	if references == nil && metadata == nil {
+		return nil
+	}
+
+	// Initialize front matter if it doesn't exist
+	if tl.FrontMatter == nil {
+		tl.FrontMatter = &FrontMatter{}
+	}
+
+	// Check resource limits before merging
+	totalRefs := len(tl.FrontMatter.References) + len(references)
+	if totalRefs > 100 {
+		return fmt.Errorf("would exceed maximum of 100 references")
+	}
+
+	// Count total metadata entries after merge
+	totalMetadata := len(tl.FrontMatter.Metadata)
+	for key := range metadata {
+		if _, exists := tl.FrontMatter.Metadata[key]; !exists {
+			totalMetadata++
+		}
+	}
+	if totalMetadata > 100 {
+		return fmt.Errorf("would exceed maximum of 100 metadata entries")
+	}
+
+	// Merge references
+	if references != nil {
+		tl.FrontMatter.References = append(tl.FrontMatter.References, references...)
+	}
+
+	// Merge metadata
+	if metadata != nil {
+		if tl.FrontMatter.Metadata == nil {
+			tl.FrontMatter.Metadata = make(map[string]any)
+		}
+		for key, value := range metadata {
+			tl.FrontMatter.Metadata[key] = value
+		}
+	}
+
+	return nil
 }

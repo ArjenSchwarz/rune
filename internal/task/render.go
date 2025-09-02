@@ -7,7 +7,7 @@ import (
 )
 
 // RenderMarkdown converts a TaskList to markdown format with consistent formatting
-// Preserves frontmatter structure as per design decision #11
+// Note: This does NOT include front matter - that's handled by WriteFile
 func RenderMarkdown(tl *TaskList) []byte {
 	var buf strings.Builder
 
@@ -27,9 +27,7 @@ func RenderMarkdown(tl *TaskList) []byte {
 		renderTask(&buf, &task, 0)
 	}
 
-	// Use SerializeWithFrontMatter to preserve frontmatter structure
-	content := buf.String()
-	return []byte(SerializeWithFrontMatter(tl.FrontMatter, content))
+	return []byte(buf.String())
 }
 
 // renderTask recursively renders a task and its children with proper indentation
