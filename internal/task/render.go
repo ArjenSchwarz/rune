@@ -19,7 +19,11 @@ func RenderMarkdown(tl *TaskList) []byte {
 	}
 
 	// Render each root-level task
-	for _, task := range tl.Tasks {
+	for i, task := range tl.Tasks {
+		// Add a blank line before each top-level task except the first
+		if i > 0 {
+			buf.WriteString("\n")
+		}
 		renderTask(&buf, &task, 0)
 	}
 
