@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **add-frontmatter command implementation**: New command for adding front matter to existing task files
+  - Create add-frontmatter command with --reference and --meta flags for adding content
+  - Support for merging front matter with existing content in task files
+  - Proper metadata array merging when adding to existing arrays
+  - Dry-run mode support for previewing changes before applying
+  - Comprehensive feedback showing count of references and metadata fields added
+  - Full test coverage including edge cases, validation, and error scenarios
+  - Support for metadata with colons in values (e.g., URLs)
+  - References: specs/front-matter-references requirements 2.1-2.8
+
+### Added
 - **Front matter support in create command**: Enhanced create command with CLI flags for front matter
   - Added --reference flag for adding reference files (can be used multiple times)
   - Added --meta flag for adding metadata in key:value format (can be used multiple times)

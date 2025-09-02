@@ -104,15 +104,15 @@ references:
     - Add feedback showing metadata field count added
     - Format messages clearly
     - References: Requirements 2.8
-- [ ] 4. Implement add-frontmatter command
+- [x] 4. Implement add-frontmatter command
   - Create new command for adding front matter to existing files
-  - [ ] 4.1. Create add-frontmatter command structure
+  - [x] 4.1. Create add-frontmatter command structure
     - Create cmd/add_frontmatter.go file
     - Define addFrontMatterCmd cobra.Command
     - Add flag variables for references and metadata
     - Register with root command
     - References: Requirements 2.1, 2.2, 2.3
-  - [ ] 4.2. Write unit tests for add-frontmatter command
+  - [x] 4.2. Write unit tests for add-frontmatter command
     - Test adding to file without front matter
     - Test adding to file with existing front matter
     - Test metadata merging behavior
@@ -120,7 +120,7 @@ references:
     - Test invalid file path
     - Test dry-run mode
     - References: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.8
-  - [ ] 4.3. Implement runAddFrontMatter function
+  - [x] 4.3. Implement runAddFrontMatter function
     - Parse and validate file argument
     - Load existing TaskList from file
     - Parse metadata flags using ParseMetadataFlags
@@ -128,7 +128,7 @@ references:
     - Support dry-run mode
     - Write file atomically
     - References: Requirements 2.1, 2.2, 2.3, 2.4, 2.8
-  - [ ] 4.4. Implement success feedback for add-frontmatter
+  - [x] 4.4. Implement success feedback for add-frontmatter
     - Show count of references added
     - Show count of metadata fields merged
     - Display clear success message
