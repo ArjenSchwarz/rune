@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/ArjenSchwarz/go-output/v2 v2.2.0
 	github.com/spf13/cobra v1.9.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -17,5 +18,4 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	golang.org/x/sys v0.25.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
