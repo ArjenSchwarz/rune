@@ -70,6 +70,11 @@ func TestIntegrationWorkflows(t *testing.T) {
 			description: "Test configuration file precedence and validation",
 			workflow:    testConfigurationIntegration,
 		},
+		"front_matter_integration": {
+			name:        "Front Matter Integration Tests",
+			description: "Test front matter creation, modification, and edge cases",
+			workflow:    testFrontMatterIntegration,
+		},
 		"unified_update_operations": {
 			name:        "Unified Update Operations",
 			description: "Test unified update operations replacing update_status",
@@ -2497,4 +2502,312 @@ func testCLIPositionInsertionIntegration(t *testing.T, tempDir string) {
 	})
 
 	t.Logf("CLI position insertion integration test passed successfully")
+}
+
+func testFrontMatterIntegration(t *testing.T, tempDir string) {
+	// Test 1: Create file with front matter end-to-end
+	t.Run("create_with_front_matter", func(t *testing.T) {
+		filename := "frontmatter-create.md"
+
+		// Create file with front matter via CLI
+		runGoCommand(t, "create", filename, "--title", "Front Matter Test")
+
+		// Add front matter references
+		runGoCommand(t, "add-frontmatter", filename,
+			"--reference", "requirements.md",
+			"--reference", "design.md",
+			"--reference", "spec.md")
+
+		// Add metadata
+		runGoCommand(t, "add-frontmatter", filename,
+			"--meta", "author:John Doe",
+			"--meta", "version:2.0",
+			"--meta", "status:draft")
+
+		// Verify front matter was added correctly
+		content, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatalf("failed to read file: %v", err)
+		}
+
+		contentStr := string(content)
+		if !strings.Contains(contentStr, "---") {
+			t.Error("expected YAML front matter delimiter")
+		}
+		if !strings.Contains(contentStr, "references:") {
+			t.Error("expected references section in front matter")
+		}
+		if !strings.Contains(contentStr, "- requirements.md") {
+			t.Error("expected requirements.md in references")
+		}
+		if !strings.Contains(contentStr, "metadata:") {
+			t.Error("expected metadata section in front matter")
+		}
+		if !strings.Contains(contentStr, "author: John Doe") {
+			t.Error("expected author in metadata")
+		}
+
+		// Verify YAML validity by parsing
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse file with front matter: %v", err)
+		}
+
+		// Check that front matter references are preserved in task list
+		if tl.FrontMatter == nil {
+			t.Error("expected front matter to be preserved in task list")
+		}
+		if len(tl.FrontMatter.References) != 3 {
+			t.Errorf("expected 3 references, got %d", len(tl.FrontMatter.References))
+		}
+	})
+
+	// Test 2: Add front matter to existing file
+	t.Run("add_front_matter_to_existing", func(t *testing.T) {
+		filename := "existing-tasks.md"
+
+		// Create file with existing tasks
+		content := `# Existing Tasks
+
+- [ ] 1. Task One
+  - [ ] 1.1. Subtask One
+- [ ] 2. Task Two
+- [x] 3. Task Three`
+
+		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to create file: %v", err)
+		}
+
+		// Add front matter
+		runGoCommand(t, "add-frontmatter", filename,
+			"--reference", "api-docs.md",
+			"--meta", "priority:high")
+
+		// Verify content preservation
+		newContent, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatalf("failed to read file: %v", err)
+		}
+
+		newContentStr := string(newContent)
+		if !strings.Contains(newContentStr, "# Existing Tasks") {
+			t.Error("expected original title to be preserved")
+		}
+		if !strings.Contains(newContentStr, "1. Task One") {
+			t.Error("expected original tasks to be preserved")
+		}
+		if !strings.Contains(newContentStr, "[x] 3. Task Three") {
+			t.Error("expected completed task to be preserved")
+		}
+		if !strings.Contains(newContentStr, "priority: high") {
+			t.Error("expected metadata to be added")
+		}
+	})
+
+	// Test 3: Complex nested metadata structures
+	t.Run("complex_nested_metadata", func(t *testing.T) {
+		filename := "complex-metadata.md"
+
+		runGoCommand(t, "create", filename, "--title", "Complex Metadata Test")
+
+		// Add deeply nested metadata
+		runGoCommand(t, "add-frontmatter", filename,
+			"--meta", "team:engineering",
+			"--meta", "sprint:24",
+			"--meta", "labels:backend",
+			"--meta", "labels:critical",
+			"--meta", "config.timeout:30",
+			"--meta", "config.retries:3")
+
+		// Verify parsing works with complex metadata
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse complex metadata: %v", err)
+		}
+
+		if tl.FrontMatter == nil || tl.FrontMatter.Metadata == nil {
+			t.Error("expected metadata to be preserved")
+		}
+
+		// Verify metadata values
+		metadata := tl.FrontMatter.Metadata
+		if team, ok := metadata["team"]; !ok || team != "engineering" {
+			t.Error("expected team metadata to be preserved")
+		}
+		if sprint, ok := metadata["sprint"]; !ok || sprint != "24" {
+			t.Error("expected sprint metadata to be preserved")
+		}
+	})
+
+	// Test 4: Resource limits handling
+	t.Run("resource_limits", func(t *testing.T) {
+		filename := "resource-limits.md"
+
+		runGoCommand(t, "create", filename, "--title", "Resource Limits Test")
+
+		// Test with many references (but within reasonable limits)
+		var refs []string
+		for i := 1; i <= 50; i++ {
+			refs = append(refs, "--reference")
+			refs = append(refs, fmt.Sprintf("doc%d.md", i))
+		}
+
+		args := append([]string{"add-frontmatter", filename}, refs...)
+		runGoCommand(t, args...)
+
+		// Verify all references were added
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to read file with many references: %v", err)
+		}
+
+		if len(tl.FrontMatter.References) != 50 {
+			t.Errorf("expected 50 references, got %d", len(tl.FrontMatter.References))
+		}
+	})
+
+	// Test 5: Verify YAML output validity
+	t.Run("yaml_validity", func(t *testing.T) {
+		filename := "yaml-valid.md"
+
+		runGoCommand(t, "create", filename, "--title", "YAML Validity Test")
+
+		// Add various metadata that could break YAML
+		runGoCommand(t, "add-frontmatter", filename,
+			"--reference", "file with spaces.md",
+			"--reference", "special:chars.md",
+			"--meta", "description:This has: colons and special chars",
+			"--meta", "multiline:Line one\\nLine two",
+			"--meta", "quoted:test with spaces")
+
+		// Verify the file can be parsed successfully
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("YAML parsing failed: %v", err)
+		}
+
+		// Check that metadata was properly handled
+		if tl.FrontMatter.Metadata["quoted"] != "test with spaces" {
+			t.Error("expected quoted metadata to be preserved")
+		}
+	})
+
+	// Test 6: Edge cases
+	t.Run("edge_cases", func(t *testing.T) {
+		filename := "edge-cases.md"
+
+		runGoCommand(t, "create", filename, "--title", "Edge Cases Test")
+
+		// Test empty value in key:value format
+		runGoCommand(t, "add-frontmatter", filename,
+			"--meta", "empty:",
+			"--meta", "normal:value")
+
+		// Test colons in values
+		runGoCommand(t, "add-frontmatter", filename,
+			"--meta", "url:https://example.com:8080/path",
+			"--meta", "time:10:30:45")
+
+		// Read and verify
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse edge cases: %v", err)
+		}
+
+		// Check empty value handling
+		if val, ok := tl.FrontMatter.Metadata["empty"]; !ok || val != "" {
+			t.Error("expected empty value to be preserved as empty string")
+		}
+
+		// Check colons in values
+		if url, ok := tl.FrontMatter.Metadata["url"]; !ok || url != "https://example.com:8080/path" {
+			t.Errorf("expected URL with colons to be preserved, got: %s", url)
+		}
+	})
+
+	// Test 7: Front matter preservation during task operations
+	t.Run("front_matter_preservation", func(t *testing.T) {
+		filename := "preservation-test.md"
+
+		// Create file with front matter
+		runGoCommand(t, "create", filename, "--title", "Preservation Test")
+		runGoCommand(t, "add-frontmatter", filename,
+			"--reference", "original.md",
+			"--meta", "status:active")
+
+		// Add tasks
+		runGoCommand(t, "add", filename, "--title", "Task 1")
+		runGoCommand(t, "add", filename, "--title", "Task 2")
+
+		// Complete a task
+		runGoCommand(t, "complete", filename, "1")
+
+		// Update a task
+		runGoCommand(t, "update", filename, "2", "--title", "Updated Task 2")
+
+		// Remove a task
+		runGoCommand(t, "add", filename, "--title", "Task 3")
+		runGoCommand(t, "remove", filename, "3")
+
+		// Verify front matter is still intact
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to read file after operations: %v", err)
+		}
+
+		if tl.FrontMatter == nil {
+			t.Error("front matter was lost during operations")
+		}
+		if len(tl.FrontMatter.References) != 1 || tl.FrontMatter.References[0] != "original.md" {
+			t.Error("references were not preserved")
+		}
+		if tl.FrontMatter.Metadata["status"] != "active" {
+			t.Error("metadata was not preserved")
+		}
+	})
+
+	// Test 8: Maximum nesting depth
+	t.Run("maximum_nesting_depth", func(t *testing.T) {
+		filename := "nesting-test.md"
+
+		runGoCommand(t, "create", filename, "--title", "Nesting Test")
+
+		// Add deeply nested metadata structure (max 3 levels allowed)
+		runGoCommand(t, "add-frontmatter", filename,
+			"--meta", "level1.level2.level3:deep_value",
+			"--meta", "level1.level2.another:value",
+			"--meta", "simple:value")
+
+		// Verify it can be parsed
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse nested metadata: %v", err)
+		}
+
+		if tl.FrontMatter.Metadata["simple"] != "value" {
+			t.Error("simple metadata not preserved")
+		}
+	})
+
+	// Test 9: Error path coverage
+	t.Run("error_handling", func(t *testing.T) {
+		// Test non-existent file
+		output := runGoCommandWithError(t, "add-frontmatter", "nonexistent.md",
+			"--reference", "test.md")
+		if !containsString(output, "does not exist") {
+			t.Errorf("expected file not found error, got: %s", output)
+		}
+
+		// Test invalid metadata format (missing colon)
+		filename := "error-test.md"
+		runGoCommand(t, "create", filename, "--title", "Error Test")
+
+		output = runGoCommandWithError(t, "add-frontmatter", filename,
+			"--meta", "invalid_no_colon")
+		if !containsString(output, "invalid") || !containsString(output, "format") {
+			t.Errorf("expected invalid format error, got: %s", output)
+		}
+	})
+
+	t.Logf("Front matter integration test passed successfully")
 }

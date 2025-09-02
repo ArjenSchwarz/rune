@@ -145,7 +145,7 @@ func TestAddFrontMatterContent(t *testing.T) {
 
 		// Create 99 references (just under the limit)
 		refs := make([]string, 99)
-		for i := 0; i < 99; i++ {
+		for i := range 99 {
 			refs[i] = fmt.Sprintf("ref%d.md", i)
 		}
 
@@ -169,7 +169,7 @@ func TestAddFrontMatterContent(t *testing.T) {
 
 		// Create 99 metadata entries (just under the limit)
 		metadata := make(map[string]any, 99)
-		for i := 0; i < 99; i++ {
+		for i := range 99 {
 			metadata[fmt.Sprintf("key%d", i)] = fmt.Sprintf("value%d", i)
 		}
 
@@ -315,7 +315,7 @@ func TestWriteFile(t *testing.T) {
 		var wg sync.WaitGroup
 		errors := make([]error, 5)
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			wg.Add(1)
 			go func(index int) {
 				defer wg.Done()
