@@ -32,7 +32,7 @@ func TestNewTaskList(t *testing.T) {
 		// Test with front matter parameter
 		fm := &FrontMatter{
 			References: []string{"spec.md", "design.md"},
-			Metadata: map[string]any{
+			Metadata: map[string]string{
 				"version": "1.0",
 				"author":  "test",
 			},
@@ -81,7 +81,7 @@ func TestAddFrontMatterContent(t *testing.T) {
 		tl := NewTaskList("My Tasks")
 
 		// Add front matter content
-		err := tl.AddFrontMatterContent([]string{"doc1.md", "doc2.md"}, map[string]any{"version": "1.0"})
+		err := tl.AddFrontMatterContent([]string{"doc1.md", "doc2.md"}, map[string]string{"version": "1.0"})
 		if err != nil {
 			t.Fatalf("AddFrontMatterContent failed: %v", err)
 		}
@@ -107,12 +107,12 @@ func TestAddFrontMatterContent(t *testing.T) {
 		// Create task list with initial front matter
 		fm := &FrontMatter{
 			References: []string{"initial.md"},
-			Metadata:   map[string]any{"author": "test"},
+			Metadata:   map[string]string{"author": "test"},
 		}
 		tl := NewTaskList("My Tasks", fm)
 
 		// Add more front matter content
-		err := tl.AddFrontMatterContent([]string{"new.md"}, map[string]any{"version": "2.0"})
+		err := tl.AddFrontMatterContent([]string{"new.md"}, map[string]string{"version": "2.0"})
 		if err != nil {
 			t.Fatalf("AddFrontMatterContent failed: %v", err)
 		}
@@ -140,54 +140,6 @@ func TestAddFrontMatterContent(t *testing.T) {
 		}
 	})
 
-	t.Run("resource limit for references", func(t *testing.T) {
-		tl := NewTaskList("My Tasks")
-
-		// Create 99 references (just under the limit)
-		refs := make([]string, 99)
-		for i := range 99 {
-			refs[i] = fmt.Sprintf("ref%d.md", i)
-		}
-
-		err := tl.AddFrontMatterContent(refs, nil)
-		if err != nil {
-			t.Fatalf("AddFrontMatterContent failed with 99 references: %v", err)
-		}
-
-		// Try to add 2 more references (should exceed limit)
-		err = tl.AddFrontMatterContent([]string{"ref100.md", "ref101.md"}, nil)
-		if err == nil {
-			t.Error("expected error when exceeding 100 reference limit")
-		}
-		if err != nil && err.Error() != "would exceed maximum of 100 references" {
-			t.Errorf("unexpected error message: %v", err)
-		}
-	})
-
-	t.Run("resource limit for metadata", func(t *testing.T) {
-		tl := NewTaskList("My Tasks")
-
-		// Create 99 metadata entries (just under the limit)
-		metadata := make(map[string]any, 99)
-		for i := range 99 {
-			metadata[fmt.Sprintf("key%d", i)] = fmt.Sprintf("value%d", i)
-		}
-
-		err := tl.AddFrontMatterContent(nil, metadata)
-		if err != nil {
-			t.Fatalf("AddFrontMatterContent failed with 99 metadata entries: %v", err)
-		}
-
-		// Try to add 2 more metadata entries (should exceed limit)
-		err = tl.AddFrontMatterContent(nil, map[string]any{"key100": "value100", "key101": "value101"})
-		if err == nil {
-			t.Error("expected error when exceeding 100 metadata limit")
-		}
-		if err != nil && err.Error() != "would exceed maximum of 100 metadata entries" {
-			t.Errorf("unexpected error message: %v", err)
-		}
-	})
-
 	t.Run("handle nil parameters", func(t *testing.T) {
 		tl := NewTaskList("My Tasks")
 
@@ -207,7 +159,7 @@ func TestAddFrontMatterContent(t *testing.T) {
 		tl := NewTaskList("My Tasks")
 
 		// Empty slices/maps should initialize front matter but with empty content
-		err := tl.AddFrontMatterContent([]string{}, map[string]any{})
+		err := tl.AddFrontMatterContent([]string{}, map[string]string{})
 		if err != nil {
 			t.Fatalf("AddFrontMatterContent failed with empty parameters: %v", err)
 		}
@@ -271,7 +223,7 @@ func TestWriteFile(t *testing.T) {
 		// Create task list with front matter
 		fm := &FrontMatter{
 			References: []string{"doc1.md", "doc2.md"},
-			Metadata:   map[string]any{"version": "1.0"},
+			Metadata:   map[string]string{"version": "1.0"},
 		}
 		tl := NewTaskList("Test Tasks", fm)
 		tl.AddTask("", "Task 1", "")

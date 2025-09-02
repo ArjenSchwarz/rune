@@ -31,7 +31,7 @@ metadata:
 					"./specs/api-specification.yaml",
 					"../shared/database-schema.sql",
 				},
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"project": "backend-api",
 					"created": "2024-01-30",
 				},
@@ -70,7 +70,7 @@ metadata:
 - [ ] 1. Task one`,
 			expectedFM: &FrontMatter{
 				References: nil,
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"project": "test-project",
 				},
 			},
@@ -237,7 +237,7 @@ func TestSerializeWithFrontMatter(t *testing.T) {
 					"./docs/architecture.md",
 					"./specs/api.yaml",
 				},
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"project": "test-project",
 					"created": "2024-01-30",
 				},
@@ -276,7 +276,7 @@ references:
 		"only metadata": {
 			frontMatter: &FrontMatter{
 				References: nil,
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"project": "test",
 				},
 			},

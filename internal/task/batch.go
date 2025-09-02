@@ -300,7 +300,7 @@ func (tl *TaskList) deepCopy() (*TaskList, error) {
 	if tl.FrontMatter != nil {
 		copyList.FrontMatter = &FrontMatter{
 			References: make([]string, len(tl.FrontMatter.References)),
-			Metadata:   make(map[string]any),
+			Metadata:   make(map[string]string),
 		}
 		copy(copyList.FrontMatter.References, tl.FrontMatter.References)
 		maps.Copy(copyList.FrontMatter.Metadata, tl.FrontMatter.Metadata)

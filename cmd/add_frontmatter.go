@@ -69,7 +69,7 @@ func runAddFrontMatter(cmd *cobra.Command, args []string) error {
 	}
 
 	// Parse metadata flags if provided
-	var parsedMeta map[string]any
+	var parsedMeta map[string]string
 	if len(addFMMetadata) > 0 {
 		parsedMeta, err = task.ParseMetadataFlags(addFMMetadata)
 		if err != nil {
@@ -107,7 +107,7 @@ func runAddFrontMatter(cmd *cobra.Command, args []string) error {
 		if len(parsedMeta) > 0 {
 			fmt.Printf("Would merge %d metadata field(s)\n", len(parsedMeta))
 			for key, value := range parsedMeta {
-				fmt.Printf("  - %s: %v\n", key, value)
+				fmt.Printf("  - %s: %s\n", key, value)
 			}
 		}
 		fmt.Printf("\nResulting front matter:\n")
@@ -138,7 +138,7 @@ func runAddFrontMatter(cmd *cobra.Command, args []string) error {
 		if len(parsedMeta) > 0 {
 			fmt.Printf("Merged %d metadata field(s):\n", len(parsedMeta))
 			for key, value := range parsedMeta {
-				fmt.Printf("  - %s: %v\n", key, value)
+				fmt.Printf("  - %s: %s\n", key, value)
 			}
 		}
 		// Show file stats
