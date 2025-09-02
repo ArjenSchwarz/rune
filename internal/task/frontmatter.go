@@ -15,7 +15,7 @@ var (
 
 // ParseMetadataFlags converts "key:value" strings to map[string]any
 // Multiple values for the same key create arrays
-// Supports nested keys using dot notation (e.g., "author.name:John")
+// Only flat key:value pairs are supported (no nested keys)
 func ParseMetadataFlags(flags []string) (map[string]any, error) {
 	result := make(map[string]any)
 
@@ -37,94 +37,30 @@ func ParseMetadataFlags(flags []string) (map[string]any, error) {
 			return nil, fmt.Errorf("empty metadata key in: %s", flag)
 		}
 
-		// Validate the key
-		if err := ValidateMetadataKey(key); err != nil {
-			return nil, fmt.Errorf("invalid metadata key %q: %w", key, err)
+		// Validate the key - no dots allowed
+		if strings.Contains(key, ".") {
+			return nil, fmt.Errorf("nested keys not supported: %s", key)
 		}
 
-		// Handle nested keys
-		if strings.Contains(key, ".") {
-			if err := setNestedValue(result, key, value); err != nil {
-				return nil, err
-			}
+		// Check for reserved YAML keys
+		if key == "<<" || key == "&" || key == "*" {
+			return nil, fmt.Errorf("reserved YAML key: %s", key)
+		}
+
+		// Validate key format
+		if !yamlKeyPattern.MatchString(key) {
+			return nil, fmt.Errorf("invalid key %q: must start with letter or underscore, followed by letters, numbers, or underscores", key)
+		}
+
+		// Simple key - check if it already exists
+		if existing, exists := result[key]; exists {
+			result[key] = appendToValue(existing, value)
 		} else {
-			// Simple key - check if it already exists
-			if existing, exists := result[key]; exists {
-				result[key] = appendToValue(existing, value)
-			} else {
-				result[key] = value
-			}
+			result[key] = value
 		}
 	}
 
 	return result, nil
-}
-
-// ValidateMetadataKey ensures metadata keys are valid YAML identifiers
-// Supports dot notation for nested keys with maximum depth of 3
-func ValidateMetadataKey(key string) error {
-	if key == "" {
-		return fmt.Errorf("key cannot be empty")
-	}
-
-	// Check for reserved YAML keys
-	if key == "<<" || key == "&" || key == "*" {
-		return fmt.Errorf("reserved YAML key")
-	}
-
-	// Split by dots for nested keys
-	parts := strings.Split(key, ".")
-
-	// Check maximum nesting depth (3 levels)
-	if len(parts) > 3 {
-		return fmt.Errorf("maximum nesting depth exceeded (max 3 levels)")
-	}
-
-	// Validate each part
-	for _, part := range parts {
-		if part == "" {
-			return fmt.Errorf("empty key component")
-		}
-		if !yamlKeyPattern.MatchString(part) {
-			return fmt.Errorf("invalid key component %q: must start with letter or underscore, followed by letters, numbers, or underscores", part)
-		}
-	}
-
-	return nil
-}
-
-// setNestedValue sets a value in a nested map structure using dot notation
-func setNestedValue(m map[string]any, key string, value string) error {
-	parts := strings.Split(key, ".")
-	current := m
-
-	// Navigate to the nested location
-	for i := 0; i < len(parts)-1; i++ {
-		part := parts[i]
-
-		if existing, exists := current[part]; exists {
-			if nestedMap, ok := existing.(map[string]any); ok {
-				current = nestedMap
-			} else {
-				return fmt.Errorf("cannot create nested key %q: parent %q is not a map", key, part)
-			}
-		} else {
-			// Create new nested map
-			newMap := make(map[string]any)
-			current[part] = newMap
-			current = newMap
-		}
-	}
-
-	// Set the final value
-	finalKey := parts[len(parts)-1]
-	if existing, exists := current[finalKey]; exists {
-		current[finalKey] = appendToValue(existing, value)
-	} else {
-		current[finalKey] = value
-	}
-
-	return nil
 }
 
 // appendToValue appends a new value to an existing value, creating an array if needed
@@ -186,6 +122,7 @@ func MergeFrontMatter(existing, new *FrontMatter) (*FrontMatter, error) {
 }
 
 // mergeValues merges two values with type-aware logic
+// Only supports flat values - no nested maps
 func mergeValues(existing, new any) (any, error) {
 	// Check if both are the same type
 	switch existingVal := existing.(type) {
@@ -231,26 +168,8 @@ func mergeValues(existing, new any) (any, error) {
 		return nil, fmt.Errorf("type conflict: cannot merge []any with %T", new)
 
 	case map[string]any:
-		if newMap, ok := new.(map[string]any); ok {
-			// Recursively merge maps
-			result := make(map[string]any)
-			// Copy existing
-			maps.Copy(result, existingVal)
-			// Merge new
-			for k, v := range newMap {
-				if existingSubVal, exists := result[k]; exists {
-					merged, err := mergeValues(existingSubVal, v)
-					if err != nil {
-						return nil, fmt.Errorf("nested merge error for key %s: %w", k, err)
-					}
-					result[k] = merged
-				} else {
-					result[k] = v
-				}
-			}
-			return result, nil
-		}
-		return nil, fmt.Errorf("type conflict: cannot merge map with %T", new)
+		// Nested maps are not supported
+		return nil, fmt.Errorf("nested maps are not supported")
 
 	default:
 		// For other types (int, float, bool, etc.), replace with new value if same type

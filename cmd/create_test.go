@@ -276,25 +276,11 @@ func TestCreateCommandWithFrontMatter(t *testing.T) {
 			filename: "tasks.md",
 			wantErr:  true,
 		},
-		"metadata with nested keys": {
-			title:           "My Project",
-			metadata:        []string{"author.name:John Doe", "author.email:john@example.com"},
-			filename:        "tasks.md",
-			wantFrontMatter: true,
-			checkContent: func(t *testing.T, content string) {
-				if !strings.Contains(content, "metadata:\n") {
-					t.Error("expected metadata section")
-				}
-				if !strings.Contains(content, "author:\n") {
-					t.Error("expected author nested section")
-				}
-				if !strings.Contains(content, "name: John Doe") {
-					t.Error("expected author name")
-				}
-				if !strings.Contains(content, "email: john@example.com") {
-					t.Error("expected author email")
-				}
-			},
+		"metadata with nested keys not supported": {
+			title:    "My Project",
+			metadata: []string{"author.name:John Doe"},
+			filename: "tasks.md",
+			wantErr:  true,
 		},
 		"metadata with array values": {
 			title:           "My Project",

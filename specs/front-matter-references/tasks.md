@@ -157,3 +157,35 @@ references:
     - Execute full test suite
     - Fix any issues found
     - References: Requirements 1.1, 1.2, 1.3, 2.1, 2.2, 2.3
+- [x] 6. Remove nested key support
+  - Remove ValidateMetadataKey function and its 3-level nesting validation
+  - Remove setNestedValue helper function for dot notation support
+  - Simplify ParseMetadataFlags to only support flat key:value pairs
+  - Update tests to remove nested key test cases
+  - Ensure all keys are single-level only (no dots allowed in keys)
+- [ ] 7. Consolidate redundant tests
+  - Merge TestFrontMatterPreservation* tests into single comprehensive test
+  - Reduce frontmatter_preservation_test.go from 400+ lines to ~150 lines
+  - Focus on core preservation requirement without repetition
+  - Remove duplicate test scenarios that test same functionality
+  - Keep one test for complex data types and one for basic operations
+- [ ] 8. Remove resource limits
+  - Remove 100 references limit check from AddFrontMatterContent
+  - Remove 100 metadata entries limit check from AddFrontMatterContent
+  - Update tests to remove resource limit test cases
+  - Simplify the AddFrontMatterContent method to just append/merge
+  - Remove any documentation mentioning these limits
+- [ ] 9. Simplify merge logic
+  - Replace complex mergeValues function with simple replacement strategy
+  - Remove type-aware merging (no more array/map special cases)
+  - Implement 'last wins' strategy for metadata values
+  - Keep reference array appending as-is (no deduplication)
+  - Update tests to reflect simpler merge behavior
+  - Remove mergeValues function entirely and inline simple logic
+- [ ] 10. Simplify type system to strings only
+  - Change FrontMatter.Metadata from map[string]any to map[string]string
+  - Update ParseMetadataFlags to return map[string]string
+  - Remove all type assertions and any-type handling from the codebase
+  - Update MergeFrontMatter to work with string maps only
+  - Update all tests to use string types exclusively
+  - Simplify YAML serialization since all values are strings

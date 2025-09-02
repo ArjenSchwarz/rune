@@ -70,44 +70,16 @@ func TestParseMetadataFlags(t *testing.T) {
 				"title":       "  Leading spaces",
 			},
 		},
-		"nested_key_with_dot_notation": {
-			input: []string{"author.name:John Doe", "author.email:john@example.com"},
-			want: map[string]any{
-				"author": map[string]any{
-					"name":  "John Doe",
-					"email": "john@example.com",
-				},
-			},
+		"nested_key_not_supported": {
+			input:   []string{"author.name:John Doe"},
+			wantErr: true,
 		},
-		"nested_key_with_arrays": {
-			input: []string{"config.ports:8080", "config.ports:8081", "config.host:localhost"},
-			want: map[string]any{
-				"config": map[string]any{
-					"ports": []string{"8080", "8081"},
-					"host":  "localhost",
-				},
-			},
-		},
-		"deep_nesting": {
-			input: []string{"a.b.c:value"},
-			want: map[string]any{
-				"a": map[string]any{
-					"b": map[string]any{
-						"c": "value",
-					},
-				},
-			},
-		},
-		"max_nesting_depth_exceeded": {
-			input:   []string{"a.b.c.d:value"},
+		"dot_in_key_error": {
+			input:   []string{"config.port:8080"},
 			wantErr: true,
 		},
 		"invalid_key_characters": {
 			input:   []string{"key-with-dash:value"},
-			wantErr: true,
-		},
-		"invalid_nested_key": {
-			input:   []string{"valid.inv@lid:value"},
 			wantErr: true,
 		},
 	}
@@ -121,81 +93,6 @@ func TestParseMetadataFlags(t *testing.T) {
 			}
 			if !tc.wantErr && !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("ParseMetadataFlags() = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestValidateMetadataKey(t *testing.T) {
-	tests := map[string]struct {
-		key     string
-		wantErr bool
-	}{
-		"valid_simple_key": {
-			key: "project",
-		},
-		"valid_underscore": {
-			key: "project_name",
-		},
-		"valid_number": {
-			key: "version2",
-		},
-		"valid_nested": {
-			key: "author.name",
-		},
-		"valid_deep_nested": {
-			key: "config.server.port",
-		},
-		"max_nesting_depth": {
-			key: "a.b.c",
-		},
-		"exceeds_max_nesting": {
-			key:     "a.b.c.d",
-			wantErr: true,
-		},
-		"starts_with_number": {
-			key:     "2project",
-			wantErr: true,
-		},
-		"contains_dash": {
-			key:     "project-name",
-			wantErr: true,
-		},
-		"contains_space": {
-			key:     "project name",
-			wantErr: true,
-		},
-		"contains_special_char": {
-			key:     "project@name",
-			wantErr: true,
-		},
-		"empty_key": {
-			key:     "",
-			wantErr: true,
-		},
-		"dot_at_start": {
-			key:     ".project",
-			wantErr: true,
-		},
-		"dot_at_end": {
-			key:     "project.",
-			wantErr: true,
-		},
-		"double_dot": {
-			key:     "project..name",
-			wantErr: true,
-		},
-		"reserved_yaml_key": {
-			key:     "<<",
-			wantErr: true,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			err := ValidateMetadataKey(tc.key)
-			if (err != nil) != tc.wantErr {
-				t.Errorf("ValidateMetadataKey() error = %v, wantErr %v", err, tc.wantErr)
 			}
 		})
 	}
@@ -286,43 +183,30 @@ func TestMergeFrontMatter(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		"nested_map_merging": {
+		"nested_map_not_supported": {
 			existing: &FrontMatter{
 				Metadata: map[string]any{
 					"config": map[string]any{
 						"host": "localhost",
-						"port": 8080,
 					},
 				},
 			},
 			new: &FrontMatter{
 				Metadata: map[string]any{
 					"config": map[string]any{
-						"port":    9090,
-						"timeout": 30,
+						"port": 9090,
 					},
 				},
 			},
-			want: &FrontMatter{
-				References: []string{},
-				Metadata: map[string]any{
-					"config": map[string]any{
-						"host":    "localhost",
-						"port":    9090,
-						"timeout": 30,
-					},
-				},
-			},
+			wantErr: true,
 		},
-		"complex_merge": {
+		"complex_merge_flat_only": {
 			existing: &FrontMatter{
 				References: []string{"ref1.md"},
 				Metadata: map[string]any{
 					"version": "1.0",
 					"tags":    []string{"tag1"},
-					"author": map[string]any{
-						"name": "Alice",
-					},
+					"author":  "Alice",
 				},
 			},
 			new: &FrontMatter{
@@ -330,9 +214,7 @@ func TestMergeFrontMatter(t *testing.T) {
 				Metadata: map[string]any{
 					"version": "2.0",
 					"tags":    []string{"tag2"},
-					"author": map[string]any{
-						"email": "alice@example.com",
-					},
+					"email":   "alice@example.com",
 				},
 			},
 			want: &FrontMatter{
@@ -340,10 +222,8 @@ func TestMergeFrontMatter(t *testing.T) {
 				Metadata: map[string]any{
 					"version": "2.0",
 					"tags":    []string{"tag1", "tag2"},
-					"author": map[string]any{
-						"name":  "Alice",
-						"email": "alice@example.com",
-					},
+					"author":  "Alice",
+					"email":   "alice@example.com",
 				},
 			},
 		},

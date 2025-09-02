@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Front matter simplification**: Removed complex nested key support for cleaner implementation
+  - Removed support for nested metadata keys with dot notation (e.g., "author.name" no longer supported)
+  - Simplified ParseMetadataFlags to only accept flat key:value pairs
+  - Removed ValidateMetadataKey function and 3-level nesting validation
+  - Removed setNestedValue helper function for dot notation parsing
+  - Updated tests to reflect flat-only metadata structure
+  - References: specs/front-matter-references task 6
+
 ### Added
 - **Front matter integration tests**: Comprehensive end-to-end testing for front matter features
   - Integration tests for creating files with front matter via CLI commands
