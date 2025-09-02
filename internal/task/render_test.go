@@ -30,7 +30,9 @@ func TestRenderMarkdown(t *testing.T) {
 			wantContent: `# Simple Tasks
 
 - [ ] 1. First task
+
 - [-] 2. Second task
+
 - [x] 3. Third task
 `,
 		},
@@ -64,6 +66,7 @@ func TestRenderMarkdown(t *testing.T) {
   - [x] 1.1. Subtask one
   - [ ] 1.2. Subtask two
     - [ ] 1.2.1. Deep subtask
+
 - [ ] 2. Another main task
 `,
 		},
@@ -94,6 +97,7 @@ func TestRenderMarkdown(t *testing.T) {
   - First detail point
   - Second detail point
   - Third detail point
+
 - [ ] 2. Task without details
 `,
 		},
@@ -119,6 +123,7 @@ func TestRenderMarkdown(t *testing.T) {
 
 - [ ] 1. Task with single reference
   - References: doc.md
+
 - [ ] 2. Task with multiple references
   - References: spec.md, design.md, api.json
 `,
