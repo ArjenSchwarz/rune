@@ -58,9 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Extended TaskList with front matter support**: Core TaskList functionality now supports front matter operations
   - Modified NewTaskList to accept optional FrontMatter parameter using variadic pattern for backward compatibility
-  - Implemented AddFrontMatterContent method for adding/merging front matter with resource limit validation (100 references, 100 metadata entries)
+  - Implemented AddFrontMatterContent method for adding/merging front matter
   - Updated WriteFile method to include front matter serialization when present
-  - Comprehensive unit tests for all front matter operations including resource limits and atomic file writes
+  - Comprehensive unit tests for all front matter operations and atomic file writes
   - Support for concurrent write scenarios with proper atomic file operations
   - References: specs/front-matter-references requirements 1.4, 1.5, 2.4-2.7
 

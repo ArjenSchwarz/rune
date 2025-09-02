@@ -2,6 +2,7 @@ package task
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -425,8 +426,7 @@ func (tl *TaskList) getTaskDepth(taskID string) int {
 }
 
 // AddFrontMatterContent adds or merges front matter content into the TaskList
-// It validates resource limits (100 references, 100 metadata entries)
-func (tl *TaskList) AddFrontMatterContent(references []string, metadata map[string]any) error {
+func (tl *TaskList) AddFrontMatterContent(references []string, metadata map[string]string) error {
 	// If both are nil, this is a no-op
 	if references == nil && metadata == nil {
 		return nil
@@ -437,42 +437,18 @@ func (tl *TaskList) AddFrontMatterContent(references []string, metadata map[stri
 		tl.FrontMatter = &FrontMatter{}
 	}
 
-	// Check resource limits before merging
-	totalRefs := len(tl.FrontMatter.References) + len(references)
-	if totalRefs > 100 {
-		return fmt.Errorf("would exceed maximum of 100 references")
-	}
-
-	// Count total metadata entries after merge
-	totalMetadata := len(tl.FrontMatter.Metadata)
-	for key := range metadata {
-		if _, exists := tl.FrontMatter.Metadata[key]; !exists {
-			totalMetadata++
-		}
-	}
-	if totalMetadata > 100 {
-		return fmt.Errorf("would exceed maximum of 100 metadata entries")
-	}
-
 	// Merge references
 	if references != nil {
 		tl.FrontMatter.References = append(tl.FrontMatter.References, references...)
 	}
 
-	// Merge metadata
+	// Merge metadata with simple replacement strategy
 	if metadata != nil {
 		if tl.FrontMatter.Metadata == nil {
-			tl.FrontMatter.Metadata = make(map[string]any)
+			tl.FrontMatter.Metadata = make(map[string]string)
 		}
-		// Use MergeFrontMatter to properly handle array merging
-		newFM := &FrontMatter{
-			Metadata: metadata,
-		}
-		merged, err := MergeFrontMatter(tl.FrontMatter, newFM)
-		if err != nil {
-			return fmt.Errorf("failed to merge metadata: %w", err)
-		}
-		tl.FrontMatter.Metadata = merged.Metadata
+		// Simple replacement - last wins
+		maps.Copy(tl.FrontMatter.Metadata, metadata)
 	}
 
 	return nil

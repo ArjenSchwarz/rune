@@ -8,46 +8,46 @@ import (
 func TestParseMetadataFlags(t *testing.T) {
 	tests := map[string]struct {
 		input   []string
-		want    map[string]any
+		want    map[string]string
 		wantErr bool
 	}{
 		"single_key_value": {
 			input: []string{"key:value"},
-			want: map[string]any{
+			want: map[string]string{
 				"key": "value",
 			},
 		},
 		"multiple_key_values": {
 			input: []string{"key1:value1", "key2:value2"},
-			want: map[string]any{
+			want: map[string]string{
 				"key1": "value1",
 				"key2": "value2",
 			},
 		},
-		"multiple_values_same_key_creates_array": {
+		"multiple_values_same_key_creates_concatenated": {
 			input: []string{"tags:tag1", "tags:tag2", "tags:tag3"},
-			want: map[string]any{
-				"tags": []string{"tag1", "tag2", "tag3"},
+			want: map[string]string{
+				"tags": "tag1,tag2,tag3",
 			},
 		},
-		"mixed_single_and_array": {
+		"mixed_single_and_concatenated": {
 			input: []string{"name:project", "tags:tag1", "version:1.0", "tags:tag2"},
-			want: map[string]any{
+			want: map[string]string{
 				"name":    "project",
-				"tags":    []string{"tag1", "tag2"},
+				"tags":    "tag1,tag2",
 				"version": "1.0",
 			},
 		},
 		"colon_in_value": {
 			input: []string{"url:https://example.com:8080", "time:10:30:45"},
-			want: map[string]any{
+			want: map[string]string{
 				"url":  "https://example.com:8080",
 				"time": "10:30:45",
 			},
 		},
 		"empty_value": {
 			input: []string{"key:"},
-			want: map[string]any{
+			want: map[string]string{
 				"key": "",
 			},
 		},
@@ -65,7 +65,7 @@ func TestParseMetadataFlags(t *testing.T) {
 		},
 		"whitespace_preserved_in_values": {
 			input: []string{"description:This is a test", "title:  Leading spaces"},
-			want: map[string]any{
+			want: map[string]string{
 				"description": "This is a test",
 				"title":       "  Leading spaces",
 			},
@@ -109,13 +109,13 @@ func TestMergeFrontMatter(t *testing.T) {
 			existing: &FrontMatter{},
 			new: &FrontMatter{
 				References: []string{"doc1.md"},
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"version": "1.0",
 				},
 			},
 			want: &FrontMatter{
 				References: []string{"doc1.md"},
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"version": "1.0",
 				},
 			},
@@ -129,99 +129,87 @@ func TestMergeFrontMatter(t *testing.T) {
 			},
 			want: &FrontMatter{
 				References: []string{"doc1.md", "doc2.md", "doc2.md", "doc3.md"},
-				Metadata:   map[string]any{},
+				Metadata:   map[string]string{},
 			},
 		},
 		"scalar_metadata_replacement": {
 			existing: &FrontMatter{
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"version": "1.0",
 					"author":  "Alice",
 				},
 			},
 			new: &FrontMatter{
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"version": "2.0",
 				},
 			},
 			want: &FrontMatter{
 				References: []string{},
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"version": "2.0",
 					"author":  "Alice",
 				},
 			},
 		},
-		"array_metadata_appending": {
+		"string_metadata_replacement": {
 			existing: &FrontMatter{
-				Metadata: map[string]any{
-					"tags": []string{"tag1", "tag2"},
+				Metadata: map[string]string{
+					"tags": "tag1,tag2",
 				},
 			},
 			new: &FrontMatter{
-				Metadata: map[string]any{
-					"tags": []string{"tag3"},
+				Metadata: map[string]string{
+					"tags": "tag3",
 				},
 			},
 			want: &FrontMatter{
 				References: []string{},
-				Metadata: map[string]any{
-					"tags": []string{"tag1", "tag2", "tag3"},
+				Metadata: map[string]string{
+					"tags": "tag3",
 				},
 			},
 		},
-		"type_conflict_error": {
+		"simple_replacement": {
 			existing: &FrontMatter{
-				Metadata: map[string]any{
-					"value": "string",
+				Metadata: map[string]string{
+					"value": "old",
 				},
 			},
 			new: &FrontMatter{
-				Metadata: map[string]any{
-					"value": []string{"array"},
+				Metadata: map[string]string{
+					"value": "new",
 				},
 			},
-			wantErr: true,
+			want: &FrontMatter{
+				References: []string{},
+				Metadata: map[string]string{
+					"value": "new",
+				},
+			},
 		},
-		"nested_map_not_supported": {
-			existing: &FrontMatter{
-				Metadata: map[string]any{
-					"config": map[string]any{
-						"host": "localhost",
-					},
-				},
-			},
-			new: &FrontMatter{
-				Metadata: map[string]any{
-					"config": map[string]any{
-						"port": 9090,
-					},
-				},
-			},
-			wantErr: true,
-		},
-		"complex_merge_flat_only": {
+		"complex_merge_simple_replacement": {
 			existing: &FrontMatter{
 				References: []string{"ref1.md"},
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"version": "1.0",
-					"tags":    []string{"tag1"},
+					"tags":    "tag1",
 					"author":  "Alice",
 				},
 			},
 			new: &FrontMatter{
 				References: []string{"ref2.md"},
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"version": "2.0",
-					"tags":    []string{"tag2"},
+					"tags":    "tag2",
 					"email":   "alice@example.com",
 				},
 			},
 			want: &FrontMatter{
 				References: []string{"ref1.md", "ref2.md"},
-				Metadata: map[string]any{
+				Metadata: map[string]string{
 					"version": "2.0",
-					"tags":    []string{"tag1", "tag2"},
+					"tags":    "tag2",
 					"author":  "Alice",
 					"email":   "alice@example.com",
 				},
@@ -234,7 +222,7 @@ func TestMergeFrontMatter(t *testing.T) {
 			},
 			want: &FrontMatter{
 				References: []string{"new.md"},
-				Metadata:   map[string]any{},
+				Metadata:   map[string]string{},
 			},
 		},
 		"nil_new": {
@@ -244,7 +232,7 @@ func TestMergeFrontMatter(t *testing.T) {
 			new: nil,
 			want: &FrontMatter{
 				References: []string{"existing.md"},
-				Metadata:   map[string]any{},
+				Metadata:   map[string]string{},
 			},
 		},
 		"both_nil": {
@@ -252,7 +240,7 @@ func TestMergeFrontMatter(t *testing.T) {
 			new:      nil,
 			want: &FrontMatter{
 				References: []string{},
-				Metadata:   map[string]any{},
+				Metadata:   map[string]string{},
 			},
 		},
 	}

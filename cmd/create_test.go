@@ -282,7 +282,7 @@ func TestCreateCommandWithFrontMatter(t *testing.T) {
 			filename: "tasks.md",
 			wantErr:  true,
 		},
-		"metadata with array values": {
+		"metadata with concatenated values": {
 			title:           "My Project",
 			metadata:        []string{"tags:feature", "tags:enhancement", "tags:v2"},
 			filename:        "tasks.md",
@@ -291,17 +291,8 @@ func TestCreateCommandWithFrontMatter(t *testing.T) {
 				if !strings.Contains(content, "metadata:\n") {
 					t.Error("expected metadata section")
 				}
-				if !strings.Contains(content, "tags:\n") {
-					t.Error("expected tags array")
-				}
-				if !strings.Contains(content, "- feature") {
-					t.Error("expected feature tag")
-				}
-				if !strings.Contains(content, "- enhancement") {
-					t.Error("expected enhancement tag")
-				}
-				if !strings.Contains(content, "- v2") {
-					t.Error("expected v2 tag")
+				if !strings.Contains(content, "tags: feature,enhancement,v2") {
+					t.Error("expected concatenated tags value")
 				}
 			},
 		},

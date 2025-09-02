@@ -102,28 +102,29 @@ func TestAddFrontMatterCommand(t *testing.T) {
 				}
 			},
 		},
-		"merge metadata arrays": {
-			existingContent: "---\nmetadata:\n  tags: [todo, urgent]\n---\n# My Tasks\n\n",
+		"replace metadata strings": {
+			existingContent: "---\nmetadata:\n  tags: \"todo,urgent\"\n---\n# My Tasks\n\n",
 			references:      []string{},
 			metadata:        []string{"tags:important", "tags:p1"},
 			wantErr:         false,
 			checkResult: func(t *testing.T, content string) {
-				// Should append to existing array
+				// Should replace existing string with new values
 				if !strings.Contains(content, "tags:") {
 					t.Error("expected tags in metadata")
 				}
-				// Check that all values are present (order may vary)
-				if !strings.Contains(content, "todo") {
-					t.Error("expected 'todo' in tags array")
-				}
-				if !strings.Contains(content, "urgent") {
-					t.Error("expected 'urgent' in tags array")
-				}
+				// Check that new values are present
 				if !strings.Contains(content, "important") {
-					t.Error("expected 'important' in tags array")
+					t.Error("expected 'important' in tags")
 				}
 				if !strings.Contains(content, "p1") {
-					t.Error("expected 'p1' in tags array")
+					t.Error("expected 'p1' in tags")
+				}
+				// Check that old values are NOT present (replaced, not merged)
+				if strings.Contains(content, "todo") {
+					t.Error("expected 'todo' to be replaced, not preserved")
+				}
+				if strings.Contains(content, "urgent") {
+					t.Error("expected 'urgent' to be replaced, not preserved")
 				}
 			},
 		},
@@ -321,7 +322,7 @@ func addFrontMatterToFile(filename string, references []string, metadata []strin
 	}
 
 	// Parse metadata flags if provided
-	var parsedMeta map[string]any
+	var parsedMeta map[string]string
 	if len(metadata) > 0 {
 		parsedMeta, err = task.ParseMetadataFlags(metadata)
 		if err != nil {

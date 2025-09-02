@@ -9,8 +9,8 @@ import (
 
 // FrontMatter represents the YAML front matter in task files
 type FrontMatter struct {
-	References []string       `yaml:"references,omitempty"`
-	Metadata   map[string]any `yaml:"metadata,omitempty"`
+	References []string          `yaml:"references,omitempty"`
+	Metadata   map[string]string `yaml:"metadata,omitempty"`
 }
 
 // ParseFrontMatter extracts YAML front matter from markdown content

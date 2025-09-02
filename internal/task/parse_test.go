@@ -616,7 +616,7 @@ func TestParseMarkdownWithFrontMatter(t *testing.T) {
 		wantTitle      string
 		wantTasks      int
 		wantReferences []string
-		wantMetadata   map[string]any
+		wantMetadata   map[string]string
 		wantErr        bool
 		errContains    string
 	}{
@@ -641,7 +641,7 @@ metadata:
 				"./docs/architecture.md",
 				"./specs/api-specification.yaml",
 			},
-			wantMetadata: map[string]any{
+			wantMetadata: map[string]string{
 				"project": "backend-api",
 				"created": "2024-01-30",
 			},
@@ -698,7 +698,7 @@ metadata:
 			wantTitle:      "Version Tasks",
 			wantTasks:      1,
 			wantReferences: nil,
-			wantMetadata: map[string]any{
+			wantMetadata: map[string]string{
 				"version": "1.0.0",
 				"author":  "John Doe",
 			},
