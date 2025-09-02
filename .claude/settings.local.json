@@ -23,7 +23,8 @@
       "Bash(grep:*)",
       "Bash(INTEGRATION=1 go test -v ./cmd -timeout 30s)",
       "Bash(mkdir:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(.claude/scripts/copilot-pr-comments.sh:*)"
     ],
     "deny": [],
     "ask": []

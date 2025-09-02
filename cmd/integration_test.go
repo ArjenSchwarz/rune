@@ -2616,8 +2616,8 @@ func testFrontMatterIntegration(t *testing.T, tempDir string) {
 			"--meta", "sprint:24",
 			"--meta", "labels:backend",
 			"--meta", "labels:critical",
-			"--meta", "config.timeout:30",
-			"--meta", "config.retries:3")
+			"--meta", "config_timeout:30",
+			"--meta", "config_retries:3")
 
 		// Verify parsing works with complex metadata
 		tl, err := task.ParseFile(filename)
@@ -2772,11 +2772,16 @@ func testFrontMatterIntegration(t *testing.T, tempDir string) {
 
 		runGoCommand(t, "create", filename, "--title", "Nesting Test")
 
-		// Add deeply nested metadata structure (max 3 levels allowed)
-		runGoCommand(t, "add-frontmatter", filename,
+		// Add deeply nested metadata structure (should error for keys with dots)
+		output := runGoCommandWithError(t, "add-frontmatter", filename,
 			"--meta", "level1.level2.level3:deep_value",
-			"--meta", "level1.level2.another:value",
-			"--meta", "simple:value")
+			"--meta", "level1.level2.another:value")
+		if !containsString(output, "nested keys not supported") {
+			t.Errorf("expected error for nested metadata keys, got: %s", output)
+		}
+
+		// Add a simple metadata key (should succeed)
+		runGoCommand(t, "add-frontmatter", filename, "--meta", "simple:value")
 
 		// Verify it can be parsed
 		tl, err := task.ParseFile(filename)

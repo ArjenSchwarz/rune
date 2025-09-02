@@ -1,7 +1,6 @@
 package task
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -181,7 +180,7 @@ func compareFrontMatter(t *testing.T, got, want *FrontMatter) {
 			t.Errorf("Metadata key %q not found", key)
 			continue
 		}
-		if fmt.Sprintf("%v", gotValue) != fmt.Sprintf("%v", wantValue) {
+		if gotValue != wantValue {
 			t.Errorf("Metadata[%q]: got %v, want %v", key, gotValue, wantValue)
 		}
 	}
