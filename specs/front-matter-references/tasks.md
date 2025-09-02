@@ -133,23 +133,23 @@ references:
     - Show count of metadata fields merged
     - Display clear success message
     - References: Requirements 2.8
-- [ ] 5. Integration testing and edge case handling
+- [x] 5. Integration testing and edge case handling
   - Comprehensive integration tests and edge case validation
-  - [ ] 5.1. Create integration tests for front matter features
+  - [x] 5.1. Create integration tests for front matter features
     - Test creating file with front matter end-to-end
     - Test adding front matter to existing file
     - Test complex nested metadata structures
     - Test resource limits handling
     - Verify YAML output validity
     - References: Requirements 1.5, 2.4, 2.5, 2.6
-  - [ ] 5.2. Test and handle edge cases
+  - [x] 5.2. Test and handle edge cases
     - Test empty value in key:value format
     - Test colons in values
     - Test maximum nesting depth
     - Test resource limits enforcement
     - Ensure error path coverage
     - References: Requirements 1.2, 2.3
-  - [ ] 5.3. Final validation and cleanup
+  - [x] 5.3. Final validation and cleanup
     - Ensure command registration is correct
     - Verify all imports
     - Run go fmt on all files

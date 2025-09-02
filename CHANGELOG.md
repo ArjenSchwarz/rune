@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Front matter integration tests**: Comprehensive end-to-end testing for front matter features
+  - Integration tests for creating files with front matter via CLI commands
+  - Tests for adding front matter to existing files and preserving content
+  - Complex nested metadata structure validation
+  - Resource limits testing with many references (up to 50 references)
+  - YAML validity verification with special characters and edge cases
+  - Front matter preservation during task operations (add, update, complete, remove)
+  - Error handling tests for invalid formats and non-existent files
+  - Maximum nesting depth validation (3 levels)
+  - References: specs/front-matter-references requirements 1.5, 2.4-2.6
+
+### Changed
+- **Code modernization**: Applied modern Go patterns throughout the codebase
+  - Replaced `for i := 0; i < n; i++` with `for i := range n` where index isn't needed
+  - Used `maps.Copy()` instead of manual map copying loops
+  - Updated to use more idiomatic Go constructs as per modernize tool recommendations
+
+### Added
 - **add-frontmatter command implementation**: New command for adding front matter to existing task files
   - Create add-frontmatter command with --reference and --meta flags for adding content
   - Support for merging front matter with existing content in task files

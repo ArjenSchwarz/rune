@@ -2,6 +2,7 @@ package task
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"regexp"
 	"strings"
@@ -160,9 +161,7 @@ func MergeFrontMatter(existing, new *FrontMatter) (*FrontMatter, error) {
 		result.References = append(result.References, existing.References...)
 
 		// Deep copy existing metadata
-		for k, v := range existing.Metadata {
-			result.Metadata[k] = v
-		}
+		maps.Copy(result.Metadata, existing.Metadata)
 	}
 
 	if new != nil {
@@ -236,9 +235,7 @@ func mergeValues(existing, new any) (any, error) {
 			// Recursively merge maps
 			result := make(map[string]any)
 			// Copy existing
-			for k, v := range existingVal {
-				result[k] = v
-			}
+			maps.Copy(result, existingVal)
 			// Merge new
 			for k, v := range newMap {
 				if existingSubVal, exists := result[k]; exists {
