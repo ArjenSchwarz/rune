@@ -38,3 +38,7 @@ Thumbs.db
 
 # Binary output
 go-tasksgo-tasks
+# Ignore build artifacts
+go-tasks
+coverage.out
+coverage.html
