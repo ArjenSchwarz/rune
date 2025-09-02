@@ -82,9 +82,9 @@ references:
     - Handle error cleanup
     - References: Requirements 2.7
   - [x] 2.7. Clean up WriteFile/WriteFileAtomic duplication
-- [ ] 3. Enhance create command with front matter flags
+- [x] 3. Enhance create command with front matter flags
   - Add front matter support to the existing create command
-  - [ ] 3.1. Write unit tests for create command front matter flags
+  - [x] 3.1. Write unit tests for create command front matter flags
     - Test single --reference flag
     - Test multiple --reference flags
     - Test single --meta flag
@@ -93,13 +93,13 @@ references:
     - Test invalid metadata format
     - Test dry-run mode
     - References: Requirements 1.1, 1.2, 1.3, 1.6
-  - [ ] 3.2. Add front matter flags to create command
+  - [x] 3.2. Add front matter flags to create command
     - Add createReferences and createMetadata variables
     - Register --reference and --meta flags with StringSliceVar
     - Parse flags and create FrontMatter struct when present
     - Pass front matter to NewTaskList
     - References: Requirements 1.1, 1.2, 1.3
-  - [ ] 3.3. Implement success feedback for create command
+  - [x] 3.3. Implement success feedback for create command
     - Add feedback showing reference count added
     - Add feedback showing metadata field count added
     - Format messages clearly

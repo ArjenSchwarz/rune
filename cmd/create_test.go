@@ -161,3 +161,240 @@ func TestCreateCommandPathValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateCommandWithFrontMatter(t *testing.T) {
+	tests := map[string]struct {
+		title           string
+		references      []string
+		metadata        []string
+		filename        string
+		wantErr         bool
+		wantFrontMatter bool
+		checkContent    func(t *testing.T, content string)
+	}{
+		"single reference flag": {
+			title:           "My Project",
+			references:      []string{"README.md"},
+			filename:        "tasks.md",
+			wantFrontMatter: true,
+			checkContent: func(t *testing.T, content string) {
+				if !strings.Contains(content, "---\n") {
+					t.Error("expected front matter delimiter")
+				}
+				if !strings.Contains(content, "references:") {
+					t.Error("expected references section")
+				}
+				if !strings.Contains(content, "- README.md") {
+					t.Error("expected reference in front matter")
+				}
+			},
+		},
+		"multiple reference flags": {
+			title:           "My Project",
+			references:      []string{"README.md", "docs/guide.md", "CONTRIBUTING.md"},
+			filename:        "tasks.md",
+			wantFrontMatter: true,
+			checkContent: func(t *testing.T, content string) {
+				if !strings.Contains(content, "references:\n") {
+					t.Error("expected references section")
+				}
+				if !strings.Contains(content, "- README.md") {
+					t.Error("expected first reference")
+				}
+				if !strings.Contains(content, "- docs/guide.md") {
+					t.Error("expected second reference")
+				}
+				if !strings.Contains(content, "- CONTRIBUTING.md") {
+					t.Error("expected third reference")
+				}
+			},
+		},
+		"single meta flag": {
+			title:           "My Project",
+			metadata:        []string{"author:John Doe"},
+			filename:        "tasks.md",
+			wantFrontMatter: true,
+			checkContent: func(t *testing.T, content string) {
+				if !strings.Contains(content, "metadata:\n") {
+					t.Error("expected metadata section")
+				}
+				if !strings.Contains(content, "author: John Doe") {
+					t.Error("expected author metadata")
+				}
+			},
+		},
+		"multiple meta flags": {
+			title:           "My Project",
+			metadata:        []string{"author:John Doe", "version:1.0.0", "status:active"},
+			filename:        "tasks.md",
+			wantFrontMatter: true,
+			checkContent: func(t *testing.T, content string) {
+				if !strings.Contains(content, "metadata:\n") {
+					t.Error("expected metadata section")
+				}
+				if !strings.Contains(content, "author: John Doe") {
+					t.Error("expected author metadata")
+				}
+				if !strings.Contains(content, "version: 1.0.0") {
+					t.Error("expected version metadata")
+				}
+				if !strings.Contains(content, "status: active") {
+					t.Error("expected status metadata")
+				}
+			},
+		},
+		"combined references and metadata": {
+			title:           "My Project",
+			references:      []string{"README.md", "LICENSE"},
+			metadata:        []string{"priority:high", "team:backend"},
+			filename:        "tasks.md",
+			wantFrontMatter: true,
+			checkContent: func(t *testing.T, content string) {
+				if !strings.Contains(content, "references:\n") {
+					t.Error("expected references section")
+				}
+				if !strings.Contains(content, "- README.md") {
+					t.Error("expected README reference")
+				}
+				if !strings.Contains(content, "- LICENSE") {
+					t.Error("expected LICENSE reference")
+				}
+				if !strings.Contains(content, "metadata:\n") {
+					t.Error("expected metadata section")
+				}
+				if !strings.Contains(content, "priority: high") {
+					t.Error("expected priority metadata")
+				}
+				if !strings.Contains(content, "team: backend") {
+					t.Error("expected team metadata")
+				}
+			},
+		},
+		"invalid metadata format": {
+			title:    "My Project",
+			metadata: []string{"invalid_format"},
+			filename: "tasks.md",
+			wantErr:  true,
+		},
+		"metadata with nested keys": {
+			title:           "My Project",
+			metadata:        []string{"author.name:John Doe", "author.email:john@example.com"},
+			filename:        "tasks.md",
+			wantFrontMatter: true,
+			checkContent: func(t *testing.T, content string) {
+				if !strings.Contains(content, "metadata:\n") {
+					t.Error("expected metadata section")
+				}
+				if !strings.Contains(content, "author:\n") {
+					t.Error("expected author nested section")
+				}
+				if !strings.Contains(content, "name: John Doe") {
+					t.Error("expected author name")
+				}
+				if !strings.Contains(content, "email: john@example.com") {
+					t.Error("expected author email")
+				}
+			},
+		},
+		"metadata with array values": {
+			title:           "My Project",
+			metadata:        []string{"tags:feature", "tags:enhancement", "tags:v2"},
+			filename:        "tasks.md",
+			wantFrontMatter: true,
+			checkContent: func(t *testing.T, content string) {
+				if !strings.Contains(content, "metadata:\n") {
+					t.Error("expected metadata section")
+				}
+				if !strings.Contains(content, "tags:\n") {
+					t.Error("expected tags array")
+				}
+				if !strings.Contains(content, "- feature") {
+					t.Error("expected feature tag")
+				}
+				if !strings.Contains(content, "- enhancement") {
+					t.Error("expected enhancement tag")
+				}
+				if !strings.Contains(content, "- v2") {
+					t.Error("expected v2 tag")
+				}
+			},
+		},
+		"no front matter flags": {
+			title:           "My Project",
+			filename:        "tasks.md",
+			wantFrontMatter: false,
+			checkContent: func(t *testing.T, content string) {
+				if strings.Contains(content, "---\n") {
+					t.Error("unexpected front matter delimiter")
+				}
+				if !strings.Contains(content, "# My Project") {
+					t.Error("expected title")
+				}
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Create temp directory for test
+			tempDir, err := os.MkdirTemp("", "go-tasks-frontmatter-test")
+			if err != nil {
+				t.Fatalf("failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			// Change to temp directory
+			oldDir, _ := os.Getwd()
+			os.Chdir(tempDir)
+			defer os.Chdir(oldDir)
+
+			// Build FrontMatter if needed
+			var fm *task.FrontMatter
+			if len(tc.references) > 0 || len(tc.metadata) > 0 {
+				fm = &task.FrontMatter{
+					References: tc.references,
+				}
+
+				if len(tc.metadata) > 0 {
+					parsedMeta, err := task.ParseMetadataFlags(tc.metadata)
+					if err != nil {
+						if tc.wantErr {
+							// Expected error
+							return
+						}
+						t.Fatalf("failed to parse metadata: %v", err)
+					}
+					fm.Metadata = parsedMeta
+				}
+			}
+
+			// Create task list with front matter
+			tl := task.NewTaskList(tc.title, fm)
+			err = tl.WriteFile(tc.filename)
+
+			if tc.wantErr {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			// Read and verify content
+			content, err := os.ReadFile(tc.filename)
+			if err != nil {
+				t.Errorf("failed to read created file: %v", err)
+				return
+			}
+
+			// Check content using test-specific validator
+			if tc.checkContent != nil {
+				tc.checkContent(t, string(content))
+			}
+		})
+	}
+}
