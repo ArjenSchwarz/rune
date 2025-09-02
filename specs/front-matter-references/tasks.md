@@ -45,42 +45,43 @@ references:
     - Handle reference appending without deduplication
     - Support array and scalar metadata merging
     - References: Requirements 2.5, 2.6
-- [ ] 2. Extend TaskList with front matter support
+- [x] 2. Extend TaskList with front matter support
   - Modify core TaskList functionality to support front matter operations
-  - [ ] 2.1. Write unit tests for NewTaskList with front matter
+  - [x] 2.1. Write unit tests for NewTaskList with front matter
     - Test NewTaskList without front matter (backward compatibility)
     - Test NewTaskList with front matter parameter
     - Verify front matter attachment to TaskList
     - References: Requirements 1.4, 1.5
-  - [ ] 2.2. Modify NewTaskList to accept optional FrontMatter
+  - [x] 2.2. Modify NewTaskList to accept optional FrontMatter
     - Update function signature in internal/task/operations.go
     - Use variadic parameter pattern for optional FrontMatter
     - Ensure backward compatibility with existing calls
     - References: Requirements 1.4, 1.5
-  - [ ] 2.3. Write unit tests for AddFrontMatterContent method
+  - [x] 2.3. Write unit tests for AddFrontMatterContent method
     - Test adding to TaskList without existing front matter
     - Test merging with existing front matter
     - Test resource limits (100 references, 100 metadata)
     - Test invalid input error handling
     - References: Requirements 2.4, 2.5, 2.6
-  - [ ] 2.4. Implement AddFrontMatterContent method
+  - [x] 2.4. Implement AddFrontMatterContent method
     - Create method on TaskList struct
     - Initialize front matter if missing
     - Apply merge logic for existing content
     - Validate resource limits
     - References: Requirements 2.4, 2.5, 2.6
-  - [ ] 2.5. Write unit tests for atomic file operations
+  - [x] 2.5. Write unit tests for atomic file operations
     - Test successful atomic write
     - Test cleanup on write failure
     - Test .md file validation
     - Test concurrent write scenarios
     - References: Requirements 2.7
-  - [ ] 2.6. Implement WriteFileAtomic method
+  - [x] 2.6. Implement WriteFileAtomic method
     - Create WriteFileAtomic on TaskList
     - Implement write-to-temp-then-rename pattern
     - Validate .md file extension
     - Handle error cleanup
     - References: Requirements 2.7
+  - [x] 2.7. Clean up WriteFile/WriteFileAtomic duplication
 - [ ] 3. Enhance create command with front matter flags
   - Add front matter support to the existing create command
   - [ ] 3.1. Write unit tests for create command front matter flags

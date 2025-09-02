@@ -454,27 +454,14 @@ func TestRenderTaskListReferences(t *testing.T) {
 			// Test Markdown rendering
 			got := string(RenderMarkdown(tc.input))
 
-			// Check for proper frontmatter handling
-			if tc.input.FrontMatter != nil && len(tc.input.FrontMatter.References) > 0 {
-				// Should start with frontmatter
-				if !strings.HasPrefix(got, "---\n") {
-					t.Errorf("Markdown with references should start with frontmatter delimiter")
-				}
-				// Should contain references in YAML format
-				for _, ref := range tc.input.FrontMatter.References {
-					if !strings.Contains(got, ref) {
-						t.Errorf("Markdown should contain reference %q", ref)
-					}
-				}
-				// Should not contain markdown references section
-				if strings.Contains(got, "## References") {
-					t.Errorf("Markdown should not contain References section when using frontmatter")
-				}
-			} else {
-				// Should not contain frontmatter when no references
-				if strings.HasPrefix(got, "---\n") {
-					t.Errorf("Markdown should not start with frontmatter when no references present")
-				}
+			// RenderMarkdown no longer includes front matter (that's handled by WriteFile)
+			// So we should NOT see front matter in the output
+			if strings.HasPrefix(got, "---\n") {
+				t.Errorf("RenderMarkdown should not include front matter")
+			}
+			// Should not contain markdown references section
+			if strings.Contains(got, "## References") {
+				t.Errorf("Markdown should not contain References section when using frontmatter")
 			}
 
 			// Test JSON rendering

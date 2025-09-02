@@ -168,6 +168,7 @@ metadata:
 			// Parse the written content to verify front matter
 			parsedTl, err := ParseMarkdown(writtenContent)
 			if err != nil {
+				t.Logf("Written content:\n%s", string(writtenContent))
 				t.Fatalf("Failed to parse written content: %v", err)
 			}
 
