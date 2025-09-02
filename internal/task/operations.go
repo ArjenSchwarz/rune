@@ -464,9 +464,15 @@ func (tl *TaskList) AddFrontMatterContent(references []string, metadata map[stri
 		if tl.FrontMatter.Metadata == nil {
 			tl.FrontMatter.Metadata = make(map[string]any)
 		}
-		for key, value := range metadata {
-			tl.FrontMatter.Metadata[key] = value
+		// Use MergeFrontMatter to properly handle array merging
+		newFM := &FrontMatter{
+			Metadata: metadata,
 		}
+		merged, err := MergeFrontMatter(tl.FrontMatter, newFM)
+		if err != nil {
+			return fmt.Errorf("failed to merge metadata: %w", err)
+		}
+		tl.FrontMatter.Metadata = merged.Metadata
 	}
 
 	return nil
