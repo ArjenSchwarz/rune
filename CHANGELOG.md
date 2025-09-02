@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Front matter support in create command**: Enhanced create command with CLI flags for front matter
+  - Added --reference flag for adding reference files (can be used multiple times)
+  - Added --meta flag for adding metadata in key:value format (can be used multiple times)
+  - Support for nested metadata keys using dot notation (e.g., author.name:John Doe)
+  - Support for array values when multiple entries have the same key (e.g., tags:feature tags:enhancement)
+  - Comprehensive feedback showing count of references and metadata fields added
+  - Full integration with NewTaskList front matter parameter and serialization
+  - Comprehensive test coverage for all front matter flag combinations and edge cases
+
+### Added
 - **Extended TaskList with front matter support**: Core TaskList functionality now supports front matter operations
   - Modified NewTaskList to accept optional FrontMatter parameter using variadic pattern for backward compatibility
   - Implemented AddFrontMatterContent method for adding/merging front matter with resource limit validation (100 references, 100 metadata entries)
