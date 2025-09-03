@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Phase detection and parsing implementation**: Core functionality for detecting H2 headers as phase markers
+  - Created PhaseMarker struct to represent phase boundaries with Name and AfterTaskID fields
+  - Implemented extractPhaseMarkers function to scan lines for H2 headers (## pattern)
+  - Added phaseHeaderPattern regex to detect phase headers at root level
+  - Updated parseTasksAtLevel to skip phase headers during parsing for backward compatibility
+  - Fixed static analysis issue with nil check for slice length
+  - Comprehensive test suite with 22 test cases covering all edge cases
+    - Tests for empty phases, duplicate names, special characters in names
+    - Tests for phase positioning relative to task IDs
+    - Tests for mixed content with phases and non-phased tasks
+    - Tests for phase header format validation (only H2 headers accepted)
+  - References: specs/task-phases requirements 1.1, 1.2, 1.6
+
+### Added
 - **Task phases feature specification**: Complete requirements, design, and implementation plan for phase-based task organization
   - Specification documents for organizing tasks under semantic H2 markdown headers (phases)
   - Requirements for phase-aware commands including add-phase, add --phase, and next --phase

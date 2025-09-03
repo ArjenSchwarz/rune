@@ -6,17 +6,17 @@ references:
 ---
 # Task Phases Implementation
 
-- [ ] 1. Phase Detection and Parsing
+- [x] 1. Phase Detection and Parsing
   - Implement phase marker detection and extraction during parsing
   - Ensure H2 headers are recognized but not stored in the model
   - Maintain backward compatibility with non-phase documents
-  - [ ] 1.1. Write unit tests for phase marker extraction
+  - [x] 1.1. Write unit tests for phase marker extraction
     - Test detection of H2 headers as phase boundaries
     - Test mixed content with phases and non-phased tasks
     - Test preservation of phase headers during parsing
     - Test that phase markers are not stored in TaskList
     - References: Requirements 1.1, 1.2, 1.6
-  - [ ] 1.2. Implement extractPhaseMarkers function in parse.go
+  - [x] 1.2. Implement extractPhaseMarkers function in parse.go
     - Create PhaseMarker struct with Name and AfterTaskID fields
     - Scan lines for H2 headers matching ^## (.+)$ pattern
     - Record phase positions relative to task IDs

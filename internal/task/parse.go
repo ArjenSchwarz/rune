@@ -11,8 +11,9 @@ import (
 const MaxFileSize = 10 * 1024 * 1024
 
 var (
-	taskLinePattern   = regexp.MustCompile(`^(\s*)- (\[[ \-xX]\]) (\d+(?:\.\d+)*)\. (.+)$`)
-	detailLinePattern = regexp.MustCompile(`^(\s*)- (.+)$`)
+	taskLinePattern    = regexp.MustCompile(`^(\s*)- (\[[ \-xX]\]) (\d+(?:\.\d+)*)\. (.+)$`)
+	detailLinePattern  = regexp.MustCompile(`^(\s*)- (.+)$`)
+	phaseHeaderPattern = regexp.MustCompile(`^## (.+)$`)
 )
 
 // ParseMarkdown parses markdown content into a TaskList structure
@@ -146,6 +147,11 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 			tasks = append(tasks, task)
 			i = newIdx
 		case indent == expectedIndent:
+			// Check if this is a phase header (H2) - skip it
+			if phaseHeaderPattern.MatchString(strings.TrimSpace(lines[i])) && expectedIndent == 0 {
+				// Phase headers are allowed at root level
+				continue
+			}
 			// This is a detail line at the wrong level
 			return nil, i, fmt.Errorf("line %d: unexpected content at this indentation level", i+1)
 		default:
@@ -305,4 +311,35 @@ func countIndent(line string) int {
 		}
 	}
 	return count
+}
+
+// extractPhaseMarkers scans lines for H2 headers and returns phase markers with their positions
+func extractPhaseMarkers(lines []string) []PhaseMarker {
+	markers := []PhaseMarker{}
+	var lastTaskID string
+
+	for _, line := range lines {
+		// Phase headers must start at the beginning of the line (no indentation)
+		// Check if line is a phase header (H2) - use original line, not trimmed
+		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
+			phaseName := strings.TrimSpace(matches[1])
+			markers = append(markers, PhaseMarker{
+				Name:        phaseName,
+				AfterTaskID: lastTaskID,
+			})
+		} else if _, ok := parseTaskLine(line); ok {
+			// Extract task ID from the line
+			// The task ID is captured in the regex pattern
+			if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
+				// Only update lastTaskID for top-level tasks (not subtasks)
+				// Top-level tasks don't have dots in their IDs
+				taskID := taskMatches[3]
+				if !strings.Contains(taskID, ".") {
+					lastTaskID = taskID
+				}
+			}
+		}
+	}
+
+	return markers
 }
