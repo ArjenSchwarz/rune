@@ -1,0 +1,159 @@
+---
+references:
+    - specs/task-phases/requirements.md
+    - specs/task-phases/design.md
+    - specs/task-phases/decision_log.md
+---
+# Task Phases Implementation
+
+- [ ] 1. Phase Detection and Parsing
+  - Implement phase marker detection and extraction during parsing
+  - Ensure H2 headers are recognized but not stored in the model
+  - Maintain backward compatibility with non-phase documents
+  - [ ] 1.1. Write unit tests for phase marker extraction
+    - Test detection of H2 headers as phase boundaries
+    - Test mixed content with phases and non-phased tasks
+    - Test preservation of phase headers during parsing
+    - Test that phase markers are not stored in TaskList
+    - References: Requirements 1.1, 1.2, 1.6
+  - [ ] 1.2. Implement extractPhaseMarkers function in parse.go
+    - Create PhaseMarker struct with Name and AfterTaskID fields
+    - Scan lines for H2 headers matching ^## (.+)$ pattern
+    - Record phase positions relative to task IDs
+    - Return ordered list of phase markers
+    - References: Requirements 1.1, 1.3, TD1
+
+- [ ] 2. Phase-Aware Rendering
+  - Modify rendering to preserve H2 headers at correct positions
+  - Implement conditional phase column in table output
+  - Add phase information to JSON output when phases present
+  - [ ] 2.1. Write unit tests for phase-aware rendering
+    - Test preservation of phase headers in markdown output
+    - Test conditional phase column display in table output
+    - Test JSON output includes phase information when present
+    - Test backward compatibility with non-phase documents
+    - References: Requirements 1.2, 1.4, 5.1, 5.2, 5.3, 8.6
+  - [ ] 2.2. Implement renderWithPhases function in render.go
+    - Reconstruct document with phase headers at correct positions
+    - Calculate task phase associations based on position
+    - Add phase column to table output when phases present
+    - Include phase field in JSON output for tasks
+    - References: Requirements 1.2, 1.4, 5.1, 5.2, 5.3
+
+- [ ] 3. Add-Phase Command Implementation
+  - Create new CLI command for adding phase headers
+  - Ensure phases are appended to end of document
+  - [ ] 3.1. Write unit tests for add-phase command
+    - Test phase creation appends to document end
+    - Test phase names are preserved exactly as entered
+    - Test empty phases are preserved
+    - Test command with various phase name formats
+    - References: Requirements 3.1, 3.2, 3.3, 3.4, DD4
+  - [ ] 3.2. Implement add-phase command in cmd/add_phase.go
+    - Create new cobra command with Use: 'add-phase [name]'
+    - Implement runAddPhase function to append H2 header
+    - Register command with root command
+    - Handle file reading, modification, and writing
+    - References: Requirements 3.1, 3.2, 3.3, 3.4
+
+- [ ] 4. Phase-Aware Add Command
+  - Add --phase flag to existing add command
+  - Implement logic to find or create target phase
+  - Ensure tasks are added to correct phase position
+  - [ ] 4.1. Write unit tests for add command --phase flag
+    - Test adding tasks to existing phases
+    - Test auto-creation of non-existent phases
+    - Test handling of duplicate phase names (use first occurrence)
+    - Test tasks without --phase go to document end
+    - References: Requirements 4.1, 4.2, 4.3, 4.4, 4.5, D2, Q2
+  - [ ] 4.2. Implement --phase flag in cmd/add.go
+    - Add StringVar flag for phase name
+    - Implement phase detection logic in runAdd function
+    - Auto-create phase if it doesn't exist
+    - Add task to appropriate position based on phase
+    - References: Requirements 4.1, 4.2, 4.3, 4.4, 4.5
+
+- [ ] 5. Phase-Aware Next Command
+  - Add --phase flag to next command
+  - Implement logic to find next phase with pending tasks
+  - Return all pending tasks from that phase
+  - [ ] 5.1. Write unit tests for next command --phase flag
+    - Test retrieval of all pending tasks from next phase
+    - Test phase selection (first phase with pending tasks)
+    - Test appropriate message when no phases have pending tasks
+    - Test existing behavior preserved without --phase flag
+    - References: Requirements 7.1, 7.2, 7.3, 7.4, 7.5
+  - [ ] 5.2. Implement --phase flag in cmd/next.go
+    - Add BoolVar flag for phase mode
+    - Implement getNextPhaseTasks function
+    - Find first phase with pending tasks in document order
+    - Return all pending tasks from that phase
+    - References: Requirements 7.1, 7.2, 7.3, 7.4, 7.5, Q1
+
+- [ ] 6. Phase Support in Task Operations
+  - Ensure remove operations preserve phase structure
+  - Maintain ID renumbering across phase boundaries
+  - Support state updates within phases
+  - [ ] 6.1. Write unit tests for phase-aware operations
+    - Test task removal preserves phase headers
+    - Test ID renumbering works correctly across phases
+    - Test state changes (pending/in-progress/completed) within phases
+    - Test operations maintain sequential numbering
+    - References: Requirements 2.2, 2.5, 4.6, 4.7, 4.9
+  - [ ] 6.2. Update operations.go for phase preservation
+    - Modify RemoveTask to preserve phase headers
+    - Ensure RenumberTasks maintains sequential IDs across phases
+    - Verify UpdateTask works correctly within phases
+    - Test all operations maintain phase structure
+    - References: Requirements 2.1, 2.2, 2.5, 4.6, 4.7, 4.9
+
+- [ ] 7. Batch Command Phase Support
+  - Add phase field to batch operation JSON
+  - Implement phase-aware batch operations
+  - Support auto-creation of phases in batch mode
+  - [ ] 7.1. Write unit tests for batch phase operations
+    - Test batch add operations with phase field
+    - Test auto-creation of phases in batch operations
+    - Test duplicate phase handling in batch mode
+    - Test mixed operations (some with phases, some without)
+    - References: Requirements 6.1, 6.2, 6.3, 6.4, 6.7
+  - [ ] 7.2. Implement phase support in cmd/batch.go
+    - Add Phase field to BatchOperation struct
+    - Implement phase logic in executeBatchOperation
+    - Handle auto-creation of phases during batch execution
+    - Include phase information in batch responses
+    - References: Requirements 6.1, 6.2, 6.3, 6.4, 6.5, 6.6
+
+- [ ] 8. Integration Testing
+  - Create comprehensive integration tests for phase workflows
+  - Verify backward compatibility with existing files
+  - Test complete round-trip operations
+  - [ ] 8.1. Create test fixtures for phase testing
+    - Create simple_phases.md with basic phase structure
+    - Create mixed_content.md with phases and non-phased tasks
+    - Create empty_phases.md with phases without tasks
+    - Create duplicate_phases.md with repeated phase names
+    - References: Requirements 1.5, 1.6, 3.4, Q3
+  - [ ] 8.2. Write integration tests for phase workflows
+    - Test end-to-end phase creation and task addition
+    - Test round-trip (parse -> modify -> render -> parse)
+    - Test batch operations creating and populating phases
+    - Verify backward compatibility with legacy task files
+    - References: Requirements 8.1, 8.2, 8.3, 8.4, 8.5
+
+- [ ] 9. Phase Utility Functions
+  - Create helper functions for phase operations
+  - Implement position-based phase detection
+  - Add phase name extraction and validation
+  - [ ] 9.1. Write unit tests for phase utility functions
+    - Test getTaskPhase returns correct phase for task ID
+    - Test phase detection with various document structures
+    - Test handling of tasks not in any phase
+    - Test phase name extraction from H2 headers
+    - References: Requirements 1.1, 5.4, 5.5
+  - [ ] 9.2. Implement phase.go with utility functions
+    - Create getTaskPhase function for positional lookup
+    - Implement addPhase function to format phase headers
+    - Add helper to find phase position in document
+    - Create function to determine task's phase from content
+    - References: Requirements 1.1, 4.2, 5.5, TD2

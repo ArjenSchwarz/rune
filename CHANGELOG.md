@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Task phases feature specification**: Complete requirements, design, and implementation plan for phase-based task organization
+  - Specification documents for organizing tasks under semantic H2 markdown headers (phases)
+  - Requirements for phase-aware commands including add-phase, add --phase, and next --phase
+  - Position-based phase association design maintaining backward compatibility
+  - Comprehensive design document with simplified architecture avoiding model changes
+  - Decision log documenting design choices for phase creation, management, and display
+  - Detailed implementation task breakdown with 8 major sections and comprehensive testing strategy
+  - Support for batch operations with phase awareness
+  - Conditional phase column in table output when phases are present
+
 ### Changed
 - **Project renamed from go-tasks to rune**: Complete rebranding of the project
   - Updated module name from github.com/ArjenSchwarz/go-tasks to github.com/arjenschwarz/rune
