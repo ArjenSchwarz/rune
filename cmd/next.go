@@ -74,9 +74,9 @@ func runNext(cmd *cobra.Command, args []string) error {
 
 	// Create output based on format
 	switch format {
-	case "json":
+	case formatJSON:
 		return outputNextTaskJSON(nextTask, taskList.FrontMatter)
-	case "markdown":
+	case formatMarkdown:
 		return outputNextTaskMarkdown(nextTask, taskList.FrontMatter)
 	default:
 		return outputNextTaskTable(nextTask, taskList.FrontMatter)

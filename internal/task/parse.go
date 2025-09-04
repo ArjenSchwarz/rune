@@ -38,6 +38,52 @@ func ParseFile(filepath string) (*TaskList, error) {
 	return taskList, nil
 }
 
+// ParseFileWithPhases reads and parses a markdown file, returning both the TaskList and phase markers
+func ParseFileWithPhases(filepath string) (*TaskList, []PhaseMarker, error) {
+	content, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading file: %w", err)
+	}
+
+	// Parse the task list
+	taskList, err := ParseMarkdown(content)
+	if err != nil {
+		return nil, nil, err
+	}
+	taskList.FilePath = filepath
+
+	// Extract phase markers from the content
+	lines := strings.Split(string(content), "\n")
+	// Skip front matter if present
+	if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
+		inFrontMatter := false
+		frontMatterCount := 0
+		newLines := []string{}
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "---" {
+				frontMatterCount++
+				if frontMatterCount == 2 {
+					inFrontMatter = false
+					continue
+				} else {
+					inFrontMatter = true
+					continue
+				}
+			}
+			if !inFrontMatter && frontMatterCount > 0 {
+				newLines = append(newLines, line)
+			}
+		}
+		if frontMatterCount >= 2 {
+			lines = newLines
+		}
+	}
+
+	phaseMarkers := extractPhaseMarkers(lines)
+
+	return taskList, phaseMarkers, nil
+}
+
 func parseContent(content string) (*TaskList, error) {
 	taskList := &TaskList{}
 

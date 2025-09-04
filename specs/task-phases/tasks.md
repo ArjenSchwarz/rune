@@ -23,17 +23,17 @@ references:
     - Return ordered list of phase markers
     - References: Requirements 1.1, 1.3, TD1
 
-- [ ] 2. Phase-Aware Rendering
+- [x] 2. Phase-Aware Rendering
   - Modify rendering to preserve H2 headers at correct positions
   - Implement conditional phase column in table output
   - Add phase information to JSON output when phases present
-  - [ ] 2.1. Write unit tests for phase-aware rendering
+  - [x] 2.1. Write unit tests for phase-aware rendering
     - Test preservation of phase headers in markdown output
     - Test conditional phase column display in table output
     - Test JSON output includes phase information when present
     - Test backward compatibility with non-phase documents
     - References: Requirements 1.2, 1.4, 5.1, 5.2, 5.3, 8.6
-  - [ ] 2.2. Implement renderWithPhases function in render.go
+  - [x] 2.2. Implement renderWithPhases function in render.go
     - Reconstruct document with phase headers at correct positions
     - Calculate task phase associations based on position
     - Add phase column to table output when phases present

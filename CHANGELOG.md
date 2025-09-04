@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Phase-aware rendering implementation**: Complete rendering support for tasks with phase information
+  - Added ParseFileWithPhases function to return both TaskList and phase markers
+  - Implemented RenderMarkdownWithPhases to reconstruct documents with H2 headers at correct positions
+  - Added GetTaskPhase function to determine phase association based on task position
+  - Enhanced list and next commands to display phase information when present
+  - Conditional phase column in table output when phases exist
+  - JSON output includes phase information and phase_markers when phases are present
+  - Comprehensive test suite for phase-aware rendering with 8 test cases
+    - Tests for single and multiple phases
+    - Tests for mixed content with tasks inside and outside phases
+    - Tests for empty phases and duplicate phase names
+    - Tests for hierarchical tasks with phases
+  - Backward compatibility maintained - files without phases render normally
+  - References: specs/task-phases requirements 1.2, 1.4, 5.1, 5.2, 5.3, 8.6
+
+### Added
 - **Phase detection and parsing implementation**: Core functionality for detecting H2 headers as phase markers
   - Created PhaseMarker struct to represent phase boundaries with Name and AfterTaskID fields
   - Implemented extractPhaseMarkers function to scan lines for H2 headers (## pattern)
