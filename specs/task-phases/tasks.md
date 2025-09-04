@@ -40,16 +40,16 @@ references:
     - Include phase field in JSON output for tasks
     - References: Requirements 1.2, 1.4, 5.1, 5.2, 5.3
 
-- [ ] 3. Add-Phase Command Implementation
+- [x] 3. Add-Phase Command Implementation
   - Create new CLI command for adding phase headers
   - Ensure phases are appended to end of document
-  - [ ] 3.1. Write unit tests for add-phase command
+  - [x] 3.1. Write unit tests for add-phase command
     - Test phase creation appends to document end
     - Test phase names are preserved exactly as entered
     - Test empty phases are preserved
     - Test command with various phase name formats
     - References: Requirements 3.1, 3.2, 3.3, 3.4, DD4
-  - [ ] 3.2. Implement add-phase command in cmd/add_phase.go
+  - [x] 3.2. Implement add-phase command in cmd/add_phase.go
     - Create new cobra command with Use: 'add-phase [name]'
     - Implement runAddPhase function to append H2 header
     - Register command with root command

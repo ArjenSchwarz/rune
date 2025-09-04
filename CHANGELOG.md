@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **add-phase command implementation**: New CLI command for adding phase headers to task files
+  - Created new `add-phase` command that appends H2 headers (## Phase Name) to task files
+  - Support for both explicit filename and git-based file discovery modes
+  - Preserves existing file content and task structure when adding phases
+  - Handles edge cases including empty files and files without trailing newlines
+  - Comprehensive test suite with 376 lines covering all scenarios
+    - Tests for adding phases to empty files and files with existing content
+    - Tests for preserving task hierarchy and existing phases
+    - Tests for phase name trimming and special character handling
+    - Validation that files remain valid after phase addition
+  - References: specs/task-phases requirements 3.1, 3.2, 3.3, 3.4, DD4
+
+### Added
 - **Phase-aware rendering implementation**: Complete rendering support for tasks with phase information
   - Added ParseFileWithPhases function to return both TaskList and phase markers
   - Implemented RenderMarkdownWithPhases to reconstruct documents with H2 headers at correct positions
