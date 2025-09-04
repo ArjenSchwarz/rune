@@ -453,3 +453,198 @@ func (tl *TaskList) AddFrontMatterContent(references []string, metadata map[stri
 
 	return nil
 }
+
+// AddTaskToPhase adds a task to a specific phase, creating the phase if it doesn't exist
+// This function handles phase-aware task addition by finding the correct position within a phase
+func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error) {
+	// Parse file with phase information
+	tl, phaseMarkers, err := ParseFileWithPhases(filepath)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse file with phases: %w", err)
+	}
+
+	// Validate input
+	if err := validateTaskInput(title); err != nil {
+		return "", err
+	}
+
+	// Check resource limits
+	if err := tl.checkResourceLimits(parentID); err != nil {
+		return "", err
+	}
+
+	var newTaskID string
+	var insertPosition int = -1
+
+	// Find the phase position
+	phaseFound := false
+	for _, marker := range phaseMarkers {
+		if marker.Name == phaseName {
+			phaseFound = true
+			// Find the position to insert the task
+			if marker.AfterTaskID == "" {
+				// Phase is at the beginning, insert after phase header
+				insertPosition = 0
+			} else {
+				// Find the task after which this phase starts
+				for i, task := range tl.Tasks {
+					if task.ID == marker.AfterTaskID {
+						insertPosition = i + 1
+						break
+					}
+				}
+			}
+			break
+		}
+	}
+
+	if !phaseFound {
+		// Phase doesn't exist, create it at the end and add task there
+		insertPosition = len(tl.Tasks)
+		
+		// Add phase marker to the list (will be rendered when file is written)
+		afterTaskID := ""
+		if len(tl.Tasks) > 0 {
+			afterTaskID = tl.Tasks[len(tl.Tasks)-1].ID
+		}
+		phaseMarkers = append(phaseMarkers, PhaseMarker{
+			Name:        phaseName,
+			AfterTaskID: afterTaskID,
+		})
+	} else {
+		// Phase exists, find where to insert the task within this phase
+		
+		// Now find where the next phase starts (this is where current phase ends)
+		phaseEndPos := len(tl.Tasks) // Default to end of list
+		
+		// Look for the next phase marker in document order
+		for i, marker := range phaseMarkers {
+			// Skip until we find our target phase
+			if marker.Name != phaseName {
+				continue
+			}
+			
+			// Look for the next phase after this one
+			if i+1 < len(phaseMarkers) {
+				nextMarker := phaseMarkers[i+1]
+				if nextMarker.AfterTaskID == "" {
+					phaseEndPos = 0 // Next phase is at the beginning (shouldn't happen in practice)
+				} else {
+					// Find where the next phase starts
+					// The next phase starts after the specified task, so we want to insert before that
+					for j, task := range tl.Tasks {
+						if task.ID == nextMarker.AfterTaskID {
+							phaseEndPos = j + 1 // Insert after this task (which is where next phase starts)
+							break
+						}
+					}
+				}
+			}
+			break
+		}
+		
+		// Insert at the end of the current phase
+		insertPosition = phaseEndPos
+	}
+
+	// Handle parentID if specified
+	if parentID != "" {
+		// For subtasks, use existing AddTask logic
+		newTaskID, err = tl.AddTask(parentID, title, "")
+		if err != nil {
+			return "", fmt.Errorf("failed to add subtask: %w", err)
+		}
+	} else {
+		// Insert task at the calculated position
+		newTaskID = fmt.Sprintf("%d", insertPosition+1)
+		newTask := Task{
+			ID:     "temp", // Will be renumbered
+			Title:  title,
+			Status: Pending,
+		}
+
+		// Insert at position
+		if insertPosition >= len(tl.Tasks) {
+			tl.Tasks = append(tl.Tasks, newTask)
+		} else {
+			tl.Tasks = append(tl.Tasks[:insertPosition],
+				append([]Task{newTask}, tl.Tasks[insertPosition:]...)...)
+		}
+
+		// Renumber all tasks
+		tl.renumberTasks()
+		
+		// Get the actual new task ID after renumbering
+		if insertPosition < len(tl.Tasks) {
+			newTaskID = tl.Tasks[insertPosition].ID
+		}
+		
+		// Update phase markers to account for the insertion
+		// We need to update the phase marker that comes AFTER the phase we're adding to
+		// This marker should now point to the last task in our target phase
+		if phaseFound {
+			// Find the next phase marker after our target phase
+			for i, marker := range phaseMarkers {
+				if marker.Name == phaseName {
+					// Look for the next phase marker
+					if i+1 < len(phaseMarkers) {
+						nextMarker := &phaseMarkers[i+1]
+						// The next phase should now start after the newly inserted task
+						// Since we inserted at position insertPosition and it got renumbered,
+						// the next phase should start after the task at insertPosition
+						if insertPosition < len(tl.Tasks) {
+							nextMarker.AfterTaskID = tl.Tasks[insertPosition].ID
+						}
+					}
+					break
+				}
+			}
+		}
+	}
+
+	// Write the file with phases preserved
+	if err := WriteFileWithPhases(tl, phaseMarkers, filepath); err != nil {
+		return "", fmt.Errorf("failed to write file with phases: %w", err)
+	}
+
+	tl.Modified = time.Now()
+	return newTaskID, nil
+}
+
+// WriteFileWithPhases saves the TaskList to a markdown file preserving phase markers
+func WriteFileWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, filePath string) error {
+	// Validate file path
+	if err := validateFilePath(filePath); err != nil {
+		return err
+	}
+
+	// Generate markdown content with phases
+	var content []byte
+	if tl.FrontMatter != nil && (len(tl.FrontMatter.References) > 0 || len(tl.FrontMatter.Metadata) > 0) {
+		// Render markdown with phases but without front matter
+		markdownContent := RenderMarkdownWithPhases(tl, phaseMarkers)
+		// Combine with front matter
+		fullContent := SerializeWithFrontMatter(tl.FrontMatter, string(markdownContent))
+		content = []byte(fullContent)
+	} else {
+		// No front matter, just render markdown with phases
+		content = RenderMarkdownWithPhases(tl, phaseMarkers)
+	}
+
+	// Write to temp file first for atomic operation
+	tmpFile := filePath + ".tmp"
+	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
+		return fmt.Errorf("writing temp file: %w", err)
+	}
+
+	// Atomic rename
+	if err := os.Rename(tmpFile, filePath); err != nil {
+		// Clean up temp file on failure
+		os.Remove(tmpFile)
+		return fmt.Errorf("atomic rename: %w", err)
+	}
+
+	// Update file path in TaskList
+	tl.FilePath = filePath
+	return nil
+}

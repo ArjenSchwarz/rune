@@ -56,17 +56,17 @@ references:
     - Handle file reading, modification, and writing
     - References: Requirements 3.1, 3.2, 3.3, 3.4
 
-- [ ] 4. Phase-Aware Add Command
+- [x] 4. Phase-Aware Add Command
   - Add --phase flag to existing add command
   - Implement logic to find or create target phase
   - Ensure tasks are added to correct phase position
-  - [ ] 4.1. Write unit tests for add command --phase flag
+  - [x] 4.1. Write unit tests for add command --phase flag
     - Test adding tasks to existing phases
     - Test auto-creation of non-existent phases
     - Test handling of duplicate phase names (use first occurrence)
     - Test tasks without --phase go to document end
     - References: Requirements 4.1, 4.2, 4.3, 4.4, 4.5, D2, Q2
-  - [ ] 4.2. Implement --phase flag in cmd/add.go
+  - [x] 4.2. Implement --phase flag in cmd/add.go
     - Add StringVar flag for phase name
     - Implement phase detection logic in runAdd function
     - Auto-create phase if it doesn't exist
