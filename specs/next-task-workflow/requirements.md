@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The next-task-workflow feature enhances the go-tasks CLI tool to better support developer workflows by providing intelligent task retrieval and document reference capabilities. This feature enables users to automatically retrieve the next actionable task from their task list along with any relevant reference documentation, making it easier for developers and AI agents to work through tasks systematically.
+The next-task-workflow feature enhances the rune CLI tool to better support developer workflows by providing intelligent task retrieval and document reference capabilities. This feature enables users to automatically retrieve the next actionable task from their task list along with any relevant reference documentation, making it easier for developers and AI agents to work through tasks systematically.
 
 ## Requirements
 
@@ -29,7 +29,7 @@ The next-task-workflow feature enhances the go-tasks CLI tool to better support 
 
 **Acceptance Criteria:**
 2.1. The system SHALL support configurable path templates for branch-based file discovery
-2.2. The system SHALL read the path template from a configuration file (e.g., `.go-tasks.yml` or `~/.config/go-tasks/config.yml`)
+2.2. The system SHALL read the path template from a configuration file (e.g., `.rune.yml` or `~/.config/rune/config.yml`)
 2.3. The system SHALL automatically detect the current git branch when no filename is provided and git discovery is enabled
 2.4. The system SHALL treat branch names with slashes as path separators (e.g., `feature/auth` becomes `feature/auth/`)
 2.5. The system SHALL construct the file path using the configured template with branch name substitution
@@ -87,7 +87,7 @@ The next-task-workflow feature enhances the go-tasks CLI tool to better support 
 
 **Acceptance Criteria:**
 6.1. The system SHALL support configuration files in YAML format
-6.2. The system SHALL check for configuration in the following order: `./.go-tasks.yml`, then `~/.config/go-tasks/config.yml`
+6.2. The system SHALL check for configuration in the following order: `./.rune.yml`, then `~/.config/rune/config.yml`
 6.3. The system SHALL support a configuration schema that includes git discovery settings and path templates
 6.4. The system SHALL provide sensible defaults when no configuration file exists
 6.5. The system SHALL validate configuration file syntax and report errors clearly
@@ -127,7 +127,7 @@ metadata:
 ### Configuration File Example
 
 ```yaml
-# .go-tasks.yml
+# .rune.yml
 discovery:
   enabled: true
   template: "specs/{branch}/tasks.md"
@@ -137,14 +137,14 @@ discovery:
 
 ```bash
 # Get next incomplete task (uses git branch discovery if configured)
-go-tasks next
+rune next
 
 # Get next task from specific file
-go-tasks next -f project-tasks.md
+rune next -f project-tasks.md
 
 # List all tasks with references
-go-tasks list
+rune list
 
 # Output with references in JSON format
-go-tasks next --output json
+rune next --output json
 ```

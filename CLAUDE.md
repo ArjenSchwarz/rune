@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-go-tasks is a Go command-line tool for managing hierarchical markdown task lists, optimized for AI agents and developers. It provides consistent markdown formatting, a JSON API for batch operations, and comprehensive task management capabilities.
+rune is a Go command-line tool for managing hierarchical markdown task lists, optimized for AI agents and developers. It provides consistent markdown formatting, a JSON API for batch operations, and comprehensive task management capabilities.
 
 ## Development Commands
 

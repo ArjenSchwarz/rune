@@ -55,10 +55,10 @@ The `update` operation will replace both `update` and `update_status` operations
 **CLI Enhancement:**
 ```bash
 # Insert before current task 3
-go-tasks add "New urgent task" --position 3
+rune add "New urgent task" --position 3
 
 # Insert subtask before current task 2.1
-go-tasks add "New subtask" --position 2.1 --parent 2
+rune add "New subtask" --position 2.1 --parent 2
 ```
 
 **Batch Operation:**

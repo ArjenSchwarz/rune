@@ -1,6 +1,6 @@
-# Agent Instructions for go-tasks
+# Agent Instructions for rune
 
-This guide provides optimal workflows for AI agents using go-tasks to manage hierarchical task lists.
+This guide provides optimal workflows for AI agents using rune to manage hierarchical task lists.
 
 ## Creating a Task List
 
@@ -8,18 +8,18 @@ This guide provides optimal workflows for AI agents using go-tasks to manage hie
 
 ```bash
 # 1. Create new task file
-go-tasks create "Project Name" --file tasks.md
+rune create "Project Name" --file tasks.md
 
 # 2. Add main phases/categories
-go-tasks add tasks.md --title "Planning Phase"
-go-tasks add tasks.md --title "Implementation Phase"  
-go-tasks add tasks.md --title "Testing Phase"
+rune add tasks.md --title "Planning Phase"
+rune add tasks.md --title "Implementation Phase"  
+rune add tasks.md --title "Testing Phase"
 
 # 3. Add detailed tasks under each phase
-go-tasks add tasks.md --title "Requirements gathering" --parent 1
-go-tasks add tasks.md --title "Architecture design" --parent 1
-go-tasks add tasks.md --title "Setup development environment" --parent 2
-go-tasks add tasks.md --title "Implement core features" --parent 2
+rune add tasks.md --title "Requirements gathering" --parent 1
+rune add tasks.md --title "Architecture design" --parent 1
+rune add tasks.md --title "Setup development environment" --parent 2
+rune add tasks.md --title "Implement core features" --parent 2
 ```
 
 ### Advanced: Batch Creation
@@ -64,7 +64,7 @@ cat > batch-setup.json << 'EOF'
 EOF
 
 # Execute batch creation
-go-tasks batch project.md --operations batch-setup.json
+rune batch project.md --operations batch-setup.json
 ```
 
 ## Marking Groups of Tasks as Done
@@ -73,9 +73,9 @@ go-tasks batch project.md --operations batch-setup.json
 
 ```bash
 # Mark specific tasks complete
-go-tasks complete tasks.md 1.1
-go-tasks complete tasks.md 1.2  
-go-tasks complete tasks.md 2.1
+rune complete tasks.md 1.1
+rune complete tasks.md 1.2  
+rune complete tasks.md 2.1
 ```
 
 ### Option 2: Batch Operations (Recommended)
@@ -98,7 +98,7 @@ cat > mark-complete.json << 'EOF'
 EOF
 
 # Execute batch completion
-go-tasks batch tasks.md --operations mark-complete.json
+rune batch tasks.md --operations mark-complete.json
 ```
 
 ### Option 3: Find and Complete Pattern
@@ -107,7 +107,7 @@ Use search to identify tasks, then batch complete:
 
 ```bash
 # Find all pending tasks in a specific phase
-go-tasks find tasks.md "Phase 1" --status pending --format json > pending-tasks.json
+rune find tasks.md "Phase 1" --status pending --format json > pending-tasks.json
 
 # Process the JSON to create batch completion operations
 # (This would require additional scripting to parse the JSON and create batch operations)
@@ -124,12 +124,12 @@ go-tasks find tasks.md "Phase 1" --status pending --format json > pending-tasks.
 ### 1. Use Descriptive Hierarchies
 ```bash
 # Good: Clear hierarchy
-go-tasks add tasks.md --title "Backend Development" 
-go-tasks add tasks.md --title "Database Setup" --parent 1
-go-tasks add tasks.md --title "API Implementation" --parent 1
+rune add tasks.md --title "Backend Development" 
+rune add tasks.md --title "Database Setup" --parent 1
+rune add tasks.md --title "API Implementation" --parent 1
 
 # Better: Include details and references
-go-tasks add tasks.md --title "Database Setup" --parent 1 \
+rune add tasks.md --title "Database Setup" --parent 1 \
   --details "Install PostgreSQL,Create schemas,Set up migrations" \
   --references "db-design.md"
 ```
@@ -137,37 +137,37 @@ go-tasks add tasks.md --title "Database Setup" --parent 1 \
 ### 2. Batch Operations for Efficiency
 ```bash
 # Instead of 10+ individual commands, use one batch operation
-go-tasks batch tasks.md --operations batch-file.json
+rune batch tasks.md --operations batch-file.json
 ```
 
 ### 3. Use Dry Run for Validation
 ```bash
 # Always test complex batch operations first
-go-tasks batch tasks.md --operations complex-changes.json --dry-run
+rune batch tasks.md --operations complex-changes.json --dry-run
 ```
 
 ### 4. Progress Tracking Pattern
 ```bash
 # Mark task as in-progress when starting
-go-tasks progress tasks.md 2.1
+rune progress tasks.md 2.1
 
 # Add implementation details as you work
-go-tasks update tasks.md 2.1 --details "API endpoints implemented,Tests added,Documentation updated"
+rune update tasks.md 2.1 --details "API endpoints implemented,Tests added,Documentation updated"
 
 # Mark complete when finished
-go-tasks complete tasks.md 2.1
+rune complete tasks.md 2.1
 ```
 
 ### 5. Search for Status Updates
 ```bash
 # Find all completed tasks
-go-tasks find tasks.md "" --status completed --format table
+rune find tasks.md "" --status completed --format table
 
 # Find all pending tasks in a specific area
-go-tasks find tasks.md "authentication" --status pending
+rune find tasks.md "authentication" --status pending
 
 # Get JSON output for programmatic processing
-go-tasks find tasks.md "" --status pending --format json
+rune find tasks.md "" --status pending --format json
 ```
 
 ## Error Prevention
@@ -175,10 +175,10 @@ go-tasks find tasks.md "" --status pending --format json
 ### Validate Before Batch Operations
 ```bash
 # Use dry-run to preview changes
-go-tasks batch tasks.md --operations changes.json --dry-run
+rune batch tasks.md --operations changes.json --dry-run
 
 # Check current state before making changes
-go-tasks list tasks.md --format table
+rune list tasks.md --format table
 ```
 
 ### Handle Renumbering
@@ -195,22 +195,22 @@ All batch operations are atomic - they either all succeed or all fail, preventin
 
 ```bash
 # Create task list
-go-tasks create "Title" --file name.md
+rune create "Title" --file name.md
 
 # Add task
-go-tasks add file.md --title "Task" [--parent ID] [--details "a,b,c"] [--references "x.md,y.md"]
+rune add file.md --title "Task" [--parent ID] [--details "a,b,c"] [--references "x.md,y.md"]
 
 # Mark complete/in-progress/pending  
-go-tasks complete file.md ID
-go-tasks progress file.md ID
-go-tasks uncomplete file.md ID
+rune complete file.md ID
+rune progress file.md ID
+rune uncomplete file.md ID
 
 # Batch operations (most efficient for multiple changes)
-go-tasks batch file.md --operations batch.json [--dry-run]
+rune batch file.md --operations batch.json [--dry-run]
 
 # Search and filter
-go-tasks find file.md "pattern" [--status STATUS] [--format FORMAT]
+rune find file.md "pattern" [--status STATUS] [--format FORMAT]
 
 # View current state
-go-tasks list file.md [--format table|json|markdown]
+rune list file.md [--format table|json|markdown]
 ```

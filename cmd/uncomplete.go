@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 	"github.com/spf13/cobra"
 )
 
@@ -16,8 +16,8 @@ var uncompleteCmd = &cobra.Command{
 This command can be used to revert a completed task back to pending status.
 
 Examples:
-  go-tasks uncomplete tasks.md 1
-  go-tasks uncomplete tasks.md 1.2.3`,
+  rune uncomplete tasks.md 1
+  rune uncomplete tasks.md 1.2.3`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: runUncomplete,
 }

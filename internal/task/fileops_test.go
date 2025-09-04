@@ -107,7 +107,7 @@ func TestFileSizeLimits(t *testing.T) {
 // Test path traversal protection
 func TestPathTraversalProtection(t *testing.T) {
 	// Create a temporary directory structure for testing
-	tmpDir, err := os.MkdirTemp("", "go-tasks-test-")
+	tmpDir, err := os.MkdirTemp("", "rune-test-")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestPathTraversalProtection(t *testing.T) {
 // Test atomic write operations
 func TestAtomicWriteOperations(t *testing.T) {
 	// Create temporary directory
-	tmpDir, err := os.MkdirTemp("", "go-tasks-atomic-test-")
+	tmpDir, err := os.MkdirTemp("", "rune-atomic-test-")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -512,7 +512,7 @@ func TestTaskIDValidation(t *testing.T) {
 // Test concurrent access safety (within single process)
 func TestConcurrentAccessSafety(t *testing.T) {
 	// Create temporary directory
-	tmpDir, err := os.MkdirTemp("", "go-tasks-concurrent-test-")
+	tmpDir, err := os.MkdirTemp("", "rune-concurrent-test-")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}

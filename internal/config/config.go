@@ -43,8 +43,8 @@ func LoadConfig() (*Config, error) {
 func loadConfigUncached() (*Config, error) {
 	// Check for config in order of precedence
 	paths := []string{
-		"./.go-tasks.yml",
-		expandHome("~/.config/go-tasks/config.yml"),
+		"./.rune.yml",
+		expandHome("~/.config/rune/config.yml"),
 	}
 
 	for _, path := range paths {

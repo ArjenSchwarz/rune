@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 	"github.com/spf13/cobra"
 )
 
@@ -19,16 +19,16 @@ If the file already has front matter, new content will be merged with existing c
 
 Examples:
   # Add references to a file
-  go-tasks add-frontmatter tasks.md --reference doc.md --reference spec.md
+  rune add-frontmatter tasks.md --reference doc.md --reference spec.md
   
   # Add metadata to a file
-  go-tasks add-frontmatter tasks.md --meta "author:John" --meta "version:1.0"
+  rune add-frontmatter tasks.md --meta "author:John" --meta "version:1.0"
   
   # Add both references and metadata
-  go-tasks add-frontmatter tasks.md --reference readme.md --meta "status:draft"
+  rune add-frontmatter tasks.md --reference readme.md --meta "status:draft"
   
   # Preview changes without applying them
-  go-tasks add-frontmatter tasks.md --reference doc.md --dry-run`,
+  rune add-frontmatter tasks.md --reference doc.md --dry-run`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAddFrontMatter,
 }

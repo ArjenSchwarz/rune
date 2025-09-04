@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 	"github.com/spf13/cobra"
 )
 
@@ -194,17 +194,17 @@ func init() {
 
 	// Add usage examples
 	batchCmd.Example = `  # Execute operations from file
-  go-tasks batch operations.json
+  rune batch operations.json
 
   # Execute operations from stdin
-  echo '{"file":"tasks.md","operations":[{"type":"add","title":"New task"}]}' | go-tasks batch
+  echo '{"file":"tasks.md","operations":[{"type":"add","title":"New task"}]}' | rune batch
 
   # Execute operations from string input
-  go-tasks batch --input '{"file":"tasks.md","operations":[{"type":"add","title":"New task"}]}'
+  rune batch --input '{"file":"tasks.md","operations":[{"type":"add","title":"New task"}]}'
 
   # Dry run to preview changes
-  go-tasks batch operations.json --dry-run
+  rune batch operations.json --dry-run
 
   # Get JSON output
-  go-tasks batch operations.json --format json`
+  rune batch operations.json --format json`
 }

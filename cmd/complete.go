@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 	"github.com/spf13/cobra"
 )
 
@@ -19,8 +19,8 @@ will be automatically discovered based on the current git branch using the confi
 template pattern.
 
 Examples:
-  go-tasks complete tasks.md 1
-  go-tasks complete 1.2.3`,
+  rune complete tasks.md 1
+  rune complete 1.2.3`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: runComplete,
 }

@@ -3,7 +3,7 @@
 ## 1. Project Setup and Core Data Structures
 
 - [x] 1.1. Initialize Go module and create basic project structure
-  - Create go.mod with module name `github.com/arjenschwarz/go-tasks`
+  - Create go.mod with module name `github.com/arjenschwarz/rune`
   - Set up internal/task package directory
   - Set up cmd directory for CLI commands
   - Add .gitignore for Go projects

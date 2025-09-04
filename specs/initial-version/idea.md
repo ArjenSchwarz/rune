@@ -68,29 +68,29 @@ const (
 #### 4. CLI Interface (`cmd/`)
 ```bash
 # Create new task file
-go-tasks create project-tasks.md --title="Project Implementation"
+rune create project-tasks.md --title="Project Implementation"
 
 # Parse and display
-go-tasks list project-tasks.md --format=table
+rune list project-tasks.md --format=table
 
 # Add tasks
-go-tasks add project-tasks.md --title="Implement feature X"
-go-tasks add project-tasks.md --parent="1.2" --title="Write tests"
+rune add project-tasks.md --title="Implement feature X"
+rune add project-tasks.md --parent="1.2" --title="Write tests"
 
 # Update task status
-go-tasks complete project-tasks.md --id="1.1" 
-go-tasks uncomplete project-tasks.md --id="1.1"
+rune complete project-tasks.md --id="1.1" 
+rune uncomplete project-tasks.md --id="1.1"
 
 # Update task content  
-go-tasks update project-tasks.md --id="1.1" --title="New task title"
-go-tasks update project-tasks.md --id="1.1" --add-detail="Additional implementation note"
-go-tasks update project-tasks.md --id="1.1" --add-reference="Requirement 2.3"
+rune update project-tasks.md --id="1.1" --title="New task title"
+rune update project-tasks.md --id="1.1" --add-detail="Additional implementation note"
+rune update project-tasks.md --id="1.1" --add-reference="Requirement 2.3"
 
 # Remove tasks (auto-renumbers)
-go-tasks remove project-tasks.md --id="2.1"
+rune remove project-tasks.md --id="2.1"
 
 # Batch operations via JSON
-go-tasks batch project-tasks.md --operations=ops.json
+rune batch project-tasks.md --operations=ops.json
 ```
 
 #### 5. JSON API (`api/`)
@@ -260,7 +260,7 @@ func renderTask(buf *bytes.Buffer, task *Task, level int) {
 
 ### Create New Task File
 ```bash
-go-tasks create implementation.md --title="Feature Implementation Tasks"
+rune create implementation.md --title="Feature Implementation Tasks"
 # Creates clean task file with proper structure
 ```
 
@@ -278,14 +278,14 @@ go-tasks create implementation.md --title="Feature Implementation Tasks"
 
 ### Update Task Details
 ```bash
-go-tasks update implementation.md --id="1.1" \
+rune update implementation.md --id="1.1" \
   --add-detail="Focus on error handling" \
   --add-reference="Design Document 2.3"
 ```
 
 ### Track Progress
 ```bash
-go-tasks list implementation.md --format=table --status=pending
+rune list implementation.md --format=table --status=pending
 # Shows pending tasks in clean table format using go-output/v2
 ```
 

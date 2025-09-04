@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This feature adds the ability to add front matter content through CLI commands in the go-tasks tool. Currently, users cannot add front matter using the command-line interface, requiring manual markdown file editing to establish metadata, references, and other YAML properties.
+This feature adds the ability to add front matter content through CLI commands in the rune tool. Currently, users cannot add front matter using the command-line interface, requiring manual markdown file editing to establish metadata, references, and other YAML properties.
 
 ## Requirements
 
@@ -29,5 +29,5 @@ This feature adds the ability to add front matter content through CLI commands i
 2.4. The system SHALL create front matter section if it doesn't exist in the target file
 2.5. The system SHALL append new references to existing reference arrays
 2.6. The system SHALL merge new metadata entries with existing metadata, appending to arrays where applicable
-2.7. The system SHALL only operate on files managed by the go-tasks tool
+2.7. The system SHALL only operate on files managed by the rune tool
 2.8. The system SHALL provide feedback on successful addition of front matter

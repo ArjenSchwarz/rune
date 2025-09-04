@@ -1,6 +1,6 @@
-# Makefile for go-tasks development
+# Makefile for rune development
 #
-# This Makefile provides comprehensive developer tooling for the go-tasks library.
+# This Makefile provides comprehensive developer tooling for the rune library.
 #
 # Usage:
 #   make help          - Show this help message

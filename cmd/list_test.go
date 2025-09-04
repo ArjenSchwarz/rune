@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 )
 
 func TestListCommand(t *testing.T) {
 	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "go-tasks-list-test")
+	tempDir, err := os.MkdirTemp("", "rune-list-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -109,7 +109,7 @@ func countTasks(tasks []task.Task) int {
 
 func TestListCommandFormats(t *testing.T) {
 	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "go-tasks-formats-test")
+	tempDir, err := os.MkdirTemp("", "rune-formats-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestListCommandPathValidation(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Create temp directory for test
-			tempDir, err := os.MkdirTemp("", "go-tasks-path-test")
+			tempDir, err := os.MkdirTemp("", "rune-path-test")
 			if err != nil {
 				t.Fatalf("failed to create temp dir: %v", err)
 			}

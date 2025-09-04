@@ -21,7 +21,7 @@
 ## Decision 4: Error Handling Approach
 **Date:** 2025-09-01  
 **Decision:** Keep error handling minimal, relying on existing patterns  
-**Rationale:** User preference to avoid overcomplicating the feature. Existing go-tasks error handling patterns should be sufficient.  
+**Rationale:** User preference to avoid overcomplicating the feature. Existing rune error handling patterns should be sufficient.  
 **Impact:** Requirements focus on core functionality without extensive error handling specifications
 
 ## Decision 5: Generic Front Matter Support

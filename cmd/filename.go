@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/config"
+	"github.com/arjenschwarz/rune/internal/config"
 )
 
 // resolveFilename resolves the task filename from args or git discovery

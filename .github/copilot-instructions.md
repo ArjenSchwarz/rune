@@ -1,8 +1,8 @@
-# go-tasks Development Instructions
+# rune Development Instructions
 
 **ALWAYS follow these instructions first and only fallback to additional search and context gathering if the information here is incomplete or found to be in error.**
 
-go-tasks is a Go command-line tool for managing hierarchical markdown task lists, optimized for AI agents and developers. It provides consistent markdown formatting, a JSON API for batch operations, and comprehensive task management capabilities.
+rune is a Go command-line tool for managing hierarchical markdown task lists, optimized for AI agents and developers. It provides consistent markdown formatting, a JSON API for batch operations, and comprehensive task management capabilities.
 
 ## Working Effectively
 
@@ -18,7 +18,7 @@ Run these commands in order to set up the development environment:
 
 ```bash
 # Navigate to repository root
-cd /home/runner/work/go-tasks/go-tasks
+cd /home/runner/work/rune/rune
 
 # Download dependencies and build (NEVER CANCEL - takes up to 2 minutes)
 go mod tidy  # takes ~1 second
@@ -27,10 +27,10 @@ go mod tidy  # takes ~1 second
 make fmt     # takes ~2 seconds, downloads dependencies first time
 
 # Build the binary (NEVER CANCEL - takes up to 2 minutes)
-go build -o go-tasks  # takes ~0.3 seconds
+go build -o rune  # takes ~0.3 seconds
 
 # Add binary to PATH for testing
-export PATH=$PATH:/home/runner/work/go-tasks/go-tasks
+export PATH=$PATH:/home/runner/work/rune/rune
 ```
 
 ### Testing Commands
@@ -41,7 +41,7 @@ export PATH=$PATH:/home/runner/work/go-tasks/go-tasks
 make test  # takes ~13 seconds, some pre-existing failures are normal
 
 # Run integration tests (NEVER CANCEL - requires binary in PATH, takes up to 15 minutes)
-export PATH=$PATH:/home/runner/work/go-tasks/go-tasks
+export PATH=$PATH:/home/runner/work/rune/rune
 make test-integration  # takes ~1 second, some pre-existing failures are normal
 
 # Run all tests (NEVER CANCEL - takes up to 20 minutes)
@@ -88,27 +88,27 @@ Always test your changes by running these validated scenarios:
 
 ```bash
 # Ensure binary is in PATH
-export PATH=$PATH:/home/runner/work/go-tasks/go-tasks
+export PATH=$PATH:/home/runner/work/rune/rune
 
 # Test basic functionality
-./go-tasks --help
-./go-tasks create test-project.md --title "Test Project"
-./go-tasks add test-project.md --title "Setup environment" 
-./go-tasks add test-project.md --title "Install deps" --parent 1
-./go-tasks list test-project.md --format table
-./go-tasks list test-project.md --format json
-./go-tasks complete test-project.md 1.1
-./go-tasks next test-project.md --format table
-./go-tasks find test-project.md --pattern "Setup" --format table
+./rune --help
+./rune create test-project.md --title "Test Project"
+./rune add test-project.md --title "Setup environment" 
+./rune add test-project.md --title "Install deps" --parent 1
+./rune list test-project.md --format table
+./rune list test-project.md --format json
+./rune complete test-project.md 1.1
+./rune next test-project.md --format table
+./rune find test-project.md --pattern "Setup" --format table
 ```
 
 ### VALIDATION SCENARIOS
 After making changes, ALWAYS run through these complete end-to-end scenarios:
 
 1. **Basic Task Management Workflow**:
-   - Create a new task file: `./go-tasks create validation.md --title "Validation Test"`
-   - Add tasks: `./go-tasks add validation.md --title "Task 1"`
-   - Add subtasks: `./go-tasks add validation.md --title "Subtask 1.1" --parent 1`
+   - Create a new task file: `./rune create validation.md --title "Validation Test"`
+   - Add tasks: `./rune add validation.md --title "Task 1"`
+   - Add subtasks: `./rune add validation.md --title "Subtask 1.1" --parent 1`
    - List in different formats: table, JSON, markdown
    - Complete tasks and verify auto-completion of parents
    - Use next command to find incomplete tasks
@@ -173,11 +173,11 @@ After making changes, ALWAYS run through these complete end-to-end scenarios:
 - `make lint` fails because golangci-lint is not available
 - `make modernize` fails because modernize tool is not available
 - Some unit tests fail in `TestListCommandPathValidation` - this is pre-existing
-- Integration tests fail without the binary in PATH - ensure `export PATH=$PATH:/home/runner/work/go-tasks/go-tasks`
+- Integration tests fail without the binary in PATH - ensure `export PATH=$PATH:/home/runner/work/rune/rune`
 
 ### Build Issues
 - If build fails, ensure Go 1.25.0+ is available
-- If tests fail to find `go-tasks` executable, ensure binary is built and in PATH
+- If tests fail to find `rune` executable, ensure binary is built and in PATH
 - Path traversal errors occur when using `/tmp` or absolute paths - use relative paths within project
 
 ### Timing Expectations

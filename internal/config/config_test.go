@@ -13,7 +13,7 @@ func TestLoadConfig(t *testing.T) {
 		wantEnabled bool
 		wantErr     bool
 	}{
-		"loads from current directory .go-tasks.yml": {
+		"loads from current directory .rune.yml": {
 			setup: func(t *testing.T) string {
 				resetConfigCache() // Reset cache before test
 				content := `
@@ -21,11 +21,11 @@ discovery:
   enabled: true
   template: "tasks/{branch}.md"
 `
-				err := os.WriteFile(".go-tasks.yml", []byte(content), 0644)
+				err := os.WriteFile(".rune.yml", []byte(content), 0644)
 				if err != nil {
 					t.Fatal(err)
 				}
-				return ".go-tasks.yml"
+				return ".rune.yml"
 			},
 			cleanup: func(path string) {
 				os.Remove(path)
@@ -36,7 +36,7 @@ discovery:
 			setup: func(t *testing.T) string {
 				resetConfigCache() // Reset cache before test
 				// Ensure no config files exist
-				os.Remove(".go-tasks.yml")
+				os.Remove(".rune.yml")
 				return ""
 			},
 			cleanup:     func(string) {},
@@ -215,15 +215,15 @@ discovery:
   enabled: true
   template: "local/{branch}.md"
 `
-	err := os.WriteFile(".go-tasks.yml", []byte(localContent), 0644)
+	err := os.WriteFile(".rune.yml", []byte(localContent), 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(".go-tasks.yml")
+	defer os.Remove(".rune.yml")
 
 	// Also create a home config (which should be ignored)
 	homeDir, _ := os.UserHomeDir()
-	homeConfigDir := filepath.Join(homeDir, ".config", "go-tasks")
+	homeConfigDir := filepath.Join(homeDir, ".config", "rune")
 	os.MkdirAll(homeConfigDir, 0755)
 	homeConfigPath := filepath.Join(homeConfigDir, "config.yml")
 	homeContent := `

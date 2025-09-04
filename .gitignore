@@ -37,9 +37,9 @@ go.work.sum
 Thumbs.db
 
 # Binary output
-go-tasksgo-tasks
+rune
 # Ignore build artifacts
-go-tasks
+rune
 
 # Shared scripts
 .claude/scripts

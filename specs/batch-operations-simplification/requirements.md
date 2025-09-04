@@ -24,7 +24,7 @@ This feature simplifies the batch operations API by unifying the `update` and `u
 **User Story:** As a user organizing tasks, I want to insert new tasks at specific positions in the list, so that I can maintain logical ordering without manually renumbering tasks.
 
 **Acceptance Criteria:**
-2.1. The `go-tasks add` command SHALL accept an optional `--position` flag to specify insertion location
+2.1. The `rune add` command SHALL accept an optional `--position` flag to specify insertion location
 2.2. The batch `add` operation SHALL accept an optional `position` field to specify insertion location
 2.3. When position is specified, the system SHALL insert the new task BEFORE the task at that position, causing that task and all subsequent tasks to be renumbered
 2.4. The position SHALL be specified as a task ID (e.g., "4" to insert before current task 4, making the new task become task 4)
@@ -61,7 +61,7 @@ This feature simplifies the batch operations API by unifying the `update` and `u
 - All operations in a batch reference the original pre-batch state
 - All existing tests pass with the new implementation
 - New tests cover all edge cases for the new features
-- The `go-tasks add` command supports position insertion via --position flag
+- The `rune add` command supports position insertion via --position flag
 - Documentation is updated to reflect the removal of `update_status` and addition of position insertion
 
 ## Examples
@@ -85,10 +85,10 @@ This feature simplifies the batch operations API by unifying the `update` and `u
 **CLI Command:**
 ```bash
 # Insert a new task before current task 3
-go-tasks add "New urgent task" --position 3
+rune add "New urgent task" --position 3
 
 # Insert a subtask before current task 2.1
-go-tasks add "New subtask" --position 2.1 --parent 2
+rune add "New subtask" --position 2.1 --parent 2
 ```
 
 **Batch Operations:**

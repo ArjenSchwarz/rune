@@ -2,7 +2,7 @@
 
 ## Overview
 
-This feature extends the go-tasks CLI with the ability to add YAML front matter content through command-line operations. The design focuses on two primary command enhancements: extending the `create` command to accept front matter during file creation, and adding a new `add-frontmatter` command for modifying existing files.
+This feature extends the rune CLI with the ability to add YAML front matter content through command-line operations. The design focuses on two primary command enhancements: extending the `create` command to accept front matter during file creation, and adding a new `add-frontmatter` command for modifying existing files.
 
 The implementation leverages and extends the existing front matter infrastructure in the codebase, which already handles parsing and rendering YAML front matter through the `FrontMatter` struct and the `ParseFrontMatter`/`SerializeWithFrontMatter` functions in the `internal/task` package.
 
@@ -256,7 +256,7 @@ func ValidateMetadataKey(key string) error {
 ```go
 // Atomic write implementation
 func (tl *TaskList) WriteFileAtomic(filepath string) error {
-    // Validate file is managed by go-tasks
+    // Validate file is managed by rune
     if !strings.HasSuffix(filepath, ".md") {
         return fmt.Errorf("only .md files are supported")
     }
@@ -297,9 +297,9 @@ func (e *FrontMatterError) Error() string {
 }
 ```
 
-## Determining go-tasks Managed Files
+## Determining rune Managed Files
 
-A file is considered "managed by go-tasks" when:
+A file is considered "managed by rune" when:
 1. It has a `.md` extension
 2. It exists within the current working directory or subdirectories
 3. No additional validation is performed on content (per minimal error handling decision)
@@ -360,13 +360,13 @@ func TestResourceLimits(t *testing.T) {
 **Valid Input:**
 ```bash
 # Create with references
-go-tasks create tasks.md --title "Project" --reference "doc.md" --reference "spec.md"
+rune create tasks.md --title "Project" --reference "doc.md" --reference "spec.md"
 
 # Create with metadata
-go-tasks create tasks.md --title "Project" --meta "author:John" --meta "version:1.0"
+rune create tasks.md --title "Project" --meta "author:John" --meta "version:1.0"
 
 # Add to existing
-go-tasks add-frontmatter tasks.md --reference "new.md" --meta "tags:todo,urgent"
+rune add-frontmatter tasks.md --reference "new.md" --meta "tags:todo,urgent"
 ```
 
 **Expected Output:**

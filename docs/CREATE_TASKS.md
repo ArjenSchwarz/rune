@@ -1,4 +1,4 @@
-# Creating Task Lists with go-tasks
+# Creating Task Lists with rune
 
 ## Create Task File and Structure in One Command
 
@@ -62,10 +62,10 @@ EOF
 
 ```bash
 # Create empty task file
-go-tasks create "Project Tasks" --file tasks.md
+rune create "Project Tasks" --file tasks.md
 
 # Execute batch creation
-go-tasks batch tasks.md --operations create-tasks.json
+rune batch tasks.md --operations create-tasks.json
 ```
 
 ## Result

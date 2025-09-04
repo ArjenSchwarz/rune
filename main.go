@@ -1,6 +1,6 @@
 package main
 
-import "github.com/ArjenSchwarz/go-tasks/cmd"
+import "github.com/arjenschwarz/rune/cmd"
 
 func main() {
 	cmd.Execute()
