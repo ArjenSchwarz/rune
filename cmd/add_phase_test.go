@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 )
 
 func TestAddPhaseCommand(t *testing.T) {
@@ -94,7 +94,7 @@ func TestAddPhaseCommand(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Create temp directory for test
-			tempDir, err := os.MkdirTemp("", "go-tasks-add-phase-test")
+			tempDir, err := os.MkdirTemp("", "rune-add-phase-test")
 			if err != nil {
 				t.Fatalf("failed to create temp dir: %v", err)
 			}
@@ -171,7 +171,7 @@ func TestAddPhaseCommand(t *testing.T) {
 
 func TestAddPhaseCommandEmptyFile(t *testing.T) {
 	// Create temp directory for test
-	tempDir, err := os.MkdirTemp("", "go-tasks-add-phase-empty-test")
+	tempDir, err := os.MkdirTemp("", "rune-add-phase-empty-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestAddPhaseCommandEmptyFile(t *testing.T) {
 
 func TestAddPhaseCommandPreservesTaskStructure(t *testing.T) {
 	// Create temp directory for test
-	tempDir, err := os.MkdirTemp("", "go-tasks-add-phase-structure-test")
+	tempDir, err := os.MkdirTemp("", "rune-add-phase-structure-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestAddPhaseCommandWithVariousFormats(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Create temp directory for test
-			tempDir, err := os.MkdirTemp("", "go-tasks-add-phase-format-test")
+			tempDir, err := os.MkdirTemp("", "rune-add-phase-format-test")
 			if err != nil {
 				t.Fatalf("failed to create temp dir: %v", err)
 			}

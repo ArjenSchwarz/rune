@@ -11,7 +11,7 @@
       "Bash(modernize ./...)",
       "Bash(make:*)",
       "Bash(cat:*)",
-      "Bash(./go-tasks:*)",
+      "Bash(./rune:*)",
       "Bash(INTEGRATION=1 go test -run TestIntegrationWorkflows/batch_operations_complex -v ./cmd)",
       "Bash(INTEGRATION=1 go test -run TestIntegrationWorkflows/error_handling_recovery -v ./cmd)",
       "Bash(git rev-parse:*)",

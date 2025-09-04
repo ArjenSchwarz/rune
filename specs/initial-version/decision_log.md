@@ -1,4 +1,4 @@
-# Go-Tasks Initial Version Decision Log
+# Rune Initial Version Decision Log
 
 ## Decision 1: In-Progress Status Representation
 **Date**: 2025-08-28  

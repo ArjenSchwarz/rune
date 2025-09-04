@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Rebranding consistency updates**: Updated remaining "go-tasks" references to "rune"
+  - Updated command examples in add-phase.go to use "rune" instead of "go-tasks"
+  - Renamed test temp directories from "go-tasks-*" to "rune-*" in add_phase_test.go
+  - Fixed import path in add_phase_test.go to use lowercase "arjenschwarz/rune"
+  - Updated root command long description to use "Rune" instead of "Go-Tasks"
+  - Updated all specification documents in specs/initial-version to use "Rune"
+  - Fixed Claude Code settings to reference "./rune:*" instead of "./go-tasks:*"
+
 ### Added
 - **add-phase command implementation**: New CLI command for adding phase headers to task files
   - Created new `add-phase` command that appends H2 headers (## Phase Name) to task files

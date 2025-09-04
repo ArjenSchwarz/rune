@@ -19,7 +19,7 @@ var (
 	rootCmd = &cobra.Command{
 		Use:   "rune",
 		Short: "A CLI tool for managing hierarchical markdown task lists",
-		Long: `Go-Tasks is a command-line tool designed specifically for AI agents
+		Long: `Rune is a command-line tool designed specifically for AI agents
 to create and manage hierarchical markdown task lists with consistent formatting.
 
 This tool provides:

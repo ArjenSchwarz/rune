@@ -1,8 +1,8 @@
-# Go-Tasks Initial Version Design
+# Rune Initial Version Design
 
 ## Overview
 
-Go-Tasks is a command-line tool for managing hierarchical markdown task lists, designed specifically for AI agents and developers who need consistent, programmatic task management. This design document outlines the technical architecture and implementation approach for the initial MVP version.
+Rune is a command-line tool for managing hierarchical markdown task lists, designed specifically for AI agents and developers who need consistent, programmatic task management. This design document outlines the technical architecture and implementation approach for the initial MVP version.
 
 ### Design Goals
 

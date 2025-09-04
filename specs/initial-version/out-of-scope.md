@@ -1,4 +1,4 @@
-# Go-Tasks Initial Version - Out of Scope Requirements
+# Rune Initial Version - Out of Scope Requirements
 
 These requirements are deferred to future versions to keep the initial implementation focused on core MVP functionality.
 

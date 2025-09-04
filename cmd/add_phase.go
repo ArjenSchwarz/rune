@@ -16,9 +16,9 @@ into logical groupings. The phase will be added as a markdown H2 header (## Phas
 at the end of the document.
 
 Examples:
-  go-tasks add-phase "Planning"
-  go-tasks add-phase "Implementation"
-  go-tasks add-phase tasks.md "Testing"`,
+  rune add-phase "Planning"
+  rune add-phase "Implementation"
+  rune add-phase tasks.md "Testing"`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: runAddPhase,
 }

@@ -1,4 +1,4 @@
-# Go-Tasks Initial Version Implementation Tasks
+# Rune Initial Version Implementation Tasks
 
 ## 1. Project Setup and Core Data Structures
 
