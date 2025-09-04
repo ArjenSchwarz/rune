@@ -1,4 +1,6 @@
-# go-tasks
+# rune
+
+![Rune logo](docs/images/rune-logo-small.jpg)
 
 A standalone Go command-line tool designed for AI agents and developers to create and manage hierarchical markdown task lists with consistent formatting.
 
@@ -20,14 +22,14 @@ A standalone Go command-line tool designed for AI agents and developers to creat
 ## Installation
 
 ```bash
-go install github.com/ArjenSchwarz/go-tasks@latest
+go install github.com/ArjenSchwarz/rune@latest
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/ArjenSchwarz/go-tasks.git
-cd go-tasks
+git clone https://github.com/ArjenSchwarz/rune.git
+cd rune
 make build
 ```
 
@@ -35,20 +37,20 @@ make build
 
 ```bash
 # Create a new task file
-go-tasks create "My Project Tasks" --file tasks.md
+rune create "My Project Tasks" --file tasks.md
 
 # Add some tasks
-go-tasks add tasks.md --title "Setup development environment"
-go-tasks add tasks.md --title "Write documentation" --parent 1
+rune add tasks.md --title "Setup development environment"
+rune add tasks.md --title "Write documentation" --parent 1
 
 # Mark a task as completed
-go-tasks complete tasks.md 1.1
+rune complete tasks.md 1.1
 
 # List tasks in table format
-go-tasks list tasks.md --format table
+rune list tasks.md --format table
 
 # Search for tasks
-go-tasks find tasks.md "documentation" --status pending
+rune find tasks.md "documentation" --status pending
 ```
 
 ## Command Reference
@@ -58,13 +60,13 @@ go-tasks find tasks.md "documentation" --status pending
 Create a new task file with the specified title.
 
 ```bash
-go-tasks create [title] --file [filename]
+rune create [title] --file [filename]
 ```
 
 **Examples:**
 ```bash
-go-tasks create "Sprint Planning" --file sprint.md
-go-tasks create "Project Tasks" --file project-tasks.md
+rune create "Sprint Planning" --file sprint.md
+rune create "Project Tasks" --file project-tasks.md
 ```
 
 ### list - Display Tasks
@@ -72,7 +74,7 @@ go-tasks create "Project Tasks" --file project-tasks.md
 Display tasks in various formats (table, markdown, or JSON).
 
 ```bash
-go-tasks list [file] [options]
+rune list [file] [options]
 ```
 
 **Options:**
@@ -82,9 +84,9 @@ go-tasks list [file] [options]
 
 **Examples:**
 ```bash
-go-tasks list tasks.md --format table
-go-tasks list tasks.md --format json --status pending
-go-tasks list tasks.md --depth 2
+rune list tasks.md --format table
+rune list tasks.md --format json --status pending
+rune list tasks.md --depth 2
 ```
 
 ### add - Add New Task
@@ -92,7 +94,7 @@ go-tasks list tasks.md --depth 2
 Add a new task or subtask to the file.
 
 ```bash
-go-tasks add [file] --title [title] [options]
+rune add [file] --title [title] [options]
 ```
 
 **Options:**
@@ -103,9 +105,9 @@ go-tasks add [file] --title [title] [options]
 
 **Examples:**
 ```bash
-go-tasks add tasks.md --title "Implement authentication"
-go-tasks add tasks.md --title "Add unit tests" --parent 1
-go-tasks add tasks.md --title "Review code" --details "Check logic,Verify tests" --references "coding-standards.md"
+rune add tasks.md --title "Implement authentication"
+rune add tasks.md --title "Add unit tests" --parent 1
+rune add tasks.md --title "Review code" --details "Check logic,Verify tests" --references "coding-standards.md"
 ```
 
 ### complete - Mark Task Complete
@@ -113,13 +115,13 @@ go-tasks add tasks.md --title "Review code" --details "Check logic,Verify tests"
 Mark a task as completed `[x]`.
 
 ```bash
-go-tasks complete [file] [task-id]
+rune complete [file] [task-id]
 ```
 
 **Examples:**
 ```bash
-go-tasks complete tasks.md 1
-go-tasks complete tasks.md 2.1
+rune complete tasks.md 1
+rune complete tasks.md 2.1
 ```
 
 ### uncomplete - Mark Task Pending
@@ -127,7 +129,7 @@ go-tasks complete tasks.md 2.1
 Mark a task as pending `[ ]`.
 
 ```bash
-go-tasks uncomplete [file] [task-id]
+rune uncomplete [file] [task-id]
 ```
 
 ### progress - Mark Task In Progress
@@ -135,7 +137,7 @@ go-tasks uncomplete [file] [task-id]
 Mark a task as in-progress `[-]`.
 
 ```bash
-go-tasks progress [file] [task-id]
+rune progress [file] [task-id]
 ```
 
 ### update - Modify Task
@@ -143,7 +145,7 @@ go-tasks progress [file] [task-id]
 Update task title, details, or references.
 
 ```bash
-go-tasks update [file] [task-id] [options]
+rune update [file] [task-id] [options]
 ```
 
 **Options:**
@@ -153,9 +155,9 @@ go-tasks update [file] [task-id] [options]
 
 **Examples:**
 ```bash
-go-tasks update tasks.md 1 --title "New title"
-go-tasks update tasks.md 2.1 --details "Step 1,Step 2,Step 3"
-go-tasks update tasks.md 3 --references "spec.md,api-docs.md"
+rune update tasks.md 1 --title "New title"
+rune update tasks.md 2.1 --details "Step 1,Step 2,Step 3"
+rune update tasks.md 3 --references "spec.md,api-docs.md"
 ```
 
 ### remove - Delete Task
@@ -163,13 +165,13 @@ go-tasks update tasks.md 3 --references "spec.md,api-docs.md"
 Remove a task and all its subtasks. Remaining tasks are automatically renumbered.
 
 ```bash
-go-tasks remove [file] [task-id]
+rune remove [file] [task-id]
 ```
 
 **Examples:**
 ```bash
-go-tasks remove tasks.md 2
-go-tasks remove tasks.md 1.3
+rune remove tasks.md 2
+rune remove tasks.md 1.3
 ```
 
 ### find - Search Tasks
@@ -177,7 +179,7 @@ go-tasks remove tasks.md 1.3
 Search for tasks by content, with filtering options.
 
 ```bash
-go-tasks find [file] [pattern] [options]
+rune find [file] [pattern] [options]
 ```
 
 **Options:**
@@ -191,9 +193,9 @@ go-tasks find [file] [pattern] [options]
 
 **Examples:**
 ```bash
-go-tasks find tasks.md "authentication" --format json
-go-tasks find tasks.md "test" --in-details --status pending
-go-tasks find tasks.md "api" --parent 2 --max-depth 3
+rune find tasks.md "authentication" --format json
+rune find tasks.md "test" --in-details --status pending
+rune find tasks.md "api" --parent 2 --max-depth 3
 ```
 
 ### next - Get Next Incomplete Task
@@ -201,7 +203,7 @@ go-tasks find tasks.md "api" --parent 2 --max-depth 3
 Retrieve the next incomplete task from your task list using intelligent depth-first traversal.
 
 ```bash
-go-tasks next [file] [options]
+rune next [file] [options]
 ```
 
 **Options:**
@@ -210,16 +212,16 @@ go-tasks next [file] [options]
 **Examples:**
 ```bash
 # Get next task (uses git branch discovery if configured)
-go-tasks next
+rune next
 
 # Get next task from specific file
-go-tasks next tasks.md
+rune next tasks.md
 
 # Output in JSON format
-go-tasks next --format json
+rune next --format json
 
 # Output in markdown format
-go-tasks next --format markdown
+rune next --format markdown
 ```
 
 **How it works:**
@@ -234,7 +236,7 @@ go-tasks next --format markdown
 Execute multiple operations atomically from JSON input.
 
 ```bash
-go-tasks batch [file] --operations [json-file] [options]
+rune batch [file] --operations [json-file] [options]
 ```
 
 **Options:**
@@ -243,8 +245,8 @@ go-tasks batch [file] --operations [json-file] [options]
 
 **Examples:**
 ```bash
-go-tasks batch tasks.md --operations batch-ops.json
-go-tasks batch tasks.md --operations updates.json --dry-run
+rune batch tasks.md --operations batch-ops.json
+rune batch tasks.md --operations updates.json --dry-run
 ```
 
 ## JSON API Schema
@@ -329,14 +331,14 @@ go-tasks batch tasks.md --operations updates.json --dry-run
 
 ## Configuration
 
-go-tasks supports configuration files to customize behavior, including git branch-based file discovery.
+rune supports configuration files to customize behavior, including git branch-based file discovery.
 
 ### Configuration File Locations
 
 Configuration is loaded in the following order of precedence:
 
-1. `./.go-tasks.yml` (project-local configuration)
-2. `~/.config/go-tasks/config.yml` (user-global configuration)
+1. `./.rune.yml` (project-local configuration)
+2. `~/.config/rune/config.yml` (user-global configuration)
 
 ### Configuration Schema
 
@@ -354,7 +356,7 @@ discovery:
 
 ### Git Branch Discovery
 
-When enabled, go-tasks automatically discovers task files based on your current git branch:
+When enabled, rune automatically discovers task files based on your current git branch:
 
 **Examples:**
 - Branch `feature/auth` with template `specs/{branch}/tasks.md` → `specs/feature/auth/tasks.md`
@@ -374,17 +376,17 @@ When enabled, go-tasks automatically discovers task files based on your current 
 
 ### Default Behavior
 
-If no configuration file exists, go-tasks uses these defaults:
+If no configuration file exists, rune uses these defaults:
 - Git discovery enabled
 - Template: `{branch}/tasks.md`
 
 ## File Format
 
-go-tasks supports two file formats: plain markdown and markdown with YAML front matter.
+rune supports two file formats: plain markdown and markdown with YAML front matter.
 
 ### Basic Markdown Format
 
-go-tasks generates consistent markdown with the following structure:
+rune generates consistent markdown with the following structure:
 
 ```markdown
 # Project Title
@@ -510,7 +512,7 @@ make benchmark
 
 ## Error Handling
 
-go-tasks follows strict error reporting without auto-correction:
+rune follows strict error reporting without auto-correction:
 
 - **Malformed Files**: Reports syntax errors without attempting fixes
 - **Invalid Operations**: Validates all parameters before applying changes
@@ -543,22 +545,22 @@ go-tasks follows strict error reporting without auto-correction:
 - Confirm you're in a git repository: `git status`
 - Check that git is installed and in PATH: `git --version`
 - Verify the target file exists at the computed path
-- Use `--verbose` flag to see the resolved file path: `go-tasks next --verbose`
+- Use `--verbose` flag to see the resolved file path: `rune next --verbose`
 
 **"No filename specified and git discovery failed" error:**
-- Either specify a filename explicitly: `go-tasks next tasks.md`
-- Or configure git discovery in `.go-tasks.yml`
+- Either specify a filename explicitly: `rune next tasks.md`
+- Or configure git discovery in `.rune.yml`
 - Or ensure you're in a git repository with the expected file structure
 
 **Configuration file not loading:**
 - Verify YAML syntax with an online YAML validator
 - Check file permissions on config directories
 - Use absolute paths if relative paths don't work
-- Ensure config file is in expected location (`./.go-tasks.yml` or `~/.config/go-tasks/config.yml`)
+- Ensure config file is in expected location (`./.rune.yml` or `~/.config/rune/config.yml`)
 
 **"All tasks are complete" when tasks remain:**
 - Check task completion status - both parent and all children must be `[x]` to be considered complete
-- Use `go-tasks list --status pending` to see incomplete tasks
+- Use `rune list --status pending` to see incomplete tasks
 - Verify task syntax matches expected format
 
 **Front matter parsing errors:**
@@ -570,18 +572,18 @@ go-tasks follows strict error reporting without auto-correction:
 
 **Verbose Mode:**
 ```bash
-go-tasks next --verbose
+rune next --verbose
 # Shows file resolution, task parsing details, and discovery logic
 ```
 
 **Validate Configuration:**
 ```bash
 # Test git discovery
-go-tasks next --format json
+rune next --format json
 # Check if correct file is being used
 
 # Manual file specification to bypass discovery
-go-tasks next /full/path/to/tasks.md
+rune next /full/path/to/tasks.md
 ```
 
 ### Performance Issues
@@ -589,7 +591,7 @@ go-tasks next /full/path/to/tasks.md
 **Large Files:**
 - Files over 1MB may have slower parse times
 - Consider splitting large task lists into multiple files
-- Use `--depth` flag to limit hierarchy traversal: `go-tasks list --depth 2`
+- Use `--depth` flag to limit hierarchy traversal: `rune list --depth 2`
 
 **Deep Task Hierarchies:**
 - Maximum recommended depth: 10 levels
@@ -611,6 +613,6 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/ArjenSchwarz/go-tasks/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ArjenSchwarz/go-tasks/discussions)
-- **Documentation**: [Wiki](https://github.com/ArjenSchwarz/go-tasks/wiki)
+- **Issues**: [GitHub Issues](https://github.com/ArjenSchwarz/rune/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/ArjenSchwarz/rune/discussions)
+- **Documentation**: [Wiki](https://github.com/ArjenSchwarz/rune/wiki)

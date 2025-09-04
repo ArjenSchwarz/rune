@@ -17,7 +17,7 @@ var (
 	version = "0.1.0-dev"
 
 	rootCmd = &cobra.Command{
-		Use:   "go-tasks",
+		Use:   "rune",
 		Short: "A CLI tool for managing hierarchical markdown task lists",
 		Long: `Go-Tasks is a command-line tool designed specifically for AI agents
 to create and manage hierarchical markdown task lists with consistent formatting.
@@ -50,5 +50,5 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "preview changes without applying them")
 
 	// Set custom version template
-	rootCmd.SetVersionTemplate("go-tasks version {{.Version}}\n")
+	rootCmd.SetVersionTemplate("rune version {{.Version}}\n")
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 	"github.com/spf13/cobra"
 )
 
@@ -24,9 +24,9 @@ Use --position to insert the task at a specific position, causing existing
 tasks at that position and beyond to be renumbered.
 
 Examples:
-  go-tasks add tasks.md --title "Write documentation"
-  go-tasks add --title "Write API docs" --parent "1"
-  go-tasks add --title "Urgent task" --position "2"`,
+  rune add tasks.md --title "Write documentation"
+  rune add --title "Write API docs" --parent "1"
+  rune add --title "Urgent task" --position "2"`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runAdd,
 }

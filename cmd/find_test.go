@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 )
 
 func TestFindCommand(t *testing.T) {
 	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "go-tasks-find-test")
+	tempDir, err := os.MkdirTemp("", "rune-find-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestFindCommand(t *testing.T) {
 
 func TestFindCommandOutputFormats(t *testing.T) {
 	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "go-tasks-find-formats-test")
+	tempDir, err := os.MkdirTemp("", "rune-find-formats-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestFindCommandOutputFormats(t *testing.T) {
 
 func TestFindCommandAdvancedFeatures(t *testing.T) {
 	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "go-tasks-find-advanced-test")
+	tempDir, err := os.MkdirTemp("", "rune-find-advanced-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -373,7 +373,7 @@ func TestFindCommandAdvancedFeatures(t *testing.T) {
 
 func TestFindCommandEdgeCases(t *testing.T) {
 	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "go-tasks-find-edge-test")
+	tempDir, err := os.MkdirTemp("", "rune-find-edge-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}

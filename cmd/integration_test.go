@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 )
 
 func TestIntegrationWorkflows(t *testing.T) {
@@ -105,7 +105,7 @@ func TestIntegrationWorkflows(t *testing.T) {
 	for testName, tc := range tests {
 		t.Run(testName, func(t *testing.T) {
 			// Create isolated temp directory for each test
-			tempDir, err := os.MkdirTemp("", "go-tasks-integration-"+testName)
+			tempDir, err := os.MkdirTemp("", "rune-integration-"+testName)
 			if err != nil {
 				t.Fatalf("failed to create temp dir: %v", err)
 			}
@@ -664,7 +664,7 @@ func TestLargeFileHandling(t *testing.T) {
 	}
 
 	// Create temp directory
-	tempDir, err := os.MkdirTemp("", "go-tasks-large-file")
+	tempDir, err := os.MkdirTemp("", "rune-large-file")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -809,7 +809,7 @@ func testGitDiscoveryIntegration(t *testing.T, tempDir string) {
   enabled: true
   template: "specs/{branch}/tasks.md"
 `
-	if err := os.WriteFile(".go-tasks.yml", []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(".rune.yml", []byte(configContent), 0644); err != nil {
 		t.Fatalf("failed to create config file: %v", err)
 	}
 
@@ -955,11 +955,11 @@ func runCommandWithOutput(t *testing.T, name string, args ...string) string {
 }
 
 func runGoCommand(t *testing.T, args ...string) string {
-	return runCommandWithOutput(t, "go-tasks", args...)
+	return runCommandWithOutput(t, "rune", args...)
 }
 
 func runGoCommandWithError(_ *testing.T, args ...string) string {
-	cmd := exec.Command("go-tasks", args...)
+	cmd := exec.Command("rune", args...)
 	output, _ := cmd.CombinedOutput()
 	return string(output)
 }
@@ -1402,12 +1402,12 @@ func testConfigurationIntegration(t *testing.T, tempDir string) {
 		localConfig := `discovery:
   enabled: true
   template: "local/{branch}/tasks.md"`
-		if err := os.WriteFile(".go-tasks.yml", []byte(localConfig), 0644); err != nil {
+		if err := os.WriteFile(".rune.yml", []byte(localConfig), 0644); err != nil {
 			t.Fatalf("failed to create local config: %v", err)
 		}
 
 		// Create user config directory and file
-		userConfigDir := tempDir + "/.config/go-tasks"
+		userConfigDir := tempDir + "/.config/rune"
 		if err := os.MkdirAll(userConfigDir, 0755); err != nil {
 			t.Fatalf("failed to create user config dir: %v", err)
 		}
@@ -1455,7 +1455,7 @@ func testConfigurationIntegration(t *testing.T, tempDir string) {
   enabled: true
   template: "invalid/{branch}/tasks.md"
 invalid_yaml_syntax: [unclosed_bracket`
-		if err := os.WriteFile(".go-tasks.yml", []byte(invalidConfig), 0644); err != nil {
+		if err := os.WriteFile(".rune.yml", []byte(invalidConfig), 0644); err != nil {
 			t.Fatalf("failed to create invalid config: %v", err)
 		}
 
@@ -1471,7 +1471,7 @@ invalid_yaml_syntax: [unclosed_bracket`
 	// Test 3: Missing config file (should use defaults)
 	t.Run("missing_config_defaults", func(t *testing.T) {
 		// Remove config files
-		os.Remove(".go-tasks.yml")
+		os.Remove(".rune.yml")
 		os.RemoveAll(tempDir + "/.config")
 
 		// Create task file with default template pattern
@@ -1503,7 +1503,7 @@ invalid_yaml_syntax: [unclosed_bracket`
 		disabledConfig := `discovery:
   enabled: false
   template: "specs/{branch}/tasks.md"`
-		if err := os.WriteFile(".go-tasks.yml", []byte(disabledConfig), 0644); err != nil {
+		if err := os.WriteFile(".rune.yml", []byte(disabledConfig), 0644); err != nil {
 			t.Fatalf("failed to create disabled config: %v", err)
 		}
 
@@ -1522,7 +1522,7 @@ invalid_yaml_syntax: [unclosed_bracket`
 metadata:
   project: "test-project"
   author: "test-author"`
-		if err := os.WriteFile(".go-tasks.yml", []byte(validConfig), 0644); err != nil {
+		if err := os.WriteFile(".rune.yml", []byte(validConfig), 0644); err != nil {
 			t.Fatalf("failed to create valid config: %v", err)
 		}
 
@@ -2401,7 +2401,7 @@ func testCLIPositionInsertionIntegration(t *testing.T, tempDir string) {
 		configContent := `discovery:
   enabled: true
   template: "specs/{branch}/tasks.md"`
-		if err := os.WriteFile(".go-tasks.yml", []byte(configContent), 0644); err != nil {
+		if err := os.WriteFile(".rune.yml", []byte(configContent), 0644); err != nil {
 			t.Fatalf("failed to create config file: %v", err)
 		}
 

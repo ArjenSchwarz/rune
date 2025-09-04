@@ -1,6 +1,6 @@
-# go-tasks JSON API Schema
+# rune JSON API Schema
 
-This document describes the JSON schema for the go-tasks batch operations API.
+This document describes the JSON schema for the rune batch operations API.
 
 ## Batch Request Schema
 

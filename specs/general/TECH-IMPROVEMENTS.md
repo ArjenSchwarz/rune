@@ -5,7 +5,7 @@ This document tracks efficiency issues and optimization opportunities identified
 ## 2025-09-01 - Position-Based Task Insertion Efficiency Review
 
 ### Issue: Inefficient Array Insertion Pattern
-**Location**: `/Users/arjenschwarz/projects/personal/go-tasks/internal/task/operations.go` (lines 106-107, 122-123)
+**Location**: `/Users/arjenschwarz/projects/personal/rune/internal/task/operations.go` (lines 106-107, 122-123)
 **Description**: The `addTaskAtPosition` function uses a double-append pattern for array insertion that creates unnecessary intermediate slices and copies data multiple times. The current implementation:
 ```go
 parent.Children = append(parent.Children[:targetIndex],
@@ -29,7 +29,7 @@ parent.Children = newChildren
 ---
 
 ### Issue: Redundant Full Renumbering After Insertion
-**Location**: `/Users/arjenschwarz/projects/personal/go-tasks/internal/task/operations.go` (lines 127, 155-168)
+**Location**: `/Users/arjenschwarz/projects/personal/rune/internal/task/operations.go` (lines 127, 155-168)
 **Description**: After every position-based insertion, `renumberTasks()` is called which recursively renumbers ALL tasks in the entire hierarchy, even when only tasks at the insertion point and after need renumbering.
 **Impact**: O(n) operation for every insertion where n is the total number of tasks in the hierarchy. For batch operations or frequent insertions, this becomes O(n×m) where m is the number of insertions.
 **Solution**:
@@ -60,7 +60,7 @@ func (tl *TaskList) renumberFromPosition(parentID string, startIndex int) {
 ---
 
 ### Issue: Manual String-to-Integer Parsing
-**Location**: `/Users/arjenschwarz/projects/personal/go-tasks/internal/task/operations.go` (lines 74-82)
+**Location**: `/Users/arjenschwarz/projects/personal/rune/internal/task/operations.go` (lines 74-82)
 **Description**: The position parsing uses manual character-by-character parsing instead of Go's optimized `strconv.Atoi()`.
 **Impact**: Slightly slower parsing and more complex, error-prone code.
 **Solution**:
@@ -81,7 +81,7 @@ targetIndex-- // Convert to 0-based index
 ---
 
 ### Issue: Inefficient Task Counting for Resource Limits
-**Location**: `/Users/arjenschwarz/projects/personal/go-tasks/internal/task/operations.go` (lines 371-387)
+**Location**: `/Users/arjenschwarz/projects/personal/rune/internal/task/operations.go` (lines 371-387)
 **Description**: `countTotalTasks()` performs a full recursive traversal on every task addition, which is O(n) where n is the total number of tasks.
 **Impact**: Makes task addition O(n) instead of O(1), particularly problematic for batch operations.
 **Solution**:
@@ -112,7 +112,7 @@ func (tl *TaskList) decrementTaskCount() {
 ---
 
 ### Issue: Repeated FindTask Calls
-**Location**: `/Users/arjenschwarz/projects/personal/go-tasks/internal/task/operations.go` (lines 38, 87)
+**Location**: `/Users/arjenschwarz/projects/personal/rune/internal/task/operations.go` (lines 38, 87)
 **Description**: When adding tasks with a parent ID, `FindTask()` is called multiple times within the same operation, each performing an O(n) traversal.
 **Impact**: Multiple O(n) operations when one would suffice.
 **Solution**: Cache the parent task reference and reuse it within the same operation.
@@ -121,7 +121,7 @@ func (tl *TaskList) decrementTaskCount() {
 ---
 
 ### Issue: Inefficient Batch Operation Deep Copy
-**Location**: `/Users/arjenschwarz/projects/personal/go-tasks/internal/task/batch.go` (lines 234-254)
+**Location**: `/Users/arjenschwarz/projects/personal/rune/internal/task/batch.go` (lines 234-254)
 **Description**: The `deepCopy()` method used for dry-run validation serializes the entire TaskList to markdown and then parses it back, which is extremely inefficient for large task lists.
 **Impact**: O(n) serialization + O(n) parsing for every batch operation, creating unnecessary string allocations and parsing overhead.
 **Solution**:
@@ -181,7 +181,7 @@ func deepCopyTask(t Task) Task {
 ---
 
 ### Issue: Redundant FindTask Calls in Batch Validation
-**Location**: `/Users/arjenschwarz/projects/personal/go-tasks/internal/task/batch.go` (lines 131, 143, 150)
+**Location**: `/Users/arjenschwarz/projects/personal/rune/internal/task/batch.go` (lines 131, 143, 150)
 **Description**: During batch operation validation, `FindTask()` is called multiple times for the same operations, each performing an O(n) search through the task hierarchy.
 **Impact**: Multiple O(n) operations during validation phase, compounded by the test copy creation.
 **Solution**: Cache task lookups during validation or batch the lookups together.
@@ -190,7 +190,7 @@ func deepCopyTask(t Task) Task {
 ---
 
 ### Issue: Inefficient New Task ID Detection for Details/References
-**Location**: `/Users/arjenschwarz/projects/personal/go-tasks/internal/task/batch.go` (lines 176-188)
+**Location**: `/Users/arjenschwarz/projects/personal/rune/internal/task/batch.go` (lines 176-188)
 **Description**: After adding a task, the code assumes the new task is the last one in the children/tasks slice, but with position-based insertion, this assumption is incorrect and leads to wrong task updates.
 **Impact**: Details and references may be applied to the wrong task when using position-based insertion.
 **Solution**: Modify `AddTask()` to return the ID of the newly created task, or implement a more reliable way to track new task IDs.

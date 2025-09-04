@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 	"github.com/spf13/cobra"
 )
 
@@ -18,10 +18,10 @@ Use the flags to specify what to update. If a field is not provided, it will rem
 To clear details or references, use empty values.
 
 Examples:
-  go-tasks update tasks.md 1 --title "New title"
-  go-tasks update tasks.md 1.1 --details "First detail,Second detail"
-  go-tasks update tasks.md 2 --references "doc.md,spec.md"
-  go-tasks update tasks.md 3 --title "Updated" --details "New detail"`,
+  rune update tasks.md 1 --title "New title"
+  rune update tasks.md 1.1 --details "First detail,Second detail"
+  rune update tasks.md 2 --references "doc.md,spec.md"
+  rune update tasks.md 3 --title "Updated" --details "New detail"`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: runUpdate,
 }

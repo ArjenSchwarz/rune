@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 )
 
 func TestAddFrontMatterCommand(t *testing.T) {
@@ -165,7 +165,7 @@ func TestAddFrontMatterCommand(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Create temp directory for test
-			tempDir, err := os.MkdirTemp("", "go-tasks-addfm-test")
+			tempDir, err := os.MkdirTemp("", "rune-addfm-test")
 			if err != nil {
 				t.Fatalf("failed to create temp dir: %v", err)
 			}
@@ -213,7 +213,7 @@ func TestAddFrontMatterCommand(t *testing.T) {
 }
 
 func TestAddFrontMatterNonExistentFile(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "go-tasks-addfm-test")
+	tempDir, err := os.MkdirTemp("", "rune-addfm-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -236,7 +236,7 @@ func TestAddFrontMatterNonExistentFile(t *testing.T) {
 }
 
 func TestAddFrontMatterInvalidFileExtension(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "go-tasks-addfm-test")
+	tempDir, err := os.MkdirTemp("", "rune-addfm-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestAddFrontMatterInvalidFileExtension(t *testing.T) {
 }
 
 func TestAddFrontMatterDryRun(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "go-tasks-addfm-test")
+	tempDir, err := os.MkdirTemp("", "rune-addfm-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}

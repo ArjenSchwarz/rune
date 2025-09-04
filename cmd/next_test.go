@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 )
 
 func TestNextCommand(t *testing.T) {
 	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "go-tasks-next-test")
+	tempDir, err := os.MkdirTemp("", "rune-next-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestNextCommand(t *testing.T) {
 
 func TestNextCommandWithTaskDetailsAndReferences(t *testing.T) {
 	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "go-tasks-next-details-test")
+	tempDir, err := os.MkdirTemp("", "rune-next-details-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -335,7 +335,7 @@ references:
 
 func TestNextCommandOutputFormats(t *testing.T) {
 	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "go-tasks-next-format-test")
+	tempDir, err := os.MkdirTemp("", "rune-next-format-test")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}

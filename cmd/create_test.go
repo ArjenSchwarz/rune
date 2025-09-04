@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 )
 
 func TestCreateCommand(t *testing.T) {
@@ -48,7 +48,7 @@ func TestCreateCommand(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Create temp directory for test
-			tempDir, err := os.MkdirTemp("", "go-tasks-create-test")
+			tempDir, err := os.MkdirTemp("", "rune-create-test")
 			if err != nil {
 				t.Fatalf("failed to create temp dir: %v", err)
 			}
@@ -126,7 +126,7 @@ func TestCreateCommandPathValidation(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Create temp directory for test
-			tempDir, err := os.MkdirTemp("", "go-tasks-security-test")
+			tempDir, err := os.MkdirTemp("", "rune-security-test")
 			if err != nil {
 				t.Fatalf("failed to create temp dir: %v", err)
 			}
@@ -314,7 +314,7 @@ func TestCreateCommandWithFrontMatter(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Create temp directory for test
-			tempDir, err := os.MkdirTemp("", "go-tasks-frontmatter-test")
+			tempDir, err := os.MkdirTemp("", "rune-frontmatter-test")
 			if err != nil {
 				t.Fatalf("failed to create temp dir: %v", err)
 			}

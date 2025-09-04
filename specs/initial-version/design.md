@@ -47,7 +47,7 @@ Go-Tasks is a command-line tool for managing hierarchical markdown task lists, d
 ### Package Structure
 
 ```
-go-tasks/
+rune/
 ├── cmd/                    # CLI commands (kept separate for clarity)
 │   ├── root.go            # Root command setup
 │   ├── create.go          # Create new task file

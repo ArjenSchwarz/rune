@@ -2,7 +2,7 @@
 
 ## Overview
 
-The next-task-workflow feature enhances the go-tasks CLI to provide intelligent task retrieval and document reference capabilities. This design focuses on creating a developer-friendly workflow that automatically finds the next actionable task, supports git branch-based file discovery, and maintains reference documentation within task files.
+The next-task-workflow feature enhances the rune CLI to provide intelligent task retrieval and document reference capabilities. This design focuses on creating a developer-friendly workflow that automatically finds the next actionable task, supports git branch-based file discovery, and maintains reference documentation within task files.
 
 The feature introduces:
 - A "next" command for retrieving the first incomplete task in a hierarchy
@@ -56,7 +56,7 @@ The feature introduces:
 ### Module Organization
 
 ```
-go-tasks/
+rune/
 ├── cmd/
 │   ├── next.go           # New "next" command implementation
 │   ├── next_test.go      # Unit tests for next command
@@ -98,8 +98,8 @@ package cmd
 import (
     "fmt"
     "github.com/spf13/cobra"
-    "go-tasks/internal/config"
-    "go-tasks/internal/task"
+    "rune/internal/config"
+    "rune/internal/task"
 )
 
 var nextCmd = &cobra.Command{
@@ -157,8 +157,8 @@ type GitDiscovery struct {
 func LoadConfig() (*Config, error) {
     // Check for config in order of precedence
     paths := []string{
-        "./.go-tasks.yml",
-        expandHome("~/.config/go-tasks/config.yml"),
+        "./.rune.yml",
+        expandHome("~/.config/rune/config.yml"),
     }
     
     for _, path := range paths {
@@ -611,8 +611,8 @@ The implementation finds the **highest-level task with incomplete work**, not th
 Configuration is loaded in the following order (first found wins):
 1. Command-line flags (highest priority)
 2. Environment variables (GO_TASKS_CONFIG)
-3. Project-local config (./.go-tasks.yml)
-4. User config (~/.config/go-tasks/config.yml)
+3. Project-local config (./.rune.yml)
+4. User config (~/.config/rune/config.yml)
 5. Default configuration (lowest priority)
 
 ### Front Matter vs Markdown Sections

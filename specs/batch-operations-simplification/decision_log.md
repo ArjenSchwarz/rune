@@ -84,5 +84,5 @@
 ### Decision 13: Extend position insertion to CLI
 **Date:** 2025-09-01
 **Context:** Initial requirement only covered batch operations
-**Decision:** Add `--position` flag to `go-tasks add` command
+**Decision:** Add `--position` flag to `rune add` command
 **Rationale:** Feature should be available in both CLI and batch API for consistency

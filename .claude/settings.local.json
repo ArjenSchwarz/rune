@@ -24,7 +24,9 @@
       "Bash(INTEGRATION=1 go test -v ./cmd -timeout 30s)",
       "Bash(mkdir:*)",
       "Bash(git checkout:*)",
-      "Bash(.claude/scripts/copilot-pr-comments.sh:*)"
+      "Bash(.claude/scripts/copilot-pr-comments.sh:*)",
+      "Bash(sed:*)",
+      "Bash(git diff:*)"
     ],
     "deny": [],
     "ask": []

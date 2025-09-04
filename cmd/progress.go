@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 	"github.com/spf13/cobra"
 )
 
@@ -16,8 +16,8 @@ var progressCmd = &cobra.Command{
 This indicates that work on the task has started but is not yet complete.
 
 Examples:
-  go-tasks progress tasks.md 1
-  go-tasks progress tasks.md 1.2.3`,
+  rune progress tasks.md 1
+  rune progress tasks.md 1.2.3`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: runProgress,
 }

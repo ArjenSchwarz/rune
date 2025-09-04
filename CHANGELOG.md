@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Project renamed from go-tasks to rune**: Complete rebranding of the project
+  - Updated module name from github.com/ArjenSchwarz/go-tasks to github.com/arjenschwarz/rune
+  - Renamed all references to binary from go-tasks to rune throughout documentation
+  - Updated all command examples, paths, and configuration to use the new name
+  - Added project logos (rune-logo.png and rune-logo-small.jpg) in docs/images
+  - Updated GitHub Copilot instructions and development documentation with new paths
+  - Added sed permission to Claude Code settings for text processing operations
+
+### Changed
 - **Front matter simplification**: Removed complex nested key support for cleaner implementation
   - Removed support for nested metadata keys with dot notation (e.g., "author.name" no longer supported)
   - Simplified ParseMetadataFlags to only accept flat key:value pairs
@@ -122,7 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Unified update operation specification removing artificial separation between `update` and `update_status` operations
   - Position-based task insertion specification for both CLI and batch operations
   - Comprehensive decision log documenting design choices and user clarifications
-  - Requirements for `--position` flag in `go-tasks add` command to insert tasks at specific positions
+  - Requirements for `--position` flag in `rune add` command to insert tasks at specific positions
   - Specification for processing multiple position insertions in reverse order to maintain consistency
 - **Comprehensive project documentation**: Complete documentation overhaul with user guides and troubleshooting
   - Next command documentation with usage examples, options, and behavior explanation
@@ -264,7 +273,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Applied Go modernization patterns for better language compatibility
 - Configuration management infrastructure
   - Complete internal/config package with YAML configuration loading
-  - Support for .go-tasks.yml in current directory and ~/.config/go-tasks/config.yml
+  - Support for .rune.yml in current directory and ~/.config/rune/config.yml
   - Configuration precedence handling with default fallback
   - GitDiscovery configuration structure for branch-based file discovery
   - Comprehensive test suite with precedence and error handling validation
@@ -336,7 +345,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Create command for generating new task markdown files with title specification
   - List command with multiple output formats (table, markdown, JSON) and filtering options
   - Input validation and security checks for file path operations
-- Main executable entry point for the go-tasks CLI application
+- Main executable entry point for the rune CLI application
 - Comprehensive CLI command unit tests
   - Full test coverage for create and list commands
   - File creation and parsing validation tests
@@ -372,7 +381,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GolangCI-lint configuration for code quality enforcement
   - Standard linters enabled with custom rules
   - Formatter configuration for automatic interface{} to any conversion
-- Initial Go module setup for go-tasks project
+- Initial Go module setup for rune project
 - Project specifications and documentation structure
   - Comprehensive project idea and implementation plan
   - Detailed requirements document with user stories and acceptance criteria

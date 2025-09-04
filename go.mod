@@ -1,4 +1,4 @@
-module github.com/ArjenSchwarz/go-tasks
+module github.com/arjenschwarz/rune
 
 go 1.25.0
 

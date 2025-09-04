@@ -14,8 +14,8 @@ references:
   - Ensure yaml v3 dependency is available
   - References: Requirements 6.1, 6.2, 6.3, 6.4, 6.5
   - [x] 1.1. Write unit tests for configuration loading
-    - Test loading from .go-tasks.yml in current directory
-    - Test loading from ~/.config/go-tasks/config.yml
+    - Test loading from .rune.yml in current directory
+    - Test loading from ~/.config/rune/config.yml
     - Test precedence order handling
     - Test invalid YAML error handling
     - Test default configuration fallback

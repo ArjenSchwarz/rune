@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ArjenSchwarz/go-tasks/internal/task"
+	"github.com/arjenschwarz/rune/internal/task"
 	"github.com/spf13/cobra"
 )
 
@@ -17,9 +17,9 @@ All remaining tasks will be automatically renumbered to maintain consistency.
 This operation cannot be undone, so use --dry-run to preview changes first.
 
 Examples:
-  go-tasks remove tasks.md 1
-  go-tasks remove tasks.md 2.1
-  go-tasks remove tasks.md 3 --dry-run`,
+  rune remove tasks.md 1
+  rune remove tasks.md 2.1
+  rune remove tasks.md 3 --dry-run`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: runRemove,
 }
