@@ -83,7 +83,6 @@ modernize: ## Apply modernize tool fixes
 build: ## Build the rune binary
 	@echo "Building rune binary..."
 	@go build -o rune .
-	@chmod a+rx rune
 
 # Development utility targets
 .PHONY: mod-tidy
