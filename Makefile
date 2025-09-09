@@ -18,6 +18,9 @@ help: ## Show available make targets and their descriptions
 	@echo "Code quality targets:"
 	@awk 'BEGIN {FS = ":.*##"} /^(lint|fmt|modernize):.*##/ { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
+	@echo "Build targets:"
+	@awk 'BEGIN {FS = ":.*##"} /^build:.*##/ { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
 	@echo "Development targets:"
 	@awk 'BEGIN {FS = ":.*##"} /^(mod-tidy|benchmark|clean):.*##/ { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
@@ -74,6 +77,13 @@ modernize: ## Apply modernize tool fixes
 	@modernize -fix ./...
 	@echo "Formatting after modernization..."
 	@$(MAKE) fmt
+
+# Build targets
+.PHONY: build
+build: ## Build the rune binary
+	@echo "Building rune binary..."
+	@go build -o rune ./cmd
+	@chmod a+rx rune
 
 # Development utility targets
 .PHONY: mod-tidy
