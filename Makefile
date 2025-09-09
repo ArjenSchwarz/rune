@@ -82,7 +82,7 @@ modernize: ## Apply modernize tool fixes
 .PHONY: build
 build: ## Build the rune binary
 	@echo "Building rune binary..."
-	@go build -o rune ./cmd
+	@go build -o rune .
 	@chmod a+rx rune
 
 # Development utility targets
