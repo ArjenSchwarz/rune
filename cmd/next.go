@@ -11,6 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	phaseFlag bool
+)
+
 var nextCmd = &cobra.Command{
 	Use:   "next [file]",
 	Short: "Get the next incomplete task",
@@ -18,6 +22,9 @@ var nextCmd = &cobra.Command{
 
 This command finds the first task that has incomplete work (either the task itself
 or any of its subtasks are not marked as completed) using depth-first traversal.
+
+With the --phase flag, the command returns all pending tasks from the next phase
+(the first phase in document order containing pending tasks) instead of a single task.
 
 If no filename is provided and git discovery is enabled in configuration, the file
 will be automatically discovered based on the current git branch using the configured
@@ -36,6 +43,7 @@ documents defined in the task file's front matter.`,
 
 func init() {
 	rootCmd.AddCommand(nextCmd)
+	nextCmd.Flags().BoolVar(&phaseFlag, "phase", false, "get all tasks from next phase")
 }
 
 func runNext(cmd *cobra.Command, args []string) error {
@@ -47,6 +55,11 @@ func runNext(cmd *cobra.Command, args []string) error {
 
 	if verbose {
 		fmt.Printf("Using task file: %s\n", filename)
+	}
+
+	// Handle phase mode
+	if phaseFlag {
+		return runNextPhase(filename)
 	}
 
 	// Parse the task file
@@ -306,6 +319,236 @@ func renderTaskMarkdown(t *task.Task, indent string) string {
 	}
 
 	return result
+}
+
+// runNextPhase handles the --phase flag functionality
+func runNextPhase(filename string) error {
+	// Find next phase tasks
+	phaseResult, err := task.FindNextPhaseTasks(filename)
+	if err != nil {
+		return fmt.Errorf("failed to find next phase tasks: %w", err)
+	}
+
+	if phaseResult == nil {
+		if format == formatJSON {
+			fmt.Print("{}")
+		} else {
+			fmt.Println("No pending tasks found in any phase!")
+		}
+		return nil
+	}
+
+	// Parse file for front matter
+	taskList, err := task.ParseFile(filename)
+	if err != nil {
+		return fmt.Errorf("failed to read task file for front matter: %w", err)
+	}
+
+	if verbose {
+		if phaseResult.PhaseName != "" {
+			fmt.Printf("Found %d pending tasks in phase '%s'\n", len(phaseResult.Tasks), phaseResult.PhaseName)
+		} else {
+			fmt.Printf("Found %d pending tasks (no phases in document)\n", len(phaseResult.Tasks))
+		}
+	}
+
+	// Create output based on format
+	switch format {
+	case formatJSON:
+		return outputPhaseTasksJSON(phaseResult, taskList.FrontMatter)
+	case formatMarkdown:
+		return outputPhaseTasksMarkdown(phaseResult, taskList.FrontMatter)
+	default:
+		return outputPhaseTasksTable(phaseResult, taskList.FrontMatter)
+	}
+}
+
+// outputPhaseTasksTable renders phase tasks in table format
+func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter) error {
+	// Build task data for display
+	var taskData []map[string]any
+
+	// Add all tasks from the phase
+	for _, task := range phaseResult.Tasks {
+		taskRecord := map[string]any{
+			"ID":     task.ID,
+			"Title":  task.Title,
+			"Status": formatStatus(task.Status),
+			"Level":  getTaskLevel(task.ID),
+		}
+		if phaseResult.PhaseName != "" {
+			taskRecord["Phase"] = phaseResult.PhaseName
+		}
+		taskData = append(taskData, taskRecord)
+
+		// Add all children (incomplete and complete for context)
+		addAllChildrenToData(&task, &taskData, phaseResult.PhaseName)
+	}
+
+	// Create table document
+	keys := []string{"ID", "Title", "Status", "Level"}
+	if phaseResult.PhaseName != "" {
+		keys = append(keys, "Phase")
+	}
+
+	tableTitle := "Next Phase Tasks"
+	if phaseResult.PhaseName != "" {
+		tableTitle = fmt.Sprintf("Next Phase Tasks (%s)", phaseResult.PhaseName)
+	}
+
+	builder := output.New().
+		Table(tableTitle, taskData, output.WithKeys(keys...))
+
+	// Add front matter references if present
+	if frontMatter != nil && len(frontMatter.References) > 0 {
+		refData := make([]map[string]any, len(frontMatter.References))
+		for i, ref := range frontMatter.References {
+			refData[i] = map[string]any{
+				"Path": ref,
+			}
+		}
+		builder = builder.Table("Reference Documents", refData, output.WithKeys("Path"))
+	}
+
+	doc := builder.Build()
+
+	// Render the document
+	out := output.NewOutput(
+		output.WithFormat(output.Table),
+		output.WithWriter(output.NewStdoutWriter()),
+	)
+
+	return out.Render(context.Background(), doc)
+}
+
+// outputPhaseTasksMarkdown renders phase tasks in markdown format
+func outputPhaseTasksMarkdown(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter) error {
+	var result string
+
+	// Add header
+	if phaseResult.PhaseName != "" {
+		result += fmt.Sprintf("# Next Phase Tasks (%s)\n\n", phaseResult.PhaseName)
+	} else {
+		result += "# Next Phase Tasks\n\n"
+	}
+
+	// Add all tasks from the phase
+	for _, task := range phaseResult.Tasks {
+		result += fmt.Sprintf("- %s %s. %s\n",
+			formatStatusMarkdown(task.Status), task.ID, task.Title)
+
+		// Add task details if present
+		if len(task.Details) > 0 {
+			for _, detail := range task.Details {
+				result += fmt.Sprintf("  %s\n", detail)
+			}
+		}
+
+		// Add task references if present
+		if len(task.References) > 0 {
+			refList := strings.Join(task.References, ", ")
+			result += fmt.Sprintf("  References: %s\n", refList)
+		}
+
+		// Add all children
+		for _, child := range task.Children {
+			result += renderTaskMarkdown(&child, "  ")
+		}
+	}
+
+	// Add front matter references if present
+	if frontMatter != nil && len(frontMatter.References) > 0 {
+		result += "\n## References\n\n"
+		for _, ref := range frontMatter.References {
+			result += fmt.Sprintf("- %s\n", ref)
+		}
+	}
+
+	fmt.Print(result)
+	return nil
+}
+
+// outputPhaseTasksJSON renders phase tasks in JSON format
+func outputPhaseTasksJSON(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter) error {
+	// Create a structure for JSON output
+	type TaskJSON struct {
+		ID         string     `json:"id"`
+		Title      string     `json:"title"`
+		Status     string     `json:"status"`
+		Details    []string   `json:"details,omitempty"`
+		References []string   `json:"references,omitempty"`
+		Children   []TaskJSON `json:"children,omitempty"`
+	}
+
+	type OutputJSON struct {
+		PhaseName             string     `json:"phase_name,omitempty"`
+		Tasks                 []TaskJSON `json:"tasks"`
+		FrontMatterReferences []string   `json:"front_matter_references,omitempty"`
+	}
+
+	// Convert tasks
+	var convertTask func(t *task.Task) TaskJSON
+	convertTask = func(t *task.Task) TaskJSON {
+		tj := TaskJSON{
+			ID:     t.ID,
+			Title:  t.Title,
+			Status: formatStatus(t.Status),
+		}
+		if len(t.Details) > 0 {
+			tj.Details = t.Details
+		}
+		if len(t.References) > 0 {
+			tj.References = t.References
+		}
+		for _, child := range t.Children {
+			tj.Children = append(tj.Children, convertTask(&child))
+		}
+		return tj
+	}
+
+	output := OutputJSON{
+		Tasks: []TaskJSON{},
+	}
+
+	if phaseResult.PhaseName != "" {
+		output.PhaseName = phaseResult.PhaseName
+	}
+
+	for _, task := range phaseResult.Tasks {
+		output.Tasks = append(output.Tasks, convertTask(&task))
+	}
+
+	// Add front matter references if present
+	if frontMatter != nil && len(frontMatter.References) > 0 {
+		output.FrontMatterReferences = frontMatter.References
+	}
+
+	jsonData, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+
+	fmt.Print(string(jsonData))
+	return nil
+}
+
+// addAllChildrenToData recursively adds all children (complete and incomplete) to table data
+func addAllChildrenToData(parentTask *task.Task, taskData *[]map[string]any, phaseName string) {
+	for _, child := range parentTask.Children {
+		childRecord := map[string]any{
+			"ID":     child.ID,
+			"Title":  child.Title,
+			"Status": formatStatus(child.Status),
+			"Level":  getTaskLevel(child.ID),
+		}
+		if phaseName != "" {
+			childRecord["Phase"] = phaseName
+		}
+		*taskData = append(*taskData, childRecord)
+
+		// Recursively add its children
+		addAllChildrenToData(&child, taskData, phaseName)
+	}
 }
 
 const (

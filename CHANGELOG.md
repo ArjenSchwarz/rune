@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Code quality**: Fixed ineffectual variable assignments in AddTaskToPhase function
+  - Removed unnecessary insertPosition assignments when phase is found
+  - Simplified phase detection logic to eliminate linting warnings
+
 ### Changed
 - **Rebranding consistency updates**: Updated remaining "go-tasks" references to "rune"
   - Updated command examples in add-phase.go to use "rune" instead of "go-tasks"
@@ -17,6 +22,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed Claude Code settings to reference "./rune:*" instead of "./go-tasks:*"
 
 ### Added
+- **Phase-aware add command implementation**: Enhanced add command with --phase flag for adding tasks to specific phases
+  - Added --phase flag to add command for specifying target phase when creating tasks
+  - Automatic phase creation when specified phase doesn't exist - new phases created at document end
+  - Intelligent phase boundary detection and task positioning within existing phases
+  - Support for duplicate phase names using first occurrence as per design specification
+  - Enhanced AddTaskToPhase function with proper phase marker updates after task insertion
+  - WriteFileWithPhases function to preserve phase structure during file operations
+  - Updated command documentation and help text with phase usage examples
+  - Comprehensive test suite with 4 test scenarios covering all phase-aware behaviors
+    - Tests for adding tasks to existing phases with correct positioning
+    - Tests for automatic phase creation when target phase doesn't exist
+    - Tests for duplicate phase name handling (uses first occurrence)
+    - Tests for backward compatibility when --phase flag is not used
+  - Enhanced dry-run output to show phase information when --phase flag is used
+  - Phase marker adjustment logic to maintain correct phase boundaries after task renumbering
+  - References: specs/task-phases requirements 4.1-4.5, tasks 4.1-4.2
+
 - **add-phase command implementation**: New CLI command for adding phase headers to task files
   - Created new `add-phase` command that appends H2 headers (## Phase Name) to task files
   - Support for both explicit filename and git-based file discovery modes
@@ -28,6 +50,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Tests for phase name trimming and special character handling
     - Validation that files remain valid after phase addition
   - References: specs/task-phases requirements 3.1, 3.2, 3.3, 3.4, DD4
+
+- **Phase-aware next command implementation**: Enhanced next command with --phase flag for phase-based task retrieval
+  - Added --phase flag to next command for retrieving all pending tasks from the next phase
+  - Finds first phase in document order containing pending tasks
+  - Returns all pending tasks from that phase instead of single task
+  - Support for multiple output formats (table, markdown, JSON) with phase information
+  - Comprehensive test suite with 7 test scenarios covering all behaviors
+    - Tests for retrieving tasks from next phase with pending work
+    - Tests for skipping complete phases to find next with pending tasks
+    - Tests for handling documents without phases
+    - Tests for all phases complete scenario
+    - Tests for JSON and markdown format output with phases
+    - Tests for backward compatibility without --phase flag
+  - References: specs/task-phases requirements 7.1-7.5
 
 ### Added
 - **Phase-aware rendering implementation**: Complete rendering support for tasks with phase information

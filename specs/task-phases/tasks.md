@@ -73,17 +73,17 @@ references:
     - Add task to appropriate position based on phase
     - References: Requirements 4.1, 4.2, 4.3, 4.4, 4.5
 
-- [ ] 5. Phase-Aware Next Command
+- [x] 5. Phase-Aware Next Command
   - Add --phase flag to next command
   - Implement logic to find next phase with pending tasks
   - Return all pending tasks from that phase
-  - [ ] 5.1. Write unit tests for next command --phase flag
+  - [x] 5.1. Write unit tests for next command --phase flag
     - Test retrieval of all pending tasks from next phase
     - Test phase selection (first phase with pending tasks)
     - Test appropriate message when no phases have pending tasks
     - Test existing behavior preserved without --phase flag
     - References: Requirements 7.1, 7.2, 7.3, 7.4, 7.5
-  - [ ] 5.2. Implement --phase flag in cmd/next.go
+  - [x] 5.2. Implement --phase flag in cmd/next.go
     - Add BoolVar flag for phase mode
     - Implement getNextPhaseTasks function
     - Find first phase with pending tasks in document order

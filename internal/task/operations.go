@@ -474,26 +474,13 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 	}
 
 	var newTaskID string
-	var insertPosition int = -1
+	var insertPosition int
 
 	// Find the phase position
 	phaseFound := false
 	for _, marker := range phaseMarkers {
 		if marker.Name == phaseName {
 			phaseFound = true
-			// Find the position to insert the task
-			if marker.AfterTaskID == "" {
-				// Phase is at the beginning, insert after phase header
-				insertPosition = 0
-			} else {
-				// Find the task after which this phase starts
-				for i, task := range tl.Tasks {
-					if task.ID == marker.AfterTaskID {
-						insertPosition = i + 1
-						break
-					}
-				}
-			}
 			break
 		}
 	}
@@ -501,7 +488,7 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 	if !phaseFound {
 		// Phase doesn't exist, create it at the end and add task there
 		insertPosition = len(tl.Tasks)
-		
+
 		// Add phase marker to the list (will be rendered when file is written)
 		afterTaskID := ""
 		if len(tl.Tasks) > 0 {
@@ -513,17 +500,17 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 		})
 	} else {
 		// Phase exists, find where to insert the task within this phase
-		
+
 		// Now find where the next phase starts (this is where current phase ends)
 		phaseEndPos := len(tl.Tasks) // Default to end of list
-		
+
 		// Look for the next phase marker in document order
 		for i, marker := range phaseMarkers {
 			// Skip until we find our target phase
 			if marker.Name != phaseName {
 				continue
 			}
-			
+
 			// Look for the next phase after this one
 			if i+1 < len(phaseMarkers) {
 				nextMarker := phaseMarkers[i+1]
@@ -542,7 +529,7 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 			}
 			break
 		}
-		
+
 		// Insert at the end of the current phase
 		insertPosition = phaseEndPos
 	}
@@ -573,12 +560,12 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 
 		// Renumber all tasks
 		tl.renumberTasks()
-		
+
 		// Get the actual new task ID after renumbering
 		if insertPosition < len(tl.Tasks) {
 			newTaskID = tl.Tasks[insertPosition].ID
 		}
-		
+
 		// Update phase markers to account for the insertion
 		// We need to update the phase marker that comes AFTER the phase we're adding to
 		// This marker should now point to the last task in our target phase
