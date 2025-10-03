@@ -124,17 +124,17 @@ references:
     - Include phase information in batch responses
     - References: Requirements 6.1, 6.2, 6.3, 6.4, 6.5, 6.6
 
-- [ ] 8. Integration Testing
+- [x] 8. Integration Testing
   - Create comprehensive integration tests for phase workflows
   - Verify backward compatibility with existing files
   - Test complete round-trip operations
-  - [ ] 8.1. Create test fixtures for phase testing
+  - [x] 8.1. Create test fixtures for phase testing
     - Create simple_phases.md with basic phase structure
     - Create mixed_content.md with phases and non-phased tasks
     - Create empty_phases.md with phases without tasks
     - Create duplicate_phases.md with repeated phase names
     - References: Requirements 1.5, 1.6, 3.4, Q3
-  - [ ] 8.2. Write integration tests for phase workflows
+  - [x] 8.2. Write integration tests for phase workflows
     - Test end-to-end phase creation and task addition
     - Test round-trip (parse -> modify -> render -> parse)
     - Test batch operations creating and populating phases

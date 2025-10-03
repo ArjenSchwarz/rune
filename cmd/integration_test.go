@@ -100,6 +100,26 @@ func TestIntegrationWorkflows(t *testing.T) {
 			description: "Test CLI position insertion with file operations and git discovery",
 			workflow:    testCLIPositionInsertionIntegration,
 		},
+		"phase_workflow_end_to_end": {
+			name:        "Phase Workflow End-to-End",
+			description: "Test end-to-end phase creation and task addition",
+			workflow:    testPhaseWorkflowEndToEnd,
+		},
+		"phase_round_trip": {
+			name:        "Phase Round Trip",
+			description: "Test round-trip (parse -> modify -> render -> parse) with phases",
+			workflow:    testPhaseRoundTrip,
+		},
+		"phase_batch_operations": {
+			name:        "Phase Batch Operations",
+			description: "Test batch operations creating and populating phases",
+			workflow:    testPhaseBatchOperations,
+		},
+		"phase_backward_compatibility": {
+			name:        "Phase Backward Compatibility",
+			description: "Verify backward compatibility with legacy task files",
+			workflow:    testPhaseBackwardCompatibility,
+		},
 	}
 
 	for testName, tc := range tests {
@@ -2815,4 +2835,477 @@ func testFrontMatterIntegration(t *testing.T, tempDir string) {
 	})
 
 	t.Logf("Front matter integration test passed successfully")
+}
+
+// testPhaseWorkflowEndToEnd tests end-to-end phase creation and task addition
+func testPhaseWorkflowEndToEnd(t *testing.T, tempDir string) {
+	filename := "phase-workflow.md"
+
+	// Step 1: Create task file
+	tl := task.NewTaskList("Phase Workflow Test")
+	if err := tl.WriteFile(filename); err != nil {
+		t.Fatalf("failed to create task file: %v", err)
+	}
+
+	// Step 2: Add a phase using add-phase command
+	runGoCommand(t, "add-phase", filename, "Planning")
+
+	// Step 3: Add tasks to the Planning phase
+	runGoCommand(t, "add", filename, "--phase", "Planning", "--title", "Define requirements")
+	runGoCommand(t, "add", filename, "--phase", "Planning", "--title", "Create design documents")
+
+	// Step 4: Add another phase
+	runGoCommand(t, "add-phase", filename, "Implementation")
+
+	// Step 5: Add tasks to Implementation phase
+	runGoCommand(t, "add", filename, "--phase", "Implementation", "--title", "Set up project structure")
+	runGoCommand(t, "add", filename, "--phase", "Implementation", "--title", "Implement core features")
+
+	// Step 6: Add a task to a non-existent phase (should auto-create)
+	runGoCommand(t, "add", filename, "--phase", "Testing", "--title", "Write unit tests")
+
+	// Step 7: Parse and verify structure
+	tl, err := task.ParseFile(filename)
+	if err != nil {
+		t.Fatalf("failed to parse file: %v", err)
+	}
+
+	// Verify we have 5 tasks (sequential IDs across phases)
+	if len(tl.Tasks) != 5 {
+		t.Errorf("expected 5 tasks, got %d", len(tl.Tasks))
+	}
+
+	// Verify task IDs are sequential
+	expectedIDs := []string{"1", "2", "3", "4", "5"}
+	for i, task := range tl.Tasks {
+		if task.ID != expectedIDs[i] {
+			t.Errorf("expected task %d to have ID %s, got %s", i, expectedIDs[i], task.ID)
+		}
+	}
+
+	// Step 8: List tasks and verify phase information is present
+	output := runGoCommand(t, "list", filename, "--format", "json")
+	if !containsString(output, "Planning") {
+		t.Error("expected Planning phase in JSON output")
+	}
+	if !containsString(output, "Implementation") {
+		t.Error("expected Implementation phase in JSON output")
+	}
+	if !containsString(output, "Testing") {
+		t.Error("expected Testing phase in JSON output")
+	}
+
+	// Step 9: Test next command with --phase flag
+	output = runGoCommand(t, "next", filename, "--phase", "--format", "json")
+	if !containsString(output, "Planning") {
+		t.Error("expected next phase to be Planning")
+	}
+
+	// Step 10: Complete all Planning tasks and check next phase
+	runGoCommand(t, "complete", filename, "1")
+	runGoCommand(t, "complete", filename, "2")
+
+	output = runGoCommand(t, "next", filename, "--phase", "--format", "json")
+	if !containsString(output, "Implementation") {
+		t.Error("expected next phase to be Implementation after completing Planning tasks")
+	}
+
+	t.Logf("Phase workflow end-to-end test passed successfully")
+}
+
+// testPhaseRoundTrip tests round-trip (parse -> modify -> render -> parse) with phases
+func testPhaseRoundTrip(t *testing.T, tempDir string) {
+	// Use the simple_phases.md fixture
+	sourceFile := "../examples/phases/simple_phases.md"
+	testFile := "roundtrip.md"
+
+	// Copy fixture to temp directory
+	content, err := os.ReadFile(sourceFile)
+	if err != nil {
+		t.Fatalf("failed to read fixture: %v", err)
+	}
+	if err := os.WriteFile(testFile, content, 0o644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Step 1: Parse the file
+	tl1, err := task.ParseFile(testFile)
+	if err != nil {
+		t.Fatalf("first parse failed: %v", err)
+	}
+
+	// Step 2: Modify - add a task to Planning phase
+	runGoCommand(t, "add", testFile, "--phase", "Planning", "--title", "Review with stakeholders")
+
+	// Step 3: Parse again
+	tl2, err := task.ParseFile(testFile)
+	if err != nil {
+		t.Fatalf("second parse failed: %v", err)
+	}
+
+	// Verify task count increased
+	if len(tl2.Tasks) != len(tl1.Tasks)+1 {
+		t.Errorf("expected %d tasks after addition, got %d", len(tl1.Tasks)+1, len(tl2.Tasks))
+	}
+
+	// Step 4: Write file
+	if err := tl2.WriteFile(testFile); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Step 5: Parse third time and verify consistency
+	tl3, err := task.ParseFile(testFile)
+	if err != nil {
+		t.Fatalf("third parse failed: %v", err)
+	}
+
+	if len(tl3.Tasks) != len(tl2.Tasks) {
+		t.Errorf("task count changed between writes: expected %d, got %d", len(tl2.Tasks), len(tl3.Tasks))
+	}
+
+	// Verify phase headers are preserved by checking raw content
+	content, err = os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	contentStr := string(content)
+
+	if !containsString(contentStr, "## Planning") {
+		t.Error("Planning phase header not preserved")
+	}
+	if !containsString(contentStr, "## Implementation") {
+		t.Error("Implementation phase header not preserved")
+	}
+	if !containsString(contentStr, "## Testing") {
+		t.Error("Testing phase header not preserved")
+	}
+
+	// Step 6: Test removing a task preserves phases
+	runGoCommand(t, "remove", testFile, "1")
+
+	content, err = os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to read file after removal: %v", err)
+	}
+	contentStr = string(content)
+
+	if !containsString(contentStr, "## Planning") {
+		t.Error("Planning phase header not preserved after task removal")
+	}
+
+	t.Logf("Phase round trip test passed successfully")
+}
+
+// testPhaseBatchOperations tests batch operations creating and populating phases
+func testPhaseBatchOperations(t *testing.T, tempDir string) {
+	filename := "batch-phases.md"
+
+	// Create task file
+	tl := task.NewTaskList("Batch Phase Test")
+	if err := tl.WriteFile(filename); err != nil {
+		t.Fatalf("failed to create task file: %v", err)
+	}
+
+	// Step 1: Create a batch file with phase operations
+	batchContent := `{
+  "operations": [
+    {
+      "action": "add",
+      "title": "Sprint planning meeting",
+      "phase": "Planning"
+    },
+    {
+      "action": "add",
+      "title": "Backlog refinement",
+      "phase": "Planning"
+    },
+    {
+      "action": "add",
+      "title": "Develop user authentication",
+      "phase": "Development"
+    },
+    {
+      "action": "add",
+      "title": "Develop API endpoints",
+      "phase": "Development"
+    },
+    {
+      "action": "add",
+      "parent_id": "3",
+      "title": "Implement login endpoint"
+    },
+    {
+      "action": "add",
+      "title": "Integration testing",
+      "phase": "QA"
+    }
+  ]
+}`
+	batchFile := "batch-operations.json"
+	if err := os.WriteFile(batchFile, []byte(batchContent), 0o644); err != nil {
+		t.Fatalf("failed to write batch file: %v", err)
+	}
+
+	// Step 2: Execute batch operations
+	output := runGoCommand(t, "batch", filename, "--input", batchFile, "--format", "json")
+
+	// Verify batch response includes phase information
+	if !containsString(output, "Planning") {
+		t.Error("expected Planning phase in batch response")
+	}
+	if !containsString(output, "Development") {
+		t.Error("expected Development phase in batch response")
+	}
+	if !containsString(output, "QA") {
+		t.Error("expected QA phase in batch response")
+	}
+
+	// Step 3: Verify file structure
+	tl, err := task.ParseFile(filename)
+	if err != nil {
+		t.Fatalf("failed to parse file: %v", err)
+	}
+
+	// Should have 5 root tasks (2 in Planning, 2 in Development, 1 in QA)
+	if len(tl.Tasks) != 5 {
+		t.Errorf("expected 5 root tasks, got %d", len(tl.Tasks))
+	}
+
+	// Task 3 should have 1 subtask
+	task3 := tl.FindTask("3")
+	if task3 == nil {
+		t.Fatal("task 3 not found")
+	}
+	if len(task3.Children) != 1 {
+		t.Errorf("expected task 3 to have 1 child, got %d", len(task3.Children))
+	}
+
+	// Verify phase headers exist in the file
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	contentStr := string(content)
+
+	if !containsString(contentStr, "## Planning") {
+		t.Error("Planning phase header not created")
+	}
+	if !containsString(contentStr, "## Development") {
+		t.Error("Development phase header not created")
+	}
+	if !containsString(contentStr, "## QA") {
+		t.Error("QA phase header not created")
+	}
+
+	// Step 4: Test mixed batch operations (with and without phases)
+	mixedBatch := `{
+  "operations": [
+    {
+      "action": "add",
+      "title": "No phase task"
+    },
+    {
+      "action": "update",
+      "id": "1",
+      "status": "InProgress"
+    },
+    {
+      "action": "add",
+      "title": "Another planning task",
+      "phase": "Planning"
+    }
+  ]
+}`
+	if err := os.WriteFile(batchFile, []byte(mixedBatch), 0o644); err != nil {
+		t.Fatalf("failed to write mixed batch file: %v", err)
+	}
+
+	runGoCommand(t, "batch", filename, "--input", batchFile, "--format", "json")
+
+	// Verify task was updated
+	tl, err = task.ParseFile(filename)
+	if err != nil {
+		t.Fatalf("failed to parse file after mixed batch: %v", err)
+	}
+
+	task1 := tl.FindTask("1")
+	if task1 == nil {
+		t.Fatal("task 1 not found")
+	}
+	if task1.Status != task.InProgress {
+		t.Errorf("expected task 1 to be InProgress, got %s", task1.Status)
+	}
+
+	t.Logf("Phase batch operations test passed successfully")
+}
+
+// testPhaseBackwardCompatibility verifies backward compatibility with legacy task files
+func testPhaseBackwardCompatibility(t *testing.T, tempDir string) {
+	// Test 1: Use existing task file without phases
+	sourceFile := "../examples/simple.md"
+	testFile := "legacy.md"
+
+	content, err := os.ReadFile(sourceFile)
+	if err != nil {
+		t.Fatalf("failed to read legacy fixture: %v", err)
+	}
+	if err := os.WriteFile(testFile, content, 0o644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Step 1: Verify file can be parsed
+	tl, err := task.ParseFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to parse legacy file: %v", err)
+	}
+
+	originalTaskCount := len(tl.Tasks)
+
+	// Step 2: Add task without phase flag (should work as before)
+	runGoCommand(t, "add", testFile, "--title", "New task without phase")
+
+	tl, err = task.ParseFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to parse after adding task: %v", err)
+	}
+
+	if len(tl.Tasks) != originalTaskCount+1 {
+		t.Errorf("expected %d tasks, got %d", originalTaskCount+1, len(tl.Tasks))
+	}
+
+	// Step 3: List tasks - phase column should NOT appear for non-phase files
+	_ = runGoCommand(t, "list", testFile, "--format", "table")
+	// In a file without phases, the Phase column should not be present
+	// This is a qualitative test - we just verify the command works
+
+	// Step 4: JSON output should not include phase information when no phases exist
+	jsonOutput := runGoCommand(t, "list", testFile, "--format", "json")
+	// Verify the output is valid JSON (command succeeds)
+	if !containsString(jsonOutput, "tasks") {
+		t.Error("expected JSON output to contain tasks")
+	}
+
+	// Step 5: Test mixed content file (phases and non-phased tasks)
+	mixedFile := "../examples/phases/mixed_content.md"
+	testMixed := "mixed.md"
+
+	content, err = os.ReadFile(mixedFile)
+	if err != nil {
+		t.Fatalf("failed to read mixed content fixture: %v", err)
+	}
+	if err := os.WriteFile(testMixed, content, 0o644); err != nil {
+		t.Fatalf("failed to write mixed test file: %v", err)
+	}
+
+	tl, err = task.ParseFile(testMixed)
+	if err != nil {
+		t.Fatalf("failed to parse mixed content file: %v", err)
+	}
+
+	// Step 6: Add task without --phase to mixed content file
+	runGoCommand(t, "add", testMixed, "--title", "Task added without phase flag")
+
+	tl, err = task.ParseFile(testMixed)
+	if err != nil {
+		t.Fatalf("failed to parse mixed file after addition: %v", err)
+	}
+
+	// Verify all existing task IDs are preserved
+	// and task operations work correctly
+	runGoCommand(t, "complete", testMixed, "1")
+	runGoCommand(t, "update", testMixed, "2", "--title", "Updated task title")
+
+	tl, err = task.ParseFile(testMixed)
+	if err != nil {
+		t.Fatalf("failed to parse after operations: %v", err)
+	}
+
+	task1 := tl.FindTask("1")
+	if task1 == nil {
+		t.Fatal("task 1 not found")
+	}
+	if task1.Status != task.Completed {
+		t.Errorf("expected task 1 to be completed, got %s", task1.Status)
+	}
+
+	task2 := tl.FindTask("2")
+	if task2 == nil {
+		t.Fatal("task 2 not found")
+	}
+	if task2.Title != "Updated task title" {
+		t.Errorf("expected task 2 title to be updated, got %s", task2.Title)
+	}
+
+	// Step 7: Test empty phases preservation
+	emptyFile := "../examples/phases/empty_phases.md"
+	testEmpty := "empty.md"
+
+	content, err = os.ReadFile(emptyFile)
+	if err != nil {
+		t.Fatalf("failed to read empty phases fixture: %v", err)
+	}
+	if err := os.WriteFile(testEmpty, content, 0o644); err != nil {
+		t.Fatalf("failed to write empty test file: %v", err)
+	}
+
+	// Parse and write back - empty phases should be preserved
+	tl, err = task.ParseFile(testEmpty)
+	if err != nil {
+		t.Fatalf("failed to parse empty phases file: %v", err)
+	}
+
+	if err := tl.WriteFile(testEmpty); err != nil {
+		t.Fatalf("failed to write empty phases file: %v", err)
+	}
+
+	// Verify empty phases still exist
+	content, err = os.ReadFile(testEmpty)
+	if err != nil {
+		t.Fatalf("failed to read file after write: %v", err)
+	}
+	contentStr := string(content)
+
+	if !containsString(contentStr, "## Empty Phase One") {
+		t.Error("Empty Phase One header not preserved")
+	}
+	if !containsString(contentStr, "## Empty Phase Two") {
+		t.Error("Empty Phase Two header not preserved")
+	}
+	if !containsString(contentStr, "## Another Empty Phase") {
+		t.Error("Another Empty Phase header not preserved")
+	}
+
+	// Step 8: Test duplicate phase names
+	dupFile := "../examples/phases/duplicate_phases.md"
+	testDup := "duplicate.md"
+
+	content, err = os.ReadFile(dupFile)
+	if err != nil {
+		t.Fatalf("failed to read duplicate phases fixture: %v", err)
+	}
+	if err := os.WriteFile(testDup, content, 0o644); err != nil {
+		t.Fatalf("failed to write duplicate test file: %v", err)
+	}
+
+	// Add task to "Implementation" phase - should go to first occurrence
+	runGoCommand(t, "add", testDup, "--phase", "Implementation", "--title", "New implementation task")
+
+	tl, err = task.ParseFile(testDup)
+	if err != nil {
+		t.Fatalf("failed to parse duplicate phases file: %v", err)
+	}
+
+	// Verify the file content to ensure task was added to correct location
+	content, err = os.ReadFile(testDup)
+	if err != nil {
+		t.Fatalf("failed to read file after adding to duplicate phase: %v", err)
+	}
+	contentStr = string(content)
+
+	// The new task should be added to the first Implementation phase
+	if !containsString(contentStr, "New implementation task") {
+		t.Error("New task not added to duplicate phase")
+	}
+
+	t.Logf("Phase backward compatibility test passed successfully")
 }

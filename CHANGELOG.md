@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Phase integration tests**: Comprehensive end-to-end testing for phase functionality
+  - Test for end-to-end phase creation and task addition workflow
+  - Test for round-trip operations (parse → modify → render → parse) with phases
+  - Test for batch operations creating and populating phases
+  - Test for backward compatibility with legacy task files
+  - Test fixtures including simple_phases.md, mixed_content.md, empty_phases.md, duplicate_phases.md
+  - Verification of phase preservation during file operations and task management
+  - Testing of mixed operations with and without phase flags
+  - Validation of duplicate phase name handling
+  - References: specs/task-phases requirements 8.1, 8.2, tasks 8.1, 8.2
+
+### Added
 - **Batch operations with phase support**: Enhanced batch command to support phase field in add operations
   - Added Phase field to Operation struct for specifying target phase when adding tasks
   - Implemented ExecuteBatchWithPhases function for phase-aware batch execution
