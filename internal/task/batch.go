@@ -11,6 +11,7 @@ import (
 const (
 	updateOperation = "update"
 	addOperation    = "add"
+	removeOperation = "remove"
 )
 
 // StatusPtr returns a pointer to the given status value for use in Operation structs
@@ -96,6 +97,7 @@ type Operation struct {
 	Details    []string `json:"details,omitempty"`
 	References []string `json:"references,omitempty"`
 	Position   string   `json:"position,omitempty"`
+	Phase      string   `json:"phase,omitempty"`
 }
 
 // BatchRequest represents a request for multiple operations
@@ -202,7 +204,7 @@ func validateOperation(tl *TaskList, op Operation) error {
 				return fmt.Errorf("invalid position format: %s", op.Position)
 			}
 		}
-	case "remove":
+	case removeOperation:
 		if op.ID == "" {
 			return fmt.Errorf("remove operation requires id")
 		}
@@ -245,7 +247,7 @@ func applyOperation(tl *TaskList, op Operation) error {
 			}
 		}
 		return nil
-	case "remove":
+	case removeOperation:
 		return tl.RemoveTask(op.ID)
 	case updateOperation:
 		// Handle status update only when status field is provided
@@ -306,4 +308,298 @@ func (tl *TaskList) deepCopy() (*TaskList, error) {
 		maps.Copy(copyList.FrontMatter.Metadata, tl.FrontMatter.Metadata)
 	}
 	return copyList, nil
+}
+
+// ExecuteBatchWithPhases validates and executes a batch of operations atomically with phase support
+func (tl *TaskList) ExecuteBatchWithPhases(ops []Operation, dryRun bool, phaseMarkers []PhaseMarker, filePath string) (*BatchResponse, error) {
+	response := &BatchResponse{
+		Success:       true,
+		Applied:       0,
+		Errors:        []string{},
+		AutoCompleted: []string{},
+	}
+
+	// Check if any operations use phases
+	hasPhaseOps := false
+	for _, op := range ops {
+		if op.Phase != "" {
+			hasPhaseOps = true
+			break
+		}
+	}
+
+	// If no phase operations, use regular batch execution
+	if !hasPhaseOps {
+		return tl.ExecuteBatch(ops, dryRun)
+	}
+
+	// Sort operations to process position insertions in reverse order
+	sortedOps := sortOperationsForPositionInsertions(ops)
+
+	// Create a deep copy to test all operations first
+	testList, err := tl.deepCopyWithPhases(phaseMarkers)
+	if err != nil {
+		return nil, fmt.Errorf("creating test copy: %w", err)
+	}
+
+	// Track auto-completed tasks for test copy
+	testAutoCompleted := make(map[string]bool)
+
+	// Track phase markers during test execution
+	testPhaseMarkers := make([]PhaseMarker, len(phaseMarkers))
+	copy(testPhaseMarkers, phaseMarkers)
+
+	// Validate and apply operations to test copy sequentially
+	for i, op := range sortedOps {
+		if err := validateOperation(testList, op); err != nil {
+			response.Success = false
+			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
+			return response, nil
+		}
+
+		// Apply operation to test copy
+		if err := applyOperationWithPhases(testList, op, testAutoCompleted, &testPhaseMarkers); err != nil {
+			response.Success = false
+			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
+			return response, nil
+		}
+	}
+
+	// Convert test auto-completed map to slice for response
+	for taskID := range testAutoCompleted {
+		response.AutoCompleted = append(response.AutoCompleted, taskID)
+	}
+
+	// For dry run, return preview without applying to original
+	if dryRun {
+		response.Preview = string(RenderMarkdownWithPhases(testList, testPhaseMarkers))
+		response.Applied = len(sortedOps)
+		return response, nil
+	}
+
+	// Track auto-completed tasks for actual operations
+	autoCompleted := make(map[string]bool)
+
+	// Track phase markers during actual execution
+	actualPhaseMarkers := make([]PhaseMarker, len(phaseMarkers))
+	copy(actualPhaseMarkers, phaseMarkers)
+
+	// Apply all operations to original (atomic - all succeed or all fail)
+	for _, op := range sortedOps {
+		if err := applyOperationWithPhases(tl, op, autoCompleted, &actualPhaseMarkers); err != nil {
+			return nil, fmt.Errorf("applying operation: %w", err)
+		}
+		response.Applied++
+	}
+
+	// Clear and rebuild auto-completed list from actual operations
+	response.AutoCompleted = []string{}
+	for taskID := range autoCompleted {
+		response.AutoCompleted = append(response.AutoCompleted, taskID)
+	}
+
+	// Write the file with phases preserved
+	if err := WriteFileWithPhases(tl, actualPhaseMarkers, filePath); err != nil {
+		return nil, fmt.Errorf("writing file with phases: %w", err)
+	}
+
+	return response, nil
+}
+
+// deepCopyWithPhases creates a deep copy preserving phase markers
+func (tl *TaskList) deepCopyWithPhases(phaseMarkers []PhaseMarker) (*TaskList, error) {
+	// Render with phases and parse back
+	content := RenderMarkdownWithPhases(tl, phaseMarkers)
+	copyList, err := ParseMarkdown(content)
+	if err != nil {
+		return nil, fmt.Errorf("creating deep copy: %w", err)
+	}
+	copyList.FilePath = tl.FilePath
+	// Preserve front matter
+	if tl.FrontMatter != nil {
+		copyList.FrontMatter = &FrontMatter{
+			References: make([]string, len(tl.FrontMatter.References)),
+			Metadata:   make(map[string]string),
+		}
+		copy(copyList.FrontMatter.References, tl.FrontMatter.References)
+		maps.Copy(copyList.FrontMatter.Metadata, tl.FrontMatter.Metadata)
+	}
+	return copyList, nil
+}
+
+// applyOperationWithPhases executes a single operation with phase support and tracks auto-completed tasks
+func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[string]bool, phaseMarkers *[]PhaseMarker) error {
+	switch strings.ToLower(op.Type) {
+	case addOperation:
+		if op.Phase != "" {
+			// Phase-aware add operation
+			return addTaskWithPhaseMarkers(tl, op, phaseMarkers)
+		}
+		// Regular add operation
+		newTaskID, err := tl.AddTask(op.Parent, op.Title, op.Position)
+		if err != nil {
+			return err
+		}
+		// If details or references are provided, update the newly added task
+		if len(op.Details) > 0 || len(op.References) > 0 {
+			if newTaskID != "" {
+				return tl.UpdateTask(newTaskID, "", op.Details, op.References)
+			}
+		}
+		return nil
+	case removeOperation:
+		return tl.RemoveTask(op.ID)
+	case updateOperation:
+		// Handle status update only when status field is provided
+		if hasStatusField(op) {
+			if err := tl.UpdateStatus(op.ID, *op.Status); err != nil {
+				return err
+			}
+
+			// Check for auto-completion on update operations that mark tasks as completed
+			if *op.Status == Completed {
+				completed, err := tl.AutoCompleteParents(op.ID)
+				if err == nil {
+					// Track auto-completed tasks (avoid duplicates)
+					for _, taskID := range completed {
+						autoCompleted[taskID] = true
+					}
+				}
+			}
+		}
+		// Handle other field updates (title, details, references) if provided
+		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References)
+	default:
+		return fmt.Errorf("unknown operation type: %s", op.Type)
+	}
+}
+
+// addTaskWithPhaseMarkers adds a task to a specific phase, updating phase markers as needed
+func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMarker) error {
+	// Validate input
+	if err := validateTaskInput(op.Title); err != nil {
+		return err
+	}
+
+	// Check resource limits
+	if err := tl.checkResourceLimits(op.Parent); err != nil {
+		return err
+	}
+
+	var insertPosition int
+	phaseFound := false
+
+	// Find the phase position
+	for _, marker := range *phaseMarkers {
+		if marker.Name == op.Phase {
+			phaseFound = true
+			break
+		}
+	}
+
+	if !phaseFound {
+		// Phase doesn't exist, create it at the end and add task there
+		insertPosition = len(tl.Tasks)
+
+		// Add phase marker to the list
+		afterTaskID := ""
+		if len(tl.Tasks) > 0 {
+			afterTaskID = tl.Tasks[len(tl.Tasks)-1].ID
+		}
+		*phaseMarkers = append(*phaseMarkers, PhaseMarker{
+			Name:        op.Phase,
+			AfterTaskID: afterTaskID,
+		})
+	} else {
+		// Phase exists, find where to insert the task within this phase
+		phaseEndPos := len(tl.Tasks) // Default to end of list
+
+		// Look for the next phase marker in document order
+		for i, marker := range *phaseMarkers {
+			// Skip until we find our target phase
+			if marker.Name != op.Phase {
+				continue
+			}
+
+			// Look for the next phase after this one
+			if i+1 < len(*phaseMarkers) {
+				nextMarker := (*phaseMarkers)[i+1]
+				if nextMarker.AfterTaskID != "" {
+					// Find where the next phase starts
+					for j, task := range tl.Tasks {
+						if task.ID == nextMarker.AfterTaskID {
+							phaseEndPos = j + 1
+							break
+						}
+					}
+				}
+			}
+			break
+		}
+
+		// Insert at the end of the current phase
+		insertPosition = phaseEndPos
+	}
+
+	// Handle parentID if specified
+	if op.Parent != "" {
+		// For subtasks, use existing AddTask logic
+		newTaskID, err := tl.AddTask(op.Parent, op.Title, "")
+		if err != nil {
+			return err
+		}
+		// If details or references are provided, update the newly added task
+		if len(op.Details) > 0 || len(op.References) > 0 {
+			if newTaskID != "" {
+				return tl.UpdateTask(newTaskID, "", op.Details, op.References)
+			}
+		}
+		return nil
+	}
+
+	// Insert task at the calculated position
+	newTask := Task{
+		ID:     "temp", // Will be renumbered
+		Title:  op.Title,
+		Status: Pending,
+	}
+
+	// Insert at position
+	if insertPosition >= len(tl.Tasks) {
+		tl.Tasks = append(tl.Tasks, newTask)
+	} else {
+		tl.Tasks = append(tl.Tasks[:insertPosition],
+			append([]Task{newTask}, tl.Tasks[insertPosition:]...)...)
+	}
+
+	// Renumber all tasks
+	tl.renumberTasks()
+
+	// Update phase markers to account for the insertion
+	if phaseFound {
+		// Find the next phase marker after our target phase
+		for i, marker := range *phaseMarkers {
+			if marker.Name == op.Phase {
+				// Look for the next phase marker
+				if i+1 < len(*phaseMarkers) {
+					nextMarker := &(*phaseMarkers)[i+1]
+					// The next phase should now start after the newly inserted task
+					if insertPosition < len(tl.Tasks) {
+						nextMarker.AfterTaskID = tl.Tasks[insertPosition].ID
+					}
+				}
+				break
+			}
+		}
+	}
+
+	// If details or references are provided, update the newly added task
+	if len(op.Details) > 0 || len(op.References) > 0 {
+		if insertPosition < len(tl.Tasks) {
+			newTaskID := tl.Tasks[insertPosition].ID
+			return tl.UpdateTask(newTaskID, "", op.Details, op.References)
+		}
+	}
+
+	return nil
 }

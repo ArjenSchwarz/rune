@@ -635,3 +635,110 @@ func WriteFileWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, filePath stri
 	tl.FilePath = filePath
 	return nil
 }
+
+// Phase-aware operation wrappers that preserve phase markers
+
+// RemoveTaskWithPhases removes a task while preserving phase structure
+func (tl *TaskList) RemoveTaskWithPhases(taskID string, originalContent []byte) error {
+	// Extract phase markers from the original content
+	lines := strings.Split(string(originalContent), "\n")
+	phaseMarkers := extractPhaseMarkers(lines)
+
+	// If no phases, just use regular operations
+	if len(phaseMarkers) == 0 {
+		if err := tl.RemoveTask(taskID); err != nil {
+			return err
+		}
+		return tl.WriteFile(tl.FilePath)
+	}
+
+	// Get the numeric value of the task being removed
+	removedTaskNum := getTaskNumber(taskID)
+	if removedTaskNum == -1 {
+		return fmt.Errorf("invalid task ID format: %s", taskID)
+	}
+
+	// Remove the task
+	if err := tl.RemoveTask(taskID); err != nil {
+		return err
+	}
+
+	// Adjust phase markers to account for renumbered tasks
+	for i := range phaseMarkers {
+		if phaseMarkers[i].AfterTaskID != "" {
+			afterTaskNum := getTaskNumber(phaseMarkers[i].AfterTaskID)
+			if afterTaskNum == removedTaskNum {
+				// This phase was positioned after the removed task
+				// Move it to be positioned after the previous task
+				if removedTaskNum > 1 {
+					phaseMarkers[i].AfterTaskID = fmt.Sprintf("%d", removedTaskNum-1)
+				} else {
+					// Removing task 1, so phase goes to beginning
+					phaseMarkers[i].AfterTaskID = ""
+				}
+			} else if afterTaskNum > removedTaskNum {
+				// This phase marker comes after the removed task, so decrement the ID
+				// to account for the fact that all subsequent tasks are renumbered
+				phaseMarkers[i].AfterTaskID = fmt.Sprintf("%d", afterTaskNum-1)
+			}
+			// If afterTaskNum < removedTaskNum, no adjustment needed
+		}
+	}
+
+	// Write with phases preserved
+	return WriteFileWithPhases(tl, phaseMarkers, tl.FilePath)
+}
+
+// UpdateTaskWithPhases updates a task while preserving phase structure
+func (tl *TaskList) UpdateTaskWithPhases(taskID, title string, details, refs []string, originalContent []byte) error {
+	// Extract phase markers from the original content
+	lines := strings.Split(string(originalContent), "\n")
+	phaseMarkers := extractPhaseMarkers(lines)
+
+	// Update the task
+	if err := tl.UpdateTask(taskID, title, details, refs); err != nil {
+		return err
+	}
+
+	// If phases were present, write with phases preserved
+	if len(phaseMarkers) > 0 {
+		return WriteFileWithPhases(tl, phaseMarkers, tl.FilePath)
+	}
+
+	// No phases, use regular write
+	return tl.WriteFile(tl.FilePath)
+}
+
+// UpdateStatusWithPhases updates a task status while preserving phase structure
+func (tl *TaskList) UpdateStatusWithPhases(taskID string, status Status, originalContent []byte) error {
+	// Extract phase markers from the original content
+	lines := strings.Split(string(originalContent), "\n")
+	phaseMarkers := extractPhaseMarkers(lines)
+
+	// Update the status
+	if err := tl.UpdateStatus(taskID, status); err != nil {
+		return err
+	}
+
+	// If phases were present, write with phases preserved
+	if len(phaseMarkers) > 0 {
+		return WriteFileWithPhases(tl, phaseMarkers, tl.FilePath)
+	}
+
+	// No phases, use regular write
+	return tl.WriteFile(tl.FilePath)
+}
+
+// Helper function to extract the main task number from a task ID
+func getTaskNumber(taskID string) int {
+	parts := strings.Split(taskID, ".")
+	if len(parts) == 0 {
+		return -1
+	}
+
+	num, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return -1
+	}
+	return num
+}

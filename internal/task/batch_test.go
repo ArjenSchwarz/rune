@@ -3,6 +3,7 @@ package task
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
@@ -2029,5 +2030,308 @@ func TestExecuteBatch_UpdateStatusOperationInvalid(t *testing.T) {
 	task1 := tl.FindTask("1")
 	if task1.Status != Pending {
 		t.Errorf("Task 1 should remain Pending, got %v", task1.Status)
+	}
+}
+
+// TestExecuteBatch_PhaseAddOperation tests adding tasks with phase field
+func TestExecuteBatch_PhaseAddOperation(t *testing.T) {
+	tests := map[string]struct {
+		setup       func() string
+		ops         []Operation
+		verify      func(*testing.T, *TaskList)
+		description string
+	}{
+		"add task to existing phase": {
+			setup: func() string {
+				return `# Test Tasks
+
+## Planning
+
+- [ ] 1. Existing task
+
+## Implementation
+
+- [ ] 2. Another task`
+			},
+			ops: []Operation{
+				{
+					Type:  "add",
+					Title: "New planning task",
+					Phase: "Planning",
+				},
+			},
+			verify: func(t *testing.T, tl *TaskList) {
+				task := findTaskByTitle(tl, "New planning task")
+				if task == nil {
+					t.Error("New planning task not found")
+					return
+				}
+				// Task should be added to Planning phase (after existing task, before Implementation phase)
+				if task.ID != "2" {
+					t.Errorf("Expected task ID 2, got %s", task.ID)
+				}
+			},
+			description: "Task should be added to existing phase",
+		},
+		"add task to non-existent phase creates phase": {
+			setup: func() string {
+				return `# Test Tasks
+
+- [ ] 1. Existing task`
+			},
+			ops: []Operation{
+				{
+					Type:  "add",
+					Title: "New phase task",
+					Phase: "New Phase",
+				},
+			},
+			verify: func(t *testing.T, tl *TaskList) {
+				task := findTaskByTitle(tl, "New phase task")
+				if task == nil {
+					t.Error("New phase task not found")
+					return
+				}
+				// Task should be added after existing task
+				if task.ID != "2" {
+					t.Errorf("Expected task ID 2, got %s", task.ID)
+				}
+			},
+			description: "Non-existent phase should be created and task added",
+		},
+		"add multiple tasks to same phase": {
+			setup: func() string {
+				return `# Test Tasks
+
+## Development
+
+- [ ] 1. First dev task`
+			},
+			ops: []Operation{
+				{
+					Type:  "add",
+					Title: "Second dev task",
+					Phase: "Development",
+				},
+				{
+					Type:  "add",
+					Title: "Third dev task",
+					Phase: "Development",
+				},
+			},
+			verify: func(t *testing.T, tl *TaskList) {
+				if len(tl.Tasks) != 3 {
+					t.Errorf("Expected 3 tasks, got %d", len(tl.Tasks))
+				}
+			},
+			description: "Multiple tasks should be added to same phase",
+		},
+		"add task with parent in phase": {
+			setup: func() string {
+				return `# Test Tasks
+
+## Planning
+
+- [ ] 1. Parent task`
+			},
+			ops: []Operation{
+				{
+					Type:   "add",
+					Title:  "Child task",
+					Parent: "1",
+					Phase:  "Planning",
+				},
+			},
+			verify: func(t *testing.T, tl *TaskList) {
+				parent := tl.FindTask("1")
+				if parent == nil {
+					t.Error("Parent task not found")
+					return
+				}
+				if len(parent.Children) != 1 {
+					t.Errorf("Expected 1 child, got %d", len(parent.Children))
+					return
+				}
+				if parent.Children[0].Title != "Child task" {
+					t.Errorf("Expected 'Child task', got '%s'", parent.Children[0].Title)
+				}
+			},
+			description: "Task with parent should be added correctly in phase",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Create temp file with initial content
+			content := tc.setup()
+			tempFile := fmt.Sprintf("test_batch_phase_%s.md", strings.ReplaceAll(name, " ", "_"))
+			if err := os.WriteFile(tempFile, []byte(content), 0644); err != nil {
+				t.Fatalf("Failed to write temp file: %v", err)
+			}
+			defer os.Remove(tempFile)
+
+			// Parse the file with phases
+			tl, phaseMarkers, err := ParseFileWithPhases(tempFile)
+			if err != nil {
+				t.Fatalf("Failed to parse file: %v", err)
+			}
+
+			// Execute batch with phase operations
+			response, err := tl.ExecuteBatchWithPhases(tc.ops, false, phaseMarkers, tempFile)
+			if err != nil {
+				t.Fatalf("ExecuteBatchWithPhases failed: %v", err)
+			}
+
+			if !response.Success {
+				t.Fatalf("%s: Expected success, got errors: %v", tc.description, response.Errors)
+			}
+
+			// Re-parse to verify
+			tl, _, err = ParseFileWithPhases(tempFile)
+			if err != nil {
+				t.Fatalf("Failed to re-parse file: %v", err)
+			}
+
+			// Run verification
+			tc.verify(t, tl)
+		})
+	}
+}
+
+// TestExecuteBatch_PhaseDuplicateHandling tests duplicate phase name handling
+func TestExecuteBatch_PhaseDuplicateHandling(t *testing.T) {
+	content := `# Test Tasks
+
+## Development
+
+- [ ] 1. First dev task
+
+## Testing
+
+- [ ] 2. Test task
+
+## Development
+
+- [ ] 3. Second dev section`
+
+	tempFile := "test_batch_duplicate_phases.md"
+	if err := os.WriteFile(tempFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	defer os.Remove(tempFile)
+
+	tl, phaseMarkers, err := ParseFileWithPhases(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+
+	// Add task to "Development" phase - should go to first occurrence
+	ops := []Operation{
+		{
+			Type:  "add",
+			Title: "New dev task",
+			Phase: "Development",
+		},
+	}
+
+	response, err := tl.ExecuteBatchWithPhases(ops, false, phaseMarkers, tempFile)
+	if err != nil {
+		t.Fatalf("ExecuteBatchWithPhases failed: %v", err)
+	}
+
+	if !response.Success {
+		t.Fatalf("Expected success, got errors: %v", response.Errors)
+	}
+
+	// Re-parse and verify task was added to first Development phase
+	tl, _, err = ParseFileWithPhases(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to re-parse file: %v", err)
+	}
+
+	newTask := findTaskByTitle(tl, "New dev task")
+	if newTask == nil {
+		t.Fatal("New dev task not found")
+	}
+
+	// Task should be added after "First dev task" and before "Test task"
+	if newTask.ID != "2" {
+		t.Errorf("Expected task ID 2 (in first Development phase), got %s", newTask.ID)
+	}
+}
+
+// TestExecuteBatch_MixedPhaseOperations tests batch with some operations having phases, some without
+func TestExecuteBatch_MixedPhaseOperations(t *testing.T) {
+	content := `# Test Tasks
+
+## Planning
+
+- [ ] 1. Plan task
+
+## Implementation
+
+- [ ] 2. Impl task`
+
+	tempFile := "test_batch_mixed_phases.md"
+	if err := os.WriteFile(tempFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	defer os.Remove(tempFile)
+
+	tl, phaseMarkers, err := ParseFileWithPhases(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+
+	// Mix of phase and non-phase operations
+	ops := []Operation{
+		{
+			Type:  "add",
+			Title: "Task in Planning",
+			Phase: "Planning",
+		},
+		{
+			Type:  "add",
+			Title: "Task without phase",
+		},
+		{
+			Type:   "update",
+			ID:     "1",
+			Status: StatusPtr(Completed),
+		},
+	}
+
+	response, err := tl.ExecuteBatchWithPhases(ops, false, phaseMarkers, tempFile)
+	if err != nil {
+		t.Fatalf("ExecuteBatchWithPhases failed: %v", err)
+	}
+
+	if !response.Success {
+		t.Fatalf("Expected success, got errors: %v", response.Errors)
+	}
+
+	if response.Applied != 3 {
+		t.Errorf("Expected 3 applied operations, got %d", response.Applied)
+	}
+
+	// Verify all operations succeeded
+	tl, _, err = ParseFileWithPhases(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to re-parse file: %v", err)
+	}
+
+	phaseTask := findTaskByTitle(tl, "Task in Planning")
+	if phaseTask == nil {
+		t.Error("Task in Planning not found")
+	}
+
+	nonPhaseTask := findTaskByTitle(tl, "Task without phase")
+	if nonPhaseTask == nil {
+		t.Error("Task without phase not found")
+	}
+
+	task1 := tl.FindTask("1")
+	if task1 == nil || task1.Status != Completed {
+		t.Error("Task 1 should be completed")
 	}
 }

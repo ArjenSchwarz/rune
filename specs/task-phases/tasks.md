@@ -90,34 +90,34 @@ references:
     - Return all pending tasks from that phase
     - References: Requirements 7.1, 7.2, 7.3, 7.4, 7.5, Q1
 
-- [ ] 6. Phase Support in Task Operations
+- [x] 6. Phase Support in Task Operations
   - Ensure remove operations preserve phase structure
   - Maintain ID renumbering across phase boundaries
   - Support state updates within phases
-  - [ ] 6.1. Write unit tests for phase-aware operations
+  - [x] 6.1. Write unit tests for phase-aware operations
     - Test task removal preserves phase headers
     - Test ID renumbering works correctly across phases
     - Test state changes (pending/in-progress/completed) within phases
     - Test operations maintain sequential numbering
     - References: Requirements 2.2, 2.5, 4.6, 4.7, 4.9
-  - [ ] 6.2. Update operations.go for phase preservation
+  - [x] 6.2. Update operations.go for phase preservation
     - Modify RemoveTask to preserve phase headers
     - Ensure RenumberTasks maintains sequential IDs across phases
     - Verify UpdateTask works correctly within phases
     - Test all operations maintain phase structure
     - References: Requirements 2.1, 2.2, 2.5, 4.6, 4.7, 4.9
 
-- [ ] 7. Batch Command Phase Support
+- [x] 7. Batch Command Phase Support
   - Add phase field to batch operation JSON
   - Implement phase-aware batch operations
   - Support auto-creation of phases in batch mode
-  - [ ] 7.1. Write unit tests for batch phase operations
+  - [x] 7.1. Write unit tests for batch phase operations
     - Test batch add operations with phase field
     - Test auto-creation of phases in batch operations
     - Test duplicate phase handling in batch mode
     - Test mixed operations (some with phases, some without)
     - References: Requirements 6.1, 6.2, 6.3, 6.4, 6.7
-  - [ ] 7.2. Implement phase support in cmd/batch.go
+  - [x] 7.2. Implement phase support in cmd/batch.go
     - Add Phase field to BatchOperation struct
     - Implement phase logic in executeBatchOperation
     - Handle auto-creation of phases during batch execution

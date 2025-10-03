@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Batch operations with phase support**: Enhanced batch command to support phase field in add operations
+  - Added Phase field to Operation struct for specifying target phase when adding tasks
+  - Implemented ExecuteBatchWithPhases function for phase-aware batch execution
+  - Support for auto-creation of phases during batch operations
+  - Duplicate phase handling using first occurrence as per design specification
+  - Mixed operations support (some with phases, some without) in single batch
+  - Phase-aware operation wrappers (RemoveTaskWithPhases, UpdateTaskWithPhases, UpdateStatusWithPhases)
+  - Comprehensive test suite with 306 lines covering all phase-aware batch scenarios
+    - Tests for adding tasks to existing phases
+    - Tests for automatic phase creation when target phase doesn't exist
+    - Tests for duplicate phase name handling in batch operations
+    - Tests for mixed operations with and without phase fields
+    - Tests for batch operations with parent-child relationships in phases
+  - References: specs/task-phases requirements 6.1-6.4, 6.7, tasks 7.1-7.2
+
 ### Fixed
 - **Code quality**: Fixed ineffectual variable assignments in AddTaskToPhase function
   - Removed unnecessary insertPosition assignments when phase is found
