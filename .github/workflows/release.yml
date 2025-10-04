@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    name: Build Binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            output: rune-linux-amd64
+          - goos: linux
+            goarch: arm64
+            output: rune-linux-arm64
+          - goos: darwin
+            goarch: amd64
+            output: rune-darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            output: rune-darwin-arm64
+          - goos: windows
+            goarch: amd64
+            output: rune-windows-amd64.exe
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.0'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -o ${{ matrix.output }} -ldflags="-s -w" .
+
+      - name: Upload binary to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./${{ matrix.output }}
+          asset_name: ${{ matrix.output }}
+          asset_content_type: application/octet-stream
