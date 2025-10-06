@@ -79,7 +79,7 @@ func ParseFileWithPhases(filepath string) (*TaskList, []PhaseMarker, error) {
 		}
 	}
 
-	phaseMarkers := extractPhaseMarkers(lines)
+	phaseMarkers := ExtractPhaseMarkers(lines)
 
 	return taskList, phaseMarkers, nil
 }
@@ -359,8 +359,8 @@ func countIndent(line string) int {
 	return count
 }
 
-// extractPhaseMarkers scans lines for H2 headers and returns phase markers with their positions
-func extractPhaseMarkers(lines []string) []PhaseMarker {
+// ExtractPhaseMarkers scans lines for H2 headers and returns phase markers with their positions
+func ExtractPhaseMarkers(lines []string) []PhaseMarker {
 	markers := []PhaseMarker{}
 	var lastTaskID string
 

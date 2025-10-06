@@ -18,6 +18,7 @@ A standalone Go command-line tool designed for AI agents and developers to creat
 - **Reference Documents**: Link task files to related documentation and resources
 - **Automatic Parent Completion**: Parent tasks auto-complete when all subtasks are done
 - **Phase Organization**: Group tasks under H2 headers for logical organization
+- **Phase Detection**: Programmatically check if files contain phases with JSON output
 - **AI Agent Optimized**: Structured JSON API with comprehensive error reporting
 
 ## Installation
@@ -262,6 +263,60 @@ rune add-phase tasks.md "Testing"
 - Phase is appended to the end of the document
 - Tasks can then be added to the phase using `rune add --phase "Phase Name"`
 - Phases are optional - tasks can exist outside of any phase
+
+### has-phases - Check for Phase Headers
+
+Check if a task file contains phase headers, returning JSON output suitable for scripting.
+
+```bash
+rune has-phases [file] [options]
+```
+
+**Options:**
+- `--verbose, -v` - Include phase names in the output
+
+**Exit Codes:**
+- `0` - File contains phases
+- `1` - File does not contain phases or error occurred
+
+**Examples:**
+```bash
+# Check if file has phases using git discovery
+rune has-phases
+
+# Check specific file
+rune has-phases tasks.md
+
+# Get detailed output with phase names
+rune has-phases tasks.md --verbose
+
+# Use in shell scripts
+if rune has-phases tasks.md > /dev/null 2>&1; then
+    echo "File has phases"
+else
+    echo "File has no phases"
+fi
+```
+
+**JSON Output Format:**
+```json
+{
+  "hasPhases": true,
+  "count": 2,
+  "phases": ["Planning", "Implementation"]
+}
+```
+
+**Fields:**
+- `hasPhases` - Boolean indicating if phases exist
+- `count` - Number of phases found in the file
+- `phases` - Array of phase names (only included when `--verbose` is used, otherwise empty array)
+
+**How it works:**
+- Scans the file for H2 markdown headers (`## Phase Name`)
+- Returns JSON output for easy parsing by scripts and automation
+- Exit code allows for simple conditional checks in shell scripts
+- Useful for determining if phase-specific operations are available
 
 ### batch - Execute Multiple Operations
 

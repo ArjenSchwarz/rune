@@ -273,7 +273,7 @@ func (tl *TaskList) WriteFile(filePath string) error {
 	if existingContent, err := os.ReadFile(filePath); err == nil {
 		// File exists, check for phases
 		lines := strings.Split(string(existingContent), "\n")
-		phaseMarkers = extractPhaseMarkers(lines)
+		phaseMarkers = ExtractPhaseMarkers(lines)
 	}
 
 	// If phases exist, use phase-aware write
@@ -669,7 +669,7 @@ func WriteFileWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, filePath stri
 func (tl *TaskList) RemoveTaskWithPhases(taskID string, originalContent []byte) error {
 	// Extract phase markers from the original content
 	lines := strings.Split(string(originalContent), "\n")
-	phaseMarkers := extractPhaseMarkers(lines)
+	phaseMarkers := ExtractPhaseMarkers(lines)
 
 	// If no phases, just use regular operations
 	if len(phaseMarkers) == 0 {
@@ -720,7 +720,7 @@ func (tl *TaskList) RemoveTaskWithPhases(taskID string, originalContent []byte) 
 func (tl *TaskList) UpdateTaskWithPhases(taskID, title string, details, refs []string, originalContent []byte) error {
 	// Extract phase markers from the original content
 	lines := strings.Split(string(originalContent), "\n")
-	phaseMarkers := extractPhaseMarkers(lines)
+	phaseMarkers := ExtractPhaseMarkers(lines)
 
 	// Update the task
 	if err := tl.UpdateTask(taskID, title, details, refs); err != nil {
@@ -740,7 +740,7 @@ func (tl *TaskList) UpdateTaskWithPhases(taskID, title string, details, refs []s
 func (tl *TaskList) UpdateStatusWithPhases(taskID string, status Status, originalContent []byte) error {
 	// Extract phase markers from the original content
 	lines := strings.Split(string(originalContent), "\n")
-	phaseMarkers := extractPhaseMarkers(lines)
+	phaseMarkers := ExtractPhaseMarkers(lines)
 
 	// Update the status
 	if err := tl.UpdateStatus(taskID, status); err != nil {

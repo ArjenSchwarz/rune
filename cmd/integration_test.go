@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -154,6 +155,11 @@ func TestIntegrationWorkflows(t *testing.T) {
 			name:        "Phase Marker Updates",
 			description: "Test phase marker updates when adding tasks to phases",
 			workflow:    testPhaseMarkerUpdates,
+		},
+		"has_phases_command": {
+			name:        "Has-Phases Command",
+			description: "Test has-phases command detection and JSON output",
+			workflow:    testHasPhasesCommand,
 		},
 	}
 
@@ -3563,4 +3569,158 @@ func testPhaseMarkerUpdates(t *testing.T, tempDir string) {
 	})
 
 	t.Logf("Phase marker updates test passed successfully")
+}
+
+func testHasPhasesCommand(t *testing.T, tempDir string) {
+	// Test 1: File with phases should return true
+	t.Run("file_with_phases", func(t *testing.T) {
+		filename := "with-phases.md"
+		content := `# Tasks
+
+## Planning
+- [ ] 1. First task
+
+## Implementation
+- [ ] 2. Second task`
+
+		if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		output := runGoCommand(t, "has-phases", filename, "--format", "json")
+
+		// Parse JSON output
+		var result map[string]any
+		if err := json.Unmarshal([]byte(output), &result); err != nil {
+			t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, output)
+		}
+
+		hasPhases, ok := result["hasPhases"].(bool)
+		if !ok {
+			t.Fatalf("hasPhases field missing or wrong type")
+		}
+		if !hasPhases {
+			t.Errorf("expected hasPhases=true, got false")
+		}
+
+		count, ok := result["count"].(float64)
+		if !ok {
+			t.Fatalf("count field missing or wrong type")
+		}
+		if count != 2 {
+			t.Errorf("expected count=2, got %v", count)
+		}
+	})
+
+	// Test 2: File without phases should return false
+	t.Run("file_without_phases", func(t *testing.T) {
+		filename := "without-phases.md"
+		content := `# Tasks
+
+- [ ] 1. First task
+- [ ] 2. Second task`
+
+		if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		// has-phases returns exit code 1 when no phases, so use runGoCommandWithError
+		output := runGoCommandWithError(t, "has-phases", filename, "--format", "json")
+
+		// Parse JSON output
+		var result map[string]any
+		if err := json.Unmarshal([]byte(output), &result); err != nil {
+			t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, output)
+		}
+
+		hasPhases, ok := result["hasPhases"].(bool)
+		if !ok {
+			t.Fatalf("hasPhases field missing or wrong type")
+		}
+		if hasPhases {
+			t.Errorf("expected hasPhases=false, got true")
+		}
+
+		count, ok := result["count"].(float64)
+		if !ok {
+			t.Fatalf("count field missing or wrong type")
+		}
+		if count != 0 {
+			t.Errorf("expected count=0, got %v", count)
+		}
+	})
+
+	// Test 3: Verbose flag should include phase names
+	t.Run("verbose_flag", func(t *testing.T) {
+		filename := "verbose-test.md"
+		content := `## Planning
+- [ ] 1. Task
+
+## Testing
+- [ ] 2. Task`
+
+		if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		output := runGoCommand(t, "has-phases", filename, "--verbose", "--format", "json")
+
+		// Parse JSON output
+		var result map[string]any
+		if err := json.Unmarshal([]byte(output), &result); err != nil {
+			t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, output)
+		}
+
+		phases, ok := result["phases"].([]any)
+		if !ok {
+			t.Fatalf("phases field missing or wrong type")
+		}
+
+		if len(phases) != 2 {
+			t.Fatalf("expected 2 phases, got %d", len(phases))
+		}
+
+		// Verify phase names
+		expectedPhases := []string{"Planning", "Testing"}
+		for i, expected := range expectedPhases {
+			actual, ok := phases[i].(string)
+			if !ok {
+				t.Fatalf("phase[%d] is not a string", i)
+			}
+			if actual != expected {
+				t.Errorf("phase[%d] = %q, want %q", i, actual, expected)
+			}
+		}
+	})
+
+	// Test 4: Empty phases should still be detected
+	t.Run("empty_phases", func(t *testing.T) {
+		filename := "empty-phases.md"
+		content := `## Phase One
+
+## Phase Two`
+
+		if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		output := runGoCommand(t, "has-phases", filename, "--verbose", "--format", "json")
+
+		var result map[string]any
+		if err := json.Unmarshal([]byte(output), &result); err != nil {
+			t.Fatalf("failed to parse JSON: %v", err)
+		}
+
+		hasPhases := result["hasPhases"].(bool)
+		if !hasPhases {
+			t.Errorf("expected hasPhases=true for empty phases")
+		}
+
+		count := result["count"].(float64)
+		if count != 2 {
+			t.Errorf("expected count=2, got %v", count)
+		}
+	})
+
+	t.Logf("Has-phases command test passed successfully")
 }

@@ -105,3 +105,16 @@ The feature enables users to structure their task lists with semantic sections (
 8.5. The system SHALL preserve all existing CLI command functionality for non-phase documents
 8.6. The system SHALL not display Phase column in table output when no phases are present in the document
 8.7. The system SHALL not include phase information in JSON output when phases are not used
+
+### 9. Phase Detection Command
+
+**User Story:** As a user, I want to query whether a tasks file contains phases, so that I can determine if phase-specific operations are available.
+
+**Acceptance Criteria:**
+9.1. The system SHALL provide a `has-phases` command to check for phase presence
+9.2. The system SHALL return a boolean indication of whether phases exist in the file
+9.3. The system SHALL provide machine-readable JSON output with phase detection results
+9.4. The system SHALL include a count of phases found when phases are present
+9.5. The system SHALL list phase names when phases are present in verbose output
+9.6. The system SHALL exit with status code 0 when phases are found, 1 when no phases exist
+9.7. The system SHALL handle malformed files gracefully and report detection errors

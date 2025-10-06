@@ -123,6 +123,12 @@ func getNextPhaseTasks(content []byte) ([]Task, string) {
     // Find first phase with pending tasks
     // Return tasks and phase name
 }
+
+// Check if file has phases
+func hasPhases(content []byte) (bool, []string) {
+    // Parse content for H2 headers
+    // Return true if phases found, plus list of phase names
+}
 ```
 
 ### Command Extensions
@@ -139,6 +145,13 @@ var addPhaseCmd = &cobra.Command{
     Use:   "add-phase [name]",
     Short: "Add a new phase to the task file",
     RunE:  runAddPhase,
+}
+
+// New has-phases command
+var hasPhasesCmd = &cobra.Command{
+    Use:   "has-phases",
+    Short: "Check if the task file contains phases",
+    RunE:  runHasPhases,
 }
 ```
 
@@ -276,6 +289,11 @@ examples/
 - Add phase support to batch operations
 - Comprehensive unit and integration tests
 - Update documentation and examples
+
+### Phase 5: Phase Detection Command
+- Implement `has-phases` command for phase detection
+- Provide JSON and human-readable output formats
+- Return appropriate exit codes for scripting
 
 ## Decision Rationale
 

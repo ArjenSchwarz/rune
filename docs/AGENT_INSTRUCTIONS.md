@@ -269,6 +269,10 @@ rune next tasks.md --phase
 
 ### Phase-Aware Operations
 ```bash
+# Check if file has phases (for conditional logic)
+rune has-phases tasks.md  # Exit code 0 if phases exist, 1 if not
+rune has-phases tasks.md --verbose  # Get JSON with phase names
+
 # Add task to specific phase (creates phase if needed)
 rune add tasks.md --title "New task" --phase "Implementation"
 
@@ -284,6 +288,34 @@ rune list tasks.md --format table
 - **Hierarchical**: Organize using parent-child relationships, nested task IDs (1.1, 1.2.1)
 - **Can combine both**: Use phases for high-level organization, hierarchical tasks within phases
 
+## Programmatic Phase Detection
+
+For automation workflows that need to handle phased and non-phased files differently:
+
+```bash
+# Check if file has phases (JSON output)
+rune has-phases tasks.md
+
+# Example output for file with phases:
+# {"hasPhases":true,"count":3,"phases":[]}
+
+# Example output for file without phases:
+# {"hasPhases":false,"count":0,"phases":[]}
+
+# Get phase names with --verbose
+rune has-phases tasks.md --verbose
+# {"hasPhases":true,"count":3,"phases":["Planning","Implementation","Testing"]}
+
+# Use in scripts for conditional workflows
+if rune has-phases tasks.md > /dev/null 2>&1; then
+    # File has phases - use phase-specific workflow
+    rune next tasks.md --phase
+else
+    # File has no phases - use regular workflow
+    rune next tasks.md
+fi
+```
+
 ## Quick Reference
 
 ```bash
@@ -298,6 +330,9 @@ rune add file.md --title "Task" --phase "Phase Name" [--details "a,b,c"]
 
 # Add phase header
 rune add-phase file.md "Phase Name"
+
+# Check for phases
+rune has-phases file.md [--verbose]
 
 # Get next task or next phase
 rune next file.md [--phase]

@@ -68,7 +68,7 @@ func getNextPhaseTasks(content []byte) ([]Task, string) {
 	}
 
 	lines := strings.Split(string(content), "\n")
-	markers := extractPhaseMarkers(lines)
+	markers := ExtractPhaseMarkers(lines)
 
 	// If no phases exist, return empty
 	if len(markers) == 0 {
@@ -110,7 +110,7 @@ func getNextPhaseTasks(content []byte) ([]Task, string) {
 // Phase names are case-sensitive.
 func findPhasePosition(phaseName string, content []byte) (found bool, afterTaskID string) {
 	lines := strings.Split(string(content), "\n")
-	markers := extractPhaseMarkers(lines)
+	markers := ExtractPhaseMarkers(lines)
 
 	for _, marker := range markers {
 		if marker.Name == phaseName {

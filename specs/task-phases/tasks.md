@@ -157,3 +157,31 @@ references:
     - Add helper to find phase position in document
     - Create function to determine task's phase from content
     - References: Requirements 1.1, 4.2, 5.5, TD2
+
+## Phase Detection Command
+
+- [x] 10. Implement has-phases command
+  - Create command to detect presence of phases in task files
+  - Provide both JSON and human-readable output
+  - Use exit codes for scripting (0 = has phases, 1 = no phases)
+  - [x] 10.1. Write unit tests for has-phases command
+    - Test detection of files with phases
+    - Test detection of files without phases
+    - Test JSON output format with phase count and names
+    - Test appropriate exit codes for different scenarios
+    - Test handling of malformed files
+    - References: Requirements 9.1, 9.2, 9.3, 9.4, 9.6, 9.7
+  - [x] 10.2. Implement has-phases command in cmd/has_phases.go
+    - Create new cobra command with Use: 'has-phases'
+    - Implement runHasPhases function
+    - Add --verbose flag to list phase names
+    - Output JSON by default with hasPhases, count, and phases fields
+    - Set appropriate exit code based on detection result
+    - Register command with root command
+    - References: Requirements 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
+  - [x] 10.3. Add integration test for has-phases command
+    - Test command with phase-containing files
+    - Test command with non-phase files
+    - Verify exit codes match expectations
+    - Test JSON output parsing
+    - References: Requirements 9.1, 9.2, 9.3, 9.6

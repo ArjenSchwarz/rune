@@ -730,7 +730,7 @@ func TestPhasePreservationDuringOperations(t *testing.T) {
 
 	// Extract initial phase markers
 	lines := strings.Split(content, "\n")
-	initialMarkers := extractPhaseMarkers(lines)
+	initialMarkers := ExtractPhaseMarkers(lines)
 
 	// Set up file path for phase-aware operations
 	taskList.FilePath = "test.md"
@@ -760,7 +760,7 @@ func TestPhasePreservationDuringOperations(t *testing.T) {
 			// Render back to markdown with phases preserved
 			rendered := RenderMarkdownWithPhases(testList, initialMarkers)
 			renderedLines := strings.Split(string(rendered), "\n")
-			afterMarkers := extractPhaseMarkers(renderedLines)
+			afterMarkers := ExtractPhaseMarkers(renderedLines)
 
 			// Verify all phase headers are preserved
 			if len(afterMarkers) != len(initialMarkers) {
@@ -868,7 +868,7 @@ func TestPhaseRoundTrip(t *testing.T) {
 
 			// Extract phase markers from original content
 			lines := strings.Split(content, "\n")
-			phaseMarkers := extractPhaseMarkers(lines)
+			phaseMarkers := ExtractPhaseMarkers(lines)
 
 			// Render with phases
 			var rendered []byte
@@ -886,10 +886,10 @@ func TestPhaseRoundTrip(t *testing.T) {
 
 			// Compare phase markers
 			lines1 := strings.Split(content, "\n")
-			markers1 := extractPhaseMarkers(lines1)
+			markers1 := ExtractPhaseMarkers(lines1)
 
 			lines2 := strings.Split(string(rendered), "\n")
-			markers2 := extractPhaseMarkers(lines2)
+			markers2 := ExtractPhaseMarkers(lines2)
 
 			if len(markers1) != len(markers2) {
 				t.Errorf("Phase count mismatch: first=%d, second=%d", len(markers1), len(markers2))

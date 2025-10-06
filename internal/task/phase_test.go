@@ -283,16 +283,16 @@ func TestExtractPhaseMarkers(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			lines := strings.Split(tc.content, "\n")
-			markers := extractPhaseMarkers(lines)
+			markers := ExtractPhaseMarkers(lines)
 
 			if tc.wantErr {
-				// For now, extractPhaseMarkers doesn't return errors
+				// For now, ExtractPhaseMarkers doesn't return errors
 				// This is here for future extension if needed
 				return
 			}
 
 			if !reflect.DeepEqual(markers, tc.wantMarkers) {
-				t.Errorf("extractPhaseMarkers() got %d markers, want %d", len(markers), len(tc.wantMarkers))
+				t.Errorf("ExtractPhaseMarkers() got %d markers, want %d", len(markers), len(tc.wantMarkers))
 				for i, m := range markers {
 					if i < len(tc.wantMarkers) {
 						if m != tc.wantMarkers[i] {
@@ -341,7 +341,7 @@ feature: task-phases
 	}
 
 	lines := strings.Split(remaining, "\n")
-	markers := extractPhaseMarkers(lines)
+	markers := ExtractPhaseMarkers(lines)
 
 	expected := []PhaseMarker{
 		{Name: "Planning", AfterTaskID: ""},
@@ -349,7 +349,7 @@ feature: task-phases
 	}
 
 	if !reflect.DeepEqual(markers, expected) {
-		t.Errorf("extractPhaseMarkers() after front matter = %+v, want %+v", markers, expected)
+		t.Errorf("ExtractPhaseMarkers() after front matter = %+v, want %+v", markers, expected)
 	}
 }
 
@@ -406,7 +406,7 @@ func TestMixedContentWithPhasesAndNonPhasedTasks(t *testing.T) {
 - [ ] 6. Non-phased task at end`
 
 	lines := strings.Split(content, "\n")
-	markers := extractPhaseMarkers(lines)
+	markers := ExtractPhaseMarkers(lines)
 
 	expected := []PhaseMarker{
 		{Name: "First Phase", AfterTaskID: "1"},
@@ -414,7 +414,7 @@ func TestMixedContentWithPhasesAndNonPhasedTasks(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(markers, expected) {
-		t.Errorf("extractPhaseMarkers() = %+v, want %+v", markers, expected)
+		t.Errorf("ExtractPhaseMarkers() = %+v, want %+v", markers, expected)
 		for i, m := range markers {
 			t.Logf("  markers[%d] = {Name: %q, AfterTaskID: %q}", i, m.Name, m.AfterTaskID)
 		}
@@ -448,7 +448,7 @@ func TestPhaseHeaderExtractionRegex(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			lines := []string{tc.line}
-			markers := extractPhaseMarkers(lines)
+			markers := ExtractPhaseMarkers(lines)
 
 			if tc.isPhase {
 				if len(markers) != 1 {

@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Phase detection command**: New has-phases command for programmatic phase detection
+  - Added `has-phases` command to check if task files contain phase headers
+  - Returns JSON output with `hasPhases`, `count`, and optional `phases` array
+  - Exit code 0 for files with phases, 1 for files without phases
+  - `--verbose` flag includes phase names in output for detailed inspection
+  - Useful for conditional logic in scripts and automation workflows
+  - Updated README.md and AGENT_INSTRUCTIONS.md with has-phases documentation
+  - Integration tests covering phase detection, verbose mode, and edge cases
+  - References: specs/task-phases requirements 9.1-9.3, design Phase 5
+
 - **Phase marker updates**: Enhanced phase marker management when adding tasks to phases
   - Phase markers automatically updated when tasks are added to ensure correct phase boundaries
   - Next phase marker updated to point to newly inserted task (last task in current phase)
