@@ -23,10 +23,14 @@ Without --parent, the task will be added as a top-level task.
 Use --position to insert the task at a specific position, causing existing
 tasks at that position and beyond to be renumbered.
 
+Use --phase to add the task to a specific phase. If the phase doesn't exist,
+it will be created at the end of the document.
+
 Examples:
   rune add tasks.md --title "Write documentation"
   rune add --title "Write API docs" --parent "1"
-  rune add --title "Urgent task" --position "2"`,
+  rune add --title "Urgent task" --position "2"
+  rune add --title "Setup database" --phase "Development"`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runAdd,
 }
@@ -35,6 +39,7 @@ var (
 	addTitle    string
 	addParent   string
 	addPosition string
+	addPhase    string
 )
 
 func init() {
@@ -42,6 +47,7 @@ func init() {
 	addCmd.Flags().StringVarP(&addTitle, "title", "t", "", "title for the new task")
 	addCmd.Flags().StringVarP(&addParent, "parent", "p", "", "parent task ID (optional)")
 	addCmd.Flags().StringVar(&addPosition, "position", "", "position to insert task (optional)")
+	addCmd.Flags().StringVar(&addPhase, "phase", "", "target phase for the new task")
 	addCmd.MarkFlagRequired("title")
 }
 
@@ -91,6 +97,9 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		if addPosition != "" {
 			fmt.Printf("Position: %s\n", addPosition)
 		}
+		if addPhase != "" {
+			fmt.Printf("Phase: %s\n", addPhase)
+		}
 
 		// Calculate what the new task ID would be
 		var newID string
@@ -105,15 +114,29 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Add the task
-	newTaskID, err := tl.AddTask(addParent, addTitle, addPosition)
-	if err != nil {
-		return fmt.Errorf("failed to add task: %w", err)
-	}
+	// Add the task - use phase-aware logic if phase is specified
+	var newTaskID string
+	if addPhase != "" {
+		// Validate phase name
+		if err := task.ValidatePhaseName(addPhase); err != nil {
+			return err
+		}
+		// Use phase-aware task addition
+		newTaskID, err = task.AddTaskToPhase(filename, addParent, addTitle, addPhase)
+		if err != nil {
+			return fmt.Errorf("failed to add task to phase: %w", err)
+		}
+	} else {
+		// Use regular task addition
+		newTaskID, err = tl.AddTask(addParent, addTitle, addPosition)
+		if err != nil {
+			return fmt.Errorf("failed to add task: %w", err)
+		}
 
-	// Write the updated file
-	if err := tl.WriteFile(filename); err != nil {
-		return fmt.Errorf("failed to write updated file: %w", err)
+		// Write the updated file
+		if err := tl.WriteFile(filename); err != nil {
+			return fmt.Errorf("failed to write updated file: %w", err)
+		}
 	}
 
 	if verbose {

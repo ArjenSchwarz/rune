@@ -534,3 +534,214 @@ func TestNextCommandHelperFunctions(t *testing.T) {
 		}
 	}
 }
+
+func TestNextCommandWithPhases(t *testing.T) {
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "rune-next-phase-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	tests := map[string]struct {
+		fileContent    string
+		fileName       string
+		usePhaseFlag   bool
+		expectInOutput []string
+		expectNoTasks  bool
+		format         string
+	}{
+		"next phase with pending tasks": {
+			fileContent: `# Project with Phases
+
+## Planning
+- [x] 1. Research requirements
+- [x] 2. Define scope
+
+## Implementation
+- [ ] 3. Setup development environment
+- [ ] 4. Implement core features
+  - [ ] 4.1. Authentication
+  - [ ] 4.2. Database layer
+
+## Testing
+- [ ] 5. Write unit tests
+- [ ] 6. Write integration tests
+`,
+			fileName:       "phases-pending.md",
+			usePhaseFlag:   true,
+			expectInOutput: []string{"3", "Setup development environment", "4", "Implement core features"},
+			format:         "table",
+		},
+		"all phases complete": {
+			fileContent: `# Complete Project
+
+## Planning
+- [x] 1. Research requirements
+- [x] 2. Define scope
+
+## Implementation
+- [x] 3. Setup development environment
+- [x] 4. Implement core features
+  - [x] 4.1. Authentication
+  - [x] 4.2. Database layer
+
+## Testing
+- [x] 5. Write unit tests
+- [x] 6. Write integration tests
+`,
+			fileName:      "phases-complete.md",
+			usePhaseFlag:  true,
+			expectNoTasks: true,
+			format:        "table",
+		},
+		"skip first phase with all complete tasks": {
+			fileContent: `# Mixed Completion Project
+
+## Planning
+- [x] 1. Research requirements
+- [x] 2. Define scope
+
+## Implementation
+- [x] 3. Setup development environment
+- [ ] 4. Implement core features
+  - [x] 4.1. Authentication
+  - [ ] 4.2. Database layer
+
+## Testing
+- [ ] 5. Write unit tests
+`,
+			fileName:       "phases-mixed.md",
+			usePhaseFlag:   true,
+			expectInOutput: []string{"4", "Implement core features", "4.2", "Database layer"},
+			format:         "table",
+		},
+		"phase flag with json format": {
+			fileContent: `# JSON Phase Test
+
+## Development
+- [ ] 1. Task one
+  - Details for task one
+  - References: task-one.md
+- [ ] 2. Task two
+
+## Testing
+- [ ] 3. Task three
+`,
+			fileName:       "phases-json.md",
+			usePhaseFlag:   true,
+			expectInOutput: []string{`"id": "1"`, `"title": "Task one"`, `"id": "2"`, `"title": "Task two"`},
+			format:         "json",
+		},
+		"phase flag with markdown format": {
+			fileContent: `# Markdown Phase Test
+
+## Phase One
+- [ ] 1. First task
+- [ ] 2. Second task
+  - [ ] 2.1. Subtask
+
+## Phase Two  
+- [ ] 3. Third task
+`,
+			fileName:       "phases-markdown.md",
+			usePhaseFlag:   true,
+			expectInOutput: []string{"# Next Phase Tasks", "- [ ] 1. First task", "- [ ] 2. Second task", "- [ ] 2.1. Subtask"},
+			format:         "markdown",
+		},
+		"existing behavior preserved without phase flag": {
+			fileContent: `# Without Phase Flag
+
+## Planning
+- [x] 1. Complete task
+
+## Implementation
+- [ ] 2. Pending task
+- [ ] 3. Another pending task
+`,
+			fileName:       "no-phase-flag.md",
+			usePhaseFlag:   false,
+			expectInOutput: []string{"2", "Pending task"},
+			format:         "table",
+		},
+		"document without phases": {
+			fileContent: `# No Phases Document
+
+- [ ] 1. First task
+- [x] 2. Complete task
+- [ ] 3. Another task
+`,
+			fileName:       "no-phases.md",
+			usePhaseFlag:   true,
+			expectInOutput: []string{"1", "First task", "3", "Another task"},
+			format:         "table",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Write test file
+			if err := os.WriteFile(tc.fileName, []byte(tc.fileContent), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			// Capture output
+			var buf bytes.Buffer
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			// Build command args
+			args := []string{"next", tc.fileName}
+			if tc.usePhaseFlag {
+				args = append(args, "--phase")
+			}
+			if tc.format != "" {
+				args = append(args, "--format", tc.format)
+			}
+
+			rootCmd.SetArgs(args)
+			err := rootCmd.Execute()
+
+			// Restore stdout and capture output
+			w.Close()
+			os.Stdout = oldStdout
+			buf.ReadFrom(r)
+			output := buf.String()
+
+			// Reset command args for next test
+			rootCmd.SetArgs([]string{})
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			// Check expected output
+			if tc.expectNoTasks {
+				if !strings.Contains(output, "No pending tasks found in any phase") && !strings.Contains(output, "All tasks are complete!") {
+					t.Errorf("expected no tasks message, got: %s", output)
+				}
+			} else {
+				for _, expected := range tc.expectInOutput {
+					if !strings.Contains(output, expected) {
+						t.Errorf("expected '%s' in output, got: %s", expected, output)
+					}
+				}
+			}
+
+			// For JSON, validate it's valid JSON
+			if tc.format == "json" && !tc.expectNoTasks {
+				var jsonObj any
+				if err := json.Unmarshal([]byte(output), &jsonObj); err != nil {
+					t.Errorf("JSON format produced invalid JSON: %v\nOutput: %s", err, output)
+				}
+			}
+		})
+	}
+}

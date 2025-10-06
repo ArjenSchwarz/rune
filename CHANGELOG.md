@@ -7,6 +7,213 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Integration test infrastructure**: Fixed integration tests to build binary instead of requiring installed rune
+  - Added TestMain to build rune binary before running integration tests
+  - Tests now use compiled binary from temp directory
+  - Eliminates dependency on system-installed rune command
+  - CI/CD pipelines now work correctly without pre-installation
+
+### Changed
+- **Code quality improvements**: Refactored phase-related code for better maintainability and performance
+  - Removed os.Exit() from has-phases command, using proper error returns instead
+  - Optimized getNextPhaseTasks to eliminate N+1 queries (O(n*m) → O(n+m) complexity)
+  - Added buildTaskPhaseMap for single-pass document scanning
+  - Created ValidatePhaseName function for consistent validation across commands
+  - Removed max phase name length restriction (500 characters) as unnecessary constraint
+
+### Added
+- **Phase detection command**: New has-phases command for programmatic phase detection
+  - Added `has-phases` command to check if task files contain phase headers
+  - Returns JSON output with `hasPhases`, `count`, and optional `phases` array
+  - Exit code 0 for files with phases, 1 for files without phases
+  - `--verbose` flag includes phase names in output for detailed inspection
+  - Useful for conditional logic in scripts and automation workflows
+  - Updated README.md and AGENT_INSTRUCTIONS.md with has-phases documentation
+  - Integration tests covering phase detection, verbose mode, and edge cases
+  - References: specs/task-phases requirements 9.1-9.3, design Phase 5
+
+- **Phase marker updates**: Enhanced phase marker management when adding tasks to phases
+  - Phase markers automatically updated when tasks are added to ensure correct phase boundaries
+  - Next phase marker updated to point to newly inserted task (last task in current phase)
+  - File permissions now preserved during add-phase and write operations
+  - Integration tests added for verifying phase marker updates across multiple scenarios
+  - Enhanced error messages with filepath context for better debugging
+  - References: improved phase boundary maintenance and file handling
+
+### Changed
+- **Code modernization**: Applied modern Go patterns for cleaner, more idiomatic code
+  - Used `slices.ContainsFunc` instead of manual loops for checking phase operations
+  - Extracted helper function `updateTaskDetailsAndReferences` to reduce code duplication
+  - Improved Status type JSON marshaling to support both integer and string formats
+  - Enhanced integration tests with proper working directory management and example file resolution
+
+### Fixed
+- **Integration test reliability**: Fixed example file path resolution in integration tests
+  - Added `getExamplePath` helper to resolve absolute paths from project root
+  - Captured original working directory at package initialization to handle temp directory changes
+  - Updated all integration tests to use absolute paths when referencing example fixtures
+  - Added validation phase name checks in add-phase command (empty name and length > 500)
+
+### Added
+- **Phase documentation**: Comprehensive documentation for phase-based task organization
+  - Updated README.md with phase organization section and examples
+  - Added phase usage to add, next, and add-phase command documentation
+  - Documented batch operations with phase support and JSON examples
+  - Enhanced AGENT_INSTRUCTIONS.md with phase-aware workflows
+  - Updated CREATE_TASKS.md with phase creation patterns and batch operations
+  - Added batch-operations-phases.json example file demonstrating phase usage
+  - Updated json-api.md with phase field specification for add operations
+  - Phase features integrated across all relevant documentation sections
+
+### Added
+- **Phase utility functions implementation**: Core helper functions for phase operations
+  - Implemented getTaskPhase function for positional lookup of task's phase
+  - Implemented addPhase function to format phase headers as H2 markdown
+  - Implemented getNextPhaseTasks to find all pending tasks from next phase with work
+  - Implemented findPhasePosition to locate phases and their positions in documents
+  - Support for duplicate phase names using first occurrence
+  - Phase membership determined by document position (most recent phase header)
+  - Subtask phase inheritance from parent task
+  - Comprehensive test suite with 584 lines covering all phase utility scenarios
+    - Tests for positional phase detection across complex document structures
+    - Tests for phase creation with special characters and edge cases
+    - Tests for next phase task retrieval with mixed completion states
+    - Tests for phase position finding with duplicate handling
+  - References: specs/task-phases requirements 1.1, 5.4, 5.5, tasks 9.1, 9.2
+
+### Changed
+- **Code modernization**: Applied modern Go patterns for collection operations
+  - Replaced manual loop in hasPhases with slices.ContainsFunc for cleaner code
+  - Updated interface{} to any type alias for improved readability
+
+### Added
+- **Phase integration tests**: Comprehensive end-to-end testing for phase functionality
+  - Test for end-to-end phase creation and task addition workflow
+  - Test for round-trip operations (parse → modify → render → parse) with phases
+  - Test for batch operations creating and populating phases
+  - Test for backward compatibility with legacy task files
+  - Test fixtures including simple_phases.md, mixed_content.md, empty_phases.md, duplicate_phases.md
+  - Verification of phase preservation during file operations and task management
+  - Testing of mixed operations with and without phase flags
+  - Validation of duplicate phase name handling
+  - References: specs/task-phases requirements 8.1, 8.2, tasks 8.1, 8.2
+
+### Added
+- **Batch operations with phase support**: Enhanced batch command to support phase field in add operations
+  - Added Phase field to Operation struct for specifying target phase when adding tasks
+  - Implemented ExecuteBatchWithPhases function for phase-aware batch execution
+  - Support for auto-creation of phases during batch operations
+  - Duplicate phase handling using first occurrence as per design specification
+  - Mixed operations support (some with phases, some without) in single batch
+  - Phase-aware operation wrappers (RemoveTaskWithPhases, UpdateTaskWithPhases, UpdateStatusWithPhases)
+  - Comprehensive test suite with 306 lines covering all phase-aware batch scenarios
+    - Tests for adding tasks to existing phases
+    - Tests for automatic phase creation when target phase doesn't exist
+    - Tests for duplicate phase name handling in batch operations
+    - Tests for mixed operations with and without phase fields
+    - Tests for batch operations with parent-child relationships in phases
+  - References: specs/task-phases requirements 6.1-6.4, 6.7, tasks 7.1-7.2
+
+### Fixed
+- **Code quality**: Fixed ineffectual variable assignments in AddTaskToPhase function
+  - Removed unnecessary insertPosition assignments when phase is found
+  - Simplified phase detection logic to eliminate linting warnings
+
+### Changed
+- **Rebranding consistency updates**: Updated remaining "go-tasks" references to "rune"
+  - Updated command examples in add-phase.go to use "rune" instead of "go-tasks"
+  - Renamed test temp directories from "go-tasks-*" to "rune-*" in add_phase_test.go
+  - Fixed import path in add_phase_test.go to use lowercase "arjenschwarz/rune"
+  - Updated root command long description to use "Rune" instead of "Go-Tasks"
+  - Updated all specification documents in specs/initial-version to use "Rune"
+  - Fixed Claude Code settings to reference "./rune:*" instead of "./go-tasks:*"
+
+### Added
+- **Phase-aware add command implementation**: Enhanced add command with --phase flag for adding tasks to specific phases
+  - Added --phase flag to add command for specifying target phase when creating tasks
+  - Automatic phase creation when specified phase doesn't exist - new phases created at document end
+  - Intelligent phase boundary detection and task positioning within existing phases
+  - Support for duplicate phase names using first occurrence as per design specification
+  - Enhanced AddTaskToPhase function with proper phase marker updates after task insertion
+  - WriteFileWithPhases function to preserve phase structure during file operations
+  - Updated command documentation and help text with phase usage examples
+  - Comprehensive test suite with 4 test scenarios covering all phase-aware behaviors
+    - Tests for adding tasks to existing phases with correct positioning
+    - Tests for automatic phase creation when target phase doesn't exist
+    - Tests for duplicate phase name handling (uses first occurrence)
+    - Tests for backward compatibility when --phase flag is not used
+  - Enhanced dry-run output to show phase information when --phase flag is used
+  - Phase marker adjustment logic to maintain correct phase boundaries after task renumbering
+  - References: specs/task-phases requirements 4.1-4.5, tasks 4.1-4.2
+
+- **add-phase command implementation**: New CLI command for adding phase headers to task files
+  - Created new `add-phase` command that appends H2 headers (## Phase Name) to task files
+  - Support for both explicit filename and git-based file discovery modes
+  - Preserves existing file content and task structure when adding phases
+  - Handles edge cases including empty files and files without trailing newlines
+  - Comprehensive test suite with 376 lines covering all scenarios
+    - Tests for adding phases to empty files and files with existing content
+    - Tests for preserving task hierarchy and existing phases
+    - Tests for phase name trimming and special character handling
+    - Validation that files remain valid after phase addition
+  - References: specs/task-phases requirements 3.1, 3.2, 3.3, 3.4, DD4
+
+- **Phase-aware next command implementation**: Enhanced next command with --phase flag for phase-based task retrieval
+  - Added --phase flag to next command for retrieving all pending tasks from the next phase
+  - Finds first phase in document order containing pending tasks
+  - Returns all pending tasks from that phase instead of single task
+  - Support for multiple output formats (table, markdown, JSON) with phase information
+  - Comprehensive test suite with 7 test scenarios covering all behaviors
+    - Tests for retrieving tasks from next phase with pending work
+    - Tests for skipping complete phases to find next with pending tasks
+    - Tests for handling documents without phases
+    - Tests for all phases complete scenario
+    - Tests for JSON and markdown format output with phases
+    - Tests for backward compatibility without --phase flag
+  - References: specs/task-phases requirements 7.1-7.5
+
+### Added
+- **Phase-aware rendering implementation**: Complete rendering support for tasks with phase information
+  - Added ParseFileWithPhases function to return both TaskList and phase markers
+  - Implemented RenderMarkdownWithPhases to reconstruct documents with H2 headers at correct positions
+  - Added GetTaskPhase function to determine phase association based on task position
+  - Enhanced list and next commands to display phase information when present
+  - Conditional phase column in table output when phases exist
+  - JSON output includes phase information and phase_markers when phases are present
+  - Comprehensive test suite for phase-aware rendering with 8 test cases
+    - Tests for single and multiple phases
+    - Tests for mixed content with tasks inside and outside phases
+    - Tests for empty phases and duplicate phase names
+    - Tests for hierarchical tasks with phases
+  - Backward compatibility maintained - files without phases render normally
+  - References: specs/task-phases requirements 1.2, 1.4, 5.1, 5.2, 5.3, 8.6
+
+### Added
+- **Phase detection and parsing implementation**: Core functionality for detecting H2 headers as phase markers
+  - Created PhaseMarker struct to represent phase boundaries with Name and AfterTaskID fields
+  - Implemented extractPhaseMarkers function to scan lines for H2 headers (## pattern)
+  - Added phaseHeaderPattern regex to detect phase headers at root level
+  - Updated parseTasksAtLevel to skip phase headers during parsing for backward compatibility
+  - Fixed static analysis issue with nil check for slice length
+  - Comprehensive test suite with 22 test cases covering all edge cases
+    - Tests for empty phases, duplicate names, special characters in names
+    - Tests for phase positioning relative to task IDs
+    - Tests for mixed content with phases and non-phased tasks
+    - Tests for phase header format validation (only H2 headers accepted)
+  - References: specs/task-phases requirements 1.1, 1.2, 1.6
+
+### Added
+- **Task phases feature specification**: Complete requirements, design, and implementation plan for phase-based task organization
+  - Specification documents for organizing tasks under semantic H2 markdown headers (phases)
+  - Requirements for phase-aware commands including add-phase, add --phase, and next --phase
+  - Position-based phase association design maintaining backward compatibility
+  - Comprehensive design document with simplified architecture avoiding model changes
+  - Decision log documenting design choices for phase creation, management, and display
+  - Detailed implementation task breakdown with 8 major sections and comprehensive testing strategy
+  - Support for batch operations with phase awareness
+  - Conditional phase column in table output when phases are present
+
 ### Changed
 - **Project renamed from go-tasks to rune**: Complete rebranding of the project
   - Updated module name from github.com/ArjenSchwarz/go-tasks to github.com/arjenschwarz/rune

@@ -11,8 +11,9 @@ import (
 const MaxFileSize = 10 * 1024 * 1024
 
 var (
-	taskLinePattern   = regexp.MustCompile(`^(\s*)- (\[[ \-xX]\]) (\d+(?:\.\d+)*)\. (.+)$`)
-	detailLinePattern = regexp.MustCompile(`^(\s*)- (.+)$`)
+	taskLinePattern    = regexp.MustCompile(`^(\s*)- (\[[ \-xX]\]) (\d+(?:\.\d+)*)\. (.+)$`)
+	detailLinePattern  = regexp.MustCompile(`^(\s*)- (.+)$`)
+	phaseHeaderPattern = regexp.MustCompile(`^## (.+)$`)
 )
 
 // ParseMarkdown parses markdown content into a TaskList structure
@@ -35,6 +36,52 @@ func ParseFile(filepath string) (*TaskList, error) {
 	}
 	taskList.FilePath = filepath
 	return taskList, nil
+}
+
+// ParseFileWithPhases reads and parses a markdown file, returning both the TaskList and phase markers
+func ParseFileWithPhases(filepath string) (*TaskList, []PhaseMarker, error) {
+	content, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading file: %w", err)
+	}
+
+	// Parse the task list
+	taskList, err := ParseMarkdown(content)
+	if err != nil {
+		return nil, nil, err
+	}
+	taskList.FilePath = filepath
+
+	// Extract phase markers from the content
+	lines := strings.Split(string(content), "\n")
+	// Skip front matter if present
+	if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
+		inFrontMatter := false
+		frontMatterCount := 0
+		newLines := []string{}
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "---" {
+				frontMatterCount++
+				if frontMatterCount == 2 {
+					inFrontMatter = false
+					continue
+				} else {
+					inFrontMatter = true
+					continue
+				}
+			}
+			if !inFrontMatter && frontMatterCount > 0 {
+				newLines = append(newLines, line)
+			}
+		}
+		if frontMatterCount >= 2 {
+			lines = newLines
+		}
+	}
+
+	phaseMarkers := ExtractPhaseMarkers(lines)
+
+	return taskList, phaseMarkers, nil
 }
 
 func parseContent(content string) (*TaskList, error) {
@@ -146,6 +193,11 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 			tasks = append(tasks, task)
 			i = newIdx
 		case indent == expectedIndent:
+			// Check if this is a phase header (H2) - skip it
+			if phaseHeaderPattern.MatchString(strings.TrimSpace(lines[i])) && expectedIndent == 0 {
+				// Phase headers are allowed at root level
+				continue
+			}
 			// This is a detail line at the wrong level
 			return nil, i, fmt.Errorf("line %d: unexpected content at this indentation level", i+1)
 		default:
@@ -305,4 +357,35 @@ func countIndent(line string) int {
 		}
 	}
 	return count
+}
+
+// ExtractPhaseMarkers scans lines for H2 headers and returns phase markers with their positions
+func ExtractPhaseMarkers(lines []string) []PhaseMarker {
+	markers := []PhaseMarker{}
+	var lastTaskID string
+
+	for _, line := range lines {
+		// Phase headers must start at the beginning of the line (no indentation)
+		// Check if line is a phase header (H2) - use original line, not trimmed
+		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
+			phaseName := strings.TrimSpace(matches[1])
+			markers = append(markers, PhaseMarker{
+				Name:        phaseName,
+				AfterTaskID: lastTaskID,
+			})
+		} else if _, ok := parseTaskLine(line); ok {
+			// Extract task ID from the line
+			// The task ID is captured in the regex pattern
+			if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
+				// Only update lastTaskID for top-level tasks (not subtasks)
+				// Top-level tasks don't have dots in their IDs
+				taskID := taskMatches[3]
+				if !strings.Contains(taskID, ".") {
+					lastTaskID = taskID
+				}
+			}
+		}
+	}
+
+	return markers
 }

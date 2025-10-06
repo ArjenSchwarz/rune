@@ -636,6 +636,235 @@ func TestRunAddDryRunWithPositionAndParent(t *testing.T) {
 	dryRun = false
 }
 
+func TestRunAddWithPhase(t *testing.T) {
+	// Create temporary directory for test files within the current working directory
+	tempDir := filepath.Join(".", "test-tmp-add-phase")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		setupFile     func(string) error
+		title         string
+		phase         string
+		expectError   bool
+		errorContains string
+		validateFile  func(*testing.T, string)
+	}{
+		"add task to existing phase": {
+			setupFile: func(filename string) error {
+				content := `# Test Tasks
+
+## Planning
+- [ ] 1. Existing task
+
+## Development
+- [ ] 2. Another task`
+				return os.WriteFile(filename, []byte(content), 0644)
+			},
+			title:       "New planning task",
+			phase:       "Planning",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				content, err := os.ReadFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to read file: %v", err)
+				}
+				contentStr := string(content)
+				if !strings.Contains(contentStr, "New planning task") {
+					t.Fatal("New task not found in file")
+				}
+				// Task should be added to Planning phase
+				lines := strings.Split(contentStr, "\n")
+				planningIndex := -1
+				developmentIndex := -1
+				newTaskIndex := -1
+				for i, line := range lines {
+					if strings.Contains(line, "## Planning") {
+						planningIndex = i
+					} else if strings.Contains(line, "## Development") {
+						developmentIndex = i
+					} else if strings.Contains(line, "New planning task") {
+						newTaskIndex = i
+					}
+				}
+				if planningIndex == -1 || developmentIndex == -1 || newTaskIndex == -1 {
+					t.Fatal("Could not find expected sections in file")
+				}
+				if !(newTaskIndex > planningIndex && newTaskIndex < developmentIndex) {
+					t.Fatal("New task not placed in Planning phase")
+				}
+			},
+		},
+		"add task to non-existent phase (auto-create)": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				tl.AddTask("", "Existing task", "")
+				return tl.WriteFile(filename)
+			},
+			title:       "Task for new phase",
+			phase:       "New Phase",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				content, err := os.ReadFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to read file: %v", err)
+				}
+				contentStr := string(content)
+				if !strings.Contains(contentStr, "## New Phase") {
+					t.Fatal("New phase header not created")
+				}
+				if !strings.Contains(contentStr, "Task for new phase") {
+					t.Fatal("New task not found in file")
+				}
+				// Phase should be created at the end
+				lines := strings.Split(contentStr, "\n")
+				phaseIndex := -1
+				taskIndex := -1
+				for i, line := range lines {
+					if strings.Contains(line, "## New Phase") {
+						phaseIndex = i
+					} else if strings.Contains(line, "Task for new phase") {
+						taskIndex = i
+					}
+				}
+				if phaseIndex == -1 || taskIndex == -1 {
+					t.Fatal("Could not find phase or task in file")
+				}
+				if taskIndex <= phaseIndex {
+					t.Fatal("Task should appear after phase header")
+				}
+			},
+		},
+		"add task to first occurrence of duplicate phase names": {
+			setupFile: func(filename string) error {
+				content := `# Test Tasks
+
+## Development
+- [ ] 1. First dev task
+
+## Testing
+- [ ] 2. Test task
+
+## Development
+- [ ] 3. Second dev task`
+				return os.WriteFile(filename, []byte(content), 0644)
+			},
+			title:       "New dev task",
+			phase:       "Development",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				content, err := os.ReadFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to read file: %v", err)
+				}
+				contentStr := string(content)
+				lines := strings.Split(contentStr, "\n")
+				firstDevIndex := -1
+				testingIndex := -1
+				newTaskIndex := -1
+				for i, line := range lines {
+					if strings.Contains(line, "## Development") && firstDevIndex == -1 {
+						firstDevIndex = i
+					} else if strings.Contains(line, "## Testing") {
+						testingIndex = i
+					} else if strings.Contains(line, "New dev task") {
+						newTaskIndex = i
+					}
+				}
+				// Task should be added to first Development phase
+				if !(newTaskIndex > firstDevIndex && newTaskIndex < testingIndex) {
+					t.Fatal("Task should be added to first Development phase")
+				}
+			},
+		},
+		"add task without phase flag goes to document end": {
+			setupFile: func(filename string) error {
+				content := `# Test Tasks
+
+## Planning
+- [ ] 1. Planning task
+
+## Development
+- [ ] 2. Dev task`
+				return os.WriteFile(filename, []byte(content), 0644)
+			},
+			title:       "Non-phased task",
+			phase:       "", // No phase specified
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				content, err := os.ReadFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to read file: %v", err)
+				}
+				contentStr := string(content)
+				lines := strings.Split(contentStr, "\n")
+				// Task should be at the end
+				lastTaskLine := ""
+				for i := len(lines) - 1; i >= 0; i-- {
+					if strings.Contains(lines[i], "- [") && strings.Contains(lines[i], ".") {
+						lastTaskLine = lines[i]
+						break
+					}
+				}
+				if !strings.Contains(lastTaskLine, "Non-phased task") {
+					t.Fatal("Non-phased task should be at the end of document")
+				}
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Create test file
+			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
+
+			if err := tt.setupFile(filename); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+
+			// Set command flags
+			addTitle = tt.title
+			addPhase = tt.phase
+			addParent = ""
+			addPosition = ""
+			dryRun = false
+
+			// Create command and run
+			cmd := &cobra.Command{}
+			args := []string{filename}
+
+			err := runAdd(cmd, args)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Fatalf("Expected error to contain '%s', got: %s", tt.errorContains, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			// Validate the file if validator is provided
+			if tt.validateFile != nil {
+				tt.validateFile(t, filename)
+			}
+
+			// Reset flags for next test
+			addTitle = ""
+			addPhase = ""
+			addParent = ""
+			addPosition = ""
+		})
+	}
+}
+
 func TestAddCmdFlags(t *testing.T) {
 	// Test that required flags are properly configured
 	if !addCmd.Flag("title").Changed && addCmd.Flag("title").Value.String() == "" {
@@ -666,5 +895,14 @@ func TestAddCmdFlags(t *testing.T) {
 	}
 	if positionFlag.Usage == "" {
 		t.Fatal("Position flag should have usage description")
+	}
+
+	// Test phase flag exists
+	phaseFlag := addCmd.Flag("phase")
+	if phaseFlag == nil {
+		t.Fatal("Phase flag not found")
+	}
+	if phaseFlag.Usage == "" {
+		t.Fatal("Phase flag should have usage description")
 	}
 }

@@ -1,0 +1,35 @@
+name: Release binaries
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+    contents: write
+    packages: write
+
+jobs:
+  releases-matrix:
+    name: Release Go Binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # build and publish in parallel
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set build variables
+      run: |
+        echo "APP_VERSION=$(echo ${GITHUB_REF} | rev | cut -d'/' -f 1 | rev)" >> ${GITHUB_ENV}
+        echo "BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> ${GITHUB_ENV}
+        echo "GIT_COMMIT=$(git rev-parse --short HEAD)" >> ${GITHUB_ENV}
+    - uses: wangyoucao577/go-release-action@v1
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        goos: ${{ matrix.goos }}
+        goarch: ${{ matrix.goarch }}
+        binary_name: "rune"
+        ldflags: "-w -s -X 'github.com/ArjenSchwarz/rune/cmd.Version=${{ env.APP_VERSION }}' -X 'github.com/ArjenSchwarz/rune/cmd.BuildTime=${{ env.BUILD_TIME }}' -X 'github.com/ArjenSchwarz/rune/cmd.GitCommit=${{ env.GIT_COMMIT }}'"
+        extra_files: "LICENSE README.md"

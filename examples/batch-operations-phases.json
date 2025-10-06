@@ -1,0 +1,78 @@
+{
+  "file": "project-tasks.md",
+  "operations": [
+    {
+      "type": "add",
+      "title": "Define project requirements",
+      "phase": "Planning",
+      "details": [
+        "Gather stakeholder input",
+        "Document functional requirements",
+        "Define success criteria"
+      ],
+      "references": ["requirements.md"]
+    },
+    {
+      "type": "add",
+      "title": "Create architecture design",
+      "phase": "Planning",
+      "details": [
+        "Design system architecture",
+        "Create data flow diagrams",
+        "Document technology choices"
+      ],
+      "references": ["architecture.md"]
+    },
+    {
+      "type": "add",
+      "title": "Setup development environment",
+      "phase": "Implementation",
+      "details": [
+        "Install dependencies",
+        "Configure build tools",
+        "Setup local database"
+      ]
+    },
+    {
+      "type": "add",
+      "title": "Implement core features",
+      "phase": "Implementation",
+      "details": [
+        "API endpoints",
+        "Database models",
+        "Business logic"
+      ]
+    },
+    {
+      "type": "add",
+      "title": "Write unit tests",
+      "phase": "Testing",
+      "details": [
+        "Test coverage > 80%",
+        "Mock external dependencies",
+        "Edge case testing"
+      ]
+    },
+    {
+      "type": "add",
+      "title": "Integration testing",
+      "phase": "Testing",
+      "details": [
+        "End-to-end test scenarios",
+        "API integration tests",
+        "Database integration tests"
+      ]
+    },
+    {
+      "type": "add",
+      "title": "Deploy to staging",
+      "phase": "Deployment",
+      "details": [
+        "Configure staging environment",
+        "Deploy application",
+        "Run smoke tests"
+      ]
+    }
+  ],
+  "dry_run": false
+}

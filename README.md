@@ -17,6 +17,8 @@ A standalone Go command-line tool designed for AI agents and developers to creat
 - **Git Branch Integration**: Automatic file discovery based on current git branch
 - **Reference Documents**: Link task files to related documentation and resources
 - **Automatic Parent Completion**: Parent tasks auto-complete when all subtasks are done
+- **Phase Organization**: Group tasks under H2 headers for logical organization
+- **Phase Detection**: Programmatically check if files contain phases with JSON output
 - **AI Agent Optimized**: Structured JSON API with comprehensive error reporting
 
 ## Installation
@@ -100,6 +102,7 @@ rune add [file] --title [title] [options]
 **Options:**
 - `--title [text]` - Task title (required)
 - `--parent [id]` - Parent task ID for subtasks
+- `--phase [name]` - Add task to specified phase (creates phase if it doesn't exist)
 - `--details [text,...]` - Comma-separated detail points
 - `--references [ref,...]` - Comma-separated references
 
@@ -107,6 +110,7 @@ rune add [file] --title [title] [options]
 ```bash
 rune add tasks.md --title "Implement authentication"
 rune add tasks.md --title "Add unit tests" --parent 1
+rune add tasks.md --title "Setup database" --phase "Development"
 rune add tasks.md --title "Review code" --details "Check logic,Verify tests" --references "coding-standards.md"
 ```
 
@@ -208,6 +212,7 @@ rune next [file] [options]
 
 **Options:**
 - `--format [table|markdown|json]` - Output format (default: table)
+- `--phase` - Get all pending tasks from the next incomplete phase
 
 **Examples:**
 ```bash
@@ -216,6 +221,9 @@ rune next
 
 # Get next task from specific file
 rune next tasks.md
+
+# Get all tasks from next phase with incomplete work
+rune next tasks.md --phase
 
 # Output in JSON format
 rune next --format json
@@ -228,8 +236,87 @@ rune next --format markdown
 - Finds the first task with incomplete work (task itself or any subtask not completed)
 - Uses depth-first traversal through the task hierarchy
 - Returns the task and all its incomplete subtasks for focused work
+- With `--phase` flag, returns all pending tasks from the first phase containing incomplete work
 - Includes task details and references in the output
 - Supports git branch-based file discovery when configured
+
+### add-phase - Add Phase Header
+
+Add a new phase header to organize tasks into logical sections.
+
+```bash
+rune add-phase [file] [name]
+```
+
+**Examples:**
+```bash
+# Add phase using git discovery for file
+rune add-phase "Planning"
+
+# Add phase to specific file
+rune add-phase tasks.md "Implementation"
+rune add-phase tasks.md "Testing"
+```
+
+**How it works:**
+- Adds a markdown H2 header (`## Phase Name`) to organize tasks
+- Phase is appended to the end of the document
+- Tasks can then be added to the phase using `rune add --phase "Phase Name"`
+- Phases are optional - tasks can exist outside of any phase
+
+### has-phases - Check for Phase Headers
+
+Check if a task file contains phase headers, returning JSON output suitable for scripting.
+
+```bash
+rune has-phases [file] [options]
+```
+
+**Options:**
+- `--verbose, -v` - Include phase names in the output
+
+**Exit Codes:**
+- `0` - File contains phases
+- `1` - File does not contain phases or error occurred
+
+**Examples:**
+```bash
+# Check if file has phases using git discovery
+rune has-phases
+
+# Check specific file
+rune has-phases tasks.md
+
+# Get detailed output with phase names
+rune has-phases tasks.md --verbose
+
+# Use in shell scripts
+if rune has-phases tasks.md > /dev/null 2>&1; then
+    echo "File has phases"
+else
+    echo "File has no phases"
+fi
+```
+
+**JSON Output Format:**
+```json
+{
+  "hasPhases": true,
+  "count": 2,
+  "phases": ["Planning", "Implementation"]
+}
+```
+
+**Fields:**
+- `hasPhases` - Boolean indicating if phases exist
+- `count` - Number of phases found in the file
+- `phases` - Array of phase names (only included when `--verbose` is used, otherwise empty array)
+
+**How it works:**
+- Scans the file for H2 markdown headers (`## Phase Name`)
+- Returns JSON output for easy parsing by scripts and automation
+- Exit code allows for simple conditional checks in shell scripts
+- Useful for determining if phase-specific operations are available
 
 ### batch - Execute Multiple Operations
 
@@ -265,6 +352,11 @@ rune batch tasks.md --operations updates.json --dry-run
       "references": ["doc.md"]
     },
     {
+      "type": "add",
+      "title": "Setup database",
+      "phase": "Development"
+    },
+    {
       "type": "update",
       "id": "2",
       "status": 2
@@ -286,9 +378,14 @@ rune batch tasks.md --operations updates.json --dry-run
 ```
 
 **Operation Types:**
-- `add` - Add new task (requires `title`, optional `parent`)
+- `add` - Add new task (requires `title`, optional `parent`, `phase`)
 - `remove` - Delete task (requires `id`)
 - `update` - Modify task content (requires `id`, optional `title`, `details`, `references`, `status`)
+
+**Phase Support:**
+- Include `"phase": "Phase Name"` in add operations to target a specific phase
+- If the phase doesn't exist, it will be automatically created
+- Phase is applied to the operation and cannot be combined with `parent` parameter
 
 **Status Values:**
 - `0` = Pending `[ ]`
@@ -425,6 +522,8 @@ metadata:
 ---
 # Project Tasks
 
+## Planning
+
 - [ ] 1. Setup development environment
   - This involves setting up the complete development stack
   - including Docker containers and environment variables.
@@ -434,6 +533,9 @@ metadata:
     - Create database schema and initial migrations.
     - Make sure to use the latest PostgreSQL version.
     - References: ./db/migrations/
+
+## Implementation
+
 - [x] 2. Implement authentication
 - [ ] 3. Build API endpoints
   - [ ] 3.1. User endpoints
@@ -458,6 +560,39 @@ metadata:
 - **Front Matter References**: Apply to the entire task file, included in all outputs
 - **Task References**: Apply to specific tasks, shown with task details
 
+### Using Phases to Organize Tasks
+
+Phases provide a way to organize tasks into logical sections using H2 markdown headers. This is optional but useful for structuring larger projects.
+
+**Basic Phase Usage:**
+
+```markdown
+# Project Tasks
+
+## Planning
+
+- [ ] 1. Define requirements
+- [ ] 2. Create design documents
+
+## Implementation
+
+- [ ] 3. Set up project structure
+- [ ] 4. Implement core features
+
+## Testing
+
+- [ ] 5. Write unit tests
+- [ ] 6. Perform integration testing
+```
+
+**Key Features:**
+- Task IDs continue sequentially across phases (1, 2, 3... regardless of phase boundaries)
+- Phases are created with `rune add-phase "Phase Name"` or automatically when using `--phase` flag
+- Tasks can be added to phases with `rune add --title "Task" --phase "Phase Name"`
+- Use `rune next --phase` to get all tasks from the next incomplete phase
+- Phase information appears in table and JSON output when phases are present
+- Phases are completely optional - tasks work normally without them
+
 ## Examples
 
 See the [`examples/`](examples/) directory for sample task files and common usage patterns:
@@ -465,7 +600,9 @@ See the [`examples/`](examples/) directory for sample task files and common usag
 - [`examples/simple.md`](examples/simple.md) - Basic task list
 - [`examples/project.md`](examples/project.md) - Software project with phases
 - [`examples/complex.md`](examples/complex.md) - Deep hierarchy with all features
-- [`examples/batch-operations.json`](examples/batch-operations.json) - Sample batch operations
+- [`examples/batch-operations.json`](examples/batch-operations.json) - Sample batch operations (hierarchical)
+- [`examples/batch-operations-phases.json`](examples/batch-operations-phases.json) - Sample batch operations with phases
+- [`examples/phases/`](examples/phases/) - Phase-based task organization examples
 
 ## Development
 

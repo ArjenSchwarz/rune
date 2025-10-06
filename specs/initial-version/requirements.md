@@ -1,8 +1,8 @@
-# Go-Tasks Initial Version Requirements
+# Rune Initial Version Requirements
 
 ## Introduction
 
-Go-Tasks is a standalone Go command-line tool designed specifically for AI agents to create and manage hierarchical markdown task lists with consistent formatting. This initial version focuses on core MVP functionality including task CRUD operations, hierarchical data management, parsing/rendering, CLI interface, JSON API, query capabilities, and standardized file formatting.
+Rune is a standalone Go command-line tool designed specifically for AI agents to create and manage hierarchical markdown task lists with consistent formatting. This initial version focuses on core MVP functionality including task CRUD operations, hierarchical data management, parsing/rendering, CLI interface, JSON API, query capabilities, and standardized file formatting.
 
 ## Requirements
 

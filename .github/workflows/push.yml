@@ -1,0 +1,21 @@
+on: [push]
+
+jobs:
+  build-and-test:
+    name: Test and Build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '1.25' # The Go version to download (if necessary) and use.
+      - name: Run tests
+        run: make test-all
+      - name: Run linter
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          skip-cache: true

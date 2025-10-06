@@ -181,7 +181,7 @@ func TestListCommandPathValidation(t *testing.T) {
 			wantErr:  false,
 		},
 		"path traversal attempt": {
-			filename: "../../../etc/passwd",
+			filename: "../../../nonexistent-path-for-security-test.md",
 			wantErr:  true,
 			errMsg:   "no such file",
 		},

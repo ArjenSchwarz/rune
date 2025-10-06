@@ -1,4 +1,4 @@
-# Go-Tasks: Simplified Implementation Plan
+# Rune: Simplified Implementation Plan
 
 ## Project Overview
 A standalone Go tool for AI agents to create and manage hierarchical markdown task lists with consistent formatting.

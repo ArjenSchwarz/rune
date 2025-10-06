@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/arjenschwarz/rune/internal/task"
@@ -28,10 +29,11 @@ The JSON format should be:
     {
       "type": "add",
       "title": "New task",
-      "parent": "1"
+      "parent": "1",
+      "phase": "Planning"
     },
     {
-      "type": "update", 
+      "type": "update",
       "id": "2",
       "status": 2
     }
@@ -40,9 +42,15 @@ The JSON format should be:
 }
 
 Operation types:
-- add: Add a new task (requires title, optional parent)
+- add: Add a new task (requires title, optional parent, phase)
 - remove: Remove a task (requires id)
 - update: Update task fields (requires id, optional title, status, details, references)
+
+Phase support:
+- Add "phase" field to "add" operations to specify target phase
+- If phase doesn't exist, it will be created automatically
+- Duplicate phase names use first occurrence
+- Mixed operations (some with phases, some without) are supported
 
 All operations are atomic - either all succeed or none are applied.`,
 	RunE: runBatch,
@@ -94,22 +102,48 @@ func runBatch(cmd *cobra.Command, args []string) error {
 		req.DryRun = true
 	}
 
-	// Load task list
-	taskList, err := task.ParseFile(req.File)
-	if err != nil {
-		return fmt.Errorf("loading task file: %w", err)
-	}
+	// Check if any operations use phases
+	hasPhaseOps := slices.ContainsFunc(req.Operations, func(op task.Operation) bool {
+		return op.Phase != ""
+	})
 
-	// Execute batch operations
-	response, err := taskList.ExecuteBatch(req.Operations, req.DryRun)
-	if err != nil {
-		return fmt.Errorf("executing batch operations: %w", err)
-	}
+	var response *task.BatchResponse
+	var taskList *task.TaskList
 
-	// Save the file if not a dry run and operations succeeded
-	if !req.DryRun && response.Success {
-		if err := taskList.WriteFile(req.File); err != nil {
-			return fmt.Errorf("saving updated file: %w", err)
+	// Use phase-aware execution if needed
+	if hasPhaseOps {
+		// Parse file with phases
+		var phaseMarkers []task.PhaseMarker
+		taskList, phaseMarkers, err = task.ParseFileWithPhases(req.File)
+		if err != nil {
+			return fmt.Errorf("loading task file with phases: %w", err)
+		}
+
+		// Execute batch operations with phase support
+		response, err = taskList.ExecuteBatchWithPhases(req.Operations, req.DryRun, phaseMarkers, req.File)
+		if err != nil {
+			return fmt.Errorf("executing batch operations with phases: %w", err)
+		}
+
+		// File is already saved by ExecuteBatchWithPhases if not a dry run
+	} else {
+		// Load task list without phases
+		taskList, err = task.ParseFile(req.File)
+		if err != nil {
+			return fmt.Errorf("loading task file: %w", err)
+		}
+
+		// Execute batch operations
+		response, err = taskList.ExecuteBatch(req.Operations, req.DryRun)
+		if err != nil {
+			return fmt.Errorf("executing batch operations: %w", err)
+		}
+
+		// Save the file if not a dry run and operations succeeded
+		if !req.DryRun && response.Success {
+			if err := taskList.WriteFile(req.File); err != nil {
+				return fmt.Errorf("saving updated file: %w", err)
+			}
 		}
 	}
 
