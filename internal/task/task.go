@@ -1,6 +1,7 @@
 package task
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"time"
@@ -51,6 +52,50 @@ func ParseStatus(s string) (Status, error) {
 	default:
 		return Pending, fmt.Errorf("invalid status: %s", s)
 	}
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for Status
+// Accepts both integer values (0, 1, 2) and string names ("Pending", "InProgress", "Completed")
+func (s *Status) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as integer first
+	var intVal int
+	if err := json.Unmarshal(data, &intVal); err == nil {
+		switch intVal {
+		case 0:
+			*s = Pending
+		case 1:
+			*s = InProgress
+		case 2:
+			*s = Completed
+		default:
+			return fmt.Errorf("invalid status value: %d (must be 0-2)", intVal)
+		}
+		return nil
+	}
+
+	// Try to unmarshal as string
+	var strVal string
+	if err := json.Unmarshal(data, &strVal); err != nil {
+		return fmt.Errorf("status must be an integer (0-2) or string: %w", err)
+	}
+
+	switch strVal {
+	case "Pending", "pending":
+		*s = Pending
+	case "InProgress", "inprogress", "in-progress", "in_progress":
+		*s = InProgress
+	case "Completed", "completed":
+		*s = Completed
+	default:
+		return fmt.Errorf("invalid status string: %s (must be Pending, InProgress, or Completed)", strVal)
+	}
+	return nil
+}
+
+// MarshalJSON implements custom JSON marshaling for Status
+// Always outputs as integer for consistency
+func (s Status) MarshalJSON() ([]byte, error) {
+	return json.Marshal(int(s))
 }
 
 // Task represents a single task in a hierarchical task list

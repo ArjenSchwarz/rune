@@ -427,6 +427,16 @@ func (tl *TaskList) deepCopyWithPhases(phaseMarkers []PhaseMarker) (*TaskList, e
 	return copyList, nil
 }
 
+// updateTaskDetailsAndReferences updates a task with details and references if provided
+func updateTaskDetailsAndReferences(tl *TaskList, taskID string, details []string, references []string) error {
+	if len(details) > 0 || len(references) > 0 {
+		if taskID != "" {
+			return tl.UpdateTask(taskID, "", details, references)
+		}
+	}
+	return nil
+}
+
 // applyOperationWithPhases executes a single operation with phase support and tracks auto-completed tasks
 func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[string]bool, phaseMarkers *[]PhaseMarker) error {
 	switch strings.ToLower(op.Type) {
@@ -440,13 +450,7 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 		if err != nil {
 			return err
 		}
-		// If details or references are provided, update the newly added task
-		if len(op.Details) > 0 || len(op.References) > 0 {
-			if newTaskID != "" {
-				return tl.UpdateTask(newTaskID, "", op.Details, op.References)
-			}
-		}
-		return nil
+		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References)
 	case removeOperation:
 		return tl.RemoveTask(op.ID)
 	case updateOperation:
@@ -548,13 +552,7 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 		if err != nil {
 			return err
 		}
-		// If details or references are provided, update the newly added task
-		if len(op.Details) > 0 || len(op.References) > 0 {
-			if newTaskID != "" {
-				return tl.UpdateTask(newTaskID, "", op.Details, op.References)
-			}
-		}
-		return nil
+		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References)
 	}
 
 	// Insert task at the calculated position
@@ -576,6 +574,11 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 	tl.renumberTasks()
 
 	// Update phase markers to account for the insertion
+	// IMPORTANT: Since we ALWAYS insert at the END of the phase (insertPosition = phaseEndPos),
+	// the newly inserted task becomes the last task in the current phase. Therefore, the next
+	// phase marker must be updated to point to this newly inserted task's ID.
+	// This maintains the invariant that phase markers always point to the last task in the
+	// preceding phase.
 	if phaseFound {
 		// Find the next phase marker after our target phase
 		for i, marker := range *phaseMarkers {
@@ -583,7 +586,8 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 				// Look for the next phase marker
 				if i+1 < len(*phaseMarkers) {
 					nextMarker := &(*phaseMarkers)[i+1]
-					// The next phase should now start after the newly inserted task
+					// Update the next phase to start after the newly inserted task
+					// (which is now the last task in the current phase)
 					if insertPosition < len(tl.Tasks) {
 						nextMarker.AfterTaskID = tl.Tasks[insertPosition].ID
 					}

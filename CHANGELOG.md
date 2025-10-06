@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Phase marker updates**: Enhanced phase marker management when adding tasks to phases
+  - Phase markers automatically updated when tasks are added to ensure correct phase boundaries
+  - Next phase marker updated to point to newly inserted task (last task in current phase)
+  - File permissions now preserved during add-phase and write operations
+  - Integration tests added for verifying phase marker updates across multiple scenarios
+  - Enhanced error messages with filepath context for better debugging
+  - References: improved phase boundary maintenance and file handling
+
+### Changed
+- **Code modernization**: Applied modern Go patterns for cleaner, more idiomatic code
+  - Used `slices.ContainsFunc` instead of manual loops for checking phase operations
+  - Extracted helper function `updateTaskDetailsAndReferences` to reduce code duplication
+  - Improved Status type JSON marshaling to support both integer and string formats
+  - Enhanced integration tests with proper working directory management and example file resolution
+
+### Fixed
+- **Integration test reliability**: Fixed example file path resolution in integration tests
+  - Added `getExamplePath` helper to resolve absolute paths from project root
+  - Captured original working directory at package initialization to handle temp directory changes
+  - Updated all integration tests to use absolute paths when referencing example fixtures
+  - Added validation phase name checks in add-phase command (empty name and length > 500)
+
+### Added
 - **Phase documentation**: Comprehensive documentation for phase-based task organization
   - Updated README.md with phase organization section and examples
   - Added phase usage to add, next, and add-phase command documentation

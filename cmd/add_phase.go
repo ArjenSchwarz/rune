@@ -49,6 +49,14 @@ func runAddPhase(cmd *cobra.Command, args []string) error {
 	// Trim whitespace from phase name
 	phaseName = strings.TrimSpace(phaseName)
 
+	// Validate phase name
+	if phaseName == "" {
+		return fmt.Errorf("phase name cannot be empty")
+	}
+	if len(phaseName) > 500 {
+		return fmt.Errorf("phase name exceeds maximum length of 500 characters (got %d)", len(phaseName))
+	}
+
 	if verbose {
 		fmt.Printf("Using task file: %s\n", filename)
 		fmt.Printf("Adding phase: %s\n", phaseName)
@@ -70,6 +78,13 @@ func runAddPhase(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Get original file permissions
+	fileInfo, err := os.Stat(filename)
+	if err != nil {
+		return fmt.Errorf("failed to stat file: %w", err)
+	}
+	perm := fileInfo.Mode().Perm()
+
 	// Read existing content
 	content, err := os.ReadFile(filename)
 	if err != nil {
@@ -86,8 +101,8 @@ func runAddPhase(cmd *cobra.Command, args []string) error {
 	}
 	contentStr += phaseHeader + "\n"
 
-	// Write back to file
-	err = os.WriteFile(filename, []byte(contentStr), 0644)
+	// Write back to file with original permissions
+	err = os.WriteFile(filename, []byte(contentStr), perm)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}

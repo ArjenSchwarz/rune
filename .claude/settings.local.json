@@ -28,7 +28,12 @@
       "Bash(sed:*)",
       "Bash(git diff:*)",
       "Bash(rune next:*)",
-      "Bash(rune complete:*)"
+      "Bash(rune complete:*)",
+      "Bash(export INTEGRATION=1)",
+      "Bash(gh pr view:*)",
+      "Bash(INTEGRATION=1 go test -v ./cmd -run TestIntegrationWorkflows/phase_marker_updates -timeout 30s)",
+      "Read(//private/tmp/**)",
+      "Bash(INTEGRATION=1 go test -v ./cmd -run TestIntegrationWorkflows -timeout 60s)"
     ],
     "deny": [],
     "ask": []

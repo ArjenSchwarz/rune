@@ -268,6 +268,19 @@ func (tl *TaskList) WriteFile(filePath string) error {
 		return err
 	}
 
+	// Check if the original file has phase markers (if file exists)
+	var phaseMarkers []PhaseMarker
+	if existingContent, err := os.ReadFile(filePath); err == nil {
+		// File exists, check for phases
+		lines := strings.Split(string(existingContent), "\n")
+		phaseMarkers = extractPhaseMarkers(lines)
+	}
+
+	// If phases exist, use phase-aware write
+	if len(phaseMarkers) > 0 {
+		return WriteFileWithPhases(tl, phaseMarkers, filePath)
+	}
+
 	// Generate markdown content with front matter if present
 	var content []byte
 	if tl.FrontMatter != nil && (len(tl.FrontMatter.References) > 0 || len(tl.FrontMatter.Metadata) > 0) {
@@ -281,9 +294,15 @@ func (tl *TaskList) WriteFile(filePath string) error {
 		content = RenderMarkdown(tl)
 	}
 
+	// Get original file permissions if file exists, otherwise use default 0644
+	perm := os.FileMode(0644)
+	if fileInfo, err := os.Stat(filePath); err == nil {
+		perm = fileInfo.Mode().Perm()
+	}
+
 	// Write to temp file first for atomic operation
 	tmpFile := filePath + ".tmp"
-	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
+	if err := os.WriteFile(tmpFile, content, perm); err != nil {
 		return fmt.Errorf("writing temp file: %w", err)
 	}
 
@@ -460,7 +479,7 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 	// Parse file with phase information
 	tl, phaseMarkers, err := ParseFileWithPhases(filepath)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse file with phases: %w", err)
+		return "", fmt.Errorf("failed to parse file '%s' with phases: %w", filepath, err)
 	}
 
 	// Validate input
@@ -539,7 +558,7 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 		// For subtasks, use existing AddTask logic
 		newTaskID, err = tl.AddTask(parentID, title, "")
 		if err != nil {
-			return "", fmt.Errorf("failed to add subtask: %w", err)
+			return "", fmt.Errorf("failed to add subtask to '%s': %w", filepath, err)
 		}
 	} else {
 		// Insert task at the calculated position
@@ -567,8 +586,11 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 		}
 
 		// Update phase markers to account for the insertion
-		// We need to update the phase marker that comes AFTER the phase we're adding to
-		// This marker should now point to the last task in our target phase
+		// IMPORTANT: Since we ALWAYS insert at the END of the phase (insertPosition = phaseEndPos),
+		// the newly inserted task becomes the last task in the current phase. Therefore, the next
+		// phase marker must be updated to point to this newly inserted task's ID.
+		// This maintains the invariant that phase markers always point to the last task in the
+		// preceding phase.
 		if phaseFound {
 			// Find the next phase marker after our target phase
 			for i, marker := range phaseMarkers {
@@ -576,9 +598,8 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 					// Look for the next phase marker
 					if i+1 < len(phaseMarkers) {
 						nextMarker := &phaseMarkers[i+1]
-						// The next phase should now start after the newly inserted task
-						// Since we inserted at position insertPosition and it got renumbered,
-						// the next phase should start after the task at insertPosition
+						// Update the next phase to start after the newly inserted task
+						// (which is now the last task in the current phase)
 						if insertPosition < len(tl.Tasks) {
 							nextMarker.AfterTaskID = tl.Tasks[insertPosition].ID
 						}
@@ -591,7 +612,7 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 
 	// Write the file with phases preserved
 	if err := WriteFileWithPhases(tl, phaseMarkers, filepath); err != nil {
-		return "", fmt.Errorf("failed to write file with phases: %w", err)
+		return "", fmt.Errorf("failed to write file '%s' with phases: %w", filepath, err)
 	}
 
 	tl.Modified = time.Now()
@@ -618,9 +639,15 @@ func WriteFileWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, filePath stri
 		content = RenderMarkdownWithPhases(tl, phaseMarkers)
 	}
 
+	// Get original file permissions if file exists, otherwise use default 0644
+	perm := os.FileMode(0644)
+	if fileInfo, err := os.Stat(filePath); err == nil {
+		perm = fileInfo.Mode().Perm()
+	}
+
 	// Write to temp file first for atomic operation
 	tmpFile := filePath + ".tmp"
-	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
+	if err := os.WriteFile(tmpFile, content, perm); err != nil {
 		return fmt.Errorf("writing temp file: %w", err)
 	}
 

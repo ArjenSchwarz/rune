@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/arjenschwarz/rune/internal/task"
@@ -102,13 +103,9 @@ func runBatch(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if any operations use phases
-	hasPhaseOps := false
-	for _, op := range req.Operations {
-		if op.Phase != "" {
-			hasPhaseOps = true
-			break
-		}
-	}
+	hasPhaseOps := slices.ContainsFunc(req.Operations, func(op task.Operation) bool {
+		return op.Phase != ""
+	})
 
 	var response *task.BatchResponse
 	var taskList *task.TaskList
