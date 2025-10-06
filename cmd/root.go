@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -38,7 +37,8 @@ This tool provides:
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		// Only print error if not silenced by the command
+		// Cobra already handles error printing for commands with SilenceErrors=false
 		os.Exit(1)
 	}
 }

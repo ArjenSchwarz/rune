@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Integration test infrastructure**: Fixed integration tests to build binary instead of requiring installed rune
+  - Added TestMain to build rune binary before running integration tests
+  - Tests now use compiled binary from temp directory
+  - Eliminates dependency on system-installed rune command
+  - CI/CD pipelines now work correctly without pre-installation
+
 ### Changed
 - **Code quality improvements**: Refactored phase-related code for better maintainability and performance
   - Removed os.Exit() from has-phases command, using proper error returns instead

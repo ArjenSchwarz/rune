@@ -15,12 +15,41 @@ import (
 // originalWorkingDir stores the working directory when tests start, before changing to temp directories
 var originalWorkingDir string
 
+// runeBinaryPath stores the path to the compiled rune binary for integration tests
+var runeBinaryPath string
+
 func init() {
 	// Capture the original working directory when the test package loads
 	wd, err := os.Getwd()
 	if err == nil {
 		originalWorkingDir = wd
 	}
+}
+
+// TestMain builds the rune binary before running integration tests
+func TestMain(m *testing.M) {
+	// Only build binary if running integration tests
+	if os.Getenv("INTEGRATION") != "" {
+		// Build the binary
+		tmpDir, err := os.MkdirTemp("", "rune-integration-test")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to create temp dir: %v\n", err)
+			os.Exit(1)
+		}
+		defer os.RemoveAll(tmpDir)
+
+		runeBinaryPath = filepath.Join(tmpDir, "rune")
+		buildCmd := exec.Command("go", "build", "-o", runeBinaryPath, "../")
+		buildCmd.Dir = originalWorkingDir
+		if output, err := buildCmd.CombinedOutput(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to build rune binary: %v\n%s\n", err, output)
+			os.Exit(1)
+		}
+	}
+
+	// Run tests
+	code := m.Run()
+	os.Exit(code)
 }
 
 // getExamplePath resolves the absolute path to an example file from the project root
@@ -1018,11 +1047,17 @@ func runCommandWithOutput(t *testing.T, name string, args ...string) string {
 }
 
 func runGoCommand(t *testing.T, args ...string) string {
-	return runCommandWithOutput(t, "rune", args...)
+	if runeBinaryPath == "" {
+		t.Fatal("rune binary path not set - TestMain should have built the binary")
+	}
+	return runCommandWithOutput(t, runeBinaryPath, args...)
 }
 
 func runGoCommandWithError(_ *testing.T, args ...string) string {
-	cmd := exec.Command("rune", args...)
+	if runeBinaryPath == "" {
+		return "ERROR: rune binary path not set"
+	}
+	cmd := exec.Command(runeBinaryPath, args...)
 	output, _ := cmd.CombinedOutput()
 	return string(output)
 }

@@ -31,8 +31,10 @@ Examples:
   rune has-phases
   rune has-phases tasks.md
   rune has-phases --verbose tasks.md`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runHasPhases,
+	Args:          cobra.MaximumNArgs(1),
+	RunE:          runHasPhases,
+	SilenceErrors: true, // We output JSON errors ourselves
+	SilenceUsage:  true, // Don't show usage on errors
 }
 
 func init() {
@@ -89,10 +91,8 @@ func runHasPhases(cmd *cobra.Command, args []string) error {
 	fmt.Println(string(jsonOutput))
 
 	// Return error if no phases found to set exit code 1
-	// Suppress error printing since we already output JSON
+	// Error printing is suppressed via command SilenceErrors flag
 	if !hasPhases {
-		cmd.SilenceErrors = true
-		cmd.SilenceUsage = true
 		return fmt.Errorf("no phases found")
 	}
 
