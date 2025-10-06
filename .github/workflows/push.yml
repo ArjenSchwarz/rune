@@ -15,7 +15,7 @@ jobs:
       - name: Run tests
         run: make test-all
       - name: Run linter
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
           skip-cache: true
