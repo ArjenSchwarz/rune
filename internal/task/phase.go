@@ -57,6 +57,33 @@ func getTaskPhase(taskID string, content []byte) string {
 	return ""
 }
 
+// buildTaskPhaseMap creates a map from task IDs to phase names in a single pass
+// through the document lines. This is more efficient than calling getTaskPhase
+// for each task individually.
+func buildTaskPhaseMap(lines []string) map[string]string {
+	taskPhaseMap := make(map[string]string)
+	currentPhase := ""
+
+	for _, line := range lines {
+		// Check if this is a phase header
+		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
+			currentPhase = strings.TrimSpace(matches[1])
+			continue
+		}
+
+		// Check if this line contains a top-level task
+		if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
+			taskID := taskMatches[3]
+			// Only track top-level task IDs (tasks create phase associations for their children)
+			if !strings.Contains(taskID, ".") && currentPhase != "" {
+				taskPhaseMap[taskID] = currentPhase
+			}
+		}
+	}
+
+	return taskPhaseMap
+}
+
 // getNextPhaseTasks returns all pending/in-progress tasks from the first phase
 // that contains non-completed tasks. It scans phases in document order and returns
 // tasks from the first phase with pending work.
@@ -75,13 +102,19 @@ func getNextPhaseTasks(content []byte) ([]Task, string) {
 		return nil, ""
 	}
 
-	// Build a map to track which phase each task belongs to
-	taskPhaseMap := make(map[string]string) // taskID -> phaseName
+	// Build a map to track which phase each top-level task belongs to (single pass)
+	topLevelPhaseMap := buildTaskPhaseMap(lines)
 
-	// Determine phase for each task by scanning document position
+	// Extend map to include all tasks (children inherit parent's phase)
+	taskPhaseMap := make(map[string]string)
 	for _, task := range taskList.Tasks {
-		phase := getTaskPhase(task.ID, content)
-		if phase != "" {
+		// Get parent ID for subtasks
+		parentID := task.ID
+		if idx := strings.Index(task.ID, "."); idx != -1 {
+			parentID = task.ID[:idx]
+		}
+		// Look up parent's phase
+		if phase, exists := topLevelPhaseMap[parentID]; exists {
 			taskPhaseMap[task.ID] = phase
 		}
 	}

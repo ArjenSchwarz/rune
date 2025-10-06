@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Code quality improvements**: Refactored phase-related code for better maintainability and performance
+  - Removed os.Exit() from has-phases command, using proper error returns instead
+  - Optimized getNextPhaseTasks to eliminate N+1 queries (O(n*m) → O(n+m) complexity)
+  - Added buildTaskPhaseMap for single-pass document scanning
+  - Created ValidatePhaseName function for consistent validation across commands
+  - Removed max phase name length restriction (500 characters) as unnecessary constraint
+
 ### Added
 - **Phase detection command**: New has-phases command for programmatic phase detection
   - Added `has-phases` command to check if task files contain phase headers

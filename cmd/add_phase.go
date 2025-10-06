@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/arjenschwarz/rune/internal/task"
 	"github.com/spf13/cobra"
 )
 
@@ -50,11 +51,8 @@ func runAddPhase(cmd *cobra.Command, args []string) error {
 	phaseName = strings.TrimSpace(phaseName)
 
 	// Validate phase name
-	if phaseName == "" {
-		return fmt.Errorf("phase name cannot be empty")
-	}
-	if len(phaseName) > 500 {
-		return fmt.Errorf("phase name exceeds maximum length of 500 characters (got %d)", len(phaseName))
+	if err := task.ValidatePhaseName(phaseName); err != nil {
+		return err
 	}
 
 	if verbose {

@@ -117,6 +117,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	// Add the task - use phase-aware logic if phase is specified
 	var newTaskID string
 	if addPhase != "" {
+		// Validate phase name
+		if err := task.ValidatePhaseName(addPhase); err != nil {
+			return err
+		}
 		// Use phase-aware task addition
 		newTaskID, err = task.AddTaskToPhase(filename, addParent, addTitle, addPhase)
 		if err != nil {

@@ -88,9 +88,12 @@ func runHasPhases(cmd *cobra.Command, args []string) error {
 
 	fmt.Println(string(jsonOutput))
 
-	// Set exit code based on whether phases were found
+	// Return error if no phases found to set exit code 1
+	// Suppress error printing since we already output JSON
 	if !hasPhases {
-		os.Exit(1)
+		cmd.SilenceErrors = true
+		cmd.SilenceUsage = true
+		return fmt.Errorf("no phases found")
 	}
 
 	return nil

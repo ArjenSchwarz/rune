@@ -319,12 +319,14 @@ func (tl *TaskList) ExecuteBatchWithPhases(ops []Operation, dryRun bool, phaseMa
 		AutoCompleted: []string{},
 	}
 
-	// Check if any operations use phases
+	// Check if any operations use phases and validate phase names
 	hasPhaseOps := false
 	for _, op := range ops {
 		if op.Phase != "" {
+			if err := ValidatePhaseName(op.Phase); err != nil {
+				return nil, err
+			}
 			hasPhaseOps = true
-			break
 		}
 	}
 
