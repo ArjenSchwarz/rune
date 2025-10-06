@@ -466,3 +466,587 @@ func TestPhaseHeaderExtractionRegex(t *testing.T) {
 		})
 	}
 }
+
+func TestGetTaskPhasePositional(t *testing.T) {
+	tests := map[string]struct {
+		content     string
+		taskID      string
+		wantPhase   string
+		description string
+	}{
+		"task_in_first_phase": {
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Define requirements
+- [ ] 2. Create design
+
+## Implementation
+
+- [ ] 3. Write code`,
+			taskID:      "1",
+			wantPhase:   "Planning",
+			description: "Task in first phase should return phase name",
+		},
+		"task_in_second_phase": {
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Define requirements
+
+## Implementation
+
+- [ ] 2. Write code
+- [ ] 3. Write tests`,
+			taskID:      "2",
+			wantPhase:   "Implementation",
+			description: "Task in second phase should return correct phase name",
+		},
+		"task_before_any_phase": {
+			content: `# Project
+
+- [ ] 1. Pre-phase task
+
+## Planning
+
+- [ ] 2. Phase task`,
+			taskID:      "1",
+			wantPhase:   "",
+			description: "Task before any phase should return empty string",
+		},
+		"task_remains_in_phase_until_new_phase": {
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Phase task
+- [ ] 2. Still in Planning phase`,
+			taskID:      "2",
+			wantPhase:   "Planning",
+			description: "Task remains in phase until new phase header appears",
+		},
+		"subtask_in_phase": {
+			content: `# Project
+
+## Development
+
+- [ ] 1. Parent task
+  - [ ] 1.1. Subtask
+  - [ ] 1.2. Another subtask`,
+			taskID:      "1.1",
+			wantPhase:   "Development",
+			description: "Subtask should inherit parent's phase",
+		},
+		"deeply_nested_subtask": {
+			content: `# Project
+
+## Testing
+
+- [ ] 1. Test suite
+  - [ ] 1.1. Unit tests
+    - [ ] 1.1.1. Component tests`,
+			taskID:      "1.1.1",
+			wantPhase:   "Testing",
+			description: "Deeply nested subtask should return correct phase",
+		},
+		"task_in_phase_with_special_chars": {
+			content: `# Project
+
+## Phase-1: Planning & Design
+
+- [ ] 1. Task one`,
+			taskID:      "1",
+			wantPhase:   "Phase-1: Planning & Design",
+			description: "Phase names with special characters should be preserved",
+		},
+		"task_between_empty_phases": {
+			content: `# Project
+
+## Empty Phase One
+
+## Phase Two
+
+- [ ] 1. Task in phase two
+
+## Empty Phase Three`,
+			taskID:      "1",
+			wantPhase:   "Phase Two",
+			description: "Task should belong to most recent phase header",
+		},
+		"nonexistent_task": {
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Existing task`,
+			taskID:      "999",
+			wantPhase:   "",
+			description: "Nonexistent task should return empty string",
+		},
+		"task_in_duplicate_phase_first": {
+			content: `# Project
+
+## Development
+
+- [ ] 1. First dev task
+
+## Testing
+
+- [ ] 2. Test task
+
+## Development
+
+- [ ] 3. Second dev task`,
+			taskID:      "1",
+			wantPhase:   "Development",
+			description: "Task in first occurrence of duplicate phase",
+		},
+		"task_in_duplicate_phase_second": {
+			content: `# Project
+
+## Development
+
+- [ ] 1. First dev task
+
+## Testing
+
+- [ ] 2. Test task
+
+## Development
+
+- [ ] 3. Second dev task`,
+			taskID:      "3",
+			wantPhase:   "Development",
+			description: "Task in second occurrence of duplicate phase should still return phase name",
+		},
+		"document_with_no_phases": {
+			content: `# Project
+
+- [ ] 1. Task one
+- [ ] 2. Task two`,
+			taskID:      "1",
+			wantPhase:   "",
+			description: "Document without phases should return empty string",
+		},
+		"task_after_multiple_phases": {
+			content: `# Project
+
+## Phase One
+
+- [ ] 1. Task one
+
+## Phase Two
+
+- [ ] 2. Task two
+
+## Phase Three
+
+- [ ] 3. Task three`,
+			taskID:      "3",
+			wantPhase:   "Phase Three",
+			description: "Task in last phase should be correctly identified",
+		},
+		"empty_task_id": {
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Task`,
+			taskID:      "",
+			wantPhase:   "",
+			description: "Empty task ID should return empty string",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			gotPhase := getTaskPhase(tc.taskID, []byte(tc.content))
+
+			if gotPhase != tc.wantPhase {
+				t.Errorf("%s\ngetTaskPhase(%q) = %q, want %q",
+					tc.description, tc.taskID, gotPhase, tc.wantPhase)
+			}
+		})
+	}
+}
+
+func TestAddPhase(t *testing.T) {
+	tests := map[string]struct {
+		phaseName   string
+		wantLine    string
+		description string
+	}{
+		"simple_phase_name": {
+			phaseName:   "Planning",
+			wantLine:    "## Planning\n",
+			description: "Simple phase name should be formatted as H2",
+		},
+		"phase_with_spaces": {
+			phaseName:   "Phase One",
+			wantLine:    "## Phase One\n",
+			description: "Phase with spaces should preserve spaces",
+		},
+		"phase_with_special_chars": {
+			phaseName:   "Phase-1: Planning & Design",
+			wantLine:    "## Phase-1: Planning & Design\n",
+			description: "Special characters should be preserved",
+		},
+		"phase_with_numbers": {
+			phaseName:   "Phase 123",
+			wantLine:    "## Phase 123\n",
+			description: "Numbers in phase name should be preserved",
+		},
+		"phase_with_parentheses": {
+			phaseName:   "Implementation (Backend)",
+			wantLine:    "## Implementation (Backend)\n",
+			description: "Parentheses should be preserved",
+		},
+		"phase_with_unicode": {
+			phaseName:   "Planning 📋",
+			wantLine:    "## Planning 📋\n",
+			description: "Unicode characters should be preserved",
+		},
+		"empty_phase_name": {
+			phaseName:   "",
+			wantLine:    "## \n",
+			description: "Empty phase name should still create valid H2 header",
+		},
+		"phase_with_leading_trailing_spaces": {
+			phaseName:   "  Phase Name  ",
+			wantLine:    "##   Phase Name  \n",
+			description: "Leading/trailing spaces should be preserved (no trimming)",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			gotLine := addPhase(tc.phaseName)
+
+			if gotLine != tc.wantLine {
+				t.Errorf("%s\naddPhase(%q) = %q, want %q",
+					tc.description, tc.phaseName, gotLine, tc.wantLine)
+			}
+		})
+	}
+}
+
+func TestGetNextPhaseTasks(t *testing.T) {
+	tests := map[string]struct {
+		content       string
+		wantPhaseName string
+		wantTaskCount int
+		validateFunc  func(t *testing.T, tasks []Task, phaseName string)
+		description   string
+	}{
+		"first_phase_with_pending": {
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Define requirements
+- [ ] 2. Create design
+
+## Implementation
+
+- [ ] 3. Write code`,
+			wantPhaseName: "Planning",
+			wantTaskCount: 2,
+			description:   "Should return all pending tasks from first phase",
+		},
+		"skip_completed_phase": {
+			content: `# Project
+
+## Planning
+
+- [x] 1. Define requirements
+- [x] 2. Create design
+
+## Implementation
+
+- [ ] 3. Write code
+- [ ] 4. Write tests`,
+			wantPhaseName: "Implementation",
+			wantTaskCount: 2,
+			description:   "Should skip completed phase and return next phase with pending tasks",
+		},
+		"phase_with_mixed_status": {
+			content: `# Project
+
+## Development
+
+- [x] 1. Setup project
+- [ ] 2. Write code
+- [ ] 3. Write tests
+- [x] 4. Review`,
+			wantPhaseName: "Development",
+			wantTaskCount: 2,
+			validateFunc: func(t *testing.T, tasks []Task, phaseName string) {
+				if len(tasks) != 2 {
+					t.Errorf("Expected 2 pending tasks, got %d", len(tasks))
+					return
+				}
+				if tasks[0].ID != "2" {
+					t.Errorf("First pending task ID = %q, want %q", tasks[0].ID, "2")
+				}
+				if tasks[1].ID != "3" {
+					t.Errorf("Second pending task ID = %q, want %q", tasks[1].ID, "3")
+				}
+			},
+			description: "Should return only pending tasks from phase with mixed status",
+		},
+		"no_pending_tasks": {
+			content: `# Project
+
+## Planning
+
+- [x] 1. Define requirements
+
+## Implementation
+
+- [x] 2. Write code`,
+			wantPhaseName: "",
+			wantTaskCount: 0,
+			description:   "Should return empty when no pending tasks exist",
+		},
+		"tasks_before_phases": {
+			content: `# Project
+
+- [ ] 1. Pre-phase task
+
+## Planning
+
+- [x] 2. Completed task
+
+## Implementation
+
+- [ ] 3. Pending task`,
+			wantPhaseName: "Implementation",
+			wantTaskCount: 1,
+			description:   "Should skip non-phased tasks and find first phase with pending",
+		},
+		"empty_phases_before_pending": {
+			content: `# Project
+
+## Empty Phase One
+
+## Empty Phase Two
+
+## Phase Three
+
+- [ ] 1. First task`,
+			wantPhaseName: "Phase Three",
+			wantTaskCount: 1,
+			description:   "Should skip empty phases and find first with pending tasks",
+		},
+		"phase_with_subtasks": {
+			content: `# Project
+
+## Development
+
+- [ ] 1. Parent task
+  - [ ] 1.1. Subtask one
+  - [ ] 1.2. Subtask two`,
+			wantPhaseName: "Development",
+			wantTaskCount: 1,
+			validateFunc: func(t *testing.T, tasks []Task, phaseName string) {
+				if len(tasks) != 1 {
+					t.Errorf("Expected 1 top-level task, got %d", len(tasks))
+					return
+				}
+				if len(tasks[0].Children) != 2 {
+					t.Errorf("Expected 2 subtasks, got %d", len(tasks[0].Children))
+				}
+			},
+			description: "Should return parent task with its subtasks",
+		},
+		"document_without_phases": {
+			content: `# Project
+
+- [ ] 1. Task one
+- [ ] 2. Task two`,
+			wantPhaseName: "",
+			wantTaskCount: 0,
+			description:   "Should return empty for document without phases",
+		},
+		"phase_with_in_progress_tasks": {
+			content: `# Project
+
+## Current Sprint
+
+- [-] 1. In progress task
+- [ ] 2. Pending task
+- [ ] 3. Another pending`,
+			wantPhaseName: "Current Sprint",
+			wantTaskCount: 3,
+			validateFunc: func(t *testing.T, tasks []Task, phaseName string) {
+				if len(tasks) != 3 {
+					t.Errorf("Expected 3 tasks (in-progress + pending), got %d", len(tasks))
+					return
+				}
+				// In-progress tasks should be included as they're not completed
+				if tasks[0].Status != InProgress {
+					t.Errorf("First task status = %v, want InProgress", tasks[0].Status)
+				}
+			},
+			description: "Should include in-progress tasks as non-completed",
+		},
+		"multiple_phases_second_has_pending": {
+			content: `# Project
+
+## Phase One
+
+- [x] 1. Completed
+
+## Phase Two
+
+- [x] 2. Also completed
+
+## Phase Three
+
+- [ ] 3. Pending task
+- [ ] 4. Another pending`,
+			wantPhaseName: "Phase Three",
+			wantTaskCount: 2,
+			description:   "Should return third phase when first two are completed",
+		},
+		"duplicate_phase_names": {
+			content: `# Project
+
+## Development
+
+- [x] 1. Completed
+
+## Testing
+
+- [x] 2. Completed
+
+## Development
+
+- [ ] 3. Pending in second Development`,
+			wantPhaseName: "Development",
+			wantTaskCount: 1,
+			description:   "Should handle duplicate phase names and find pending in second occurrence",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tasks, phaseName := getNextPhaseTasks([]byte(tc.content))
+
+			if phaseName != tc.wantPhaseName {
+				t.Errorf("%s\ngetNextPhaseTasks() phase = %q, want %q",
+					tc.description, phaseName, tc.wantPhaseName)
+			}
+
+			if len(tasks) != tc.wantTaskCount {
+				t.Errorf("%s\ngetNextPhaseTasks() returned %d tasks, want %d",
+					tc.description, len(tasks), tc.wantTaskCount)
+			}
+
+			if tc.validateFunc != nil {
+				tc.validateFunc(t, tasks, phaseName)
+			}
+		})
+	}
+}
+
+func TestFindPhasePosition(t *testing.T) {
+	tests := map[string]struct {
+		content       string
+		phaseName     string
+		wantFound     bool
+		wantAfterTask string
+		description   string
+	}{
+		"phase_at_start": {
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Task`,
+			phaseName:     "Planning",
+			wantFound:     true,
+			wantAfterTask: "",
+			description:   "Phase at document start should be found",
+		},
+		"phase_after_task": {
+			content: `# Project
+
+- [ ] 1. First task
+
+## Development
+
+- [ ] 2. Second task`,
+			phaseName:     "Development",
+			wantFound:     true,
+			wantAfterTask: "1",
+			description:   "Phase after task should indicate correct position",
+		},
+		"nonexistent_phase": {
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Task`,
+			phaseName:     "Implementation",
+			wantFound:     false,
+			wantAfterTask: "",
+			description:   "Nonexistent phase should not be found",
+		},
+		"first_of_duplicate_phases": {
+			content: `# Project
+
+## Development
+
+- [ ] 1. First task
+
+## Development
+
+- [ ] 2. Second task`,
+			phaseName:     "Development",
+			wantFound:     true,
+			wantAfterTask: "",
+			description:   "Should find first occurrence of duplicate phase names",
+		},
+		"case_sensitive_match": {
+			content: `# Project
+
+## planning
+
+- [ ] 1. Task`,
+			phaseName:     "Planning",
+			wantFound:     false,
+			wantAfterTask: "",
+			description:   "Phase names should be case-sensitive",
+		},
+		"phase_with_special_characters": {
+			content: `# Project
+
+## Phase-1: Setup & Config
+
+- [ ] 1. Task`,
+			phaseName:     "Phase-1: Setup & Config",
+			wantFound:     true,
+			wantAfterTask: "",
+			description:   "Should match phase with special characters exactly",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			gotFound, gotAfterTask := findPhasePosition(tc.phaseName, []byte(tc.content))
+
+			if gotFound != tc.wantFound {
+				t.Errorf("%s\nfindPhasePosition(%q) found = %v, want %v",
+					tc.description, tc.phaseName, gotFound, tc.wantFound)
+			}
+
+			if gotAfterTask != tc.wantAfterTask {
+				t.Errorf("%s\nfindPhasePosition(%q) afterTask = %q, want %q",
+					tc.description, tc.phaseName, gotAfterTask, tc.wantAfterTask)
+			}
+		})
+	}
+}

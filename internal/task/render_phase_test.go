@@ -394,7 +394,7 @@ func TestJSONOutputWithPhases(t *testing.T) {
 	tests := map[string]struct {
 		taskList     *TaskList
 		phaseMarkers []PhaseMarker
-		checkPhase   func(data map[string]interface{}) bool
+		checkPhase   func(data map[string]any) bool
 		description  string
 	}{
 		"json_with_phases": {
@@ -408,13 +408,13 @@ func TestJSONOutputWithPhases(t *testing.T) {
 			phaseMarkers: []PhaseMarker{
 				{Name: "Development", AfterTaskID: ""},
 			},
-			checkPhase: func(data map[string]interface{}) bool {
+			checkPhase: func(data map[string]any) bool {
 				// Verify phase field exists in tasks when phases are present
-				tasks, ok := data["tasks"].([]interface{})
+				tasks, ok := data["tasks"].([]any)
 				if !ok || len(tasks) == 0 {
 					return false
 				}
-				task1 := tasks[0].(map[string]interface{})
+				task1 := tasks[0].(map[string]any)
 				_, hasPhase := task1["phase"]
 				return hasPhase
 			},
@@ -428,13 +428,13 @@ func TestJSONOutputWithPhases(t *testing.T) {
 				},
 			},
 			phaseMarkers: []PhaseMarker{},
-			checkPhase: func(data map[string]interface{}) bool {
+			checkPhase: func(data map[string]any) bool {
 				// Verify phase field doesn't exist when no phases
-				tasks, ok := data["tasks"].([]interface{})
+				tasks, ok := data["tasks"].([]any)
 				if !ok || len(tasks) == 0 {
 					return false
 				}
-				task1 := tasks[0].(map[string]interface{})
+				task1 := tasks[0].(map[string]any)
 				_, hasPhase := task1["phase"]
 				return !hasPhase // Should NOT have phase field
 			},
@@ -447,7 +447,7 @@ func TestJSONOutputWithPhases(t *testing.T) {
 			// Convert to JSON and check phase field presence
 			jsonData := RenderJSONWithPhases(tc.taskList, tc.phaseMarkers)
 
-			var data map[string]interface{}
+			var data map[string]any
 			if err := json.Unmarshal(jsonData, &data); err != nil {
 				t.Fatalf("Failed to unmarshal JSON: %v", err)
 			}

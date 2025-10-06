@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Phase utility functions implementation**: Core helper functions for phase operations
+  - Implemented getTaskPhase function for positional lookup of task's phase
+  - Implemented addPhase function to format phase headers as H2 markdown
+  - Implemented getNextPhaseTasks to find all pending tasks from next phase with work
+  - Implemented findPhasePosition to locate phases and their positions in documents
+  - Support for duplicate phase names using first occurrence
+  - Phase membership determined by document position (most recent phase header)
+  - Subtask phase inheritance from parent task
+  - Comprehensive test suite with 584 lines covering all phase utility scenarios
+    - Tests for positional phase detection across complex document structures
+    - Tests for phase creation with special characters and edge cases
+    - Tests for next phase task retrieval with mixed completion states
+    - Tests for phase position finding with duplicate handling
+  - References: specs/task-phases requirements 1.1, 5.4, 5.5, tasks 9.1, 9.2
+
+### Changed
+- **Code modernization**: Applied modern Go patterns for collection operations
+  - Replaced manual loop in hasPhases with slices.ContainsFunc for cleaner code
+  - Updated interface{} to any type alias for improved readability
+
+### Added
 - **Phase integration tests**: Comprehensive end-to-end testing for phase functionality
   - Test for end-to-end phase creation and task addition workflow
   - Test for round-trip operations (parse → modify → render → parse) with phases

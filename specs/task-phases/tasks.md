@@ -141,17 +141,17 @@ references:
     - Verify backward compatibility with legacy task files
     - References: Requirements 8.1, 8.2, 8.3, 8.4, 8.5
 
-- [ ] 9. Phase Utility Functions
+- [x] 9. Phase Utility Functions
   - Create helper functions for phase operations
   - Implement position-based phase detection
   - Add phase name extraction and validation
-  - [ ] 9.1. Write unit tests for phase utility functions
+  - [x] 9.1. Write unit tests for phase utility functions
     - Test getTaskPhase returns correct phase for task ID
     - Test phase detection with various document structures
     - Test handling of tasks not in any phase
     - Test phase name extraction from H2 headers
     - References: Requirements 1.1, 5.4, 5.5
-  - [ ] 9.2. Implement phase.go with utility functions
+  - [x] 9.2. Implement phase.go with utility functions
     - Create getTaskPhase function for positional lookup
     - Implement addPhase function to format phase headers
     - Add helper to find phase position in document

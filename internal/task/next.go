@@ -3,6 +3,7 @@ package task
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -170,12 +171,7 @@ type PhaseWithTasks struct {
 
 // hasPhases checks if the document contains any H2 headers (phases)
 func hasPhases(lines []string) bool {
-	for _, line := range lines {
-		if phaseHeaderPattern.MatchString(line) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(lines, phaseHeaderPattern.MatchString)
 }
 
 // extractPhasesWithTaskRanges parses the document and associates tasks with their phases
