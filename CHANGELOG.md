@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Phase documentation**: Comprehensive documentation for phase-based task organization
+  - Updated README.md with phase organization section and examples
+  - Added phase usage to add, next, and add-phase command documentation
+  - Documented batch operations with phase support and JSON examples
+  - Enhanced AGENT_INSTRUCTIONS.md with phase-aware workflows
+  - Updated CREATE_TASKS.md with phase creation patterns and batch operations
+  - Added batch-operations-phases.json example file demonstrating phase usage
+  - Updated json-api.md with phase field specification for add operations
+  - Phase features integrated across all relevant documentation sections
+
+### Added
 - **Phase utility functions implementation**: Core helper functions for phase operations
   - Implemented getTaskPhase function for positional lookup of task's phase
   - Implemented addPhase function to format phase headers as H2 markdown

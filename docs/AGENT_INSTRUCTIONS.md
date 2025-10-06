@@ -4,7 +4,7 @@ This guide provides optimal workflows for AI agents using rune to manage hierarc
 
 ## Creating a Task List
 
-### Basic Workflow
+### Basic Workflow (Hierarchical Tasks)
 
 ```bash
 # 1. Create new task file
@@ -12,7 +12,7 @@ rune create "Project Name" --file tasks.md
 
 # 2. Add main phases/categories
 rune add tasks.md --title "Planning Phase"
-rune add tasks.md --title "Implementation Phase"  
+rune add tasks.md --title "Implementation Phase"
 rune add tasks.md --title "Testing Phase"
 
 # 3. Add detailed tasks under each phase
@@ -22,7 +22,25 @@ rune add tasks.md --title "Setup development environment" --parent 2
 rune add tasks.md --title "Implement core features" --parent 2
 ```
 
-### Advanced: Batch Creation
+### Basic Workflow (Using Phases)
+
+```bash
+# 1. Create new task file
+rune create "Project Name" --file tasks.md
+
+# 2. Add phase headers
+rune add-phase tasks.md "Planning"
+rune add-phase tasks.md "Implementation"
+rune add-phase tasks.md "Testing"
+
+# 3. Add tasks to specific phases
+rune add tasks.md --title "Requirements gathering" --phase "Planning"
+rune add tasks.md --title "Architecture design" --phase "Planning"
+rune add tasks.md --title "Setup development environment" --phase "Implementation"
+rune add tasks.md --title "Implement core features" --phase "Implementation"
+```
+
+### Advanced: Batch Creation (Hierarchical)
 
 For complex task lists, use JSON batch operations for atomic creation:
 
@@ -38,7 +56,7 @@ cat > batch-setup.json << 'EOF'
       "details": ["Define requirements", "Create timeline"]
     },
     {
-      "type": "add", 
+      "type": "add",
       "title": "Implementation Phase"
     },
     {
@@ -49,7 +67,7 @@ cat > batch-setup.json << 'EOF'
     },
     {
       "type": "add",
-      "parent": "1", 
+      "parent": "1",
       "title": "Technical design"
     },
     {
@@ -65,6 +83,54 @@ EOF
 
 # Execute batch creation
 rune batch project.md --operations batch-setup.json
+```
+
+### Advanced: Batch Creation with Phases
+
+Use phases for better organization in batch operations:
+
+```bash
+# Create batch-phased-setup.json
+cat > batch-phased-setup.json << 'EOF'
+{
+  "file": "project.md",
+  "operations": [
+    {
+      "type": "add",
+      "title": "Requirements analysis",
+      "phase": "Planning",
+      "details": ["Define requirements", "Create timeline"],
+      "references": ["requirements.md"]
+    },
+    {
+      "type": "add",
+      "title": "Technical design",
+      "phase": "Planning"
+    },
+    {
+      "type": "add",
+      "title": "Core development",
+      "phase": "Implementation",
+      "details": ["API implementation", "Database setup"]
+    },
+    {
+      "type": "add",
+      "title": "Integration work",
+      "phase": "Implementation"
+    },
+    {
+      "type": "add",
+      "title": "Unit testing",
+      "phase": "Testing",
+      "details": ["Test coverage > 80%"]
+    }
+  ],
+  "dry_run": false
+}
+EOF
+
+# Execute batch creation - phases are auto-created
+rune batch project.md --operations batch-phased-setup.json
 ```
 
 ## Marking Groups of Tasks as Done
@@ -191,16 +257,52 @@ When removing tasks, remember that IDs will be renumbered:
 ### Atomic Operations
 All batch operations are atomic - they either all succeed or all fail, preventing partial updates.
 
+## Working with Phases
+
+### Get Next Phase Tasks
+```bash
+# Get all pending tasks from the next incomplete phase
+rune next tasks.md --phase
+
+# This is useful for focusing on phase-by-phase execution
+```
+
+### Phase-Aware Operations
+```bash
+# Add task to specific phase (creates phase if needed)
+rune add tasks.md --title "New task" --phase "Implementation"
+
+# Add phase header manually
+rune add-phase tasks.md "New Phase Name"
+
+# List tasks with phase information in table format
+rune list tasks.md --format table
+```
+
+### Phases vs Hierarchical Tasks
+- **Phases**: Organize using H2 headers (`## Phase Name`), tasks numbered sequentially across phases
+- **Hierarchical**: Organize using parent-child relationships, nested task IDs (1.1, 1.2.1)
+- **Can combine both**: Use phases for high-level organization, hierarchical tasks within phases
+
 ## Quick Reference
 
 ```bash
 # Create task list
 rune create "Title" --file name.md
 
-# Add task
+# Add task (hierarchical)
 rune add file.md --title "Task" [--parent ID] [--details "a,b,c"] [--references "x.md,y.md"]
 
-# Mark complete/in-progress/pending  
+# Add task to phase
+rune add file.md --title "Task" --phase "Phase Name" [--details "a,b,c"]
+
+# Add phase header
+rune add-phase file.md "Phase Name"
+
+# Get next task or next phase
+rune next file.md [--phase]
+
+# Mark complete/in-progress/pending
 rune complete file.md ID
 rune progress file.md ID
 rune uncomplete file.md ID

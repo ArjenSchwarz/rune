@@ -43,9 +43,13 @@ This document describes the JSON schema for the rune batch operations API.
           "description": "Task ID (required for remove, update operations)"
         },
         "parent": {
-          "type": "string", 
+          "type": "string",
           "pattern": "^[1-9]\\d*(\\.[1-9]\\d*)*$",
           "description": "Parent task ID (optional for add operation)"
+        },
+        "phase": {
+          "type": "string",
+          "description": "Phase name (optional for add operation, creates phase if it doesn't exist)"
         },
         "title": {
           "type": "string",
@@ -282,10 +286,21 @@ This document describes the JSON schema for the rune batch operations API.
 
 ```json
 {
-  "type": "add", 
+  "type": "add",
   "parent": "1",
   "title": "Add OAuth integration",
   "details": ["Configure OAuth providers", "Implement OAuth flow"]
+}
+```
+
+### Add Task to Phase Operation
+
+```json
+{
+  "type": "add",
+  "title": "Setup development environment",
+  "phase": "Implementation",
+  "details": ["Install dependencies", "Configure build tools"]
 }
 ```
 
