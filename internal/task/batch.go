@@ -243,7 +243,7 @@ func applyOperation(tl *TaskList, op Operation) error {
 		// If details or references are provided, update the newly added task
 		if len(op.Details) > 0 || len(op.References) > 0 {
 			if newTaskID != "" {
-				return tl.UpdateTask(newTaskID, "", op.Details, op.References)
+				return tl.UpdateTask(newTaskID, "", op.Details, op.References, nil)
 			}
 		}
 		return nil
@@ -257,7 +257,7 @@ func applyOperation(tl *TaskList, op Operation) error {
 			}
 		}
 		// Handle other field updates (title, details, references) if provided
-		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References)
+		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References, nil)
 	default:
 		return fmt.Errorf("unknown operation type: %s", op.Type)
 	}
@@ -433,7 +433,7 @@ func (tl *TaskList) deepCopyWithPhases(phaseMarkers []PhaseMarker) (*TaskList, e
 func updateTaskDetailsAndReferences(tl *TaskList, taskID string, details []string, references []string) error {
 	if len(details) > 0 || len(references) > 0 {
 		if taskID != "" {
-			return tl.UpdateTask(taskID, "", details, references)
+			return tl.UpdateTask(taskID, "", details, references, nil)
 		}
 	}
 	return nil
@@ -474,7 +474,7 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 			}
 		}
 		// Handle other field updates (title, details, references) if provided
-		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References)
+		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References, nil)
 	default:
 		return fmt.Errorf("unknown operation type: %s", op.Type)
 	}
@@ -603,7 +603,7 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 	if len(op.Details) > 0 || len(op.References) > 0 {
 		if insertPosition < len(tl.Tasks) {
 			newTaskID := tl.Tasks[insertPosition].ID
-			return tl.UpdateTask(newTaskID, "", op.Details, op.References)
+			return tl.UpdateTask(newTaskID, "", op.Details, op.References, nil)
 		}
 	}
 

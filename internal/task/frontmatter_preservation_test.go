@@ -82,7 +82,7 @@ metadata:
 		{
 			name: "update_task_details",
 			op: func(tl *TaskList) error {
-				return tl.UpdateTask("3", "Updated task", []string{"New detail"}, []string{"ref.md"})
+				return tl.UpdateTask("3", "Updated task", []string{"New detail"}, []string{"ref.md"}, nil)
 			},
 		},
 		{

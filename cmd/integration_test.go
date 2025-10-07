@@ -261,7 +261,7 @@ func testCompleteTaskLifecycle(t *testing.T, tempDir string) {
 	}
 
 	// Step 4: Update task details and references
-	err = tl.UpdateTask("1.1", "", []string{"Create User struct", "Add validation"}, []string{"user-model-spec.md"})
+	err = tl.UpdateTask("1.1", "", []string{"Create User struct", "Add validation"}, []string{"user-model-spec.md"}, nil)
 	if err != nil {
 		t.Fatalf("failed to update task: %v", err)
 	}
@@ -568,7 +568,7 @@ func testSearchAndFiltering(t *testing.T, tempDir string) {
 			taskID = fmt.Sprintf("%s.%d", tt.parent, len(parent.Children))
 		}
 
-		if err := tl.UpdateTask(taskID, "", tt.details, tt.refs); err != nil {
+		if err := tl.UpdateTask(taskID, "", tt.details, tt.refs, nil); err != nil {
 			t.Fatalf("failed to update task details: %v", err)
 		}
 
@@ -806,7 +806,7 @@ func TestLargeFileHandling(t *testing.T) {
 				}
 				refs := []string{fmt.Sprintf("spec-phase-%d.md", phase)}
 
-				if err := tl.UpdateTask(taskID, "", details, refs); err != nil {
+				if err := tl.UpdateTask(taskID, "", details, refs, nil); err != nil {
 					t.Fatalf("failed to update task %s: %v", taskID, err)
 				}
 			}

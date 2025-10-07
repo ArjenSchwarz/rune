@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task Requirements Linking: Update command implementation
+  - `--requirements` flag added to `update` command for comma-separated requirement IDs (e.g., "1.1,1.2,2.3")
+  - `--clear-requirements` flag added to clear all requirements from a task
+  - Modified `UpdateTask` signature to accept requirements parameter (nil = no change, empty = clear)
+  - Requirement ID validation using hierarchical ID pattern matching
+  - Requirements display in dry-run mode showing current and new values
+  - Comprehensive unit tests covering flag parsing, validation, clearing, and whitespace handling
+
 - Task Requirements Linking: CLI command implementation
   - `--requirements` flag added to `add` command for comma-separated requirement IDs (e.g., "1.1,1.2,2.3")
   - `--requirements-file` flag added to `add` command to specify requirements file path

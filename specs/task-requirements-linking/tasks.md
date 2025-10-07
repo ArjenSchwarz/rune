@@ -118,14 +118,14 @@ references:
 
 ## Update Command Changes
 
-- [ ] 14. Modify UpdateTask signature to accept requirements
+- [x] 14. Modify UpdateTask signature to accept requirements
   - Change UpdateTask signature in internal/task/operations.go
   - Add requirements []string parameter
   - Update function to handle nil vs empty slice (nil = no change, empty = clear)
   - Update all existing call sites to pass nil for requirements
   - References: Requirements 5.3, 5.6, Decision 10
 
-- [ ] 15. Add requirements flags to update command
+- [x] 15. Add requirements flags to update command
   - Add updateRequirements string variable in cmd/update.go
   - Add clearRequirements bool variable
   - Add --requirements flag to replace requirements
@@ -134,7 +134,7 @@ references:
   - Call UpdateTask with new requirements parameter
   - References: Requirements 5.3, 5.4, 5.6
 
-- [ ] 16. Write unit tests for update command requirements flags
+- [x] 16. Write unit tests for update command requirements flags
   - Test --requirements flag updates requirements
   - Test --clear-requirements flag clears requirements
   - Test validation errors for invalid IDs

@@ -754,7 +754,7 @@ func TestUpdateTask(t *testing.T) {
 			t.Fatalf("AddTask failed: %v", err)
 		}
 
-		err = tl.UpdateTask("1", "New title", nil, nil)
+		err = tl.UpdateTask("1", "New title", nil, nil, nil)
 		if err != nil {
 			t.Fatalf("UpdateTask failed: %v", err)
 		}
@@ -778,7 +778,7 @@ func TestUpdateTask(t *testing.T) {
 		}
 
 		details := []string{"Detail 1", "Detail 2", "Detail 3"}
-		err = tl.UpdateTask("1", "", details, nil)
+		err = tl.UpdateTask("1", "", details, nil, nil)
 		if err != nil {
 			t.Fatalf("UpdateTask failed: %v", err)
 		}
@@ -808,7 +808,7 @@ func TestUpdateTask(t *testing.T) {
 		}
 
 		refs := []string{"ref1.md", "ref2.md"}
-		err = tl.UpdateTask("1", "", nil, refs)
+		err = tl.UpdateTask("1", "", nil, refs, nil)
 		if err != nil {
 			t.Fatalf("UpdateTask failed: %v", err)
 		}
@@ -839,7 +839,7 @@ func TestUpdateTask(t *testing.T) {
 
 		details := []string{"New detail"}
 		refs := []string{"new-ref.md"}
-		err = tl.UpdateTask("1", "Updated", details, refs)
+		err = tl.UpdateTask("1", "Updated", details, refs, nil)
 		if err != nil {
 			t.Fatalf("UpdateTask failed: %v", err)
 		}
@@ -873,7 +873,7 @@ func TestUpdateTask(t *testing.T) {
 		task.References = []string{"old-ref.md"}
 
 		emptySlice := []string{}
-		err = tl.UpdateTask("1", "", emptySlice, emptySlice)
+		err = tl.UpdateTask("1", "", emptySlice, emptySlice, nil)
 		if err != nil {
 			t.Fatalf("UpdateTask failed: %v", err)
 		}
@@ -894,7 +894,7 @@ func TestUpdateTask(t *testing.T) {
 	t.Run("update non-existent task", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		err := tl.UpdateTask("99", "New title", nil, nil)
+		err := tl.UpdateTask("99", "New title", nil, nil, nil)
 		if err == nil {
 			t.Error("expected error for non-existent task, got nil")
 		}
@@ -915,7 +915,7 @@ func TestUpdateTask(t *testing.T) {
 		task.Details = []string{"Existing detail"}
 		task.References = []string{"existing.md"}
 
-		err = tl.UpdateTask("1", "", nil, nil)
+		err = tl.UpdateTask("1", "", nil, nil, nil)
 		if err != nil {
 			t.Fatalf("UpdateTask failed: %v", err)
 		}
@@ -946,7 +946,7 @@ func TestUpdateTask(t *testing.T) {
 		before := tl.Modified
 		time.Sleep(10 * time.Millisecond)
 
-		err = tl.UpdateTask("1", "Updated", nil, nil)
+		err = tl.UpdateTask("1", "Updated", nil, nil, nil)
 		if err != nil {
 			t.Fatalf("UpdateTask failed: %v", err)
 		}

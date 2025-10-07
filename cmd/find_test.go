@@ -41,12 +41,12 @@ func TestFindCommand(t *testing.T) {
 	tl.UpdateStatus("2.1", task.Completed)
 
 	// Add details and references
-	tl.UpdateTask("1", "", []string{"Create component diagrams", "Define API interfaces"}, []string{"requirements.md", "design-doc.md"})
-	tl.UpdateTask("1.1", "", []string{"Design tables", "Add indexes"}, nil)
-	tl.UpdateTask("1.2", "", nil, []string{"api-spec.md"})
-	tl.UpdateTask("2", "", []string{"Parse markdown syntax", "Build AST"}, nil)
-	tl.UpdateTask("2.2", "", []string{"Unit tests", "Integration tests"}, nil)
-	tl.UpdateTask("3", "", nil, []string{"readme.md", "api-docs.md"})
+	tl.UpdateTask("1", "", []string{"Create component diagrams", "Define API interfaces"}, []string{"requirements.md", "design-doc.md"}, nil)
+	tl.UpdateTask("1.1", "", []string{"Design tables", "Add indexes"}, nil, nil)
+	tl.UpdateTask("1.2", "", nil, []string{"api-spec.md"}, nil)
+	tl.UpdateTask("2", "", []string{"Parse markdown syntax", "Build AST"}, nil, nil)
+	tl.UpdateTask("2.2", "", []string{"Unit tests", "Integration tests"}, nil, nil)
+	tl.UpdateTask("3", "", nil, []string{"readme.md", "api-docs.md"}, nil)
 
 	testFile := "find-test-tasks.md"
 	if err := tl.WriteFile(testFile); err != nil {

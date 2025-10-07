@@ -33,7 +33,7 @@ func TestListCommand(t *testing.T) {
 	tl.UpdateStatus("1.1", task.Completed)
 
 	// Add details and references to a task
-	tl.UpdateTask("2", "", []string{"Detail 1", "Detail 2"}, []string{"ref1.md", "ref2.md"})
+	tl.UpdateTask("2", "", []string{"Detail 1", "Detail 2"}, []string{"ref1.md", "ref2.md"}, nil)
 
 	testFile := "test-tasks.md"
 	if err := tl.WriteFile(testFile); err != nil {
