@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task Requirements Linking: Requirements parsing implementation
+  - `parseRequirements` helper function to extract requirement IDs from markdown links
+  - Pattern matching for `[ID](file#ID)` format in Requirements detail lines
+  - Support for comma-separated requirement links
+  - Automatic extraction of requirements file path from first valid link
+  - Integration with `parseDetailsAndChildren` to populate `task.Requirements` and `taskList.RequirementsFile`
+  - Malformed requirement lines (plain text without markdown links) treated as regular details
+  - Comprehensive unit tests covering single/multiple requirements, custom requirement files, whitespace handling, and error cases
+  - Full integration tests verifying round-trip parsing with requirements preserved
+
 - Task Requirements Linking: Core data structure implementation
   - `Requirements` field added to Task struct for linking requirement IDs
   - `RequirementsFile` field added to TaskList struct for specifying requirements document

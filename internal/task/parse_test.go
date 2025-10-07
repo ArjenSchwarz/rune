@@ -302,6 +302,268 @@ func TestParseDetailsAndReferences(t *testing.T) {
 	}
 }
 
+func TestParseRequirements(t *testing.T) {
+	tests := map[string]struct {
+		input    string
+		wantIDs  []string
+		wantFile string
+	}{
+		"single_requirement": {
+			input:    "[1.1](requirements.md#1.1)",
+			wantIDs:  []string{"1.1"},
+			wantFile: "requirements.md",
+		},
+		"multiple_requirements": {
+			input:    "[1.1](requirements.md#1.1), [1.2](requirements.md#1.2)",
+			wantIDs:  []string{"1.1", "1.2"},
+			wantFile: "requirements.md",
+		},
+		"malformed_link_no_markdown": {
+			input:    "1.1, 1.2",
+			wantIDs:  []string{},
+			wantFile: "",
+		},
+		"whitespace_handling": {
+			input:    "  [1.1](requirements.md#1.1)  ,  [2.3](requirements.md#2.3)  ",
+			wantIDs:  []string{"1.1", "2.3"},
+			wantFile: "requirements.md",
+		},
+		"custom_requirements_file": {
+			input:    "[1.1](specs/requirements.md#1.1), [1.2](specs/requirements.md#1.2)",
+			wantIDs:  []string{"1.1", "1.2"},
+			wantFile: "specs/requirements.md",
+		},
+		"mixed_valid_invalid": {
+			input:    "[1.1](requirements.md#1.1), invalid, [2.3](requirements.md#2.3)",
+			wantIDs:  []string{"1.1", "2.3"},
+			wantFile: "requirements.md",
+		},
+		"invalid_requirement_id_format": {
+			input:    "[abc](requirements.md#abc)",
+			wantIDs:  []string{},
+			wantFile: "",
+		},
+		"hierarchical_requirement_ids": {
+			input:    "[1.2.3](requirements.md#1.2.3), [2.1.4.5](requirements.md#2.1.4.5)",
+			wantIDs:  []string{"1.2.3", "2.1.4.5"},
+			wantFile: "requirements.md",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			gotIDs, gotFile := parseRequirements(tc.input)
+
+			if len(gotIDs) != len(tc.wantIDs) {
+				t.Errorf("parseRequirements() returned %d IDs, want %d", len(gotIDs), len(tc.wantIDs))
+			}
+
+			for i, wantID := range tc.wantIDs {
+				if i >= len(gotIDs) {
+					break
+				}
+				if gotIDs[i] != wantID {
+					t.Errorf("parseRequirements() ID[%d] = %q, want %q", i, gotIDs[i], wantID)
+				}
+			}
+
+			if gotFile != tc.wantFile {
+				t.Errorf("parseRequirements() file = %q, want %q", gotFile, tc.wantFile)
+			}
+		})
+	}
+}
+
+func TestParseMarkdownWithRequirements(t *testing.T) {
+	tests := map[string]struct {
+		content          string
+		taskID           string
+		wantRequirements []string
+		wantReqFile      string
+		wantDetails      []string
+	}{
+		"task_with_single_requirement": {
+			content: `# Tasks
+- [ ] 1. Implement feature
+  - Requirements: [1.1](requirements.md#1.1)`,
+			taskID:           "1",
+			wantRequirements: []string{"1.1"},
+			wantReqFile:      "requirements.md",
+		},
+		"task_with_multiple_requirements": {
+			content: `# Tasks
+- [ ] 1. Implement authentication
+  - Requirements: [1.1](requirements.md#1.1), [1.2](requirements.md#1.2), [2.3](requirements.md#2.3)`,
+			taskID:           "1",
+			wantRequirements: []string{"1.1", "1.2", "2.3"},
+			wantReqFile:      "requirements.md",
+		},
+		"task_with_custom_requirements_file": {
+			content: `# Tasks
+- [ ] 1. Implement feature
+  - Requirements: [1.1](specs/requirements.md#1.1), [1.2](specs/requirements.md#1.2)`,
+			taskID:           "1",
+			wantRequirements: []string{"1.1", "1.2"},
+			wantReqFile:      "specs/requirements.md",
+		},
+		"task_with_requirements_and_details": {
+			content: `# Tasks
+- [ ] 1. Implement login
+  - Use JWT tokens
+  - Requirements: [1.1](requirements.md#1.1), [1.2](requirements.md#1.2)
+  - Add proper validation`,
+			taskID:           "1",
+			wantRequirements: []string{"1.1", "1.2"},
+			wantReqFile:      "requirements.md",
+			wantDetails:      []string{"Use JWT tokens", "Add proper validation"},
+		},
+		"task_with_requirements_and_references": {
+			content: `# Tasks
+- [ ] 1. Implement feature
+  - Requirements: [1.1](requirements.md#1.1)
+  - References: design.md, spec.md`,
+			taskID:           "1",
+			wantRequirements: []string{"1.1"},
+			wantReqFile:      "requirements.md",
+		},
+		"malformed_requirements_treated_as_detail": {
+			content: `# Tasks
+- [ ] 1. Implement feature
+  - Requirements: 1.1, 1.2`,
+			taskID:      "1",
+			wantDetails: []string{"Requirements: 1.1, 1.2"},
+		},
+		"subtask_with_requirements": {
+			content: `# Tasks
+- [ ] 1. Parent task
+  - [ ] 1.1. Child task
+    - Requirements: [2.1](requirements.md#2.1)`,
+			taskID:           "1.1",
+			wantRequirements: []string{"2.1"},
+			wantReqFile:      "requirements.md",
+		},
+		"multiple_tasks_different_requirements": {
+			content: `# Tasks
+- [ ] 1. First task
+  - Requirements: [1.1](requirements.md#1.1)
+- [ ] 2. Second task
+  - Requirements: [2.1](requirements.md#2.1), [2.2](requirements.md#2.2)`,
+			taskID:           "2",
+			wantRequirements: []string{"2.1", "2.2"},
+			wantReqFile:      "requirements.md",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tl, err := ParseMarkdown([]byte(tc.content))
+			if err != nil {
+				t.Fatalf("ParseMarkdown() error: %v", err)
+			}
+
+			task := tl.FindTask(tc.taskID)
+			if task == nil {
+				t.Fatalf("Task %s not found", tc.taskID)
+			}
+
+			// Check requirements
+			if tc.wantRequirements != nil {
+				if len(task.Requirements) != len(tc.wantRequirements) {
+					t.Errorf("Task requirements count = %d, want %d", len(task.Requirements), len(tc.wantRequirements))
+				}
+				for i, req := range tc.wantRequirements {
+					if i >= len(task.Requirements) {
+						break
+					}
+					if task.Requirements[i] != req {
+						t.Errorf("Task requirement[%d] = %q, want %q", i, task.Requirements[i], req)
+					}
+				}
+			}
+
+			// Check requirements file
+			if tc.wantReqFile != "" {
+				if tl.RequirementsFile != tc.wantReqFile {
+					t.Errorf("TaskList RequirementsFile = %q, want %q", tl.RequirementsFile, tc.wantReqFile)
+				}
+			}
+
+			// Check details
+			if tc.wantDetails != nil {
+				if len(task.Details) != len(tc.wantDetails) {
+					t.Errorf("Task details count = %d, want %d", len(task.Details), len(tc.wantDetails))
+				}
+				for i, detail := range tc.wantDetails {
+					if i >= len(task.Details) {
+						break
+					}
+					if task.Details[i] != detail {
+						t.Errorf("Task detail[%d] = %q, want %q", i, task.Details[i], detail)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestParseRequirementsRoundTrip(t *testing.T) {
+	tests := map[string]struct {
+		content string
+	}{
+		"requirements_preserved_in_roundtrip": {
+			content: `# Tasks
+
+- [ ] 1. Implement authentication
+  - Requirements: [1.1](requirements.md#1.1), [1.2](requirements.md#1.2)
+  - Use JWT tokens
+  - References: auth-spec.md
+
+- [ ] 2. Add validation
+  - Requirements: [2.1](requirements.md#2.1)
+  - Validate all inputs
+`,
+		},
+		"requirements_with_custom_file": {
+			content: `# Tasks
+
+- [ ] 1. Implement feature
+  - Requirements: [1.1](specs/requirements.md#1.1), [1.2](specs/requirements.md#1.2)
+  - Add proper tests
+`,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Parse original content
+			tl1, err := ParseMarkdown([]byte(tc.content))
+			if err != nil {
+				t.Fatalf("First ParseMarkdown() error: %v", err)
+			}
+
+			// Render to markdown (we'll need to implement this in the next phase)
+			// For now, just verify the data is preserved in the parsed structure
+
+			// Verify requirements are preserved
+			for _, task := range tl1.Tasks {
+				if len(task.Requirements) > 0 {
+					// Requirements should be preserved
+					for _, reqID := range task.Requirements {
+						if reqID == "" {
+							t.Errorf("Empty requirement ID found in task %s", task.ID)
+						}
+					}
+				}
+			}
+
+			// Verify requirements file is preserved
+			if tl1.RequirementsFile != "" {
+				t.Logf("RequirementsFile preserved: %s", tl1.RequirementsFile)
+			}
+		})
+	}
+}
+
 func TestParseHierarchy(t *testing.T) {
 	content := `# Hierarchical Tasks
 

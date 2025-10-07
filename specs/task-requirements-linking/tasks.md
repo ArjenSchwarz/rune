@@ -26,7 +26,7 @@ references:
 
 ## Parsing Implementation
 
-- [ ] 3. Implement parseRequirements helper function
+- [x] 3. Implement parseRequirements helper function
   - Add in internal/task/parse.go after parseReferences function
   - Extract requirement IDs from markdown links [ID](file#ID)
   - Handle comma-separated requirement links
@@ -35,7 +35,7 @@ references:
   - Reuse existing isValidID function for validation
   - References: Requirements 4.2, 4.3, Design parseRequirements implementation
 
-- [ ] 4. Write unit tests for parseRequirements function
+- [x] 4. Write unit tests for parseRequirements function
   - Test single requirement link parsing
   - Test multiple comma-separated requirement links
   - Test malformed links (no markdown syntax)
@@ -43,7 +43,7 @@ references:
   - Test whitespace handling in requirement IDs
   - References: Requirements 4.2, 4.3, 4.4
 
-- [ ] 5. Add requirements parsing to parseDetailsAndChildren
+- [x] 5. Add requirements parsing to parseDetailsAndChildren
   - Add parsing logic for lines starting with 'Requirements: ' or '*Requirements: '
   - Call parseRequirements helper to extract IDs and file path
   - Set task.Requirements array
@@ -51,7 +51,7 @@ references:
   - Treat malformed requirement lines as plain text details
   - References: Requirements 4.1, 4.4, Decision 5
 
-- [ ] 6. Write unit tests for requirements parsing in markdown
+- [x] 6. Write unit tests for requirements parsing in markdown
   - Test parsing tasks with Requirements detail lines
   - Test requirements extraction from markdown
   - Test RequirementsFile extraction from links
