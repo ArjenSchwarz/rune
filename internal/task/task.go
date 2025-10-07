@@ -139,6 +139,11 @@ func isValidID(id string) bool {
 	return taskIDPattern.MatchString(id)
 }
 
+// IsValidID checks if an ID matches the hierarchical pattern
+func IsValidID(id string) bool {
+	return isValidID(id)
+}
+
 // TaskList represents a collection of tasks with metadata
 type TaskList struct {
 	Title            string

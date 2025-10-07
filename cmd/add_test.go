@@ -905,4 +905,251 @@ func TestAddCmdFlags(t *testing.T) {
 	if phaseFlag.Usage == "" {
 		t.Fatal("Phase flag should have usage description")
 	}
+
+	// Test requirements flag exists
+	requirementsFlag := addCmd.Flag("requirements")
+	if requirementsFlag == nil {
+		t.Fatal("Requirements flag not found")
+	}
+	if requirementsFlag.Usage == "" {
+		t.Fatal("Requirements flag should have usage description")
+	}
+
+	// Test requirements-file flag exists
+	requirementsFileFlag := addCmd.Flag("requirements-file")
+	if requirementsFileFlag == nil {
+		t.Fatal("Requirements-file flag not found")
+	}
+	if requirementsFileFlag.Usage == "" {
+		t.Fatal("Requirements-file flag should have usage description")
+	}
+}
+
+func TestRunAddWithRequirements(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-add-requirements")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		setupFile        func(string) error
+		title            string
+		requirements     string
+		requirementsFile string
+		expectError      bool
+		errorContains    string
+		validateFile     func(*testing.T, string)
+	}{
+		"add task with single requirement": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:        "Task with requirement",
+			requirements: "1.1",
+			expectError:  false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if len(tl.Tasks) != 1 {
+					t.Fatalf("Expected 1 task, got %d", len(tl.Tasks))
+				}
+				if len(tl.Tasks[0].Requirements) != 1 {
+					t.Fatalf("Expected 1 requirement, got %d", len(tl.Tasks[0].Requirements))
+				}
+				if tl.Tasks[0].Requirements[0] != "1.1" {
+					t.Fatalf("Expected requirement '1.1', got '%s'", tl.Tasks[0].Requirements[0])
+				}
+			},
+		},
+		"add task with multiple requirements": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:        "Task with requirements",
+			requirements: "1.1,1.2,2.3",
+			expectError:  false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if len(tl.Tasks[0].Requirements) != 3 {
+					t.Fatalf("Expected 3 requirements, got %d", len(tl.Tasks[0].Requirements))
+				}
+				expectedReqs := []string{"1.1", "1.2", "2.3"}
+				for i, req := range tl.Tasks[0].Requirements {
+					if req != expectedReqs[i] {
+						t.Fatalf("Expected requirement '%s', got '%s'", expectedReqs[i], req)
+					}
+				}
+			},
+		},
+		"add task with requirements containing spaces": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:        "Task with requirements",
+			requirements: "1.1, 1.2 , 2.3",
+			expectError:  false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if len(tl.Tasks[0].Requirements) != 3 {
+					t.Fatalf("Expected 3 requirements, got %d", len(tl.Tasks[0].Requirements))
+				}
+				expectedReqs := []string{"1.1", "1.2", "2.3"}
+				for i, req := range tl.Tasks[0].Requirements {
+					if req != expectedReqs[i] {
+						t.Fatalf("Expected requirement '%s', got '%s'", expectedReqs[i], req)
+					}
+				}
+			},
+		},
+		"add task with invalid requirement ID format": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:         "Task with invalid requirement",
+			requirements:  "invalid",
+			expectError:   true,
+			errorContains: "invalid requirement ID format",
+		},
+		"add task with requirements file": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:            "Task with custom requirements file",
+			requirements:     "1.1",
+			requirementsFile: "custom-requirements.md",
+			expectError:      false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if tl.RequirementsFile != "custom-requirements.md" {
+					t.Fatalf("Expected requirements file 'custom-requirements.md', got '%s'", tl.RequirementsFile)
+				}
+			},
+		},
+		"add task with requirements defaults to requirements.md": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:        "Task with default requirements file",
+			requirements: "1.1",
+			expectError:  false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if tl.RequirementsFile != task.DefaultRequirementsFile {
+					t.Fatalf("Expected requirements file '%s', got '%s'", task.DefaultRequirementsFile, tl.RequirementsFile)
+				}
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Create test file
+			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
+
+			if err := tt.setupFile(filename); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+
+			// Set command flags
+			addTitle = tt.title
+			addRequirements = tt.requirements
+			addRequirementsFile = tt.requirementsFile
+			addParent = ""
+			addPosition = ""
+			dryRun = false
+
+			// Create command and run
+			cmd := &cobra.Command{}
+			args := []string{filename}
+
+			err := runAdd(cmd, args)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Fatalf("Expected error to contain '%s', got: %s", tt.errorContains, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			// Validate the file if validator is provided
+			if tt.validateFile != nil {
+				tt.validateFile(t, filename)
+			}
+
+			// Reset flags for next test
+			addTitle = ""
+			addRequirements = ""
+			addRequirementsFile = ""
+		})
+	}
+}
+
+func TestParseRequirementIDs(t *testing.T) {
+	tests := map[string]struct {
+		input    string
+		expected []string
+	}{
+		"single requirement": {
+			input:    "1.1",
+			expected: []string{"1.1"},
+		},
+		"multiple requirements": {
+			input:    "1.1,1.2,2.3",
+			expected: []string{"1.1", "1.2", "2.3"},
+		},
+		"requirements with spaces": {
+			input:    "1.1, 1.2 , 2.3",
+			expected: []string{"1.1", "1.2", "2.3"},
+		},
+		"empty string": {
+			input:    "",
+			expected: []string{},
+		},
+		"trailing comma": {
+			input:    "1.1,1.2,",
+			expected: []string{"1.1", "1.2"},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := parseRequirementIDs(tt.input)
+			if len(result) != len(tt.expected) {
+				t.Fatalf("Expected %d requirements, got %d", len(tt.expected), len(result))
+			}
+			for i, req := range result {
+				if req != tt.expected[i] {
+					t.Fatalf("Expected requirement '%s' at index %d, got '%s'", tt.expected[i], i, req)
+				}
+			}
+		})
+	}
 }

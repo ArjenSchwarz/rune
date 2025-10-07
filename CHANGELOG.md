@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task Requirements Linking: CLI command implementation
+  - `--requirements` flag added to `add` command for comma-separated requirement IDs (e.g., "1.1,1.2,2.3")
+  - `--requirements-file` flag added to `add` command to specify requirements file path
+  - Requirement ID validation using existing hierarchical ID pattern matching
+  - Automatic default to "requirements.md" when requirements provided without explicit file
+  - `parseRequirementIDs` helper function for parsing comma-separated requirement strings
+  - Comprehensive unit tests covering flag parsing, validation, and requirements file defaults
+
 - Task Requirements Linking: Requirements rendering implementation
   - Updated `renderTask` function to accept requirements file parameter and render requirements
   - Requirements formatted as markdown links `[ID](file#ID)` with comma separation

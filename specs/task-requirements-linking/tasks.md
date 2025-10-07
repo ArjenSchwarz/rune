@@ -92,7 +92,7 @@ references:
 
 ## CLI Command Updates
 
-- [ ] 11. Add --requirements flag to add command
+- [x] 11. Add --requirements flag to add command
   - Add addRequirements string variable in cmd/add.go
   - Add --requirements flag accepting comma-separated requirement IDs
   - Implement parseRequirementIDs helper function
@@ -101,14 +101,14 @@ references:
   - Return clear error messages for invalid format
   - References: Requirements 5.1, 5.4
 
-- [ ] 12. Add --requirements-file flag to add command
+- [x] 12. Add --requirements-file flag to add command
   - Add addRequirementsFile string variable in cmd/add.go
   - Add --requirements-file flag to specify requirements file path
   - Set tl.RequirementsFile from flag or default to DefaultRequirementsFile
   - Document default behavior in flag description
   - References: Requirements 3.1, 3.2, 5.2
 
-- [ ] 13. Write unit tests for add command requirements flags
+- [x] 13. Write unit tests for add command requirements flags
   - Test --requirements flag parsing
   - Test --requirements-file flag
   - Test validation error for invalid requirement IDs
