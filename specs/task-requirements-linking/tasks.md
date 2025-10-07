@@ -8,7 +8,7 @@ references:
 
 ## Core Data Structure Changes
 
-- [ ] 1. Update Task struct with Requirements field
+- [x] 1. Update Task struct with Requirements field
   - Add Requirements []string field to Task struct in internal/task/task.go
   - Add RequirementsFile string field to TaskList struct
   - Add DefaultRequirementsFile constant ("requirements.md")
@@ -16,7 +16,7 @@ references:
   - Ensure validation supports hierarchical requirement IDs matching pattern
   - References: Requirements 1.1, 1.2, 1.3, 1.4, 1.5
 
-- [ ] 2. Write unit tests for Task struct Requirements field
+- [x] 2. Write unit tests for Task struct Requirements field
   - Test valid single requirement ID
   - Test valid multiple requirement IDs
   - Test invalid requirement ID format

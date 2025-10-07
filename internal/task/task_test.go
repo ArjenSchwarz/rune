@@ -128,3 +128,102 @@ func TestTask_Validation(t *testing.T) {
 		})
 	}
 }
+
+func TestTask_RequirementsValidation(t *testing.T) {
+	tests := map[string]struct {
+		task    *Task
+		wantErr bool
+	}{
+		"valid_single_requirement": {
+			task: &Task{
+				ID:           "1",
+				Title:        "Task with single requirement",
+				Requirements: []string{"1.1"},
+			},
+		},
+		"valid_multiple_requirements": {
+			task: &Task{
+				ID:           "1",
+				Title:        "Task with multiple requirements",
+				Requirements: []string{"1.1", "1.2", "2.3"},
+			},
+		},
+		"valid_hierarchical_requirement_ids": {
+			task: &Task{
+				ID:           "1",
+				Title:        "Task with hierarchical requirement IDs",
+				Requirements: []string{"1", "1.1", "1.2.3", "2.4.5.6"},
+			},
+		},
+		"empty_requirements_array": {
+			task: &Task{
+				ID:           "1",
+				Title:        "Task with empty requirements",
+				Requirements: []string{},
+			},
+		},
+		"nil_requirements_array": {
+			task: &Task{
+				ID:           "1",
+				Title:        "Task with nil requirements",
+				Requirements: nil,
+			},
+		},
+		"invalid_requirement_id_format_letters": {
+			task: &Task{
+				ID:           "1",
+				Title:        "Task with invalid requirement",
+				Requirements: []string{"abc"},
+			},
+			wantErr: true,
+		},
+		"invalid_requirement_id_format_mixed": {
+			task: &Task{
+				ID:           "1",
+				Title:        "Task with invalid requirement",
+				Requirements: []string{"1.a"},
+			},
+			wantErr: true,
+		},
+		"invalid_requirement_id_starts_with_zero": {
+			task: &Task{
+				ID:           "1",
+				Title:        "Task with invalid requirement",
+				Requirements: []string{"0.1"},
+			},
+			wantErr: true,
+		},
+		"invalid_requirement_id_has_zero_segment": {
+			task: &Task{
+				ID:           "1",
+				Title:        "Task with invalid requirement",
+				Requirements: []string{"1.0.1"},
+			},
+			wantErr: true,
+		},
+		"mixed_valid_and_invalid_requirements": {
+			task: &Task{
+				ID:           "1",
+				Title:        "Task with mixed requirements",
+				Requirements: []string{"1.1", "invalid", "2.3"},
+			},
+			wantErr: true,
+		},
+		"valid_requirements_with_large_numbers": {
+			task: &Task{
+				ID:           "1",
+				Title:        "Task with large requirement numbers",
+				Requirements: []string{"99.999.9999"},
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := tc.task.Validate()
+			if (err != nil) != tc.wantErr {
+				t.Errorf("Task.Validate() error = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}

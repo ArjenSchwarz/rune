@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task Requirements Linking: Core data structure implementation
+  - `Requirements` field added to Task struct for linking requirement IDs
+  - `RequirementsFile` field added to TaskList struct for specifying requirements document
+  - `DefaultRequirementsFile` constant for default requirements file name ("requirements.md")
+  - Validation for requirement IDs matching hierarchical pattern (e.g., "1", "1.2", "1.2.3")
+  - Comprehensive unit tests covering valid and invalid requirement ID formats
+
 - Task Requirements Linking feature specification
   - Decision log documenting design choices for linking tasks to requirement acceptance criteria
   - Comprehensive design document covering architecture, data models, and component interfaces
