@@ -581,3 +581,364 @@ func TestRenderEmptyTaskList(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderRequirements(t *testing.T) {
+	tests := map[string]struct {
+		input       *TaskList
+		wantContent string
+	}{
+		"single_requirement": {
+			input: &TaskList{
+				Title:            "Tasks with Requirements",
+				RequirementsFile: "requirements.md",
+				Tasks: []Task{
+					{
+						ID:           "1",
+						Title:        "Implement feature",
+						Status:       Pending,
+						Requirements: []string{"1.1"},
+					},
+				},
+			},
+			wantContent: `# Tasks with Requirements
+
+- [ ] 1. Implement feature
+  - Requirements: [1.1](requirements.md#1.1)
+`,
+		},
+		"multiple_requirements": {
+			input: &TaskList{
+				Title:            "Tasks with Requirements",
+				RequirementsFile: "specs/requirements.md",
+				Tasks: []Task{
+					{
+						ID:           "1",
+						Title:        "Implement feature",
+						Status:       Pending,
+						Requirements: []string{"1.1", "1.2", "2.3"},
+					},
+				},
+			},
+			wantContent: `# Tasks with Requirements
+
+- [ ] 1. Implement feature
+  - Requirements: [1.1](specs/requirements.md#1.1), [1.2](specs/requirements.md#1.2), [2.3](specs/requirements.md#2.3)
+`,
+		},
+		"requirements_with_details_and_references": {
+			input: &TaskList{
+				Title:            "Complete Task",
+				RequirementsFile: "requirements.md",
+				Tasks: []Task{
+					{
+						ID:     "1",
+						Title:  "Complex task",
+						Status: InProgress,
+						Details: []string{
+							"First step",
+							"Second step",
+						},
+						Requirements: []string{"1.1", "1.2"},
+						References:   []string{"design.md", "spec.md"},
+					},
+				},
+			},
+			wantContent: `# Complete Task
+
+- [-] 1. Complex task
+  - First step
+  - Second step
+  - Requirements: [1.1](requirements.md#1.1), [1.2](requirements.md#1.2)
+  - References: design.md, spec.md
+`,
+		},
+		"requirements_in_nested_tasks": {
+			input: &TaskList{
+				Title:            "Nested Tasks",
+				RequirementsFile: "requirements.md",
+				Tasks: []Task{
+					{
+						ID:           "1",
+						Title:        "Parent task",
+						Status:       InProgress,
+						Requirements: []string{"1.1"},
+						Children: []Task{
+							{
+								ID:           "1.1",
+								Title:        "Child task",
+								Status:       Completed,
+								ParentID:     "1",
+								Requirements: []string{"1.2", "1.3"},
+							},
+							{
+								ID:           "1.2",
+								Title:        "Another child",
+								Status:       Pending,
+								ParentID:     "1",
+								Requirements: []string{"2.1"},
+								References:   []string{"ref.md"},
+							},
+						},
+					},
+				},
+			},
+			wantContent: `# Nested Tasks
+
+- [-] 1. Parent task
+  - Requirements: [1.1](requirements.md#1.1)
+  - [x] 1.1. Child task
+    - Requirements: [1.2](requirements.md#1.2), [1.3](requirements.md#1.3)
+  - [ ] 1.2. Another child
+    - Requirements: [2.1](requirements.md#2.1)
+    - References: ref.md
+`,
+		},
+		"no_requirements": {
+			input: &TaskList{
+				Title: "Tasks without Requirements",
+				Tasks: []Task{
+					{
+						ID:     "1",
+						Title:  "Simple task",
+						Status: Pending,
+					},
+				},
+			},
+			wantContent: `# Tasks without Requirements
+
+- [ ] 1. Simple task
+`,
+		},
+		"default_requirements_file": {
+			input: &TaskList{
+				Title: "Default Requirements File",
+				// RequirementsFile not set, should default to "requirements.md"
+				Tasks: []Task{
+					{
+						ID:           "1",
+						Title:        "Task with requirements",
+						Status:       Pending,
+						Requirements: []string{"1.1"},
+					},
+				},
+			},
+			wantContent: `# Default Requirements File
+
+- [ ] 1. Task with requirements
+  - Requirements: [1.1](requirements.md#1.1)
+`,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := RenderMarkdown(tc.input)
+			if string(got) != tc.wantContent {
+				t.Errorf("RenderMarkdown() mismatch:\ngot:\n%s\nwant:\n%s", got, tc.wantContent)
+			}
+		})
+	}
+}
+
+func TestRenderRequirementsRoundTrip(t *testing.T) {
+	// Test that parse → render → parse preserves requirements
+	original := &TaskList{
+		Title:            "Round Trip Test",
+		RequirementsFile: "specs/requirements.md",
+		Tasks: []Task{
+			{
+				ID:     "1",
+				Title:  "Main task",
+				Status: InProgress,
+				Details: []string{
+					"Detail one",
+					"Detail two",
+				},
+				Requirements: []string{"1.1", "1.2", "2.3"},
+				References:   []string{"ref1.md", "ref2.md"},
+				Children: []Task{
+					{
+						ID:           "1.1",
+						Title:        "Subtask",
+						Status:       Completed,
+						ParentID:     "1",
+						Details:      []string{"Sub detail"},
+						Requirements: []string{"3.1"},
+						References:   []string{"subref.md"},
+					},
+				},
+			},
+			{
+				ID:           "2",
+				Title:        "Second task",
+				Status:       Pending,
+				Requirements: []string{"4.1", "4.2"},
+			},
+		},
+	}
+
+	// Render to markdown
+	rendered := RenderMarkdown(original)
+
+	// Parse the rendered markdown
+	parsed, err := ParseMarkdown(rendered)
+	if err != nil {
+		t.Fatalf("Failed to parse rendered markdown: %v", err)
+	}
+
+	// Compare structures
+	if parsed.Title != original.Title {
+		t.Errorf("Title mismatch: got %q, want %q", parsed.Title, original.Title)
+	}
+
+	if len(parsed.Tasks) != len(original.Tasks) {
+		t.Fatalf("Task count mismatch: got %d, want %d", len(parsed.Tasks), len(original.Tasks))
+	}
+
+	// Check first task with requirements
+	compareTaskWithRequirements(t, &parsed.Tasks[0], &original.Tasks[0])
+
+	// Check second task
+	compareTaskWithRequirements(t, &parsed.Tasks[1], &original.Tasks[1])
+}
+
+func compareTaskWithRequirements(t *testing.T, got, want *Task) {
+	t.Helper()
+
+	if got.ID != want.ID {
+		t.Errorf("Task ID mismatch: got %q, want %q", got.ID, want.ID)
+	}
+	if got.Title != want.Title {
+		t.Errorf("Task Title mismatch: got %q, want %q", got.Title, want.Title)
+	}
+	if got.Status != want.Status {
+		t.Errorf("Task Status mismatch: got %v, want %v", got.Status, want.Status)
+	}
+
+	// Compare details
+	if len(got.Details) != len(want.Details) {
+		t.Errorf("Details count mismatch for task %s: got %d, want %d", got.ID, len(got.Details), len(want.Details))
+	} else {
+		for i := range got.Details {
+			if got.Details[i] != want.Details[i] {
+				t.Errorf("Detail[%d] mismatch for task %s: got %q, want %q", i, got.ID, got.Details[i], want.Details[i])
+			}
+		}
+	}
+
+	// Compare requirements
+	if len(got.Requirements) != len(want.Requirements) {
+		t.Errorf("Requirements count mismatch for task %s: got %d, want %d", got.ID, len(got.Requirements), len(want.Requirements))
+	} else {
+		for i := range got.Requirements {
+			if got.Requirements[i] != want.Requirements[i] {
+				t.Errorf("Requirement[%d] mismatch for task %s: got %q, want %q", i, got.ID, got.Requirements[i], want.Requirements[i])
+			}
+		}
+	}
+
+	// Compare references
+	if len(got.References) != len(want.References) {
+		t.Errorf("References count mismatch for task %s: got %d, want %d", got.ID, len(got.References), len(want.References))
+	} else {
+		for i := range got.References {
+			if got.References[i] != want.References[i] {
+				t.Errorf("Reference[%d] mismatch for task %s: got %q, want %q", i, got.ID, got.References[i], want.References[i])
+			}
+		}
+	}
+
+	// Compare children recursively
+	if len(got.Children) != len(want.Children) {
+		t.Errorf("Children count mismatch for task %s: got %d, want %d", got.ID, len(got.Children), len(want.Children))
+	} else {
+		for i := range got.Children {
+			compareTaskWithRequirements(t, &got.Children[i], &want.Children[i])
+		}
+	}
+}
+
+func TestRenderRequirementsMarkdownLinkFormat(t *testing.T) {
+	// Test that requirements are rendered in correct markdown link format
+	tl := &TaskList{
+		Title:            "Link Format Test",
+		RequirementsFile: "requirements.md",
+		Tasks: []Task{
+			{
+				ID:           "1",
+				Title:        "Test task",
+				Status:       Pending,
+				Requirements: []string{"1.1", "2.3.4"},
+			},
+		},
+	}
+
+	got := string(RenderMarkdown(tl))
+
+	// Check that requirements are rendered as markdown links
+	expectedLink1 := "[1.1](requirements.md#1.1)"
+	expectedLink2 := "[2.3.4](requirements.md#2.3.4)"
+
+	if !strings.Contains(got, expectedLink1) {
+		t.Errorf("Output should contain link %q, got:\n%s", expectedLink1, got)
+	}
+	if !strings.Contains(got, expectedLink2) {
+		t.Errorf("Output should contain link %q, got:\n%s", expectedLink2, got)
+	}
+
+	// Check that requirements are comma-separated
+	if !strings.Contains(got, expectedLink1+", "+expectedLink2) {
+		t.Errorf("Requirements should be comma-separated, got:\n%s", got)
+	}
+
+	// Check plain text format (no italic formatting)
+	if strings.Contains(got, "*Requirements:") {
+		t.Errorf("Requirements should not have italic formatting, got:\n%s", got)
+	}
+}
+
+func TestRenderRequirementsPositioning(t *testing.T) {
+	// Test that requirements are rendered before references
+	tl := &TaskList{
+		Title:            "Positioning Test",
+		RequirementsFile: "requirements.md",
+		Tasks: []Task{
+			{
+				ID:     "1",
+				Title:  "Task with both",
+				Status: Pending,
+				Details: []string{
+					"Detail line",
+				},
+				Requirements: []string{"1.1"},
+				References:   []string{"ref.md"},
+			},
+		},
+	}
+
+	got := string(RenderMarkdown(tl))
+	lines := strings.Split(got, "\n")
+
+	requirementsIndex := -1
+	referencesIndex := -1
+
+	for i, line := range lines {
+		if strings.Contains(line, "Requirements:") {
+			requirementsIndex = i
+		}
+		if strings.Contains(line, "References:") {
+			referencesIndex = i
+		}
+	}
+
+	if requirementsIndex == -1 {
+		t.Error("Requirements line not found in output")
+	}
+	if referencesIndex == -1 {
+		t.Error("References line not found in output")
+	}
+
+	if requirementsIndex >= referencesIndex {
+		t.Errorf("Requirements should appear before References, got Requirements at line %d, References at line %d", requirementsIndex, referencesIndex)
+	}
+}

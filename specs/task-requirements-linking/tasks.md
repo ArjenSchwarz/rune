@@ -61,13 +61,13 @@ references:
 
 ## Rendering Implementation
 
-- [ ] 7. Update renderTask function signature for requirements file
+- [x] 7. Update renderTask function signature for requirements file
   - Change renderTask signature to accept reqFile string parameter
   - Update recursive calls to pass reqFile parameter
   - No other changes to existing rendering logic yet
   - References: Design renderTask signature change
 
-- [ ] 8. Implement requirements rendering in renderTask
+- [x] 8. Implement requirements rendering in renderTask
   - Add requirements rendering before references section
   - Format as '  - Requirements: [ID](file#ID), ...'
   - Use plain text format (no italic formatting)
@@ -75,13 +75,13 @@ references:
   - Only render if task.Requirements is not empty
   - References: Requirements 2.1, 2.2, 2.3, Decision 9
 
-- [ ] 9. Update RenderMarkdown to pass requirements file
+- [x] 9. Update RenderMarkdown to pass requirements file
   - Determine requirements file from tl.RequirementsFile or default
   - Pass reqFile parameter to renderTask calls
   - Apply same logic to RenderMarkdownWithPhases
   - References: Design RenderMarkdown changes
 
-- [ ] 10. Write unit tests for requirements rendering
+- [x] 10. Write unit tests for requirements rendering
   - Test rendering tasks with requirements
   - Test markdown link format [ID](file#ID)
   - Test multiple comma-separated requirements
