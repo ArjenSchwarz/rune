@@ -942,3 +942,182 @@ func TestRenderRequirementsPositioning(t *testing.T) {
 		t.Errorf("Requirements should appear before References, got Requirements at line %d, References at line %d", requirementsIndex, referencesIndex)
 	}
 }
+
+func TestRenderJSONWithRequirements(t *testing.T) {
+	// Test that JSON output includes requirements fields
+	// Requirement 7.1: JSON output SHALL include a "requirements" field containing requirement ID strings
+	// Requirement 7.2: JSON output SHALL include a "requirements_file" field in TaskList metadata when set
+	tests := map[string]struct {
+		input                  *TaskList
+		wantRequirementsFile   string
+		wantTaskRequirements   []string
+		wantChildRequirements  []string
+		checkRequirementsFile  bool
+		checkTaskRequirements  bool
+		checkChildRequirements bool
+	}{
+		"task_with_requirements_and_file": {
+			input: &TaskList{
+				Title:            "JSON Requirements Test",
+				RequirementsFile: "specs/requirements.md",
+				Tasks: []Task{
+					{
+						ID:           "1",
+						Title:        "Test task",
+						Status:       InProgress,
+						Details:      []string{"Detail 1"},
+						Requirements: []string{"1.1", "1.2", "2.3"},
+						References:   []string{"ref.md"},
+					},
+				},
+			},
+			wantRequirementsFile:  "specs/requirements.md",
+			wantTaskRequirements:  []string{"1.1", "1.2", "2.3"},
+			checkRequirementsFile: true,
+			checkTaskRequirements: true,
+		},
+		"nested_tasks_with_requirements": {
+			input: &TaskList{
+				Title:            "Nested Requirements Test",
+				RequirementsFile: "requirements.md",
+				Tasks: []Task{
+					{
+						ID:           "1",
+						Title:        "Parent task",
+						Status:       InProgress,
+						Requirements: []string{"1.1"},
+						Children: []Task{
+							{
+								ID:           "1.1",
+								Title:        "Child task",
+								Status:       Completed,
+								ParentID:     "1",
+								Requirements: []string{"1.2", "1.3"},
+							},
+						},
+					},
+				},
+			},
+			wantRequirementsFile:   "requirements.md",
+			wantTaskRequirements:   []string{"1.1"},
+			wantChildRequirements:  []string{"1.2", "1.3"},
+			checkRequirementsFile:  true,
+			checkTaskRequirements:  true,
+			checkChildRequirements: true,
+		},
+		"task_without_requirements": {
+			input: &TaskList{
+				Title: "No Requirements Test",
+				Tasks: []Task{
+					{
+						ID:     "1",
+						Title:  "Simple task",
+						Status: Pending,
+					},
+				},
+			},
+			checkRequirementsFile: false,
+			checkTaskRequirements: false,
+		},
+		"empty_requirements_array": {
+			input: &TaskList{
+				Title:            "Empty Requirements Test",
+				RequirementsFile: "requirements.md",
+				Tasks: []Task{
+					{
+						ID:           "1",
+						Title:        "Task with empty requirements",
+						Status:       Pending,
+						Requirements: []string{},
+					},
+				},
+			},
+			wantRequirementsFile:  "requirements.md",
+			checkRequirementsFile: true,
+			checkTaskRequirements: false, // Empty array should be omitted due to omitempty
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Render to JSON
+			jsonBytes, err := RenderJSON(tc.input)
+			if err != nil {
+				t.Fatalf("RenderJSON() error: %v", err)
+			}
+
+			// Unmarshal to verify structure
+			var parsed TaskList
+			if err := json.Unmarshal(jsonBytes, &parsed); err != nil {
+				t.Fatalf("Failed to unmarshal rendered JSON: %v", err)
+			}
+
+			// Verify RequirementsFile field
+			if tc.checkRequirementsFile {
+				if parsed.RequirementsFile != tc.wantRequirementsFile {
+					t.Errorf("RequirementsFile mismatch: got %q, want %q", parsed.RequirementsFile, tc.wantRequirementsFile)
+				}
+			}
+
+			// Verify Task.Requirements field
+			if tc.checkTaskRequirements {
+				if len(parsed.Tasks) == 0 {
+					t.Fatal("No tasks in parsed JSON")
+				}
+				task := parsed.Tasks[0]
+				if len(task.Requirements) != len(tc.wantTaskRequirements) {
+					t.Errorf("Task requirements count mismatch: got %d, want %d", len(task.Requirements), len(tc.wantTaskRequirements))
+				}
+				for i, req := range tc.wantTaskRequirements {
+					if i >= len(task.Requirements) {
+						t.Errorf("Missing requirement at index %d", i)
+						continue
+					}
+					if task.Requirements[i] != req {
+						t.Errorf("Requirement[%d] mismatch: got %q, want %q", i, task.Requirements[i], req)
+					}
+				}
+			}
+
+			// Verify Child Task.Requirements field
+			if tc.checkChildRequirements {
+				if len(parsed.Tasks) == 0 {
+					t.Fatal("No tasks in parsed JSON")
+				}
+				if len(parsed.Tasks[0].Children) == 0 {
+					t.Fatal("No child tasks in parsed JSON")
+				}
+				child := parsed.Tasks[0].Children[0]
+				if len(child.Requirements) != len(tc.wantChildRequirements) {
+					t.Errorf("Child requirements count mismatch: got %d, want %d", len(child.Requirements), len(tc.wantChildRequirements))
+				}
+				for i, req := range tc.wantChildRequirements {
+					if i >= len(child.Requirements) {
+						t.Errorf("Missing child requirement at index %d", i)
+						continue
+					}
+					if child.Requirements[i] != req {
+						t.Errorf("Child Requirement[%d] mismatch: got %q, want %q", i, child.Requirements[i], req)
+					}
+				}
+			}
+
+			// Verify JSON structure by checking raw JSON string
+			jsonStr := string(jsonBytes)
+
+			// If requirements_file is set, it should appear in JSON
+			if tc.checkRequirementsFile && tc.wantRequirementsFile != "" {
+				if !strings.Contains(jsonStr, `"requirements_file"`) {
+					t.Error("JSON should contain 'requirements_file' field")
+				}
+			}
+
+			// If task has requirements, they should appear in JSON
+			if tc.checkTaskRequirements && len(tc.wantTaskRequirements) > 0 {
+				if !strings.Contains(jsonStr, `"requirements"`) {
+					t.Error("JSON should contain 'requirements' field in task")
+				}
+			}
+		})
+	}
+}

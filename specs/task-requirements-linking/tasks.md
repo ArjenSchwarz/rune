@@ -177,7 +177,7 @@ references:
 
 ## JSON API Support
 
-- [ ] 22. Verify JSON output includes requirements fields
+- [x] 22. Verify JSON output includes requirements fields
   - Verify Task.Requirements field appears in JSON output
   - Verify TaskList.RequirementsFile field appears in JSON output
   - Standard Go marshaling should handle this automatically
@@ -186,7 +186,7 @@ references:
 
 ## Integration Testing
 
-- [ ] 23. Run integration test for complete requirements workflow
+- [x] 23. Run integration test for complete requirements workflow
   - Create task file
   - Add task with --requirements and --requirements-file flags
   - Verify requirements rendered as markdown links

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task Requirements Linking: Integration test suite
+  - Complete workflow test covering requirements CLI flags, batch operations, and round-trip preservation
+  - Verification of markdown rendering with requirement links in `[ID](file#ID)` format
+  - Testing of parsed Requirements field population in Task structs
+  - Batch update testing for requirements and requirements file changes
+  - Round-trip preservation testing ensuring requirements survive parse-render cycles
+  - JSON output validation for requirements fields in both tasks and metadata
+  - Nested task requirements testing with hierarchical requirement IDs
+  - Requirements clearing functionality testing with `--clear-requirements` flag
+  - Unit tests for JSON rendering with requirements in various scenarios
+
 - Task Requirements Linking: Batch operations support
   - `Requirements` field added to `Operation` struct for add/update operations
   - `RequirementsFile` field added to `BatchRequest` struct with JSON tag support
