@@ -13,7 +13,9 @@ var (
 	dryRun  bool
 
 	// Version information
-	version = "0.1.0-dev"
+	Version   = "dev"
+	BuildTime = "unknown"
+	GitCommit = "unknown"
 
 	rootCmd = &cobra.Command{
 		Use:   "rune",
@@ -24,10 +26,9 @@ to create and manage hierarchical markdown task lists with consistent formatting
 This tool provides:
 - CRUD operations on hierarchical task structures
 - Standardized markdown file format
-- JSON API for batch operations  
+- JSON API for batch operations
 - Query and search capabilities
 - Multiple output formats`,
-		Version: version,
 		// Uncomment below to have it run the completion command
 		// CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
@@ -44,11 +45,12 @@ func Execute() {
 }
 
 func init() {
+	// Set version function to use current values (allows ldflags to override)
+	rootCmd.Version = Version
+	rootCmd.SetVersionTemplate("rune version {{.Version}}\n")
+
 	// Global persistent flags
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().StringVarP(&format, "format", "f", "table", "output format (table, markdown, json)")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "preview changes without applying them")
-
-	// Set custom version template
-	rootCmd.SetVersionTemplate("rune version {{.Version}}\n")
 }

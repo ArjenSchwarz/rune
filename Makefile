@@ -78,11 +78,19 @@ modernize: ## Apply modernize tool fixes
 	@echo "Formatting after modernization..."
 	@$(MAKE) fmt
 
-# Build targets
-.PHONY: build
-build: ## Build the rune binary
+VERSION ?= dev
+BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+# Build flags for version injection
+LDFLAGS := -X github.com/arjenschwarz/rune/cmd.Version=$(VERSION) \
+           -X github.com/arjenschwarz/rune/cmd.BuildTime=$(BUILD_TIME) \
+           -X github.com/arjenschwarz/rune/cmd.GitCommit=$(GIT_COMMIT)
+
+# Build the Rune application
+build:
 	@echo "Building rune binary..."
-	@go build -o rune .
+	go build -ldflags "$(LDFLAGS)" .
 
 # Development utility targets
 .PHONY: mod-tidy
