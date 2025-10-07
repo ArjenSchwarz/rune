@@ -12,9 +12,11 @@ var (
 	format  string
 	dryRun  bool
 
-	// Version information
-	Version   = "dev"
+	// Version information (set at build time via ldflags)
+	Version = "dev"
+	// BuildTime is set at build time via ldflags
 	BuildTime = "unknown"
+	// GitCommit is set at build time via ldflags
 	GitCommit = "unknown"
 
 	rootCmd = &cobra.Command{

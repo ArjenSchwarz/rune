@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Task Requirements Linking feature specification
+  - Decision log documenting design choices for linking tasks to requirement acceptance criteria
+  - Comprehensive design document covering architecture, data models, and component interfaces
+  - Requirements document with acceptance criteria for the feature
+  - Tasks breakdown for implementation phases
+
+### Changed
+
+- Updated Claude Code settings to include codex-agent in pre-approved tools
+- Cleaned up Claude Code settings by removing obsolete command approvals
+
+### Fixed
+
+- Fixed goconst linting issue by using existing formatJSON constant in version command
+- Fixed revive linting issue by adding proper documentation comments for exported build variables
+
 ## [1.0.0] - 2025-10-07
 
 ### Added
