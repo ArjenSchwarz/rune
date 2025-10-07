@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task Requirements Linking: Documentation updates
+  - Added Requirements section to README.md with examples for --requirements and --requirements-file flags
+  - Documented requirements vs references distinction in README.md
+  - Updated docs/json-api.md with requirements field schema and batch operation examples
+  - Added requirements_file field documentation to JSON API
+
+### Added
+
 - Task Requirements Linking: Integration test suite
   - Complete workflow test covering requirements CLI flags, batch operations, and round-trip preservation
   - Verification of markdown rendering with requirement links in `[ID](file#ID)` format

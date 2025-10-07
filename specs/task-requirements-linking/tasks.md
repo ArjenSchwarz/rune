@@ -198,7 +198,7 @@ references:
 
 ## Documentation
 
-- [ ] 24. Update README.md with requirements feature documentation
+- [x] 24. Update README.md with requirements feature documentation
   - Add Requirements section after References documentation
   - Document --requirements flag with examples
   - Document --requirements-file flag and default behavior
@@ -207,7 +207,7 @@ references:
   - Include examples for add, update, and clear operations
   - References: Requirements 8.1, 8.2, 8.3, 8.5
 
-- [ ] 25. Update docs/json-api.md with requirements fields
+- [x] 25. Update docs/json-api.md with requirements fields
   - Document requirements field in Task JSON structure
   - Document requirements_file field in TaskList JSON structure
   - Add batch operation examples with requirements
@@ -216,7 +216,7 @@ references:
 
 ## Final Validation
 
-- [ ] 26. Run complete test suite and validate coverage
+- [x] 26. Run complete test suite and validate coverage
   - Run make test to execute all unit tests
   - Run make test-integration to execute integration tests
   - Run make test-coverage to verify >80% coverage for new code
@@ -226,7 +226,7 @@ references:
 
 ## Code Quality
 
-- [ ] 27. Run linters and format code
+- [x] 27. Run linters and format code
   - Run make fmt to format all Go code
   - Run make lint to check for issues
   - Run make modernize to apply modern Go patterns
