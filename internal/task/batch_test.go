@@ -2335,3 +2335,215 @@ func TestExecuteBatch_MixedPhaseOperations(t *testing.T) {
 		t.Error("Task 1 should be completed")
 	}
 }
+
+func TestExecuteBatch_AddWithRequirements(t *testing.T) {
+	tl := NewTaskList("Test Tasks")
+	tl.RequirementsFile = "requirements.md"
+
+	ops := []Operation{
+		{
+			Type:         "add",
+			Title:        "Implement feature",
+			Requirements: []string{"1.1", "1.2", "2.3"},
+		},
+	}
+
+	response, err := tl.ExecuteBatch(ops, false)
+	if err != nil {
+		t.Fatalf("ExecuteBatch failed: %v", err)
+	}
+
+	if !response.Success {
+		t.Fatalf("Expected success, got errors: %v", response.Errors)
+	}
+	if response.Applied != 1 {
+		t.Errorf("Expected 1 applied operation, got %d", response.Applied)
+	}
+
+	// Verify requirements were added
+	if len(tl.Tasks) != 1 {
+		t.Fatalf("Expected 1 task, got %d", len(tl.Tasks))
+	}
+	task := tl.Tasks[0]
+	if len(task.Requirements) != 3 {
+		t.Errorf("Expected 3 requirements, got %d", len(task.Requirements))
+	}
+	expectedReqs := []string{"1.1", "1.2", "2.3"}
+	for i, req := range expectedReqs {
+		if i >= len(task.Requirements) || task.Requirements[i] != req {
+			t.Errorf("Expected requirement %s at index %d, got %v", req, i, task.Requirements)
+		}
+	}
+}
+
+func TestExecuteBatch_UpdateWithRequirements(t *testing.T) {
+	tl := NewTaskList("Test Tasks")
+	tl.RequirementsFile = "requirements.md"
+	tl.AddTask("", "Existing task", "")
+
+	ops := []Operation{
+		{
+			Type:         "update",
+			ID:           "1",
+			Requirements: []string{"3.1", "3.2"},
+		},
+	}
+
+	response, err := tl.ExecuteBatch(ops, false)
+	if err != nil {
+		t.Fatalf("ExecuteBatch failed: %v", err)
+	}
+
+	if !response.Success {
+		t.Fatalf("Expected success, got errors: %v", response.Errors)
+	}
+	if response.Applied != 1 {
+		t.Errorf("Expected 1 applied operation, got %d", response.Applied)
+	}
+
+	// Verify requirements were updated
+	task := tl.Tasks[0]
+	if len(task.Requirements) != 2 {
+		t.Errorf("Expected 2 requirements, got %d", len(task.Requirements))
+	}
+	expectedReqs := []string{"3.1", "3.2"}
+	for i, req := range expectedReqs {
+		if i >= len(task.Requirements) || task.Requirements[i] != req {
+			t.Errorf("Expected requirement %s at index %d, got %v", req, i, task.Requirements)
+		}
+	}
+}
+
+func TestExecuteBatch_RequirementsValidation(t *testing.T) {
+	tests := map[string]struct {
+		ops     []Operation
+		wantErr bool
+	}{
+		"invalid requirement ID in add": {
+			ops: []Operation{
+				{
+					Type:         "add",
+					Title:        "Task",
+					Requirements: []string{"invalid"},
+				},
+			},
+			wantErr: true,
+		},
+		"invalid requirement ID in update": {
+			ops: []Operation{
+				{
+					Type:         "update",
+					ID:           "1",
+					Requirements: []string{"abc.xyz"},
+				},
+			},
+			wantErr: true,
+		},
+		"valid hierarchical requirements": {
+			ops: []Operation{
+				{
+					Type:         "add",
+					Title:        "Task",
+					Requirements: []string{"1", "1.1", "1.2.3", "10.20.30.40"},
+				},
+			},
+			wantErr: false,
+		},
+		"mixed valid and invalid requirements": {
+			ops: []Operation{
+				{
+					Type:         "add",
+					Title:        "Task",
+					Requirements: []string{"1.1", "invalid", "2.3"},
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Create fresh task list for each test
+			testTL := NewTaskList("Test Tasks")
+			testTL.AddTask("", "Existing task", "")
+
+			response, err := testTL.ExecuteBatch(tc.ops, false)
+			if err != nil {
+				t.Fatalf("ExecuteBatch returned error: %v", err)
+			}
+
+			if tc.wantErr && response.Success {
+				t.Error("Expected validation failure, but got success")
+			}
+			if !tc.wantErr && !response.Success {
+				t.Errorf("Expected success, but got errors: %v", response.Errors)
+			}
+		})
+	}
+}
+
+func TestExecuteBatch_AtomicBehaviorWithInvalidRequirements(t *testing.T) {
+	tl := NewTaskList("Test Tasks")
+	tl.AddTask("", "Existing task", "")
+
+	// Mix of valid operation and operation with invalid requirements
+	ops := []Operation{
+		{
+			Type:  "add",
+			Title: "Valid task",
+		},
+		{
+			Type:         "add",
+			Title:        "Task with invalid requirements",
+			Requirements: []string{"invalid-id"},
+		},
+	}
+
+	initialTaskCount := len(tl.Tasks)
+
+	response, err := tl.ExecuteBatch(ops, false)
+	if err != nil {
+		t.Fatalf("ExecuteBatch returned error: %v", err)
+	}
+
+	// Should fail validation and not apply any operations
+	if response.Success {
+		t.Error("Expected batch to fail due to invalid requirements")
+	}
+	if response.Applied != 0 {
+		t.Errorf("Expected 0 applied operations, got %d", response.Applied)
+	}
+	if len(tl.Tasks) != initialTaskCount {
+		t.Errorf("Expected task count to remain %d, got %d", initialTaskCount, len(tl.Tasks))
+	}
+}
+
+func TestBatchRequest_RequirementsFile(t *testing.T) {
+	req := BatchRequest{
+		File:             "tasks.md",
+		RequirementsFile: "specs/requirements.md",
+		Operations: []Operation{
+			{
+				Type:         "add",
+				Title:        "Task",
+				Requirements: []string{"1.1"},
+			},
+		},
+	}
+
+	// Test JSON marshaling
+	jsonData, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("Failed to marshal BatchRequest: %v", err)
+	}
+
+	// Test JSON unmarshaling
+	var unmarshaled BatchRequest
+	if err := json.Unmarshal(jsonData, &unmarshaled); err != nil {
+		t.Fatalf("Failed to unmarshal BatchRequest: %v", err)
+	}
+
+	if unmarshaled.RequirementsFile != "specs/requirements.md" {
+		t.Errorf("Expected requirements_file 'specs/requirements.md', got '%s'", unmarshaled.RequirementsFile)
+	}
+}

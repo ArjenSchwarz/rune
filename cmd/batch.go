@@ -119,6 +119,13 @@ func runBatch(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("loading task file with phases: %w", err)
 		}
 
+		// Set requirements file path
+		if req.RequirementsFile != "" {
+			taskList.RequirementsFile = req.RequirementsFile
+		} else if taskList.RequirementsFile == "" {
+			taskList.RequirementsFile = task.DefaultRequirementsFile
+		}
+
 		// Execute batch operations with phase support
 		response, err = taskList.ExecuteBatchWithPhases(req.Operations, req.DryRun, phaseMarkers, req.File)
 		if err != nil {
@@ -131,6 +138,13 @@ func runBatch(cmd *cobra.Command, args []string) error {
 		taskList, err = task.ParseFile(req.File)
 		if err != nil {
 			return fmt.Errorf("loading task file: %w", err)
+		}
+
+		// Set requirements file path
+		if req.RequirementsFile != "" {
+			taskList.RequirementsFile = req.RequirementsFile
+		} else if taskList.RequirementsFile == "" {
+			taskList.RequirementsFile = task.DefaultRequirementsFile
 		}
 
 		// Execute batch operations

@@ -143,31 +143,31 @@ references:
 
 ## Batch Operations Support
 
-- [ ] 17. Add Requirements field to Operation struct
+- [x] 17. Add Requirements field to Operation struct
   - Add Requirements []string field to Operation in internal/task/batch.go
   - Add RequirementsFile string field to BatchRequest struct
   - Add json tags with omitempty
   - References: Requirements 6.3, 6.4
 
-- [ ] 18. Add requirements validation to batch operations
+- [x] 18. Add requirements validation to batch operations
   - Validate requirement ID format in validateOperation for add/update ops
   - Use existing validateTaskIDFormat function
   - Return clear error messages for invalid IDs
   - References: Requirements 6.5
 
-- [ ] 19. Update applyOperation to handle requirements
+- [x] 19. Update applyOperation to handle requirements
   - Pass requirements to UpdateTask in add operation
   - Pass requirements to UpdateTask in update operation
   - Handle empty requirements array correctly
   - References: Requirements 6.3, 6.4
 
-- [ ] 20. Add requirements_file support to batch command
+- [x] 20. Add requirements_file support to batch command
   - In cmd/batch.go runBatch function
   - Set tl.RequirementsFile from BatchRequest.RequirementsFile
   - Default to DefaultRequirementsFile if not specified
   - References: Requirements 6.1, 6.2
 
-- [ ] 21. Write unit tests for batch requirements operations
+- [x] 21. Write unit tests for batch requirements operations
   - Test add operation with requirements field
   - Test update operation with requirements field
   - Test requirements validation in batch

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Task Requirements Linking: Batch operations support
+  - `Requirements` field added to `Operation` struct for add/update operations
+  - `RequirementsFile` field added to `BatchRequest` struct with JSON tag support
+  - Requirement ID validation integrated into batch operation validation
+  - Requirements passed through to `UpdateTask` for both add and update operations
+  - Requirements file path handling in batch command with default fallback
+  - Comprehensive unit tests covering add/update with requirements, validation scenarios, and atomic behavior
+
 - Task Requirements Linking: Update command implementation
   - `--requirements` flag added to `update` command for comma-separated requirement IDs (e.g., "1.1,1.2,2.3")
   - `--clear-requirements` flag added to clear all requirements from a task
