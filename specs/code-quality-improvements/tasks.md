@@ -114,14 +114,14 @@ references:
 
 ## Phase 5: Test File Reorganization
 
-- [ ] 14. Create batch_helpers_test.go for shared test utilities
+- [x] 14. Create batch_helpers_test.go for shared test utilities
   - Create internal/task/batch_helpers_test.go
   - Move StatusPtr helper function
   - Move any other shared test setup functions
   - Ensure no Test* functions in this file
   - Requirements: [5.4](requirements.md#5.4)
 
-- [ ] 15. Create batch_add_test.go with addition operation tests
+- [x] 15. Create batch_add_test.go with addition operation tests
   - Create internal/task/batch_add_test.go
   - Use .claude/scripts/move_code_section.py to move 11 test functions from batch_test.go
   - Move: TestExecuteBatch_SingleAdd, TestExecuteBatch_MultipleOperations, TestExecuteBatch_ComplexOperations
@@ -133,7 +133,7 @@ references:
   - Requirements: [5.1](requirements.md#5.1), [5.2](requirements.md#5.2), [5.5](requirements.md#5.5), [5.7](requirements.md#5.7)
   - References: .claude/scripts/move_code_section.py
 
-- [ ] 16. Create batch_update_test.go with update operation tests
+- [x] 16. Create batch_update_test.go with update operation tests
   - Create internal/task/batch_update_test.go
   - Use .claude/scripts/move_code_section.py to move 13 test functions from batch_test.go
   - Move: TestExecuteBatch_UnifiedUpdateWithStatus, TestExecuteBatch_UnifiedUpdateOperations
@@ -147,7 +147,7 @@ references:
   - Requirements: [5.1](requirements.md#5.1), [5.2](requirements.md#5.2), [5.5](requirements.md#5.5), [5.7](requirements.md#5.7)
   - References: .claude/scripts/move_code_section.py
 
-- [ ] 17. Create batch_validation_test.go with validation tests
+- [x] 17. Create batch_validation_test.go with validation tests
   - Create internal/task/batch_validation_test.go
   - Use .claude/scripts/move_code_section.py to move 10 test functions from batch_test.go
   - Move: TestExecuteBatch_ValidationFailures, TestExecuteBatch_AtomicFailure, TestExecuteBatch_DryRun
@@ -159,7 +159,7 @@ references:
   - Requirements: [5.1](requirements.md#5.1), [5.2](requirements.md#5.2), [5.5](requirements.md#5.5), [5.7](requirements.md#5.7)
   - References: .claude/scripts/move_code_section.py
 
-- [ ] 18. Create batch_operations_test.go with complex operation tests
+- [x] 18. Create batch_operations_test.go with complex operation tests
   - Create internal/task/batch_operations_test.go
   - Use .claude/scripts/move_code_section.py to move 7 test functions from batch_test.go
   - Move: TestExecuteBatch_AutoCompleteWithMixedOperations
@@ -170,7 +170,7 @@ references:
   - Requirements: [5.1](requirements.md#5.1), [5.2](requirements.md#5.2), [5.5](requirements.md#5.5), [5.7](requirements.md#5.7)
   - References: .claude/scripts/move_code_section.py
 
-- [ ] 19. Remove original batch_test.go or update with remaining tests
+- [x] 19. Remove original batch_test.go or update with remaining tests
   - After moving all 41 test functions, check if batch_test.go is empty
   - If empty, remove batch_test.go
   - If any tests remain, verify they're intentionally kept

@@ -25,7 +25,9 @@
       "Bash(export INTEGRATION=1)",
       "Bash(gh pr view:*)",
       "Bash(rune:*)",
-      "Bash(echo \"Exit code: $?\")"
+      "Bash(echo \"Exit code: $?\")",
+      "Read(//Users/arjenschwarz/projects/personal/rune/.claude/scripts/**)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []
