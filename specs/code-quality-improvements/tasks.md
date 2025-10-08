@@ -189,31 +189,31 @@ references:
 
 ## Phase 6: Final Validation
 
-- [ ] 21. Verify all unit tests pass
+- [x] 21. Verify all unit tests pass
   - Run make test to execute all unit tests
   - Verify zero failures
   - Check that all test files are properly organized
   - Requirements: [6.1](requirements.md#6.1)
 
-- [ ] 22. Verify all integration tests pass
+- [x] 22. Verify all integration tests pass
   - Run INTEGRATION=1 make test-integration
   - Verify zero failures
   - Ensure CLI behavior is unchanged
   - Requirements: [6.2](requirements.md#6.2)
 
-- [ ] 23. Run code quality checks
+- [x] 23. Run code quality checks
   - Run golangci-lint and verify zero issues
   - Run make modernize and verify no changes needed
   - Run make fmt to ensure proper formatting
   - Requirements: [6.3](requirements.md#6.3), [6.4](requirements.md#6.4), [6.7](requirements.md#6.7)
 
-- [ ] 24. Verify test coverage baseline
+- [x] 24. Verify test coverage baseline
   - Run make test-coverage
   - Verify coverage is maintained at 70-80% baseline
   - Document any coverage changes
   - Requirements: [6.5](requirements.md#6.5)
 
-- [ ] 25. Validate CLI output remains identical
+- [x] 25. Validate CLI output remains identical
   - Test rune commands against example files
   - Compare output before and after refactoring
   - Verify list, next, add, update, batch commands produce same output
