@@ -147,32 +147,6 @@ func matchesStatusFilter(status task.Status, filter string) bool {
 	}
 }
 
-func formatStatus(status task.Status) string {
-	switch status {
-	case task.Pending:
-		return "Pending"
-	case task.InProgress:
-		return "In Progress"
-	case task.Completed:
-		return "Completed"
-	default:
-		return "Unknown"
-	}
-}
-
-func getTaskLevel(id string) int {
-	if id == "" {
-		return 0
-	}
-	level := 0
-	for _, char := range id {
-		if char == '.' {
-			level++
-		}
-	}
-	return level + 1
-}
-
 func formatDetails(details []string) string {
 	if len(details) == 0 {
 		return ""
@@ -191,14 +165,6 @@ func formatReferences(references []string) string {
 		return references[0]
 	}
 	return fmt.Sprintf("%d references", len(references))
-}
-
-func countAllTasks(tasks []task.Task) int {
-	count := len(tasks)
-	for _, t := range tasks {
-		count += countAllTasks(t.Children)
-	}
-	return count
 }
 
 // findDuplicatePhases identifies duplicate phase names in the phase markers

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Code Quality Improvements: Helper functions consolidation
+  - Created `cmd/helpers.go` with shared utility functions (`formatStatus`, `formatStatusMarkdown`, `getTaskLevel`, `countAllTasks`)
+  - Moved checkbox constants (`checkboxPending`, `checkboxInProgress`, `checkboxCompleted`) from `cmd/next.go` to `cmd/helpers.go`
+  - Removed duplicate function definitions from `cmd/list.go` (34 lines) and `cmd/next.go` (20 lines)
+  - Added comprehensive unit tests in `cmd/helpers_test.go` with 149 lines covering all helper functions
+  - Net result: 211 additions, 54 deletions (consolidated shared code)
+
 - Code Quality Improvements feature specification
   - Decision log documenting design choices for internal code refactoring
   - Design document covering architecture and implementation approach for five key improvements
