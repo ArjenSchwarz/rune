@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Split parse test file into focused test files organized by functionality
+  - Split `parse_test.go` (1,175 lines) into two specialized test files
+  - Created `parse_basic_test.go` (599 lines) for core parsing tests (markdown, files, status, details, hierarchy, malformed content, edge cases, performance)
+  - Created `parse_frontmatter_test.go` (577 lines) for front matter and requirements parsing tests
+  - Created `parse_helpers_test.go` (8 lines) for shared `writeTestFile` helper function
+
 - Reorganized batch operation tests into focused test files
   - Split `batch_test.go` (2,549 lines) into four specialized test files
   - Created `batch_add_test.go` (688 lines) for add operation tests

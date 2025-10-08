@@ -177,7 +177,7 @@ references:
   - Run all batch tests to ensure complete coverage
   - Requirements: [5.5](requirements.md#5.5), [5.6](requirements.md#5.6)
 
-- [ ] 20. Evaluate and optionally split parse_test.go
+- [x] 20. Evaluate and optionally split parse_test.go
   - Review parse_test.go test organization (1175 lines, 16 functions)
   - If splitting improves organization, create parse_basic_test.go (9 functions)
   - If splitting improves organization, create parse_frontmatter_test.go (7 functions)
