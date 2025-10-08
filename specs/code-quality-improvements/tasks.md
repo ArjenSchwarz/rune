@@ -96,13 +96,13 @@ references:
 
 ## Phase 4: ID Validation Simplification
 
-- [ ] 12. Consolidate ID validation to single IsValidID function
+- [x] 12. Consolidate ID validation to single IsValidID function
   - In internal/task/task.go, update isValidID() to become the implementation for IsValidID()
   - Remove the old IsValidID() wrapper function
   - Keep single IsValidID() as the public API
   - Requirements: [4.1](requirements.md#4.1), [4.2](requirements.md#4.2), [4.4](requirements.md#4.4)
 
-- [ ] 13. Update all isValidID call sites to use IsValidID
+- [x] 13. Update all isValidID call sites to use IsValidID
   - Update internal/task/parse.go:374
   - Update internal/task/task.go:126
   - Update internal/task/task.go:131

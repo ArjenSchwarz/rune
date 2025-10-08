@@ -26,7 +26,7 @@ func hasStatusField(op Operation) bool {
 
 // validateTaskIDFormat validates that a string follows the task ID format
 func validateTaskIDFormat(id string) bool {
-	return isValidID(id)
+	return IsValidID(id)
 }
 
 // sortOperationsForPositionInsertions sorts operations to process position insertions in reverse order

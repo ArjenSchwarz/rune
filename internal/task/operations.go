@@ -70,7 +70,7 @@ func (tl *TaskList) AddTask(parentID, title, position string) (string, error) {
 // addTaskAtPosition inserts a task at the specified position and returns the new task ID
 func (tl *TaskList) addTaskAtPosition(parentID, title, position string) (string, error) {
 	// Validate position format
-	if !isValidID(position) {
+	if !IsValidID(position) {
 		return "", fmt.Errorf("invalid position format: %s", position)
 	}
 
@@ -405,7 +405,7 @@ func validateRequirements(requirements []string) error {
 		if containsNullByte(req) {
 			return fmt.Errorf("requirement %d contains null bytes or control characters", i+1)
 		}
-		if !isValidID(req) {
+		if !IsValidID(req) {
 			return fmt.Errorf("requirement %d has invalid format: %s (must match pattern ^\\d+(\\.\\d+)*$)", i+1, req)
 		}
 	}

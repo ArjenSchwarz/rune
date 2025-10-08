@@ -370,7 +370,7 @@ func parseRequirements(reqs string) ([]string, string) {
 		part = strings.TrimSpace(part)
 		if matches := requirementLinkPattern.FindStringSubmatch(part); matches != nil {
 			reqID := strings.TrimSpace(matches[1])
-			if reqID != "" && isValidID(reqID) {
+			if reqID != "" && IsValidID(reqID) {
 				requirements = append(requirements, reqID)
 				// Extract file path from first valid link
 				if reqFile == "" {
