@@ -61,33 +61,33 @@ references:
 
 ## Phase 3: Parse Function Refactoring
 
-- [ ] 7. Rename parseTaskLineWithError to parseTaskLine
+- [x] 7. Rename parseTaskLineWithError to parseTaskLine
   - In internal/task/parse.go, rename parseTaskLineWithError() to parseTaskLine()
   - Update function signature to return (Task, bool, error)
   - Remove old parseTaskLine() wrapper function
   - Requirements: [3.1](requirements.md#3.1), [3.2](requirements.md#3.2)
 
-- [ ] 8. Update parse.go:155 parseTasksAtLevel caller
+- [x] 8. Update parse.go:155 parseTasksAtLevel caller
   - Update line 155 call from parseTaskLineWithError to parseTaskLine
   - Verify error handling remains correct (already handles errors)
   - Run parse tests to ensure no breakage
   - Requirements: [3.3](requirements.md#3.3), [3.5](requirements.md#3.5)
 
-- [ ] 9. Update parse.go:255 parseDetailsAndChildren caller
+- [x] 9. Update parse.go:255 parseDetailsAndChildren caller
   - Update line 255 to call parseTaskLine with error handling
   - Add error check: if err != nil, return with formatted error
   - Maintain existing ok check for task detection
   - Run parse tests to ensure errors are properly propagated
   - Requirements: [3.3](requirements.md#3.3), [3.5](requirements.md#3.5)
 
-- [ ] 10. Update parse.go:417 ExtractPhaseMarkers caller
+- [x] 10. Update parse.go:417 ExtractPhaseMarkers caller
   - Update line 417 to call parseTaskLine
   - Use pattern: if _, ok, err := parseTaskLine(line); err == nil && ok
   - Ensure malformed tasks are silently skipped (current behavior)
   - Run phase-related tests to ensure no breakage
   - Requirements: [3.3](requirements.md#3.3), [3.5](requirements.md#3.5)
 
-- [ ] 11. Update or remove tests for old parseTaskLine
+- [x] 11. Update or remove tests for old parseTaskLine
   - Review existing tests that test parseTaskLine error handling
   - Remove or update tests specific to error-discarding behavior
   - Ensure parseTaskLine error handling is tested

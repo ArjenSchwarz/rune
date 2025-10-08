@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refactored task parsing error handling by consolidating `parseTaskLineWithError` and `parseTaskLine` into a single function that returns (Task, bool, error)
 - Replaced custom `containsString` helper function with `strings.Contains` throughout test files for better code consistency
 
 ### Added

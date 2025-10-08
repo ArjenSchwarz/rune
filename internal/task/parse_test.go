@@ -121,7 +121,7 @@ func TestParseFile(t *testing.T) {
 		"malformed_file": {
 			filename:    "malformed.md",
 			wantErr:     true,
-			errContains: "invalid status",
+			errContains: "missing task number",
 		},
 		"nonexistent_file": {
 			filename:    "nonexistent.md",

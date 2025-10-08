@@ -152,7 +152,7 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 		}
 
 		// Try to parse as a task line
-		task, ok, err := parseTaskLineWithError(lines[i])
+		task, ok, err := parseTaskLine(lines[i])
 		switch {
 		case err != nil:
 			return nil, i, fmt.Errorf("line %d: %w", i+1, err)
@@ -252,7 +252,11 @@ func parseDetailsAndChildren(lines []string, startIdx, expectedIndent int, paren
 		}
 
 		// Try to parse as a task
-		if _, ok := parseTaskLine(lines[i]); ok {
+		_, ok, err := parseTaskLine(lines[i])
+		switch {
+		case err != nil:
+			return nil, i, fmt.Errorf("line %d: %w", i+1, err)
+		case ok:
 			if indent != expectedIndent {
 				return nil, i, fmt.Errorf("line %d: unexpected indentation", i+1)
 			}
@@ -269,12 +273,12 @@ func parseDetailsAndChildren(lines []string, startIdx, expectedIndent int, paren
 			}
 
 			return items, newIdx, nil
-		} else if indent == expectedIndent {
+		case indent == expectedIndent:
 			// This is a detail line
 			if detail := parseDetailLine(lines[i]); detail != "" {
 				items = append(items, detail)
 			}
-		} else {
+		default:
 			// Deeper indentation without being a task or detail
 			return nil, i, fmt.Errorf("line %d: unexpected indentation", i+1)
 		}
@@ -283,7 +287,7 @@ func parseDetailsAndChildren(lines []string, startIdx, expectedIndent int, paren
 	return items, len(lines) - 1, nil
 }
 
-func parseTaskLineWithError(line string) (Task, bool, error) {
+func parseTaskLine(line string) (Task, bool, error) {
 	trimmed := strings.TrimSpace(line)
 
 	// Check if it looks like a task but with invalid status
@@ -329,11 +333,6 @@ func parseTaskLineWithError(line string) (Task, bool, error) {
 
 	// Not a task line at all
 	return Task{}, false, nil
-}
-
-func parseTaskLine(line string) (Task, bool) {
-	task, ok, _ := parseTaskLineWithError(line)
-	return task, ok
 }
 
 func parseDetailLine(line string) string {
@@ -414,7 +413,7 @@ func ExtractPhaseMarkers(lines []string) []PhaseMarker {
 				Name:        phaseName,
 				AfterTaskID: lastTaskID,
 			})
-		} else if _, ok := parseTaskLine(line); ok {
+		} else if _, ok, err := parseTaskLine(line); err == nil && ok {
 			// Extract task ID from the line
 			// The task ID is captured in the regex pattern
 			if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
