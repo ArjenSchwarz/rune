@@ -12,6 +12,9 @@ const (
 	checkboxPending    = "[ ]"
 	checkboxInProgress = "[-]"
 	checkboxCompleted  = "[x]"
+
+	// DefaultRequirementsFile is the default filename for requirements
+	DefaultRequirementsFile = "requirements.md"
 )
 
 // Status represents the state of a task
@@ -100,13 +103,14 @@ func (s Status) MarshalJSON() ([]byte, error) {
 
 // Task represents a single task in a hierarchical task list
 type Task struct {
-	ID         string
-	Title      string
-	Status     Status
-	Details    []string
-	References []string
-	Children   []Task
-	ParentID   string
+	ID           string
+	Title        string
+	Status       Status
+	Details      []string
+	References   []string
+	Requirements []string `json:"requirements,omitempty"`
+	Children     []Task
+	ParentID     string
 }
 
 var taskIDPattern = regexp.MustCompile(`^[1-9]\d*(\.[1-9]\d*)*$`)
@@ -122,6 +126,12 @@ func (t *Task) Validate() error {
 	if !isValidID(t.ID) {
 		return fmt.Errorf("invalid task ID format: %s", t.ID)
 	}
+	// Validate requirement IDs match hierarchical pattern
+	for _, reqID := range t.Requirements {
+		if !isValidID(reqID) {
+			return fmt.Errorf("invalid requirement ID format: %s", reqID)
+		}
+	}
 	return nil
 }
 
@@ -129,11 +139,17 @@ func isValidID(id string) bool {
 	return taskIDPattern.MatchString(id)
 }
 
+// IsValidID checks if an ID matches the hierarchical pattern
+func IsValidID(id string) bool {
+	return isValidID(id)
+}
+
 // TaskList represents a collection of tasks with metadata
 type TaskList struct {
-	Title       string
-	Tasks       []Task
-	FrontMatter *FrontMatter
-	FilePath    string
-	Modified    time.Time
+	Title            string
+	Tasks            []Task
+	FrontMatter      *FrontMatter
+	FilePath         string
+	RequirementsFile string `json:"requirements_file,omitempty"`
+	Modified         time.Time
 }

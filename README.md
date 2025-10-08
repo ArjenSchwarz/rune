@@ -105,6 +105,8 @@ rune add [file] --title [title] [options]
 - `--phase [name]` - Add task to specified phase (creates phase if it doesn't exist)
 - `--details [text,...]` - Comma-separated detail points
 - `--references [ref,...]` - Comma-separated references
+- `--requirements [id,...]` - Comma-separated requirement IDs (e.g., "1.1,1.2,2.3")
+- `--requirements-file [path]` - Path to requirements file (default: requirements.md)
 
 **Examples:**
 ```bash
@@ -112,6 +114,7 @@ rune add tasks.md --title "Implement authentication"
 rune add tasks.md --title "Add unit tests" --parent 1
 rune add tasks.md --title "Setup database" --phase "Development"
 rune add tasks.md --title "Review code" --details "Check logic,Verify tests" --references "coding-standards.md"
+rune add tasks.md --title "Implement login" --requirements "1.1,1.2" --requirements-file "specs/requirements.md"
 ```
 
 ### complete - Mark Task Complete
@@ -156,12 +159,16 @@ rune update [file] [task-id] [options]
 - `--title [text]` - New task title
 - `--details [text,...]` - Replace all details
 - `--references [ref,...]` - Replace all references
+- `--requirements [id,...]` - Replace all requirements
+- `--clear-requirements` - Clear all requirements from the task
 
 **Examples:**
 ```bash
 rune update tasks.md 1 --title "New title"
 rune update tasks.md 2.1 --details "Step 1,Step 2,Step 3"
 rune update tasks.md 3 --references "spec.md,api-docs.md"
+rune update tasks.md 4 --requirements "2.1,2.2"
+rune update tasks.md 5 --clear-requirements
 ```
 
 ### remove - Delete Task
@@ -343,13 +350,15 @@ rune batch tasks.md --operations updates.json --dry-run
 ```json
 {
   "file": "tasks.md",
+  "requirements_file": "specs/requirements.md",
   "operations": [
     {
       "type": "add",
       "parent": "1",
       "title": "New task",
       "details": ["Detail 1", "Detail 2"],
-      "references": ["doc.md"]
+      "references": ["doc.md"],
+      "requirements": ["1.1", "1.2"]
     },
     {
       "type": "add",
@@ -366,7 +375,8 @@ rune batch tasks.md --operations updates.json --dry-run
       "id": "3",
       "title": "Updated title",
       "details": ["New detail"],
-      "references": ["updated-doc.md"]
+      "references": ["updated-doc.md"],
+      "requirements": ["2.1", "2.2"]
     },
     {
       "type": "remove",
@@ -559,6 +569,44 @@ metadata:
 
 - **Front Matter References**: Apply to the entire task file, included in all outputs
 - **Task References**: Apply to specific tasks, shown with task details
+
+### Requirements
+
+Link tasks to specific requirement acceptance criteria using the `--requirements` flag:
+
+```bash
+rune add tasks.md --title "Implement login" --requirements "1.1,1.2,2.3"
+```
+
+Specify a custom requirements file:
+
+```bash
+rune add tasks.md --title "Implement login" --requirements "1.1,1.2" --requirements-file "specs/requirements.md"
+```
+
+Requirements are rendered as clickable markdown links:
+
+```markdown
+- [ ] 1. Implement login
+  - Requirements: [1.1](requirements.md#1.1), [1.2](requirements.md#1.2)
+```
+
+Update requirements:
+
+```bash
+rune update tasks.md 1 --requirements "3.1,3.2"
+```
+
+Clear requirements:
+
+```bash
+rune update tasks.md 1 --clear-requirements
+```
+
+**Requirements vs References:**
+
+- **Requirements**: Links to acceptance criteria with automatic link generation pointing to requirement anchors
+- **References**: Free-form text without link generation
 
 ### Using Phases to Organize Tasks
 

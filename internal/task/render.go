@@ -18,20 +18,26 @@ func RenderMarkdown(tl *TaskList) []byte {
 		buf.WriteString("# \n\n")
 	}
 
+	// Determine requirements file (default if not set)
+	reqFile := tl.RequirementsFile
+	if reqFile == "" {
+		reqFile = DefaultRequirementsFile
+	}
+
 	// Render each root-level task
 	for i, task := range tl.Tasks {
 		// Add a blank line before each top-level task except the first
 		if i > 0 {
 			buf.WriteString("\n")
 		}
-		renderTask(&buf, &task, 0)
+		renderTask(&buf, &task, 0, reqFile)
 	}
 
 	return []byte(buf.String())
 }
 
 // renderTask recursively renders a task and its children with proper indentation
-func renderTask(buf *strings.Builder, task *Task, depth int) {
+func renderTask(buf *strings.Builder, task *Task, depth int, reqFile string) {
 	// Calculate indentation (2 spaces per level)
 	indent := strings.Repeat("  ", depth)
 
@@ -44,6 +50,16 @@ func renderTask(buf *strings.Builder, task *Task, depth int) {
 		fmt.Fprintf(buf, "%s  - %s\n", indent, detail)
 	}
 
+	// Render requirements if present
+	if len(task.Requirements) > 0 {
+		links := make([]string, len(task.Requirements))
+		for i, reqID := range task.Requirements {
+			links[i] = fmt.Sprintf("[%s](%s#%s)", reqID, reqFile, reqID)
+		}
+		fmt.Fprintf(buf, "%s  - Requirements: %s\n",
+			indent, strings.Join(links, ", "))
+	}
+
 	// Render references if present
 	if len(task.References) > 0 {
 		fmt.Fprintf(buf, "%s  - References: %s\n",
@@ -52,7 +68,7 @@ func renderTask(buf *strings.Builder, task *Task, depth int) {
 
 	// Recursively render children
 	for _, child := range task.Children {
-		renderTask(buf, &child, depth+1)
+		renderTask(buf, &child, depth+1, reqFile)
 	}
 }
 
@@ -65,6 +81,12 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 		buf.WriteString(fmt.Sprintf("# %s\n\n", tl.Title))
 	} else {
 		buf.WriteString("# \n\n")
+	}
+
+	// Determine requirements file (default if not set)
+	reqFile := tl.RequirementsFile
+	if reqFile == "" {
+		reqFile = DefaultRequirementsFile
 	}
 
 	// Track which phase marker we're at
@@ -104,7 +126,7 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 			(markerIndex > 0 && phaseMarkers[markerIndex-1].AfterTaskID != tl.Tasks[i-1].ID)) {
 			buf.WriteString("\n")
 		}
-		renderTask(&buf, &task, 0)
+		renderTask(&buf, &task, 0, reqFile)
 	}
 
 	// Handle any remaining phase markers that come after all tasks

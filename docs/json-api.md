@@ -15,6 +15,11 @@ This document describes the JSON schema for the rune batch operations API.
       "type": "string",
       "description": "Path to the task file"
     },
+    "requirements_file": {
+      "type": "string",
+      "default": "requirements.md",
+      "description": "Path to requirements file for linking tasks to acceptance criteria"
+    },
     "operations": {
       "type": "array",
       "items": {"$ref": "#/definitions/Operation"},
@@ -22,7 +27,7 @@ This document describes the JSON schema for the rune batch operations API.
       "description": "Array of operations to execute"
     },
     "dry_run": {
-      "type": "boolean", 
+      "type": "boolean",
       "default": false,
       "description": "If true, validate operations without applying changes"
     }
@@ -70,12 +75,20 @@ This document describes the JSON schema for the rune batch operations API.
           "description": "Array of detail strings"
         },
         "references": {
-          "type": "array", 
+          "type": "array",
           "items": {
             "type": "string",
             "maxLength": 500
           },
           "description": "Array of reference strings"
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[1-9]\\d*(\\.[1-9]\\d*)*$"
+          },
+          "description": "Array of requirement IDs (e.g., [\"1.1\", \"1.2\", \"2.3\"])"
         }
       },
       "required": ["type"],
@@ -172,6 +185,10 @@ This document describes the JSON schema for the rune batch operations API.
           "type": "array",
           "items": {"type": "string"}
         },
+        "requirements": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
         "path": {
           "type": "array",
           "items": {"type": "string"},
@@ -210,8 +227,12 @@ This document describes the JSON schema for the rune batch operations API.
       "items": {"$ref": "#/definitions/Task"},
       "description": "Root level tasks"
     },
+    "requirements_file": {
+      "type": "string",
+      "description": "Path to requirements file (if set)"
+    },
     "file_path": {
-      "type": "string", 
+      "type": "string",
       "description": "Source file path"
     },
     "modified": {
@@ -250,6 +271,13 @@ This document describes the JSON schema for the rune batch operations API.
             "maxLength": 500
           }
         },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[1-9]\\d*(\\.[1-9]\\d*)*$"
+          }
+        },
         "children": {
           "type": "array",
           "items": {"$ref": "#/definitions/Task"}
@@ -278,7 +306,8 @@ This document describes the JSON schema for the rune batch operations API.
     "Implement login/logout endpoints",
     "Add session management"
   ],
-  "references": ["auth-spec.md", "security-requirements.md"]
+  "references": ["auth-spec.md", "security-requirements.md"],
+  "requirements": ["1.1", "1.2", "2.3"]
 }
 ```
 
@@ -323,10 +352,11 @@ This document describes the JSON schema for the rune batch operations API.
   "title": "Enhanced user management",
   "details": [
     "User profile management",
-    "Role-based permissions", 
+    "Role-based permissions",
     "Account deactivation"
   ],
-  "references": ["user-management-spec.md"]
+  "references": ["user-management-spec.md"],
+  "requirements": ["3.1", "3.2"]
 }
 ```
 
@@ -338,6 +368,32 @@ This document describes the JSON schema for the rune batch operations API.
   "id": "3.1"
 }
 ```
+
+### Complete Batch Request with Requirements
+
+```json
+{
+  "file": "tasks.md",
+  "requirements_file": "specs/requirements.md",
+  "operations": [
+    {
+      "type": "add",
+      "title": "Implement authentication system",
+      "details": ["Setup OAuth providers", "Configure JWT tokens"],
+      "requirements": ["1.1", "1.2"]
+    },
+    {
+      "type": "update",
+      "id": "2",
+      "requirements": ["2.1", "2.2", "2.3"]
+    }
+  ]
+}
+```
+
+**Field Descriptions:**
+- `requirements_file` - Path to requirements file for all operations (default: "requirements.md")
+- `requirements` - Array of requirement IDs that link to acceptance criteria in the requirements file
 
 ## Error Response Examples
 

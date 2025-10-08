@@ -59,7 +59,7 @@ func TestRunUpdate(t *testing.T) {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
 				tl.AddTask("", "Task with details", "")
-				tl.UpdateTask("1", "", []string{"Old detail"}, []string{})
+				tl.UpdateTask("1", "", []string{"Old detail"}, []string{}, nil)
 				return tl.WriteFile(filename)
 			},
 			taskID:  "1",
@@ -108,7 +108,7 @@ func TestRunUpdate(t *testing.T) {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
 				tl.AddTask("", "Original task", "")
-				tl.UpdateTask("1", "", []string{"Old detail"}, []string{"old.md"})
+				tl.UpdateTask("1", "", []string{"Old detail"}, []string{"old.md"}, nil)
 				return tl.WriteFile(filename)
 			},
 			taskID:     "1",
@@ -137,7 +137,7 @@ func TestRunUpdate(t *testing.T) {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
 				tl.AddTask("", "Task with details", "")
-				tl.UpdateTask("1", "", []string{"Detail to clear"}, []string{})
+				tl.UpdateTask("1", "", []string{"Detail to clear"}, []string{}, nil)
 				return tl.WriteFile(filename)
 			},
 			taskID:       "1",
@@ -156,7 +156,7 @@ func TestRunUpdate(t *testing.T) {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
 				tl.AddTask("", "Task with references", "")
-				tl.UpdateTask("1", "", []string{}, []string{"ref.md"})
+				tl.UpdateTask("1", "", []string{}, []string{"ref.md"}, nil)
 				return tl.WriteFile(filename)
 			},
 			taskID:          "1",
@@ -310,7 +310,7 @@ func TestRunUpdateDryRun(t *testing.T) {
 	// Create test file
 	tl := task.NewTaskList("Test Tasks")
 	tl.AddTask("", "Original task", "")
-	tl.UpdateTask("1", "", []string{"Original detail"}, []string{"original.md"})
+	tl.UpdateTask("1", "", []string{"Original detail"}, []string{"original.md"}, nil)
 	if err := tl.WriteFile(filename); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
@@ -383,6 +383,148 @@ func TestRunUpdateDryRun(t *testing.T) {
 	dryRun = false
 }
 
+func TestRunUpdateRequirements(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-update-requirements")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		setupFile         func(string) error
+		taskID            string
+		requirements      string
+		clearRequirements bool
+		expectError       bool
+		errorContains     string
+		validateFile      func(*testing.T, string)
+	}{
+		"update requirements": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				tl.AddTask("", "Task", "")
+				return tl.WriteFile(filename)
+			},
+			taskID:       "1",
+			requirements: "1.1,1.2,2.3",
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				expectedReqs := []string{"1.1", "1.2", "2.3"}
+				if len(tl.Tasks[0].Requirements) != len(expectedReqs) {
+					t.Fatalf("Expected %d requirements, got %d", len(expectedReqs), len(tl.Tasks[0].Requirements))
+				}
+				for i, expected := range expectedReqs {
+					if tl.Tasks[0].Requirements[i] != expected {
+						t.Fatalf("Expected requirement %d to be '%s', got '%s'", i, expected, tl.Tasks[0].Requirements[i])
+					}
+				}
+			},
+		},
+		"clear requirements": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				tl.AddTask("", "Task with requirements", "")
+				// Add requirements
+				task := tl.FindTask("1")
+				task.Requirements = []string{"1.1", "1.2"}
+				return tl.WriteFile(filename)
+			},
+			taskID:            "1",
+			clearRequirements: true,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if len(tl.Tasks[0].Requirements) != 0 {
+					t.Fatalf("Expected no requirements after clearing, got %v", tl.Tasks[0].Requirements)
+				}
+			},
+		},
+		"invalid requirement ID format": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				tl.AddTask("", "Task", "")
+				return tl.WriteFile(filename)
+			},
+			taskID:        "1",
+			requirements:  "invalid,1.2",
+			expectError:   true,
+			errorContains: "invalid requirement ID format",
+		},
+		"requirements with whitespace handling": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				tl.AddTask("", "Task", "")
+				return tl.WriteFile(filename)
+			},
+			taskID:       "1",
+			requirements: " 1.1 , 1.2 ,2.3 ",
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				expectedReqs := []string{"1.1", "1.2", "2.3"}
+				if len(tl.Tasks[0].Requirements) != len(expectedReqs) {
+					t.Fatalf("Expected %d requirements, got %d: %v", len(expectedReqs), len(tl.Tasks[0].Requirements), tl.Tasks[0].Requirements)
+				}
+				for i, expected := range expectedReqs {
+					if tl.Tasks[0].Requirements[i] != expected {
+						t.Fatalf("Expected requirement %d to be '%s', got '%s'", i, expected, tl.Tasks[0].Requirements[i])
+					}
+				}
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
+
+			if err := tt.setupFile(filename); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+
+			// Set command flags
+			updateTitle = "" // Don't update title
+			updateRequirements = tt.requirements
+			clearRequirements = tt.clearRequirements
+			dryRun = false
+
+			cmd := &cobra.Command{}
+			args := []string{filename, tt.taskID}
+
+			err := runUpdate(cmd, args)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Fatalf("Expected error to contain '%s', got: %s", tt.errorContains, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if tt.validateFile != nil {
+				tt.validateFile(t, filename)
+			}
+
+			// Reset flags for next test
+			updateRequirements = ""
+			clearRequirements = false
+		})
+	}
+}
+
 func TestUpdateCmdFlags(t *testing.T) {
 	// Test that flags are properly configured
 	titleFlag := updateCmd.Flag("title")
@@ -400,6 +542,11 @@ func TestUpdateCmdFlags(t *testing.T) {
 		t.Fatal("References flag not found")
 	}
 
+	requirementsFlag := updateCmd.Flag("requirements")
+	if requirementsFlag == nil {
+		t.Fatal("Requirements flag not found")
+	}
+
 	clearDetailsFlag := updateCmd.Flag("clear-details")
 	if clearDetailsFlag == nil {
 		t.Fatal("Clear-details flag not found")
@@ -408,6 +555,11 @@ func TestUpdateCmdFlags(t *testing.T) {
 	clearReferencesFlag := updateCmd.Flag("clear-references")
 	if clearReferencesFlag == nil {
 		t.Fatal("Clear-references flag not found")
+	}
+
+	clearRequirementsFlag := updateCmd.Flag("clear-requirements")
+	if clearRequirementsFlag == nil {
+		t.Fatal("Clear-requirements flag not found")
 	}
 }
 
@@ -435,6 +587,14 @@ func TestFormatFunctions(t *testing.T) {
 		result := formatReferencesForDisplay(tt.input)
 		if result != tt.expected {
 			t.Fatalf("formatReferencesForDisplay(%v) = %s, expected %s", tt.input, result, tt.expected)
+		}
+	}
+
+	// Test formatRequirementsForDisplay (should behave the same)
+	for _, tt := range tests {
+		result := formatRequirementsForDisplay(tt.input)
+		if result != tt.expected {
+			t.Fatalf("formatRequirementsForDisplay(%v) = %s, expected %s", tt.input, result, tt.expected)
 		}
 	}
 }

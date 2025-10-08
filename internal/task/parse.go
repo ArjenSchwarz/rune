@@ -11,9 +11,10 @@ import (
 const MaxFileSize = 10 * 1024 * 1024
 
 var (
-	taskLinePattern    = regexp.MustCompile(`^(\s*)- (\[[ \-xX]\]) (\d+(?:\.\d+)*)\. (.+)$`)
-	detailLinePattern  = regexp.MustCompile(`^(\s*)- (.+)$`)
-	phaseHeaderPattern = regexp.MustCompile(`^## (.+)$`)
+	taskLinePattern        = regexp.MustCompile(`^(\s*)- (\[[ \-xX]\]) (\d+(?:\.\d+)*)\. (.+)$`)
+	detailLinePattern      = regexp.MustCompile(`^(\s*)- (.+)$`)
+	phaseHeaderPattern     = regexp.MustCompile(`^## (.+)$`)
+	requirementLinkPattern = regexp.MustCompile(`\[([^\]]+)\]\(([^#\)]+)#[^\)]+\)`)
 )
 
 // ParseMarkdown parses markdown content into a TaskList structure
@@ -114,7 +115,7 @@ func parseContent(content string) (*TaskList, error) {
 	}
 
 	// Parse tasks starting from root level
-	tasks, _, err := parseTasksAtLevel(lines, 0, 0, "")
+	tasks, _, err := parseTasksAtLevel(lines, 0, 0, "", taskList)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +125,7 @@ func parseContent(content string) (*TaskList, error) {
 	return taskList, nil
 }
 
-func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID string) ([]Task, int, error) {
+func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID string, taskList *TaskList) ([]Task, int, error) {
 	var tasks []Task
 
 	for i := startIdx; i < len(lines); i++ {
@@ -170,7 +171,7 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 			}
 
 			// Look ahead for details and subtasks
-			detailsAndChildren, newIdx, err := parseDetailsAndChildren(lines, i+1, expectedIndent+2, task.ID)
+			detailsAndChildren, newIdx, err := parseDetailsAndChildren(lines, i+1, expectedIndent+2, task.ID, taskList)
 			if err != nil {
 				return nil, newIdx, err
 			}
@@ -181,8 +182,22 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 				case Task:
 					task.Children = append(task.Children, v)
 				case string:
-					// Check if it's a reference line
-					if refs, ok := strings.CutPrefix(v, "References: "); ok {
+					// Check if it's a requirements line
+					if reqs, ok := strings.CutPrefix(v, "Requirements: "); ok {
+						reqIDs, reqFile := parseRequirements(reqs)
+						// Only treat as requirements if we successfully parsed at least one
+						if len(reqIDs) > 0 {
+							task.Requirements = reqIDs
+							// Store requirements file path in TaskList if not already set
+							if reqFile != "" && taskList.RequirementsFile == "" {
+								taskList.RequirementsFile = reqFile
+							}
+						} else {
+							// Malformed requirements line, treat as plain text detail
+							task.Details = append(task.Details, v)
+						}
+					} else if refs, ok := strings.CutPrefix(v, "References: "); ok {
+						// Check if it's a reference line
 						task.References = parseReferences(refs)
 					} else {
 						task.Details = append(task.Details, v)
@@ -210,7 +225,7 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 	return tasks, len(lines) - 1, nil
 }
 
-func parseDetailsAndChildren(lines []string, startIdx, expectedIndent int, parentID string) ([]any, int, error) {
+func parseDetailsAndChildren(lines []string, startIdx, expectedIndent int, parentID string, taskList *TaskList) ([]any, int, error) {
 	var items []any
 
 	for i := startIdx; i < len(lines); i++ {
@@ -243,7 +258,7 @@ func parseDetailsAndChildren(lines []string, startIdx, expectedIndent int, paren
 			}
 
 			// This is a subtask
-			children, newIdx, err := parseTasksAtLevel(lines, i, expectedIndent, parentID)
+			children, newIdx, err := parseTasksAtLevel(lines, i, expectedIndent, parentID, taskList)
 			if err != nil {
 				return nil, newIdx, err
 			}
@@ -341,6 +356,32 @@ func parseReferences(refs string) []string {
 	}
 
 	return references
+}
+
+// parseRequirements extracts requirement IDs from markdown links
+// Input: "[1.1](requirements.md#1.1), [1.2](requirements.md#1.2)"
+// Returns: requirement IDs and the requirements file path
+func parseRequirements(reqs string) ([]string, string) {
+	parts := strings.Split(reqs, ",")
+	requirements := make([]string, 0, len(parts))
+	var reqFile string
+
+	// Pattern matches: [ID](path#ID) or [ID](path#anchor)
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if matches := requirementLinkPattern.FindStringSubmatch(part); matches != nil {
+			reqID := strings.TrimSpace(matches[1])
+			if reqID != "" && isValidID(reqID) {
+				requirements = append(requirements, reqID)
+				// Extract file path from first valid link
+				if reqFile == "" {
+					reqFile = matches[2]
+				}
+			}
+		}
+	}
+
+	return requirements, reqFile
 }
 
 func countIndent(line string) int {

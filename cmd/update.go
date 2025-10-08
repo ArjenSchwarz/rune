@@ -26,12 +26,16 @@ Examples:
 	RunE: runUpdate,
 }
 
+const noneDisplay = "(none)"
+
 var (
-	updateTitle      string
-	updateDetails    string
-	updateReferences string
-	clearDetails     bool
-	clearReferences  bool
+	updateTitle        string
+	updateDetails      string
+	updateReferences   string
+	updateRequirements string
+	clearDetails       bool
+	clearReferences    bool
+	clearRequirements  bool
 )
 
 func init() {
@@ -39,8 +43,10 @@ func init() {
 	updateCmd.Flags().StringVarP(&updateTitle, "title", "t", "", "new title for the task")
 	updateCmd.Flags().StringVarP(&updateDetails, "details", "d", "", "comma-separated list of details")
 	updateCmd.Flags().StringVarP(&updateReferences, "references", "r", "", "comma-separated list of references")
+	updateCmd.Flags().StringVar(&updateRequirements, "requirements", "", "comma-separated list of requirement IDs")
 	updateCmd.Flags().BoolVar(&clearDetails, "clear-details", false, "clear all details from the task")
 	updateCmd.Flags().BoolVar(&clearReferences, "clear-references", false, "clear all references from the task")
+	updateCmd.Flags().BoolVar(&clearRequirements, "clear-requirements", false, "clear all requirements from the task")
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
@@ -67,8 +73,8 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate that at least one update field is provided
-	if updateTitle == "" && updateDetails == "" && updateReferences == "" && !clearDetails && !clearReferences {
-		return fmt.Errorf("at least one update flag must be provided (--title, --details, --references, --clear-details, or --clear-references)")
+	if updateTitle == "" && updateDetails == "" && updateReferences == "" && updateRequirements == "" && !clearDetails && !clearReferences && !clearRequirements {
+		return fmt.Errorf("at least one update flag must be provided (--title, --details, --references, --requirements, --clear-details, --clear-references, or --clear-requirements)")
 	}
 
 	// Check if file exists
@@ -92,7 +98,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Prepare update values
-	var newDetails, newReferences []string
+	var newDetails, newReferences, newRequirements []string
 
 	// Handle details
 	if clearDetails {
@@ -120,6 +126,21 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Handle requirements
+	if clearRequirements {
+		newRequirements = []string{}
+	} else if updateRequirements != "" {
+		// Parse comma-separated IDs
+		newRequirements = parseRequirementIDs(updateRequirements)
+
+		// Validate format
+		for _, reqID := range newRequirements {
+			if !task.IsValidID(reqID) {
+				return fmt.Errorf("invalid requirement ID format: %s", reqID)
+			}
+		}
+	}
+
 	// Dry run mode - show what would be updated
 	if dryRun {
 		fmt.Printf("Would update task in file: %s\n", filename)
@@ -127,6 +148,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Current title: %s\n", targetTask.Title)
 		fmt.Printf("Current details: %s\n", formatDetailsForDisplay(targetTask.Details))
 		fmt.Printf("Current references: %s\n", formatReferencesForDisplay(targetTask.References))
+		fmt.Printf("Current requirements: %s\n", formatRequirementsForDisplay(targetTask.Requirements))
 		fmt.Println()
 
 		if updateTitle != "" {
@@ -142,11 +164,16 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		} else if updateReferences != "" {
 			fmt.Printf("New references: %s\n", formatReferencesForDisplay(newReferences))
 		}
+		if clearRequirements {
+			fmt.Printf("New requirements: (cleared)\n")
+		} else if updateRequirements != "" {
+			fmt.Printf("New requirements: %s\n", formatRequirementsForDisplay(newRequirements))
+		}
 		return nil
 	}
 
 	// Update the task
-	if err := tl.UpdateTask(taskID, updateTitle, newDetails, newReferences); err != nil {
+	if err := tl.UpdateTask(taskID, updateTitle, newDetails, newReferences, newRequirements); err != nil {
 		return fmt.Errorf("failed to update task: %w", err)
 	}
 
@@ -171,6 +198,11 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		} else if updateReferences != "" {
 			fmt.Printf("References updated to: %s\n", formatReferencesForDisplay(newReferences))
 		}
+		if clearRequirements {
+			fmt.Printf("Requirements cleared\n")
+		} else if updateRequirements != "" {
+			fmt.Printf("Requirements updated to: %s\n", formatRequirementsForDisplay(newRequirements))
+		}
 	} else {
 		changes := []string{}
 		if updateTitle != "" {
@@ -182,6 +214,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		if clearReferences || updateReferences != "" {
 			changes = append(changes, "references")
 		}
+		if clearRequirements || updateRequirements != "" {
+			changes = append(changes, "requirements")
+		}
 		fmt.Printf("Updated task %s (%s): %s\n", taskID, strings.Join(changes, ", "), targetTask.Title)
 	}
 
@@ -190,14 +225,21 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 func formatDetailsForDisplay(details []string) string {
 	if len(details) == 0 {
-		return "(none)"
+		return noneDisplay
 	}
 	return strings.Join(details, ", ")
 }
 
 func formatReferencesForDisplay(references []string) string {
 	if len(references) == 0 {
-		return "(none)"
+		return noneDisplay
 	}
 	return strings.Join(references, ", ")
+}
+
+func formatRequirementsForDisplay(requirements []string) string {
+	if len(requirements) == 0 {
+		return noneDisplay
+	}
+	return strings.Join(requirements, ", ")
 }

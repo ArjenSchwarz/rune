@@ -89,22 +89,24 @@ func comparePositions(a, b string) int {
 
 // Operation represents a single operation in a batch
 type Operation struct {
-	Type       string   `json:"type"`
-	ID         string   `json:"id,omitempty"`
-	Parent     string   `json:"parent,omitempty"`
-	Title      string   `json:"title,omitempty"`
-	Status     *Status  `json:"status,omitempty"`
-	Details    []string `json:"details,omitempty"`
-	References []string `json:"references,omitempty"`
-	Position   string   `json:"position,omitempty"`
-	Phase      string   `json:"phase,omitempty"`
+	Type         string   `json:"type"`
+	ID           string   `json:"id,omitempty"`
+	Parent       string   `json:"parent,omitempty"`
+	Title        string   `json:"title,omitempty"`
+	Status       *Status  `json:"status,omitempty"`
+	Details      []string `json:"details,omitempty"`
+	References   []string `json:"references,omitempty"`
+	Requirements []string `json:"requirements,omitempty"`
+	Position     string   `json:"position,omitempty"`
+	Phase        string   `json:"phase,omitempty"`
 }
 
 // BatchRequest represents a request for multiple operations
 type BatchRequest struct {
-	File       string      `json:"file"`
-	Operations []Operation `json:"operations"`
-	DryRun     bool        `json:"dry_run"`
+	File             string      `json:"file"`
+	Operations       []Operation `json:"operations"`
+	DryRun           bool        `json:"dry_run"`
+	RequirementsFile string      `json:"requirements_file,omitempty"`
 }
 
 // BatchResponse represents the response from a batch operation
@@ -204,6 +206,13 @@ func validateOperation(tl *TaskList, op Operation) error {
 				return fmt.Errorf("invalid position format: %s", op.Position)
 			}
 		}
+		if len(op.Requirements) > 0 {
+			for _, reqID := range op.Requirements {
+				if !validateTaskIDFormat(reqID) {
+					return fmt.Errorf("invalid requirement ID format: %s", reqID)
+				}
+			}
+		}
 	case removeOperation:
 		if op.ID == "" {
 			return fmt.Errorf("remove operation requires id")
@@ -225,6 +234,13 @@ func validateOperation(tl *TaskList, op Operation) error {
 		if hasStatusField(op) && (*op.Status < Pending || *op.Status > Completed) {
 			return fmt.Errorf("invalid status value: %d", *op.Status)
 		}
+		if len(op.Requirements) > 0 {
+			for _, reqID := range op.Requirements {
+				if !validateTaskIDFormat(reqID) {
+					return fmt.Errorf("invalid requirement ID format: %s", reqID)
+				}
+			}
+		}
 	default:
 		return fmt.Errorf("unknown operation type: %s", op.Type)
 	}
@@ -240,10 +256,10 @@ func applyOperation(tl *TaskList, op Operation) error {
 		if err != nil {
 			return err
 		}
-		// If details or references are provided, update the newly added task
-		if len(op.Details) > 0 || len(op.References) > 0 {
+		// If details, references, or requirements are provided, update the newly added task
+		if len(op.Details) > 0 || len(op.References) > 0 || len(op.Requirements) > 0 {
 			if newTaskID != "" {
-				return tl.UpdateTask(newTaskID, "", op.Details, op.References)
+				return tl.UpdateTask(newTaskID, "", op.Details, op.References, op.Requirements)
 			}
 		}
 		return nil
@@ -256,8 +272,8 @@ func applyOperation(tl *TaskList, op Operation) error {
 				return err
 			}
 		}
-		// Handle other field updates (title, details, references) if provided
-		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References)
+		// Handle other field updates (title, details, references, requirements) if provided
+		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References, op.Requirements)
 	default:
 		return fmt.Errorf("unknown operation type: %s", op.Type)
 	}
@@ -429,11 +445,11 @@ func (tl *TaskList) deepCopyWithPhases(phaseMarkers []PhaseMarker) (*TaskList, e
 	return copyList, nil
 }
 
-// updateTaskDetailsAndReferences updates a task with details and references if provided
-func updateTaskDetailsAndReferences(tl *TaskList, taskID string, details []string, references []string) error {
-	if len(details) > 0 || len(references) > 0 {
+// updateTaskDetailsAndReferences updates a task with details, references, and requirements if provided
+func updateTaskDetailsAndReferences(tl *TaskList, taskID string, details []string, references []string, requirements []string) error {
+	if len(details) > 0 || len(references) > 0 || len(requirements) > 0 {
 		if taskID != "" {
-			return tl.UpdateTask(taskID, "", details, references)
+			return tl.UpdateTask(taskID, "", details, references, requirements)
 		}
 	}
 	return nil
@@ -452,7 +468,7 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 		if err != nil {
 			return err
 		}
-		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References)
+		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
 	case removeOperation:
 		return tl.RemoveTask(op.ID)
 	case updateOperation:
@@ -473,8 +489,8 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 				}
 			}
 		}
-		// Handle other field updates (title, details, references) if provided
-		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References)
+		// Handle other field updates (title, details, references, requirements) if provided
+		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References, op.Requirements)
 	default:
 		return fmt.Errorf("unknown operation type: %s", op.Type)
 	}
@@ -554,7 +570,7 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 		if err != nil {
 			return err
 		}
-		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References)
+		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
 	}
 
 	// Insert task at the calculated position
@@ -599,11 +615,11 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 		}
 	}
 
-	// If details or references are provided, update the newly added task
-	if len(op.Details) > 0 || len(op.References) > 0 {
+	// If details, references, or requirements are provided, update the newly added task
+	if len(op.Details) > 0 || len(op.References) > 0 || len(op.Requirements) > 0 {
 		if insertPosition < len(tl.Tasks) {
 			newTaskID := tl.Tasks[insertPosition].ID
-			return tl.UpdateTask(newTaskID, "", op.Details, op.References)
+			return tl.UpdateTask(newTaskID, "", op.Details, op.References, op.Requirements)
 		}
 	}
 

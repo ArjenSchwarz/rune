@@ -192,8 +192,10 @@ func (tl *TaskList) UpdateStatus(taskID string, status Status) error {
 	return nil
 }
 
-// UpdateTask modifies the title, details, and references of a task
-func (tl *TaskList) UpdateTask(taskID, title string, details, refs []string) error {
+// UpdateTask modifies the title, details, references, and requirements of a task
+// If requirements is nil, the requirements are not modified
+// If requirements is an empty slice, the requirements are cleared
+func (tl *TaskList) UpdateTask(taskID, title string, details, refs, requirements []string) error {
 	task := tl.FindTask(taskID)
 	if task == nil {
 		return fmt.Errorf("task %s not found", taskID)
@@ -217,6 +219,12 @@ func (tl *TaskList) UpdateTask(taskID, title string, details, refs []string) err
 			return err
 		}
 		task.References = refs
+	}
+	if requirements != nil {
+		if err := validateRequirements(requirements); err != nil {
+			return err
+		}
+		task.Requirements = requirements
 	}
 
 	tl.Modified = time.Now()
@@ -386,6 +394,19 @@ func validateReferences(refs []string) error {
 		}
 		if len(ref) > 500 {
 			return fmt.Errorf("reference %d exceeds maximum length of 500 characters", i+1)
+		}
+	}
+	return nil
+}
+
+// validateRequirements validates task requirements
+func validateRequirements(requirements []string) error {
+	for i, req := range requirements {
+		if containsNullByte(req) {
+			return fmt.Errorf("requirement %d contains null bytes or control characters", i+1)
+		}
+		if !isValidID(req) {
+			return fmt.Errorf("requirement %d has invalid format: %s (must match pattern ^\\d+(\\.\\d+)*$)", i+1, req)
 		}
 	}
 	return nil
@@ -723,7 +744,7 @@ func (tl *TaskList) UpdateTaskWithPhases(taskID, title string, details, refs []s
 	phaseMarkers := ExtractPhaseMarkers(lines)
 
 	// Update the task
-	if err := tl.UpdateTask(taskID, title, details, refs); err != nil {
+	if err := tl.UpdateTask(taskID, title, details, refs, nil); err != nil {
 		return err
 	}
 

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/arjenschwarz/rune/internal/task"
 	"github.com/spf13/cobra"
@@ -36,10 +37,12 @@ Examples:
 }
 
 var (
-	addTitle    string
-	addParent   string
-	addPosition string
-	addPhase    string
+	addTitle            string
+	addParent           string
+	addPosition         string
+	addPhase            string
+	addRequirements     string
+	addRequirementsFile string
 )
 
 func init() {
@@ -48,6 +51,8 @@ func init() {
 	addCmd.Flags().StringVarP(&addParent, "parent", "p", "", "parent task ID (optional)")
 	addCmd.Flags().StringVar(&addPosition, "position", "", "position to insert task (optional)")
 	addCmd.Flags().StringVar(&addPhase, "phase", "", "target phase for the new task")
+	addCmd.Flags().StringVar(&addRequirements, "requirements", "", "comma-separated requirement IDs (e.g., \"1.1,1.2,2.3\")")
+	addCmd.Flags().StringVar(&addRequirementsFile, "requirements-file", "", "path to requirements file (default: requirements.md)")
 	addCmd.MarkFlagRequired("title")
 }
 
@@ -133,6 +138,31 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to add task: %w", err)
 		}
 
+		// Handle requirements if provided
+		if addRequirements != "" {
+			// Parse comma-separated IDs
+			reqIDs := parseRequirementIDs(addRequirements)
+
+			// Validate format using existing validation
+			for _, reqID := range reqIDs {
+				if !task.IsValidID(reqID) {
+					return fmt.Errorf("invalid requirement ID format: %s", reqID)
+				}
+			}
+
+			// Update task with requirements
+			if newTask := tl.FindTask(newTaskID); newTask != nil {
+				newTask.Requirements = reqIDs
+			}
+		}
+
+		// Set requirements file path if provided, otherwise use default
+		if addRequirementsFile != "" {
+			tl.RequirementsFile = addRequirementsFile
+		} else if tl.RequirementsFile == "" && addRequirements != "" {
+			tl.RequirementsFile = task.DefaultRequirementsFile
+		}
+
 		// Write the updated file
 		if err := tl.WriteFile(filename); err != nil {
 			return fmt.Errorf("failed to write updated file: %w", err)
@@ -161,4 +191,16 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// parseRequirementIDs parses comma-separated requirement IDs from a string
+func parseRequirementIDs(input string) []string {
+	parts := strings.Split(input, ",")
+	ids := make([]string, 0)
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			ids = append(ids, trimmed)
+		}
+	}
+	return ids
 }

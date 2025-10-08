@@ -90,7 +90,7 @@ troubleshooting purposes.`,
 		versionInfo := GetVersionInfo()
 
 		switch versionOutputFormat {
-		case "json":
+		case formatJSON:
 			jsonData, err := json.MarshalIndent(versionInfo, "", "  ")
 			if err != nil {
 				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Error marshaling version info to JSON: %v\n", err)

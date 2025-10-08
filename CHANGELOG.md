@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Task Requirements Linking: Documentation updates
+  - Added Requirements section to README.md with examples for --requirements and --requirements-file flags
+  - Documented requirements vs references distinction in README.md
+  - Updated docs/json-api.md with requirements field schema and batch operation examples
+  - Added requirements_file field documentation to JSON API
+
+### Added
+
+- Task Requirements Linking: Integration test suite
+  - Complete workflow test covering requirements CLI flags, batch operations, and round-trip preservation
+  - Verification of markdown rendering with requirement links in `[ID](file#ID)` format
+  - Testing of parsed Requirements field population in Task structs
+  - Batch update testing for requirements and requirements file changes
+  - Round-trip preservation testing ensuring requirements survive parse-render cycles
+  - JSON output validation for requirements fields in both tasks and metadata
+  - Nested task requirements testing with hierarchical requirement IDs
+  - Requirements clearing functionality testing with `--clear-requirements` flag
+  - Unit tests for JSON rendering with requirements in various scenarios
+
+- Task Requirements Linking: Batch operations support
+  - `Requirements` field added to `Operation` struct for add/update operations
+  - `RequirementsFile` field added to `BatchRequest` struct with JSON tag support
+  - Requirement ID validation integrated into batch operation validation
+  - Requirements passed through to `UpdateTask` for both add and update operations
+  - Requirements file path handling in batch command with default fallback
+  - Comprehensive unit tests covering add/update with requirements, validation scenarios, and atomic behavior
+
+- Task Requirements Linking: Update command implementation
+  - `--requirements` flag added to `update` command for comma-separated requirement IDs (e.g., "1.1,1.2,2.3")
+  - `--clear-requirements` flag added to clear all requirements from a task
+  - Modified `UpdateTask` signature to accept requirements parameter (nil = no change, empty = clear)
+  - Requirement ID validation using hierarchical ID pattern matching
+  - Requirements display in dry-run mode showing current and new values
+  - Comprehensive unit tests covering flag parsing, validation, clearing, and whitespace handling
+
+- Task Requirements Linking: CLI command implementation
+  - `--requirements` flag added to `add` command for comma-separated requirement IDs (e.g., "1.1,1.2,2.3")
+  - `--requirements-file` flag added to `add` command to specify requirements file path
+  - Requirement ID validation using existing hierarchical ID pattern matching
+  - Automatic default to "requirements.md" when requirements provided without explicit file
+  - `parseRequirementIDs` helper function for parsing comma-separated requirement strings
+  - Comprehensive unit tests covering flag parsing, validation, and requirements file defaults
+
+- Task Requirements Linking: Requirements rendering implementation
+  - Updated `renderTask` function to accept requirements file parameter and render requirements
+  - Requirements formatted as markdown links `[ID](file#ID)` with comma separation
+  - Requirements appear before references section in task output
+  - Default requirements file handling when not explicitly set
+  - Support for nested tasks with requirements
+  - Comprehensive unit tests covering rendering scenarios, round-trip parsing, link format validation, and positioning
+
+- Task Requirements Linking: Requirements parsing implementation
+  - `parseRequirements` helper function to extract requirement IDs from markdown links
+  - Pattern matching for `[ID](file#ID)` format in Requirements detail lines
+  - Support for comma-separated requirement links
+  - Automatic extraction of requirements file path from first valid link
+  - Integration with `parseDetailsAndChildren` to populate `task.Requirements` and `taskList.RequirementsFile`
+  - Malformed requirement lines (plain text without markdown links) treated as regular details
+  - Comprehensive unit tests covering single/multiple requirements, custom requirement files, whitespace handling, and error cases
+  - Full integration tests verifying round-trip parsing with requirements preserved
+
+- Task Requirements Linking: Core data structure implementation
+  - `Requirements` field added to Task struct for linking requirement IDs
+  - `RequirementsFile` field added to TaskList struct for specifying requirements document
+  - `DefaultRequirementsFile` constant for default requirements file name ("requirements.md")
+  - Validation for requirement IDs matching hierarchical pattern (e.g., "1", "1.2", "1.2.3")
+  - Comprehensive unit tests covering valid and invalid requirement ID formats
+
+- Task Requirements Linking feature specification
+  - Decision log documenting design choices for linking tasks to requirement acceptance criteria
+  - Comprehensive design document covering architecture, data models, and component interfaces
+  - Requirements document with acceptance criteria for the feature
+  - Tasks breakdown for implementation phases
+
+### Changed
+
+- Updated Claude Code settings to include codex-agent in pre-approved tools
+- Cleaned up Claude Code settings by removing obsolete command approvals
+
+### Fixed
+
+- Fixed goconst linting issue by using existing formatJSON constant in version command
+- Fixed revive linting issue by adding proper documentation comments for exported build variables
+
 ## [1.0.0] - 2025-10-07
 
 ### Added
