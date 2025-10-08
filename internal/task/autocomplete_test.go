@@ -1,6 +1,7 @@
 package task
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -197,7 +198,7 @@ func TestAutoCompleteParents(t *testing.T) {
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("expected error but got none")
-				} else if tc.errorContains != "" && !containsString(err.Error(), tc.errorContains) {
+				} else if tc.errorContains != "" && !strings.Contains(err.Error(), tc.errorContains) {
 					t.Errorf("expected error to contain %q but got %q", tc.errorContains, err.Error())
 				}
 				return
@@ -338,19 +339,4 @@ func TestGetParentID(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper function to check if string contains substring (for error message testing)
-func containsString(str, substr string) bool {
-	return len(substr) == 0 || (len(str) > 0 && len(str) >= len(substr) && stringContains(str, substr))
-}
-
-// Simple string contains implementation
-func stringContains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

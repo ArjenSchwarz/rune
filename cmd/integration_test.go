@@ -946,10 +946,10 @@ references:
 	// Test 1: List command with git discovery
 	t.Run("list_with_git_discovery", func(t *testing.T) {
 		output := runGoCommand(t, "list", "-f", "json")
-		if !containsString(output, "Setup development environment") {
+		if !strings.Contains(output, "Setup development environment") {
 			t.Errorf("expected task content in output, got: %s", output)
 		}
-		if !containsString(output, "references") && !containsString(output, "feature-spec.md") {
+		if !strings.Contains(output, "references") && !strings.Contains(output, "feature-spec.md") {
 			t.Errorf("expected references in output, got: %s", output)
 		}
 	})
@@ -957,10 +957,10 @@ references:
 	// Test 2: Next command with git discovery
 	t.Run("next_with_git_discovery", func(t *testing.T) {
 		output := runGoCommand(t, "next", "-f", "table")
-		if !containsString(output, "1") || !containsString(output, "Setup development environment") {
+		if !strings.Contains(output, "1") || !strings.Contains(output, "Setup development environment") {
 			t.Errorf("expected next task in output, got: %s", output)
 		}
-		if !containsString(output, "Reference Documents") {
+		if !strings.Contains(output, "Reference Documents") {
 			t.Errorf("expected references section in output, got: %s", output)
 		}
 	})
@@ -973,10 +973,10 @@ references:
 		output := runGoCommand(t, "list", "-f", "json")
 		// Check for the specific task object with both ID and completed status
 		// Note: JSON is formatted with spaces, so we need to account for that
-		if !containsString(output, `"ID": "1.2"`) {
+		if !strings.Contains(output, `"ID": "1.2"`) {
 			t.Errorf("task 1.2 should be present, got: %s", output)
 		}
-		if !containsString(output, `"Status": 2`) {
+		if !strings.Contains(output, `"Status": 2`) {
 			t.Errorf("task 1.2 should be completed (Status:2), got: %s", output)
 		}
 	})
@@ -984,7 +984,7 @@ references:
 	// Test 4: Find command with git discovery
 	t.Run("find_with_git_discovery", func(t *testing.T) {
 		output := runGoCommand(t, "find", "-p", "API", "-f", "table")
-		if !containsString(output, "2.1") || !containsString(output, "Design API") {
+		if !strings.Contains(output, "2.1") || !strings.Contains(output, "Design API") {
 			t.Errorf("expected to find API task, got: %s", output)
 		}
 	})
@@ -995,7 +995,7 @@ references:
 
 		// Verify the task was added
 		output := runGoCommand(t, "list", "-f", "json")
-		if !containsString(output, "Write documentation") {
+		if !strings.Contains(output, "Write documentation") {
 			t.Errorf("expected to find added task, got: %s", output)
 		}
 	})
@@ -1006,7 +1006,7 @@ references:
 		runCommand(t, "git", "checkout", "-b", "nonexistent-branch")
 
 		output := runGoCommandWithError(t, "list")
-		if !containsString(output, "branch-based file not found") && !containsString(output, "git discovery failed") {
+		if !strings.Contains(output, "branch-based file not found") && !strings.Contains(output, "git discovery failed") {
 			t.Errorf("expected git discovery error, got: %s", output)
 		}
 	})
@@ -1022,10 +1022,10 @@ references:
 		}
 
 		output := runGoCommand(t, "list", explicitFile, "-f", "json")
-		if !containsString(output, "Explicit task") {
+		if !strings.Contains(output, "Explicit task") {
 			t.Errorf("expected explicit task content, got: %s", output)
 		}
-		if containsString(output, "Setup development environment") {
+		if strings.Contains(output, "Setup development environment") {
 			t.Errorf("should not contain git-discovered content, got: %s", output)
 		}
 	})
@@ -1067,10 +1067,6 @@ func runGoCommandWithError(_ *testing.T, args ...string) string {
 	return string(output)
 }
 
-func containsString(haystack, needle string) bool {
-	return strings.Contains(haystack, needle)
-}
-
 func testNextCommandTaskStates(t *testing.T, tempDir string) {
 	filename := "next-states.md"
 
@@ -1106,14 +1102,14 @@ references:
 	// Test 1: Next command should return the first incomplete task (task 2)
 	t.Run("next_finds_first_incomplete", func(t *testing.T) {
 		output := runGoCommand(t, "next", filename, "-f", "json")
-		if !containsString(output, `"id": "2"`) {
+		if !strings.Contains(output, `"id": "2"`) {
 			t.Errorf("expected next task to be task 2, got: %s", output)
 		}
-		if !containsString(output, "Pending root with mixed children") {
+		if !strings.Contains(output, "Pending root with mixed children") {
 			t.Errorf("expected task 2 title in output, got: %s", output)
 		}
 		// Should include references from front matter
-		if !containsString(output, "project-spec.md") {
+		if !strings.Contains(output, "project-spec.md") {
 			t.Errorf("expected references in next output, got: %s", output)
 		}
 	})
@@ -1123,19 +1119,19 @@ references:
 	t.Run("next_includes_all_children", func(t *testing.T) {
 		output := runGoCommand(t, "next", filename, "-f", "json")
 		// Should include in-progress child 2.2
-		if !containsString(output, `"id": "2.2"`) {
+		if !strings.Contains(output, `"id": "2.2"`) {
 			t.Errorf("expected to include in-progress child 2.2, got: %s", output)
 		}
 		// Should include pending child 2.3
-		if !containsString(output, `"id": "2.3"`) {
+		if !strings.Contains(output, `"id": "2.3"`) {
 			t.Errorf("expected to include pending child 2.3, got: %s", output)
 		}
 		// Should include completed child 2.1 for context (per requirements 1.6)
-		if !containsString(output, `"id": "2.1"`) {
+		if !strings.Contains(output, `"id": "2.1"`) {
 			t.Errorf("expected to include completed child 2.1 for context, got: %s", output)
 		}
 		// Should have children array
-		if !containsString(output, `"children": [`) {
+		if !strings.Contains(output, `"children": [`) {
 			t.Errorf("expected children array in output, got: %s", output)
 		}
 	})
@@ -1143,14 +1139,14 @@ references:
 	// Test 3: Test with table format to ensure references are shown
 	t.Run("next_table_format", func(t *testing.T) {
 		output := runGoCommand(t, "next", filename, "-f", "table")
-		if !containsString(output, "Pending root with mixed children") {
+		if !strings.Contains(output, "Pending root with mixed children") {
 			t.Errorf("expected task title in table output, got: %s", output)
 		}
 		// References section may be truncated in table format as "Reference Documen"
-		if !containsString(output, "Reference Documen") {
+		if !strings.Contains(output, "Reference Documen") {
 			t.Errorf("expected references section in table output, got: %s", output)
 		}
-		if !containsString(output, "project-spec.md") {
+		if !strings.Contains(output, "project-spec.md") {
 			t.Errorf("expected specific reference in output, got: %s", output)
 		}
 	})
@@ -1158,10 +1154,10 @@ references:
 	// Test 4: Test with markdown format
 	t.Run("next_markdown_format", func(t *testing.T) {
 		output := runGoCommand(t, "next", filename, "-f", "markdown")
-		if !containsString(output, "# Next Task") {
+		if !strings.Contains(output, "# Next Task") {
 			t.Errorf("expected markdown heading in output, got: %s", output)
 		}
-		if !containsString(output, "project-spec.md") {
+		if !strings.Contains(output, "project-spec.md") {
 			t.Errorf("expected references in markdown output, got: %s", output)
 		}
 	})
@@ -1175,7 +1171,7 @@ references:
 		}
 
 		output := runGoCommand(t, "next", filename)
-		if !containsString(output, "All tasks are complete") {
+		if !strings.Contains(output, "All tasks are complete") {
 			t.Errorf("expected 'all tasks complete' message, got: %s", output)
 		}
 	})
@@ -1225,7 +1221,7 @@ func testAutoCompletionMultiLevel(t *testing.T, tempDir string) {
 
 		output := runGoCommand(t, "list", filename, "-f", "json")
 		// Parent 1.1 should still be pending since 1.1.2 is not complete
-		if !containsString(output, `"ID": "1.1"`) || !containsString(output, `"Status": 0`) {
+		if !strings.Contains(output, `"ID": "1.1"`) || !strings.Contains(output, `"Status": 0`) {
 			t.Errorf("parent task 1.1 should remain pending, got: %s", output)
 		}
 	})
@@ -1236,11 +1232,11 @@ func testAutoCompletionMultiLevel(t *testing.T, tempDir string) {
 
 		output := runGoCommand(t, "list", filename, "-f", "json")
 		// Now parent 1.1 should be auto-completed
-		if !containsString(output, `"ID": "1.1"`) || !containsString(output, `"Status": 2`) {
+		if !strings.Contains(output, `"ID": "1.1"`) || !strings.Contains(output, `"Status": 2`) {
 			t.Errorf("parent task 1.1 should be auto-completed, got: %s", output)
 		}
 		// But grandparent 1 should still be pending
-		if !containsString(output, `"ID": "1"`) {
+		if !strings.Contains(output, `"ID": "1"`) {
 			t.Error("root task 1 should still exist")
 		}
 		// Find the root task status in JSON
@@ -1268,10 +1264,10 @@ func testAutoCompletionMultiLevel(t *testing.T, tempDir string) {
 
 		output := runGoCommand(t, "list", filename, "-f", "json")
 		// Now all tasks should be completed including root
-		if !containsString(output, `"ID": "1.2"`) || !containsString(output, `"Status": 2`) {
+		if !strings.Contains(output, `"ID": "1.2"`) || !strings.Contains(output, `"Status": 2`) {
 			t.Errorf("task 1.2 should be auto-completed, got: %s", output)
 		}
-		if !containsString(output, `"ID": "1"`) {
+		if !strings.Contains(output, `"ID": "1"`) {
 			t.Error("root task should still exist")
 		}
 		// Root task should now be completed
@@ -1339,10 +1335,10 @@ func testAutoCompletionMultiLevel(t *testing.T, tempDir string) {
 		// Verify auto-completion happened
 		output := runGoCommand(t, "list", filename, "-f", "json")
 		// Both level 2 tasks and root should be auto-completed
-		if !containsString(output, `"ID": "2.1"`) || !containsString(output, `"Status": 2`) {
+		if !strings.Contains(output, `"ID": "2.1"`) || !strings.Contains(output, `"Status": 2`) {
 			t.Errorf("task 2.1 should be auto-completed, got: %s", output)
 		}
-		if !containsString(output, `"ID": "2"`) {
+		if !strings.Contains(output, `"ID": "2"`) {
 			t.Error("root task 2 should exist")
 		}
 	})
@@ -1392,29 +1388,29 @@ metadata:
 		output := runGoCommand(t, "list", filename, "--all", "-f", "json")
 
 		// Should include front matter references
-		if !containsString(output, "api-spec.yaml") {
+		if !strings.Contains(output, "api-spec.yaml") {
 			t.Errorf("expected front matter reference in JSON, got: %s", output)
 		}
-		if !containsString(output, "business-rules.md") {
+		if !strings.Contains(output, "business-rules.md") {
 			t.Errorf("expected front matter reference in JSON, got: %s", output)
 		}
-		if !containsString(output, "database-schema.sql") {
+		if !strings.Contains(output, "database-schema.sql") {
 			t.Errorf("expected front matter reference in JSON, got: %s", output)
 		}
 
 		// Should include task-level references
-		if !containsString(output, "endpoints.md") {
+		if !strings.Contains(output, "endpoints.md") {
 			t.Errorf("expected task-level reference in JSON, got: %s", output)
 		}
-		if !containsString(output, "auth.md") {
+		if !strings.Contains(output, "auth.md") {
 			t.Errorf("expected task-level reference in JSON, got: %s", output)
 		}
-		if !containsString(output, "user-spec.md") {
+		if !strings.Contains(output, "user-spec.md") {
 			t.Errorf("expected nested task reference in JSON, got: %s", output)
 		}
 
 		// Should include FrontMatter section
-		if !containsString(output, `"FrontMatter"`) {
+		if !strings.Contains(output, `"FrontMatter"`) {
 			t.Errorf("expected FrontMatter section in JSON, got: %s", output)
 		}
 	})
@@ -1424,15 +1420,15 @@ metadata:
 		output := runGoCommand(t, "list", filename, "--all", "-f", "table")
 
 		// Should have References section (not "Reference Documents")
-		if !containsString(output, "References") {
+		if !strings.Contains(output, "References") {
 			t.Errorf("expected References section in table, got: %s", output)
 		}
 		// Should include front matter references
-		if !containsString(output, "api-spec.yaml") {
+		if !strings.Contains(output, "api-spec.yaml") {
 			t.Errorf("expected front matter reference in table, got: %s", output)
 		}
 		// Should show task-level references in individual task rows
-		if !containsString(output, "user-spec.md") {
+		if !strings.Contains(output, "user-spec.md") {
 			t.Errorf("expected task-level reference in table, got: %s", output)
 		}
 	})
@@ -1442,11 +1438,11 @@ metadata:
 		output := runGoCommand(t, "list", filename, "--all", "-f", "markdown")
 
 		// Should include references in output
-		if !containsString(output, "api-spec.yaml") {
+		if !strings.Contains(output, "api-spec.yaml") {
 			t.Errorf("expected reference in markdown, got: %s", output)
 		}
 		// Should maintain markdown structure with references
-		if !containsString(output, "References:") {
+		if !strings.Contains(output, "References:") {
 			t.Errorf("expected References: label in markdown, got: %s", output)
 		}
 	})
@@ -1455,25 +1451,25 @@ metadata:
 	t.Run("next_command_references_all_formats", func(t *testing.T) {
 		// JSON format
 		output := runGoCommand(t, "next", filename, "-f", "json")
-		if !containsString(output, "api-spec.yaml") {
+		if !strings.Contains(output, "api-spec.yaml") {
 			t.Errorf("expected references in next JSON output, got: %s", output)
 		}
-		if !containsString(output, "endpoints.md") {
+		if !strings.Contains(output, "endpoints.md") {
 			t.Errorf("expected task references in next JSON output, got: %s", output)
 		}
 
 		// Table format
 		output = runGoCommand(t, "next", filename, "-f", "table")
-		if !containsString(output, "Reference Documents") {
+		if !strings.Contains(output, "Reference Documents") {
 			t.Errorf("expected Reference Documents in next table output, got: %s", output)
 		}
-		if !containsString(output, "api-spec.yaml") {
+		if !strings.Contains(output, "api-spec.yaml") {
 			t.Errorf("expected references in next table output, got: %s", output)
 		}
 
 		// Markdown format
 		output = runGoCommand(t, "next", filename, "-f", "markdown")
-		if !containsString(output, "api-spec.yaml") {
+		if !strings.Contains(output, "api-spec.yaml") {
 			t.Errorf("expected references in next markdown output, got: %s", output)
 		}
 	})
@@ -1483,14 +1479,14 @@ metadata:
 		// The find command doesn't have --all flag, but should include references when searching refs
 		output := runGoCommand(t, "find", filename, "-p", "API", "--search-refs", "-f", "json")
 		// Should find task 1 that matches "API"
-		if !containsString(output, "API Development") {
+		if !strings.Contains(output, "API Development") {
 			t.Errorf("expected to find API task in find output, got: %s", output)
 		}
 
 		// Note: find command may not include front matter references by design
 		// This tests that task-level references are searchable
 		output = runGoCommand(t, "find", filename, "-p", "endpoints", "--search-refs", "-f", "json")
-		if !containsString(output, "API Development") {
+		if !strings.Contains(output, "API Development") {
 			t.Errorf("expected to find task with endpoints reference, got: %s", output)
 		}
 	})
@@ -1547,7 +1543,7 @@ func testConfigurationIntegration(t *testing.T, tempDir string) {
 
 		// Test that local config is used (not user config)
 		output := runGoCommand(t, "list", "-f", "json")
-		if !containsString(output, "Task from local config") {
+		if !strings.Contains(output, "Task from local config") {
 			t.Errorf("expected local config to be used, got: %s", output)
 		}
 	})
@@ -1565,7 +1561,7 @@ invalid_yaml_syntax: [unclosed_bracket`
 		// Command should still work but show warning or error
 		output := runGoCommandWithError(t, "list")
 		// Should contain some indication of config error
-		if !containsString(output, "config") || !containsString(output, "error") {
+		if !strings.Contains(output, "config") || !strings.Contains(output, "error") {
 			// This might be expected if the tool gracefully falls back
 			t.Logf("Config error handling: %s", output)
 		}
@@ -1591,11 +1587,11 @@ invalid_yaml_syntax: [unclosed_bracket`
 		// Should use default template pattern
 		output := runGoCommandWithError(t, "list", "-f", "json")
 		// Might fail if file doesn't exist at default location, which is expected
-		if containsString(output, "Task with default config") {
+		if strings.Contains(output, "Task with default config") {
 			t.Logf("Default config used successfully")
 		} else {
 			// Check that it fails gracefully
-			if !containsString(output, "git discovery failed") {
+			if !strings.Contains(output, "git discovery failed") {
 				t.Errorf("expected git discovery failure message, got: %s", output)
 			}
 		}
@@ -1612,7 +1608,7 @@ invalid_yaml_syntax: [unclosed_bracket`
 
 		// Should require explicit filename when discovery is disabled
 		output := runGoCommandWithError(t, "list")
-		if !containsString(output, "no filename specified") && !containsString(output, "git discovery failed or disabled") {
+		if !strings.Contains(output, "no filename specified") && !strings.Contains(output, "git discovery failed or disabled") {
 			t.Errorf("expected filename required message, got: %s", output)
 		}
 	})
@@ -1642,7 +1638,7 @@ metadata:
 
 		// Should work with valid config
 		output := runGoCommand(t, "list", "-f", "json")
-		if !containsString(output, "Validated config task") {
+		if !strings.Contains(output, "Validated config task") {
 			t.Errorf("expected validated config to work, got: %s", output)
 		}
 	})
@@ -2469,10 +2465,10 @@ func testCLIPositionInsertionIntegration(t *testing.T, tempDir string) {
 
 		// Verify structure
 		output := runGoCommand(t, "list", filename, "-f", "json")
-		if !containsString(output, `"ID": "1"`) || !containsString(output, "Urgent task") {
+		if !strings.Contains(output, `"ID": "1"`) || !strings.Contains(output, "Urgent task") {
 			t.Errorf("expected urgent task at position 1, got: %s", output)
 		}
-		if !containsString(output, `"ID": "2"`) || !containsString(output, "Task 1") {
+		if !strings.Contains(output, `"ID": "2"`) || !strings.Contains(output, "Task 1") {
 			t.Errorf("expected original Task 1 at position 2, got: %s", output)
 		}
 
@@ -2480,7 +2476,7 @@ func testCLIPositionInsertionIntegration(t *testing.T, tempDir string) {
 		runGoCommand(t, "add", filename, "--title", "Middle task", "--position", "3")
 
 		output = runGoCommand(t, "list", filename, "-f", "json")
-		if !containsString(output, `"ID": "3"`) || !containsString(output, "Middle task") {
+		if !strings.Contains(output, `"ID": "3"`) || !strings.Contains(output, "Middle task") {
 			t.Errorf("expected middle task at position 3, got: %s", output)
 		}
 
@@ -2488,7 +2484,7 @@ func testCLIPositionInsertionIntegration(t *testing.T, tempDir string) {
 		runGoCommand(t, "add", filename, "--title", "First subtask", "--parent", "2", "--position", "2.1")
 
 		output = runGoCommand(t, "list", filename, "-f", "json")
-		if !containsString(output, `"ID": "2.1"`) || !containsString(output, "First subtask") {
+		if !strings.Contains(output, `"ID": "2.1"`) || !strings.Contains(output, "First subtask") {
 			t.Errorf("expected subtask at position 2.1, got: %s", output)
 		}
 	})
@@ -2536,7 +2532,7 @@ func testCLIPositionInsertionIntegration(t *testing.T, tempDir string) {
 
 		// Verify using git discovery
 		output := runGoCommand(t, "list", "-f", "json")
-		if !containsString(output, "Inserted at beginning") {
+		if !strings.Contains(output, "Inserted at beginning") {
 			t.Errorf("expected inserted task with git discovery, got: %s", output)
 		}
 
@@ -2544,7 +2540,7 @@ func testCLIPositionInsertionIntegration(t *testing.T, tempDir string) {
 		runGoCommand(t, "add", "--title", "Subtask", "--parent", "2", "--position", "2.1")
 
 		output = runGoCommand(t, "list", "-f", "json")
-		if !containsString(output, `"ID": "2.1"`) || !containsString(output, "Subtask") {
+		if !strings.Contains(output, `"ID": "2.1"`) || !strings.Contains(output, "Subtask") {
 			t.Errorf("expected subtask with git discovery, got: %s", output)
 		}
 	})
@@ -2556,13 +2552,13 @@ func testCLIPositionInsertionIntegration(t *testing.T, tempDir string) {
 
 		// Test invalid position format
 		output := runGoCommandWithError(t, "add", filename, "--title", "Invalid", "--position", "invalid.format")
-		if !containsString(output, "failed to add task") {
+		if !strings.Contains(output, "failed to add task") {
 			t.Errorf("expected error for invalid position format, got: %s", output)
 		}
 
 		// Test nonexistent parent for position insertion
 		output = runGoCommandWithError(t, "add", filename, "--title", "No parent", "--parent", "999", "--position", "999.1")
-		if !containsString(output, "parent task 999 not found") {
+		if !strings.Contains(output, "parent task 999 not found") {
 			t.Errorf("expected parent not found error, got: %s", output)
 		}
 	})
@@ -2575,16 +2571,16 @@ func testCLIPositionInsertionIntegration(t *testing.T, tempDir string) {
 
 		// Test dry run shows position insertion plan
 		output := runGoCommand(t, "add", filename, "--title", "Dry run task", "--position", "1", "--dry-run")
-		if !containsString(output, "Would add task") {
+		if !strings.Contains(output, "Would add task") {
 			t.Errorf("expected dry run output, got: %s", output)
 		}
-		if !containsString(output, "Position: 1") {
+		if !strings.Contains(output, "Position: 1") {
 			t.Errorf("expected position in dry run output, got: %s", output)
 		}
 
 		// Verify no actual changes were made
 		listOutput := runGoCommand(t, "list", filename, "-f", "json")
-		if containsString(listOutput, "Dry run task") {
+		if strings.Contains(listOutput, "Dry run task") {
 			t.Error("dry run should not have added actual task")
 		}
 	})
@@ -2596,10 +2592,10 @@ func testCLIPositionInsertionIntegration(t *testing.T, tempDir string) {
 
 		// Test verbose output shows detailed information
 		output := runGoCommand(t, "add", filename, "--title", "Verbose task", "--position", "1", "--verbose")
-		if !containsString(output, "Successfully added task") {
+		if !strings.Contains(output, "Successfully added task") {
 			t.Errorf("expected success message in verbose output, got: %s", output)
 		}
-		if !containsString(output, "Task ID:") {
+		if !strings.Contains(output, "Task ID:") {
 			t.Errorf("expected task ID in verbose output, got: %s", output)
 		}
 	})
@@ -2879,7 +2875,7 @@ func testFrontMatterIntegration(t *testing.T, tempDir string) {
 		output := runGoCommandWithError(t, "add-frontmatter", filename,
 			"--meta", "level1.level2.level3:deep_value",
 			"--meta", "level1.level2.another:value")
-		if !containsString(output, "nested keys not supported") {
+		if !strings.Contains(output, "nested keys not supported") {
 			t.Errorf("expected error for nested metadata keys, got: %s", output)
 		}
 
@@ -2902,7 +2898,7 @@ func testFrontMatterIntegration(t *testing.T, tempDir string) {
 		// Test non-existent file
 		output := runGoCommandWithError(t, "add-frontmatter", "nonexistent.md",
 			"--reference", "test.md")
-		if !containsString(output, "does not exist") {
+		if !strings.Contains(output, "does not exist") {
 			t.Errorf("expected file not found error, got: %s", output)
 		}
 
@@ -2912,7 +2908,7 @@ func testFrontMatterIntegration(t *testing.T, tempDir string) {
 
 		output = runGoCommandWithError(t, "add-frontmatter", filename,
 			"--meta", "invalid_no_colon")
-		if !containsString(output, "invalid") || !containsString(output, "format") {
+		if !strings.Contains(output, "invalid") || !strings.Contains(output, "format") {
 			t.Errorf("expected invalid format error, got: %s", output)
 		}
 	})
@@ -2968,19 +2964,19 @@ func testPhaseWorkflowEndToEnd(t *testing.T, tempDir string) {
 
 	// Step 8: List tasks and verify phase information is present
 	output := runGoCommand(t, "list", filename, "--format", "json")
-	if !containsString(output, "Planning") {
+	if !strings.Contains(output, "Planning") {
 		t.Error("expected Planning phase in JSON output")
 	}
-	if !containsString(output, "Implementation") {
+	if !strings.Contains(output, "Implementation") {
 		t.Error("expected Implementation phase in JSON output")
 	}
-	if !containsString(output, "Testing") {
+	if !strings.Contains(output, "Testing") {
 		t.Error("expected Testing phase in JSON output")
 	}
 
 	// Step 9: Test next command with --phase flag
 	output = runGoCommand(t, "next", filename, "--phase", "--format", "json")
-	if !containsString(output, "Planning") {
+	if !strings.Contains(output, "Planning") {
 		t.Error("expected next phase to be Planning")
 	}
 
@@ -2989,7 +2985,7 @@ func testPhaseWorkflowEndToEnd(t *testing.T, tempDir string) {
 	runGoCommand(t, "complete", filename, "2")
 
 	output = runGoCommand(t, "next", filename, "--phase", "--format", "json")
-	if !containsString(output, "Implementation") {
+	if !strings.Contains(output, "Implementation") {
 		t.Error("expected next phase to be Implementation after completing Planning tasks")
 	}
 
@@ -3056,13 +3052,13 @@ func testPhaseRoundTrip(t *testing.T, tempDir string) {
 	}
 	contentStr := string(content)
 
-	if !containsString(contentStr, "## Planning") {
+	if !strings.Contains(contentStr, "## Planning") {
 		t.Error("Planning phase header not preserved")
 	}
-	if !containsString(contentStr, "## Implementation") {
+	if !strings.Contains(contentStr, "## Implementation") {
 		t.Error("Implementation phase header not preserved")
 	}
-	if !containsString(contentStr, "## Testing") {
+	if !strings.Contains(contentStr, "## Testing") {
 		t.Error("Testing phase header not preserved")
 	}
 
@@ -3075,7 +3071,7 @@ func testPhaseRoundTrip(t *testing.T, tempDir string) {
 	}
 	contentStr = string(content)
 
-	if !containsString(contentStr, "## Planning") {
+	if !strings.Contains(contentStr, "## Planning") {
 		t.Error("Planning phase header not preserved after task removal")
 	}
 
@@ -3137,10 +3133,10 @@ func testPhaseBatchOperations(t *testing.T, tempDir string) {
 	output := runGoCommand(t, "batch", batchFile, "--format", "json")
 
 	// Verify batch response indicates success
-	if !containsString(output, "\"success\": true") && !containsString(output, "\"success\":true") {
+	if !strings.Contains(output, "\"success\": true") && !strings.Contains(output, "\"success\":true") {
 		t.Errorf("expected successful batch operation, got: %s", output)
 	}
-	if !containsString(output, "\"applied\": 6") && !containsString(output, "\"applied\":6") {
+	if !strings.Contains(output, "\"applied\": 6") && !strings.Contains(output, "\"applied\":6") {
 		t.Errorf("expected 6 operations applied, got: %s", output)
 	}
 
@@ -3171,13 +3167,13 @@ func testPhaseBatchOperations(t *testing.T, tempDir string) {
 	}
 	contentStr := string(content)
 
-	if !containsString(contentStr, "## Planning") {
+	if !strings.Contains(contentStr, "## Planning") {
 		t.Error("Planning phase header not created")
 	}
-	if !containsString(contentStr, "## Development") {
+	if !strings.Contains(contentStr, "## Development") {
 		t.Error("Development phase header not created")
 	}
-	if !containsString(contentStr, "## QA") {
+	if !strings.Contains(contentStr, "## QA") {
 		t.Error("QA phase header not created")
 	}
 
@@ -3269,7 +3265,7 @@ func testPhaseBackwardCompatibility(t *testing.T, tempDir string) {
 	// Step 4: JSON output should not include phase information when no phases exist
 	jsonOutput := runGoCommand(t, "list", testFile, "--format", "json")
 	// Verify the output is valid JSON (command succeeds)
-	if !containsString(jsonOutput, "Tasks") {
+	if !strings.Contains(jsonOutput, "Tasks") {
 		t.Error("expected JSON output to contain Tasks")
 	}
 
@@ -3359,13 +3355,13 @@ func testPhaseBackwardCompatibility(t *testing.T, tempDir string) {
 	}
 	contentStr := string(content)
 
-	if !containsString(contentStr, "## Empty Phase One") {
+	if !strings.Contains(contentStr, "## Empty Phase One") {
 		t.Error("Empty Phase One header not preserved")
 	}
-	if !containsString(contentStr, "## Empty Phase Two") {
+	if !strings.Contains(contentStr, "## Empty Phase Two") {
 		t.Error("Empty Phase Two header not preserved")
 	}
-	if !containsString(contentStr, "## Another Empty Phase") {
+	if !strings.Contains(contentStr, "## Another Empty Phase") {
 		t.Error("Another Empty Phase header not preserved")
 	}
 
@@ -3400,7 +3396,7 @@ func testPhaseBackwardCompatibility(t *testing.T, tempDir string) {
 	contentStr = string(content)
 
 	// The new task should be added to the first Implementation phase
-	if !containsString(contentStr, "New implementation task") {
+	if !strings.Contains(contentStr, "New implementation task") {
 		t.Error("New task not added to duplicate phase")
 	}
 
@@ -3787,7 +3783,7 @@ func testRequirementsWorkflow(t *testing.T, tempDir string) {
 			"--requirements", "1.1,1.2,2.3",
 			"--requirements-file", "specs/requirements.md")
 
-		if !containsString(output, "Added task") {
+		if !strings.Contains(output, "Added task") {
 			t.Errorf("Expected success message, got: %s", output)
 		}
 		t.Logf("Added task with requirements")
@@ -3803,7 +3799,7 @@ func testRequirementsWorkflow(t *testing.T, tempDir string) {
 		markdown := string(content)
 
 		// Check for requirements line
-		if !containsString(markdown, "Requirements:") {
+		if !strings.Contains(markdown, "Requirements:") {
 			t.Errorf("Markdown should contain 'Requirements:' line")
 		}
 
@@ -3814,7 +3810,7 @@ func testRequirementsWorkflow(t *testing.T, tempDir string) {
 			"[2.3](specs/requirements.md#2.3)",
 		}
 		for _, link := range expectedLinks {
-			if !containsString(markdown, link) {
+			if !strings.Contains(markdown, link) {
 				t.Errorf("Markdown should contain link: %s\nGot:\n%s", link, markdown)
 			}
 		}
@@ -3880,7 +3876,7 @@ func testRequirementsWorkflow(t *testing.T, tempDir string) {
 
 		output := runGoCommand(t, "batch", batchFile)
 
-		if !containsString(output, "Batch operation successful") && !containsString(output, "operation") {
+		if !strings.Contains(output, "Batch operation successful") && !strings.Contains(output, "operation") {
 			t.Errorf("Expected success message, got: %s", output)
 		}
 
@@ -3933,7 +3929,7 @@ func testRequirementsWorkflow(t *testing.T, tempDir string) {
 			"[3.2](requirements.md#3.2)",
 		}
 		for _, link := range expectedLinks {
-			if !containsString(markdown, link) {
+			if !strings.Contains(markdown, link) {
 				t.Errorf("Markdown should contain updated link: %s\nGot:\n%s", link, markdown)
 			}
 		}
@@ -4017,10 +4013,10 @@ func testRequirementsWorkflow(t *testing.T, tempDir string) {
 		}
 
 		// Verify raw JSON contains the fields
-		if !containsString(output, `"requirements_file"`) {
+		if !strings.Contains(output, `"requirements_file"`) {
 			t.Error("JSON output should contain 'requirements_file' field")
 		}
-		if !containsString(output, `"requirements"`) {
+		if !strings.Contains(output, `"requirements"`) {
 			t.Error("JSON output should contain 'requirements' field")
 		}
 
@@ -4034,7 +4030,7 @@ func testRequirementsWorkflow(t *testing.T, tempDir string) {
 			"--title", "Implement JWT tokens",
 			"--requirements", "1.1.1,1.1.2")
 
-		if !containsString(output, "Added task") {
+		if !strings.Contains(output, "Added task") {
 			t.Errorf("Expected success message, got: %s", output)
 		}
 
@@ -4072,7 +4068,7 @@ func testRequirementsWorkflow(t *testing.T, tempDir string) {
 		output := runGoCommand(t, "update", filename, "1.1",
 			"--clear-requirements")
 
-		if !containsString(output, "Updated task") {
+		if !strings.Contains(output, "Updated task") {
 			t.Errorf("Expected success message, got: %s", output)
 		}
 
@@ -4103,13 +4099,13 @@ func testRequirementsWorkflow(t *testing.T, tempDir string) {
 		// Find the subtask line and check it doesn't have requirements
 		foundSubtask := false
 		for i, line := range lines {
-			if containsString(line, "1.1.") && containsString(line, "Implement JWT tokens") {
+			if strings.Contains(line, "1.1.") && strings.Contains(line, "Implement JWT tokens") {
 				foundSubtask = true
 				// Check next few lines for Requirements
 				for j := i + 1; j < min(i+5, len(lines)); j++ {
-					if containsString(lines[j], "Requirements:") {
+					if strings.Contains(lines[j], "Requirements:") {
 						// Make sure it's not from another task
-						if !containsString(lines[j], "  - [") {
+						if !strings.Contains(lines[j], "  - [") {
 							t.Errorf("Subtask 1.1 should not have Requirements line after clearing")
 						}
 					}

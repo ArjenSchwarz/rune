@@ -123,25 +123,21 @@ func (t *Task) Validate() error {
 	if len(t.Title) > 500 {
 		return fmt.Errorf("task title exceeds 500 characters")
 	}
-	if !isValidID(t.ID) {
+	if !IsValidID(t.ID) {
 		return fmt.Errorf("invalid task ID format: %s", t.ID)
 	}
 	// Validate requirement IDs match hierarchical pattern
 	for _, reqID := range t.Requirements {
-		if !isValidID(reqID) {
+		if !IsValidID(reqID) {
 			return fmt.Errorf("invalid requirement ID format: %s", reqID)
 		}
 	}
 	return nil
 }
 
-func isValidID(id string) bool {
-	return taskIDPattern.MatchString(id)
-}
-
 // IsValidID checks if an ID matches the hierarchical pattern
 func IsValidID(id string) bool {
-	return isValidID(id)
+	return taskIDPattern.MatchString(id)
 }
 
 // TaskList represents a collection of tasks with metadata

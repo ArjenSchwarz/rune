@@ -550,23 +550,3 @@ func addAllChildrenToData(parentTask *task.Task, taskData *[]map[string]any, pha
 		addAllChildrenToData(&child, taskData, phaseName)
 	}
 }
-
-const (
-	checkboxPending    = "[ ]"
-	checkboxInProgress = "[-]"
-	checkboxCompleted  = "[x]"
-)
-
-// formatStatusMarkdown formats status for markdown display
-func formatStatusMarkdown(status task.Status) string {
-	switch status {
-	case task.Pending:
-		return checkboxPending
-	case task.InProgress:
-		return checkboxInProgress
-	case task.Completed:
-		return checkboxCompleted
-	default:
-		return checkboxPending
-	}
-}
