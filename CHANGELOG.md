@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced custom `containsString` helper function with `strings.Contains` throughout test files for better code consistency
+
 ### Added
 
 - Code Quality Improvements: Helper functions consolidation

@@ -44,7 +44,7 @@ references:
 
 ## Phase 2: Remove Custom String Contains
 
-- [ ] 5. Replace custom string contains in internal/task/autocomplete_test.go
+- [x] 5. Replace custom string contains in internal/task/autocomplete_test.go
   - Remove containsString() function definition
   - Remove stringContains() function definition
   - Replace all usages with strings.Contains()
@@ -52,7 +52,7 @@ references:
   - Run tests to ensure all assertions still work
   - Requirements: [2.1](requirements.md#2.1), [2.2](requirements.md#2.2), [2.3](requirements.md#2.3), [2.5](requirements.md#2.5)
 
-- [ ] 6. Replace custom string contains in cmd/integration_test.go
+- [x] 6. Replace custom string contains in cmd/integration_test.go
   - Remove containsString() function definition at line 1070
   - Replace all 108 usages with strings.Contains()
   - Verify strings package is imported
