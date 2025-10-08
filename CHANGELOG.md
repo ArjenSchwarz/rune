@@ -7,191 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Verified
-
-- Code Quality Improvements: Final validation complete
-  - All unit tests passing (cmd, internal/config, internal/task)
-  - All integration tests passing with zero failures
-  - golangci-lint verification: 0 issues
-  - Code modernization verification: no outdated patterns found
-  - Test coverage maintained: internal/task 77.9%, internal/config 96.8%, cmd 49.1%
-  - CLI output validated across all commands (list, next, find, batch, update, has-phases)
-
-### Changed
-
-- Split parse test file into focused test files organized by functionality
-  - Split `parse_test.go` (1,175 lines) into two specialized test files
-  - Created `parse_basic_test.go` (599 lines) for core parsing tests (markdown, files, status, details, hierarchy, malformed content, edge cases, performance)
-  - Created `parse_frontmatter_test.go` (577 lines) for front matter and requirements parsing tests
-  - Created `parse_helpers_test.go` (8 lines) for shared `writeTestFile` helper function
-
-- Reorganized batch operation tests into focused test files
-  - Split `batch_test.go` (2,549 lines) into four specialized test files
-  - Created `batch_add_test.go` (688 lines) for add operation tests
-  - Created `batch_operations_test.go` (557 lines) for complex multi-operation tests
-  - Created `batch_update_test.go` (870 lines) for update operation tests
-  - Created `batch_validation_test.go` (451 lines) for validation and error tests
-
-### Changed
-
-- Simplified ID validation by consolidating `isValidID()` and `IsValidID()` into single public `IsValidID()` function
-- Refactored task parsing error handling by consolidating `parseTaskLineWithError` and `parseTaskLine` into a single function that returns (Task, bool, error)
-- Replaced custom `containsString` helper function with `strings.Contains` throughout test files for better code consistency
+## [1.0.0] - 2025-10-08
 
 ### Added
 
-- Code Quality Improvements: Helper functions consolidation
-  - Created `cmd/helpers.go` with shared utility functions (`formatStatus`, `formatStatusMarkdown`, `getTaskLevel`, `countAllTasks`)
-  - Moved checkbox constants (`checkboxPending`, `checkboxInProgress`, `checkboxCompleted`) from `cmd/next.go` to `cmd/helpers.go`
-  - Removed duplicate function definitions from `cmd/list.go` (34 lines) and `cmd/next.go` (20 lines)
-  - Added comprehensive unit tests in `cmd/helpers_test.go` with 149 lines covering all helper functions
-  - Net result: 211 additions, 54 deletions (consolidated shared code)
+- **Task Requirements Linking**: Link tasks to requirement acceptance criteria
+  - `--requirements` flag on `add` and `update` commands for comma-separated requirement IDs
+  - `--requirements-file` flag to specify requirements document (defaults to "requirements.md")
+  - `--clear-requirements` flag to remove all requirements from a task
+  - Requirements rendered as markdown links `[ID](file#ID)` in task output
+  - Full batch operation support with requirements validation
+  - Round-trip preservation in parse-render cycles
 
-- Code Quality Improvements feature specification
-  - Decision log documenting design choices for internal code refactoring
-  - Design document covering architecture and implementation approach for five key improvements
-  - Requirements document with acceptance criteria for helper consolidation, parse function naming, ID validation, and test organization
-  - Tasks breakdown for implementation phases
-
-### Added
-
-- Task Requirements Linking: Documentation updates
-  - Added Requirements section to README.md with examples for --requirements and --requirements-file flags
-  - Documented requirements vs references distinction in README.md
-  - Updated docs/json-api.md with requirements field schema and batch operation examples
-  - Added requirements_file field documentation to JSON API
-
-### Added
-
-- Task Requirements Linking: Integration test suite
-  - Complete workflow test covering requirements CLI flags, batch operations, and round-trip preservation
-  - Verification of markdown rendering with requirement links in `[ID](file#ID)` format
-  - Testing of parsed Requirements field population in Task structs
-  - Batch update testing for requirements and requirements file changes
-  - Round-trip preservation testing ensuring requirements survive parse-render cycles
-  - JSON output validation for requirements fields in both tasks and metadata
-  - Nested task requirements testing with hierarchical requirement IDs
-  - Requirements clearing functionality testing with `--clear-requirements` flag
-  - Unit tests for JSON rendering with requirements in various scenarios
-
-- Task Requirements Linking: Batch operations support
-  - `Requirements` field added to `Operation` struct for add/update operations
-  - `RequirementsFile` field added to `BatchRequest` struct with JSON tag support
-  - Requirement ID validation integrated into batch operation validation
-  - Requirements passed through to `UpdateTask` for both add and update operations
-  - Requirements file path handling in batch command with default fallback
-  - Comprehensive unit tests covering add/update with requirements, validation scenarios, and atomic behavior
-
-- Task Requirements Linking: Update command implementation
-  - `--requirements` flag added to `update` command for comma-separated requirement IDs (e.g., "1.1,1.2,2.3")
-  - `--clear-requirements` flag added to clear all requirements from a task
-  - Modified `UpdateTask` signature to accept requirements parameter (nil = no change, empty = clear)
-  - Requirement ID validation using hierarchical ID pattern matching
-  - Requirements display in dry-run mode showing current and new values
-  - Comprehensive unit tests covering flag parsing, validation, clearing, and whitespace handling
-
-- Task Requirements Linking: CLI command implementation
-  - `--requirements` flag added to `add` command for comma-separated requirement IDs (e.g., "1.1,1.2,2.3")
-  - `--requirements-file` flag added to `add` command to specify requirements file path
-  - Requirement ID validation using existing hierarchical ID pattern matching
-  - Automatic default to "requirements.md" when requirements provided without explicit file
-  - `parseRequirementIDs` helper function for parsing comma-separated requirement strings
-  - Comprehensive unit tests covering flag parsing, validation, and requirements file defaults
-
-- Task Requirements Linking: Requirements rendering implementation
-  - Updated `renderTask` function to accept requirements file parameter and render requirements
-  - Requirements formatted as markdown links `[ID](file#ID)` with comma separation
-  - Requirements appear before references section in task output
-  - Default requirements file handling when not explicitly set
-  - Support for nested tasks with requirements
-  - Comprehensive unit tests covering rendering scenarios, round-trip parsing, link format validation, and positioning
-
-- Task Requirements Linking: Requirements parsing implementation
-  - `parseRequirements` helper function to extract requirement IDs from markdown links
-  - Pattern matching for `[ID](file#ID)` format in Requirements detail lines
-  - Support for comma-separated requirement links
-  - Automatic extraction of requirements file path from first valid link
-  - Integration with `parseDetailsAndChildren` to populate `task.Requirements` and `taskList.RequirementsFile`
-  - Malformed requirement lines (plain text without markdown links) treated as regular details
-  - Comprehensive unit tests covering single/multiple requirements, custom requirement files, whitespace handling, and error cases
-  - Full integration tests verifying round-trip parsing with requirements preserved
-
-- Task Requirements Linking: Core data structure implementation
-  - `Requirements` field added to Task struct for linking requirement IDs
-  - `RequirementsFile` field added to TaskList struct for specifying requirements document
-  - `DefaultRequirementsFile` constant for default requirements file name ("requirements.md")
-  - Validation for requirement IDs matching hierarchical pattern (e.g., "1", "1.2", "1.2.3")
-  - Comprehensive unit tests covering valid and invalid requirement ID formats
-
-- Task Requirements Linking feature specification
-  - Decision log documenting design choices for linking tasks to requirement acceptance criteria
-  - Comprehensive design document covering architecture, data models, and component interfaces
-  - Requirements document with acceptance criteria for the feature
-  - Tasks breakdown for implementation phases
-
-### Changed
-
-- Updated Claude Code settings to include codex-agent in pre-approved tools
-- Cleaned up Claude Code settings by removing obsolete command approvals
-
-### Fixed
-
-- Fixed goconst linting issue by using existing formatJSON constant in version command
-- Fixed revive linting issue by adding proper documentation comments for exported build variables
-
-## [1.0.0] - 2025-10-07
-
-### Added
-
-- **Task Phases**: Organize tasks under semantic H2 markdown headers (phases) for better project structure
+- **Task Phases**: Organize tasks under semantic H2 markdown headers
   - `add-phase` command to add phase headers to task files
-  - `--phase` flag on `add` command to add tasks to specific phases (auto-creates phases if needed)
-  - `--phase` flag on `next` command to retrieve all pending tasks from the next phase with work
-  - `has-phases` command for programmatic phase detection with JSON output
-  - Phase information displayed in table/JSON/markdown output when present
-  - Batch operations support phase field for adding tasks to specific phases
+  - `--phase` flag on `add` and `next` commands
+  - `has-phases` command for programmatic phase detection
+  - Phase information displayed in all output formats
 
-- **Front Matter Support**: Add YAML front matter to task files for metadata and references
-  - `--reference` and `--meta` flags on `create` command for adding front matter during file creation
-  - `add-frontmatter` command to add metadata and references to existing task files
-  - References displayed in all output formats (table, JSON, markdown)
-  - Front matter preserved during all task operations
+- **Front Matter Support**: YAML front matter for metadata and references
+  - `--reference` and `--meta` flags on `create` command
+  - `add-frontmatter` command for existing files
+  - References displayed in all output formats
 
 - **Git Branch Discovery**: Automatic task file location based on git branch
-  - Enabled by default with `{branch}/tasks.md` pattern
-  - All commands support optional filename (auto-discovers if not provided)
+  - Default `{branch}/tasks.md` pattern
   - Configuration via `.rune.yml` or `~/.config/rune/config.yml`
-  - Override with explicit filename when needed
 
-- **Next Task Workflow**: Sequential task management for focused work
-  - `next` command finds first incomplete task using depth-first traversal
-  - Task details and references included in output
-  - Multiple output formats (table, JSON, markdown)
-  - Git discovery integration for automatic file location
+- **Next Task Workflow**: Sequential task management
+  - `next` command finds first incomplete task via depth-first traversal
+  - Task details and references in output
 
-- **Auto-completion**: Automatically completes parent tasks when all children are done
-  - Recursive parent checking up the task hierarchy
-  - Multi-level auto-completion support
-  - Visual feedback with 🎯 emoji for auto-completed tasks
-  - Works in both `complete` command and batch operations
+- **Auto-completion**: Parent tasks complete when all children are done
+  - Recursive hierarchy checking
+  - Visual feedback with 🎯 emoji
 
-- **Position-based Task Insertion**: Insert tasks at specific positions with `--position` flag
-  - Works with top-level tasks and subtasks (e.g., `--position "1.2"`)
-  - Automatic renumbering of existing tasks
-  - Available in both `add` command and batch operations
+- **Position-based Insertion**: `--position` flag for precise task placement
+  - Automatic ID renumbering
 
 - **Core Task Management**: Complete CLI for hierarchical markdown task lists
-  - `create` command to generate new task files
-  - `add` command for adding tasks with parent-child relationships
-  - `list`, `find` commands with filtering and multiple output formats
-  - `complete`, `progress`, `uncomplete` for status management
-  - `update`, `remove` commands with automatic ID renumbering
-  - `batch` command for atomic multi-operation execution
+  - CRUD operations: `create`, `add`, `update`, `remove`
+  - Status management: `complete`, `progress`, `uncomplete`
+  - Query operations: `list`, `find`
+  - Batch operations: atomic multi-operation execution
+
+### Changed
+
+- Improved code organization with consolidated helper functions
+- Refactored test suites into focused files by functionality
+- Simplified ID validation and task parsing logic
 
 ### Security
 
-- File size limit enforcement (10MB maximum)
-- Path traversal protection with validation
+- File size limit (10MB)
+- Path traversal protection
 - Input sanitization for null bytes and control characters
 - Resource limits (10,000 tasks max, 10 levels deep, 1,000 char details)
-- Branch name sanitization to prevent command injection
+- Branch name sanitization
