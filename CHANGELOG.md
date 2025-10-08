@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Code Quality Improvements feature specification
+  - Decision log documenting design choices for internal code refactoring
+  - Design document covering architecture and implementation approach for five key improvements
+  - Requirements document with acceptance criteria for helper consolidation, parse function naming, ID validation, and test organization
+  - Tasks breakdown for implementation phases
+
+### Added
+
 - Task Requirements Linking: Documentation updates
   - Added Requirements section to README.md with examples for --requirements and --requirements-file flags
   - Documented requirements vs references distinction in README.md
