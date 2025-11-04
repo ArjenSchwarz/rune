@@ -36,7 +36,7 @@ references:
 
 ## Phase 2: Core Implementation
 
-- [ ] 5. Write unit tests for resolveVersion()
+- [x] 5. Write unit tests for resolveVersion()
   - Test latest version resolution
   - Test exact version with v prefix (v1.0.0)
   - Test exact version without v prefix (1.0.0)
@@ -45,7 +45,7 @@ references:
   - Requirements: [2.2](requirements.md#2.2), [2.3](requirements.md#2.3), [2.6](requirements.md#2.6)
   - References: specs/github-action/design.md
 
-- [ ] 6. Implement resolveVersion() function
+- [x] 6. Implement resolveVersion() function
   - Use getOctokit() to create GitHub API client
   - Handle latest by calling repos.getLatestRelease()
   - Strip v prefix from tag_name
@@ -54,7 +54,7 @@ references:
   - Requirements: [2.1](requirements.md#2.1), [2.2](requirements.md#2.2), [2.3](requirements.md#2.3), [2.4](requirements.md#2.4), [2.5](requirements.md#2.5), [2.6](requirements.md#2.6)
   - References: specs/github-action/design.md
 
-- [ ] 7. Write unit tests for getPlatformAsset()
+- [x] 7. Write unit tests for getPlatformAsset()
   - Test asset name generation for all 6 platform combinations (linux/darwin/windows × amd64/arm64)
   - Test correct extensions (.tar.gz for Unix, .zip for Windows)
   - Test error for unsupported platform (e.g., freebsd)
@@ -63,7 +63,7 @@ references:
   - Requirements: [3.1](requirements.md#3.1), [3.2](requirements.md#3.2), [3.3](requirements.md#3.3), [3.4](requirements.md#3.4), [3.5](requirements.md#3.5)
   - References: specs/github-action/design.md
 
-- [ ] 8. Implement getPlatformAsset() function
+- [x] 8. Implement getPlatformAsset() function
   - Map process.platform to OS names (linux/darwin/windows)
   - Map process.arch to architecture names (amd64/arm64)
   - Throw clear error for unsupported combinations
@@ -72,7 +72,7 @@ references:
   - Requirements: [3.1](requirements.md#3.1), [3.2](requirements.md#3.2), [3.3](requirements.md#3.3), [3.4](requirements.md#3.4), [3.5](requirements.md#3.5), [1.1](requirements.md#1.1)
   - References: specs/github-action/design.md
 
-- [ ] 9. Write unit tests for verifyChecksum()
+- [x] 9. Write unit tests for verifyChecksum()
   - Test successful checksum verification
   - Test checksum mismatch throws error
   - Test file read errors
@@ -80,7 +80,7 @@ references:
   - Requirements: [5.1](requirements.md#5.1), [5.2](requirements.md#5.2), [5.3](requirements.md#5.3)
   - References: specs/github-action/design.md
 
-- [ ] 10. Implement verifyChecksum() function
+- [x] 10. Implement verifyChecksum() function
   - Read expected checksum from file
   - Calculate MD5 using crypto.createHash()
   - Use fs.createReadStream for efficient file reading
@@ -89,7 +89,7 @@ references:
   - Requirements: [5.1](requirements.md#5.1), [5.2](requirements.md#5.2), [5.3](requirements.md#5.3)
   - References: specs/github-action/design.md
 
-- [ ] 11. Write unit tests for installRune()
+- [x] 11. Write unit tests for installRune()
   - Test cache hit scenario (tc.find returns path)
   - Test cache miss with successful download
   - Test extraction for .tar.gz (Linux/macOS)
@@ -100,7 +100,7 @@ references:
   - Requirements: [1.1](requirements.md#1.1), [1.2](requirements.md#1.2), [1.3](requirements.md#1.3), [1.4](requirements.md#1.4), [4.1](requirements.md#4.1), [4.2](requirements.md#4.2), [4.3](requirements.md#4.3)
   - References: specs/github-action/design.md
 
-- [ ] 12. Implement installRune() orchestration function
+- [x] 12. Implement installRune() orchestration function
   - Call resolveVersion() first to get exact version
   - Call getPlatformAsset() to get asset info
   - Check cache using tc.find() with version and arch
@@ -115,7 +115,7 @@ references:
   - Requirements: [1.1](requirements.md#1.1), [1.2](requirements.md#1.2), [1.3](requirements.md#1.3), [1.4](requirements.md#1.4), [1.5](requirements.md#1.5), [2.5](requirements.md#2.5), [4.1](requirements.md#4.1), [4.2](requirements.md#4.2), [4.3](requirements.md#4.3), [5.4](requirements.md#5.4)
   - References: specs/github-action/design.md
 
-- [ ] 13. Implement main.ts entry point
+- [x] 13. Implement main.ts entry point
   - Read version input using core.getInput(), default to latest
   - Read github-token input, fallback to process.env.GITHUB_TOKEN
   - Call installRune() with version and token

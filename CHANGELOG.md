@@ -20,6 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Jest test infrastructure with TypeScript support and coverage reporting
   - Build configuration with @vercel/ncc for bundling to dist/index.js
   - Development documentation and project structure
+- GitHub Action core implementation (Phase 2)
+  - `resolveVersion()` function for "latest" and exact version resolution via GitHub API
+  - `getPlatformAsset()` function for platform detection across Linux/macOS/Windows on amd64/arm64
+  - `verifyChecksum()` function for MD5 integrity verification with streaming file reading
+  - `installRune()` orchestration function handling version resolution, cache checks, downloads, checksum verification, extraction, and PATH management
+  - `main.ts` entry point with input handling, error catching, and output setting
+  - Distribution bundle (dist/index.js) with all dependencies bundled for GitHub Actions execution
+  - Unit test suite with 23 tests achieving 100% code coverage across all metrics
+  - Support for .tar.gz extraction on Unix platforms and .zip extraction on Windows
+  - Automatic cache management using GitHub Actions tool-cache with version and architecture isolation
+  - Cross-platform chmod handling for binary executable permissions
 
 ## [1.0.0] - 2025-10-08
 
