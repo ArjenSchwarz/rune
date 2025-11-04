@@ -164,7 +164,7 @@ references:
 
 ## Phase 4: Documentation & Release
 
-- [ ] 18. Write README.md with usage examples
+- [x] 18. Write README.md with usage examples
   - Add basic usage example with default latest version
   - Add example with specific version
   - Add example showing how to use outputs
@@ -174,7 +174,7 @@ references:
   - Requirements: [2.1](requirements.md#2.1), [2.2](requirements.md#2.2), [2.3](requirements.md#2.3), [6.1](requirements.md#6.1), [6.2](requirements.md#6.2), [7.1](requirements.md#7.1)
   - References: specs/github-action/design.md
 
-- [ ] 19. Build production bundle
+- [x] 19. Build production bundle
   - Run npm run build
   - Verify dist/index.js is created
   - Verify bundle includes all dependencies
