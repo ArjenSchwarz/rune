@@ -32773,21 +32773,25 @@ const crypto = __importStar(__nccwpck_require__(6982));
 const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
 const github_1 = __nccwpck_require__(3228);
+// Constants
+const REPO_OWNER = 'ArjenSchwarz';
+const REPO_NAME = 'rune';
+const TOOL_NAME = 'rune';
 async function resolveVersion(version, token) {
     const octokit = (0, github_1.getOctokit)(token);
     const normalized = version.replace(/^v/, '');
     if (normalized === 'latest') {
         const { data } = await octokit.rest.repos.getLatestRelease({
-            owner: 'ArjenSchwarz',
-            repo: 'rune'
+            owner: REPO_OWNER,
+            repo: REPO_NAME
         });
         return data.tag_name.replace(/^v/, '');
     }
     // Verify exact version exists
     try {
         await octokit.rest.repos.getReleaseByTag({
-            owner: 'ArjenSchwarz',
-            repo: 'rune',
+            owner: REPO_OWNER,
+            repo: REPO_NAME,
             tag: `v${normalized}`
         });
         return normalized;
@@ -32795,10 +32799,17 @@ async function resolveVersion(version, token) {
     catch (error) {
         if (error.status === 404) {
             throw new Error(`Version ${version} not found.\n` +
-                `Check available versions at: https://github.com/ArjenSchwarz/rune/releases`);
+                `Check available versions at: https://github.com/${REPO_OWNER}/${REPO_NAME}/releases`);
         }
         throw error;
     }
+}
+function normalizeArchitecture(arch) {
+    const archMap = {
+        'x64': 'amd64',
+        'arm64': 'arm64'
+    };
+    return archMap[arch];
 }
 function getPlatformAsset(version) {
     const osMap = {
@@ -32806,18 +32817,14 @@ function getPlatformAsset(version) {
         'darwin': 'darwin',
         'win32': 'windows'
     };
-    const archMap = {
-        'x64': 'amd64',
-        'arm64': 'arm64'
-    };
     const os = osMap[process.platform];
-    const arch = archMap[process.arch];
+    const arch = normalizeArchitecture(process.arch);
     if (!os || !arch) {
         throw new Error(`Unsupported platform: ${process.platform}-${process.arch}\n` +
             `Supported: linux/darwin/windows on amd64/arm64`);
     }
     const ext = os === 'windows' ? 'zip' : 'tar.gz';
-    const assetName = `rune-v${version}-${os}-${arch}.${ext}`;
+    const assetName = `${TOOL_NAME}-v${version}-${os}-${arch}.${ext}`;
     return { assetName, isWindows: os === 'windows' };
 }
 async function verifyChecksum(filePath, checksumPath) {
@@ -32843,17 +32850,21 @@ async function installRune(version, token) {
     const resolvedVersion = await resolveVersion(version, token);
     // 2. Get platform info and asset name
     const { assetName, isWindows } = getPlatformAsset(resolvedVersion);
-    const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+    const arch = normalizeArchitecture(process.arch);
+    if (!arch) {
+        throw new Error(`Unsupported architecture: ${process.arch}\n` +
+            `Supported: amd64/arm64`);
+    }
     // 3. Check cache
-    const cachedPath = tc.find('rune', resolvedVersion, arch);
+    const cachedPath = tc.find(TOOL_NAME, resolvedVersion, arch);
     if (cachedPath) {
-        core.info(`Using cached rune ${resolvedVersion}`);
+        core.info(`Using cached ${TOOL_NAME} ${resolvedVersion}`);
         core.addPath(cachedPath);
         return { version: resolvedVersion, path: cachedPath };
     }
     // 4. Download
-    const baseUrl = `https://github.com/ArjenSchwarz/rune/releases/download/v${resolvedVersion}`;
-    core.info(`Downloading rune ${resolvedVersion}...`);
+    const baseUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/v${resolvedVersion}`;
+    core.info(`Downloading ${TOOL_NAME} ${resolvedVersion}...`);
     const archivePath = await tc.downloadTool(`${baseUrl}/${assetName}`, undefined, token);
     const checksumPath = await tc.downloadTool(`${baseUrl}/${assetName}.md5`, undefined, token);
     // 5. Verify checksum
@@ -32864,13 +32875,13 @@ async function installRune(version, token) {
         : await tc.extractTar(archivePath);
     // 7. Make executable (non-Windows)
     if (!isWindows) {
-        const binaryPath = path.join(extractedPath, 'rune');
+        const binaryPath = path.join(extractedPath, TOOL_NAME);
         await exec.exec('chmod', ['+x', binaryPath]);
     }
     // 8. Cache and add to PATH
-    const cachedToolPath = await tc.cacheDir(extractedPath, 'rune', resolvedVersion, arch);
+    const cachedToolPath = await tc.cacheDir(extractedPath, TOOL_NAME, resolvedVersion, arch);
     core.addPath(cachedToolPath);
-    core.info(`✓ Successfully installed rune ${resolvedVersion}`);
+    core.info(`✓ Successfully installed ${TOOL_NAME} ${resolvedVersion}`);
     return { version: resolvedVersion, path: cachedToolPath };
 }
 //# sourceMappingURL=install.js.map

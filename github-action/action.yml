@@ -13,9 +13,8 @@ inputs:
     default: 'latest'
 
   github-token:
-    description: 'GitHub token for API requests (helps avoid rate limiting). Defaults to the automatic GITHUB_TOKEN.'
+    description: 'GitHub token for API requests (helps avoid rate limiting). Defaults to the automatic GITHUB_TOKEN if not provided.'
     required: false
-    default: ${{ github.token }}
 
 outputs:
   version:
