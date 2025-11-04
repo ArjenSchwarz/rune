@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Action specification documentation
+  - Requirements document covering installation, versioning, platform support, caching, and integrity verification
+  - Design document with simplified architecture emphasizing maintainability
+  - Decision log tracking 21 architectural and implementation decisions
+  - Implementation tasks organized in 4 phases (setup, core, testing, release)
+
 ## [1.0.0] - 2025-10-08
 
 ### Added
