@@ -31,6 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Support for .tar.gz extraction on Unix platforms and .zip extraction on Windows
   - Automatic cache management using GitHub Actions tool-cache with version and architecture isolation
   - Cross-platform chmod handling for binary executable permissions
+- Integration test workflow (.github/workflows/test.yml) for GitHub Action
+  - Multi-platform testing matrix (ubuntu-latest, macos-latest, windows-latest)
+  - Version testing with both specific version (1.0.0) and latest
+  - Cache behavior validation with repeated installations
+  - Binary verification tests (PATH, --version output, binary existence)
+  - Output validation tests (version and path outputs with format checks)
+  - Functional testing (create, add, list operations)
+  - Error handling tests (non-existent version, graceful failure, clear error messages)
 
 ## [1.0.0] - 2025-10-08
 

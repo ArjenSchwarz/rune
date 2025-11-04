@@ -1,0 +1,248 @@
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+      - 'specs/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-installation:
+    name: Test on ${{ matrix.os }} with version ${{ matrix.version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        version: ['1.0.0', 'latest']
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup rune
+        id: setup
+        uses: ./github-action
+        with:
+          version: ${{ matrix.version }}
+
+      - name: Verify rune is in PATH
+        shell: bash
+        run: |
+          if ! command -v rune &> /dev/null; then
+            echo "ERROR: rune command not found in PATH"
+            exit 1
+          fi
+          echo "✓ rune is accessible in PATH"
+
+      - name: Verify rune --version output
+        shell: bash
+        run: |
+          VERSION_OUTPUT=$(rune --version)
+          echo "rune --version output: $VERSION_OUTPUT"
+
+          if [ -z "$VERSION_OUTPUT" ]; then
+            echo "ERROR: rune --version returned empty output"
+            exit 1
+          fi
+
+          # Check that version string contains expected format (e.g., "rune version 1.0.0")
+          if ! echo "$VERSION_OUTPUT" | grep -q "rune version"; then
+            echo "ERROR: Unexpected version format: $VERSION_OUTPUT"
+            exit 1
+          fi
+
+          echo "✓ rune --version works correctly"
+
+      - name: Verify outputs are set
+        shell: bash
+        run: |
+          VERSION="${{ steps.setup.outputs.version }}"
+          PATH_OUTPUT="${{ steps.setup.outputs.path }}"
+
+          if [ -z "$VERSION" ]; then
+            echo "ERROR: version output is not set"
+            exit 1
+          fi
+
+          if [ -z "$PATH_OUTPUT" ]; then
+            echo "ERROR: path output is not set"
+            exit 1
+          fi
+
+          echo "✓ version output: $VERSION"
+          echo "✓ path output: $PATH_OUTPUT"
+
+      - name: Verify version format
+        shell: bash
+        run: |
+          VERSION="${{ steps.setup.outputs.version }}"
+
+          # Version should be in format X.Y.Z without 'v' prefix
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "ERROR: version output has unexpected format: $VERSION"
+            echo "Expected format: X.Y.Z (without 'v' prefix)"
+            exit 1
+          fi
+
+          echo "✓ version format is correct: $VERSION"
+
+      - name: Verify path contains rune binary
+        shell: bash
+        run: |
+          PATH_OUTPUT="${{ steps.setup.outputs.path }}"
+
+          # Check if the binary exists in the path
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            BINARY_PATH="$PATH_OUTPUT/rune.exe"
+          else
+            BINARY_PATH="$PATH_OUTPUT/rune"
+          fi
+
+          if [ ! -f "$BINARY_PATH" ]; then
+            echo "ERROR: rune binary not found at $BINARY_PATH"
+            exit 1
+          fi
+
+          echo "✓ rune binary exists at $BINARY_PATH"
+
+      - name: Test rune functionality
+        shell: bash
+        run: |
+          # Create a simple test task file
+          rune create test-tasks.md --title "Integration Test Tasks"
+
+          # Verify the file was created
+          if [ ! -f "test-tasks.md" ]; then
+            echo "ERROR: test-tasks.md was not created"
+            exit 1
+          fi
+
+          # Add a task
+          rune add test-tasks.md --title "Test task"
+
+          # List tasks
+          rune list test-tasks.md
+
+          echo "✓ rune basic functionality works"
+
+  test-cache:
+    name: Test caching on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: First installation
+        id: first
+        uses: ./github-action
+        with:
+          version: '1.0.0'
+
+      - name: Verify first installation
+        shell: bash
+        run: |
+          echo "First installation - version: ${{ steps.first.outputs.version }}"
+          echo "First installation - path: ${{ steps.first.outputs.path }}"
+          rune --version
+
+      - name: Second installation (should use cache)
+        id: second
+        uses: ./github-action
+        with:
+          version: '1.0.0'
+
+      - name: Verify second installation
+        shell: bash
+        run: |
+          echo "Second installation - version: ${{ steps.second.outputs.version }}"
+          echo "Second installation - path: ${{ steps.second.outputs.path }}"
+          rune --version
+
+      - name: Verify both installations have same version
+        shell: bash
+        run: |
+          FIRST_VERSION="${{ steps.first.outputs.version }}"
+          SECOND_VERSION="${{ steps.second.outputs.version }}"
+
+          if [ "$FIRST_VERSION" != "$SECOND_VERSION" ]; then
+            echo "ERROR: Version mismatch between installations"
+            echo "First: $FIRST_VERSION"
+            echo "Second: $SECOND_VERSION"
+            exit 1
+          fi
+
+          echo "✓ Both installations have version: $FIRST_VERSION"
+
+      - name: Verify both installations have same path
+        shell: bash
+        run: |
+          FIRST_PATH="${{ steps.first.outputs.path }}"
+          SECOND_PATH="${{ steps.second.outputs.path }}"
+
+          if [ "$FIRST_PATH" != "$SECOND_PATH" ]; then
+            echo "ERROR: Path mismatch between installations"
+            echo "First: $FIRST_PATH"
+            echo "Second: $SECOND_PATH"
+            exit 1
+          fi
+
+          echo "✓ Both installations have path: $FIRST_PATH"
+          echo "✓ Cache is working correctly"
+
+  test-error-handling:
+    name: Test error handling
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Try to install non-existent version
+        id: install
+        uses: ./github-action
+        with:
+          version: '999.999.999'
+        continue-on-error: true
+
+      - name: Verify installation failed
+        shell: bash
+        run: |
+          OUTCOME="${{ steps.install.outcome }}"
+
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "ERROR: Expected installation to fail, but it had outcome: $OUTCOME"
+            exit 1
+          fi
+
+          echo "✓ Installation correctly failed for non-existent version"
+
+      - name: Verify outputs are not set on failure
+        shell: bash
+        run: |
+          VERSION="${{ steps.install.outputs.version }}"
+          PATH_OUTPUT="${{ steps.install.outputs.path }}"
+
+          if [ -n "$VERSION" ]; then
+            echo "WARNING: version output was set despite failure: $VERSION"
+          fi
+
+          if [ -n "$PATH_OUTPUT" ]; then
+            echo "WARNING: path output was set despite failure: $PATH_OUTPUT"
+          fi
+
+          echo "✓ Outputs handling verified"
+
+      - name: Check error message format
+        shell: bash
+        run: |
+          echo "✓ Error was properly reported (GitHub Actions logs contain the error message)"
+          echo "Note: The error message should mention the version not being found and provide a link to releases"

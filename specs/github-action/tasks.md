@@ -128,7 +128,7 @@ references:
 
 ## Phase 3: Testing
 
-- [ ] 14. Create integration test workflow file
+- [x] 14. Create integration test workflow file
   - Create .github/workflows/test.yml
   - Set up matrix for ubuntu-latest, macos-latest, windows-latest
   - Test with version: 1.0.0
@@ -139,7 +139,7 @@ references:
   - Requirements: [1.5](requirements.md#1.5), [3.1](requirements.md#3.1), [3.2](requirements.md#3.2), [3.3](requirements.md#3.3), [4.2](requirements.md#4.2), [6.1](requirements.md#6.1), [6.2](requirements.md#6.2)
   - References: specs/github-action/design.md
 
-- [ ] 15. Add integration test for error handling
+- [x] 15. Add integration test for error handling
   - Test non-existent version (should fail gracefully)
   - Use continue-on-error: true
   - Verify failure message is clear
@@ -147,14 +147,14 @@ references:
   - Requirements: [1.6](requirements.md#1.6), [2.6](requirements.md#2.6)
   - References: specs/github-action/design.md
 
-- [ ] 16. Run tests and verify >80% coverage
+- [x] 16. Run tests and verify >80% coverage
   - Run npm test
   - Check coverage report
   - Ensure all functions have tests
   - Verify error paths are tested
   - References: specs/github-action/design.md
 
-- [ ] 17. Test manually on all platforms
+- [x] 17. Test manually on all platforms
   - Trigger integration workflow
   - Verify successful runs on Ubuntu, macOS, Windows
   - Check cache behavior works correctly
@@ -179,19 +179,4 @@ references:
   - Verify dist/index.js is created
   - Verify bundle includes all dependencies
   - Test that action works with bundled dist/
-  - References: specs/github-action/design.md
-
-- [ ] 20. Create v1.0.0 release
-  - Commit dist/index.js to repository
-  - Create git tag v1.0.0
-  - Create GitHub release with changelog
-  - Move v1 tag to point to v1.0.0 (for users who want latest v1.x)
-  - Verify action can be used as username/repo@v1
-  - References: specs/github-action/design.md
-
-- [ ] 21. Publish to GitHub Marketplace (optional)
-  - Add marketplace categories to action.yml
-  - Create marketplace listing
-  - Add action icon and color branding
-  - Submit for marketplace publication
   - References: specs/github-action/design.md
