@@ -8,12 +8,12 @@ references:
 
 ## Phase 1: Project Setup
 
-- [ ] 1. Initialize TypeScript project with dependencies
+- [x] 1. Initialize TypeScript project with dependencies
   - Install @actions/core, @actions/tool-cache, @actions/github, @actions/exec
   - Configure tsconfig.json for Node 20 target
   - Set up @vercel/ncc for bundling to dist/index.js
 
-- [ ] 2. Create action.yml metadata file
+- [x] 2. Create action.yml metadata file
   - Define name, description, author, and branding
   - Specify inputs: version (default: latest), github-token (default: github.token)
   - Specify outputs: version, path
@@ -21,13 +21,13 @@ references:
   - Requirements: [2.1](requirements.md#2.1), [6.1](requirements.md#6.1), [6.2](requirements.md#6.2), [6.3](requirements.md#6.3), [7.1](requirements.md#7.1)
   - References: specs/github-action/design.md
 
-- [ ] 3. Set up Jest test infrastructure
+- [x] 3. Set up Jest test infrastructure
   - Install Jest and ts-jest
   - Configure jest.config.js for TypeScript
   - Add test scripts to package.json
   - References: specs/github-action/design.md
 
-- [ ] 4. Configure build scripts in package.json
+- [x] 4. Configure build scripts in package.json
   - Add build script using ncc
   - Add test script
   - Add lint script if using eslint

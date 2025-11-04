@@ -1,0 +1,32 @@
+{
+  "name": "setup-rune",
+  "version": "1.0.0",
+  "description": "GitHub Action to install the rune CLI binary for task management",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && ncc build lib/main.js -o dist --source-map --license licenses.txt",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "lint": "tsc --noEmit",
+    "package": "npm run build",
+    "all": "npm run build && npm run test"
+  },
+  "keywords": ["github", "actions", "rune", "task-management", "cli"],
+  "author": "ArjenSchwarz",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/exec": "^1.1.1",
+    "@actions/github": "^6.0.1",
+    "@actions/tool-cache": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.10.0",
+    "@vercel/ncc": "^0.38.4",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
+    "typescript": "^5.9.3"
+  }
+}

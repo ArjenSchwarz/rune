@@ -1,0 +1,32 @@
+name: 'Setup Rune'
+description: 'Install the rune CLI binary for task management in GitHub Actions workflows'
+author: 'ArjenSchwarz'
+
+branding:
+  icon: 'check-square'
+  color: 'blue'
+
+inputs:
+  version:
+    description: 'Version of rune to install (e.g., "1.0.0", "v1.0.0", or "latest")'
+    required: false
+    default: 'latest'
+
+  github-token:
+    description: 'GitHub token for API requests (helps avoid rate limiting). Defaults to the automatic GITHUB_TOKEN.'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  version:
+    description: 'The installed version of rune (e.g., "1.0.0")'
+
+  path:
+    description: 'The directory containing the rune binary'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+
+# Note: Node20 is current standard (Nov 2025) but will reach EOL in April 2026.
+# Plan to migrate to node24 in early 2026.
