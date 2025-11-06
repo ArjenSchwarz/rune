@@ -28,6 +28,7 @@ jobs:
         uses: ./github-action
         with:
           version: ${{ matrix.version }}
+          github-token: ${{ github.token }}
 
       - name: Verify rune is in PATH
         shell: bash
@@ -146,6 +147,7 @@ jobs:
         uses: ./github-action
         with:
           version: '1.0.0'
+          github-token: ${{ github.token }}
 
       - name: Verify first installation
         shell: bash
@@ -159,6 +161,7 @@ jobs:
         uses: ./github-action
         with:
           version: '1.0.0'
+          github-token: ${{ github.token }}
 
       - name: Verify second installation
         shell: bash
@@ -211,6 +214,7 @@ jobs:
         uses: ./github-action
         with:
           version: '999.999.999'
+          github-token: ${{ github.token }}
         continue-on-error: true
 
       - name: Verify installation failed

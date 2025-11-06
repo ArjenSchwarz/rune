@@ -11,7 +11,12 @@ const REPO_OWNER = 'ArjenSchwarz';
 const REPO_NAME = 'rune';
 const TOOL_NAME = 'rune';
 
-export async function resolveVersion(version: string, token: string): Promise<string> {
+export async function resolveVersion(version: string, token?: string): Promise<string> {
+  if (!token) {
+    throw new Error(
+      'GitHub token is required. Pass github-token: ${{ github.token }} to the action.'
+    );
+  }
   const octokit = getOctokit(token);
   const normalized = version.replace(/^v/, '');
 
@@ -101,7 +106,7 @@ export async function verifyChecksum(filePath: string, checksumPath: string): Pr
 
 export async function installRune(
   version: string,
-  token: string
+  token?: string
 ): Promise<{ version: string; path: string }> {
 
   // 1. Resolve version FIRST

@@ -32778,6 +32778,9 @@ const REPO_OWNER = 'ArjenSchwarz';
 const REPO_NAME = 'rune';
 const TOOL_NAME = 'rune';
 async function resolveVersion(version, token) {
+    if (!token) {
+        throw new Error('GitHub token is required. Pass github-token: ${{ github.token }} to the action.');
+    }
     const octokit = (0, github_1.getOctokit)(token);
     const normalized = version.replace(/^v/, '');
     if (normalized === 'latest') {
@@ -32932,7 +32935,7 @@ const install_1 = __nccwpck_require__(702);
 async function run() {
     try {
         const version = core.getInput('version') || 'latest';
-        const token = core.getInput('github-token') || process.env.GITHUB_TOKEN || '';
+        const token = core.getInput('github-token') || process.env.GITHUB_TOKEN;
         const result = await (0, install_1.installRune)(version, token);
         core.setOutput('version', result.version);
         core.setOutput('path', result.path);

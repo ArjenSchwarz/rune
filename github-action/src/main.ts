@@ -4,7 +4,7 @@ import { installRune } from './install';
 async function run(): Promise<void> {
   try {
     const version = core.getInput('version') || 'latest';
-    const token = core.getInput('github-token') || process.env.GITHUB_TOKEN || '';
+    const token = core.getInput('github-token') || process.env.GITHUB_TOKEN;
 
     const result = await installRune(version, token);
 

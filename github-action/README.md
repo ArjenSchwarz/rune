@@ -11,6 +11,8 @@ Install the latest stable release of rune:
 ```yaml
 - name: Setup Rune
   uses: ArjenSchwarz/rune/github-action@v1
+  with:
+    github-token: ${{ github.token }}
 
 - name: Use Rune
   run: rune --version
@@ -25,6 +27,7 @@ Install a specific version of rune:
   uses: ArjenSchwarz/rune/github-action@v1
   with:
     version: '1.0.0'
+    github-token: ${{ github.token }}
 
 - name: Use Rune
   run: rune list tasks.md
@@ -42,6 +45,8 @@ The action provides outputs that you can use in subsequent steps:
 - name: Setup Rune
   id: setup-rune
   uses: ArjenSchwarz/rune/github-action@v1
+  with:
+    github-token: ${{ github.token }}
 
 - name: Display version and path
   run: |
@@ -61,14 +66,14 @@ Provide a custom GitHub token to avoid rate limiting (useful for high-volume wor
     github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 ```
 
-By default, the action uses the automatic `GITHUB_TOKEN` provided by GitHub Actions.
+The `github-token` input is required to access the GitHub API for fetching releases.
 
 ## Inputs
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `version` | Version of rune to install (e.g., `1.0.0`, `v1.0.0`, or `latest`) | No | `latest` |
-| `github-token` | GitHub token for API requests (helps avoid rate limiting) | No | `${{ github.token }}` |
+| `github-token` | GitHub token for API requests. Use `${{ github.token }}` or `${{ secrets.GITHUB_TOKEN }}` | Yes | - |
 
 ## Outputs
 
@@ -107,6 +112,7 @@ jobs:
         uses: ArjenSchwarz/rune/github-action@v1
         with:
           version: 'latest'
+          github-token: ${{ github.token }}
 
       - name: Create task list
         run: |
@@ -134,6 +140,7 @@ jobs:
         uses: ArjenSchwarz/rune/github-action@v1
         with:
           version: '1.0.0'
+          github-token: ${{ github.token }}
 
       - name: Manage tasks
         run: |
@@ -158,6 +165,7 @@ jobs:
         uses: ArjenSchwarz/rune/github-action@v1
         with:
           version: 'latest'
+          github-token: ${{ github.token }}
 
       - name: Use Rune
         run: |
@@ -185,6 +193,8 @@ jobs:
 
       - name: Setup Rune
         uses: ArjenSchwarz/rune/github-action@v1
+        with:
+          github-token: ${{ github.token }}
 
       - name: Verify installation
         run: rune --version
