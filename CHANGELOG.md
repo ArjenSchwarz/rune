@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Action specification documentation
+  - Requirements document covering installation, versioning, platform support, caching, and integrity verification
+  - Design document with simplified architecture emphasizing maintainability
+  - Decision log tracking 21 architectural and implementation decisions
+  - Implementation tasks organized in 4 phases (setup, core, testing, release)
+- GitHub Action project setup (Phase 1)
+  - TypeScript project initialization with GitHub Actions dependencies (@actions/core, @actions/tool-cache, @actions/github, @actions/exec)
+  - Action metadata file (action.yml) with version and github-token inputs, version and path outputs
+  - Jest test infrastructure with TypeScript support and coverage reporting
+  - Build configuration with @vercel/ncc for bundling to dist/index.js
+  - Development documentation and project structure
+- GitHub Action core implementation (Phase 2)
+  - `resolveVersion()` function for "latest" and exact version resolution via GitHub API
+  - `getPlatformAsset()` function for platform detection across Linux/macOS/Windows on amd64/arm64
+  - `verifyChecksum()` function for MD5 integrity verification with streaming file reading
+  - `installRune()` orchestration function handling version resolution, cache checks, downloads, checksum verification, extraction, and PATH management
+  - `main.ts` entry point with input handling, error catching, and output setting
+  - Distribution bundle (dist/index.js) with all dependencies bundled for GitHub Actions execution
+  - Unit test suite with 23 tests achieving 100% code coverage across all metrics
+  - Support for .tar.gz extraction on Unix platforms and .zip extraction on Windows
+  - Automatic cache management using GitHub Actions tool-cache with version and architecture isolation
+  - Cross-platform chmod handling for binary executable permissions
+- Integration test workflow (.github/workflows/test.yml) for GitHub Action
+  - Multi-platform testing matrix (ubuntu-latest, macos-latest, windows-latest)
+  - Version testing with both specific version (1.0.0) and latest
+  - Cache behavior validation with repeated installations
+  - Binary verification tests (PATH, --version output, binary existence)
+  - Output validation tests (version and path outputs with format checks)
+  - Functional testing (create, add, list operations)
+  - Error handling tests (non-existent version, graceful failure, clear error messages)
+- GitHub Action documentation and release preparation (Phase 4)
+  - Comprehensive README with usage examples for all supported platforms (Ubuntu, macOS, Windows)
+  - Input/output documentation with detailed tables
+  - Example workflows demonstrating basic usage, specific versions, output usage, and matrix strategies
+  - Caching behavior explanation with performance benefits
+  - Integrity verification documentation
+  - Troubleshooting guide for common issues (version not found, unsupported platform, checksum failures, rate limiting)
+  - Development setup and contribution guidelines
+  - GitHub Actions section in main README with quick start example and link to detailed documentation
+  - Production bundle built and ready for release
+
 ## [1.0.0] - 2025-10-08
 
 ### Added

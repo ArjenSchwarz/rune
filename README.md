@@ -35,6 +35,20 @@ cd rune
 make build
 ```
 
+## GitHub Actions
+
+Use rune in your GitHub Actions workflows with the official Setup Rune action:
+
+```yaml
+- name: Setup Rune
+  uses: ArjenSchwarz/rune/github-action@v1
+
+- name: Manage tasks
+  run: rune list tasks.md
+```
+
+The action automatically installs rune on Linux, macOS, and Windows runners with caching for optimal performance. See the [GitHub Action documentation](github-action/README.md) for usage examples, configuration options, and platform support details.
+
 ## Quick Start
 
 ```bash
