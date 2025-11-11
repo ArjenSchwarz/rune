@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Renumber command specification documentation
+  - Requirements document covering renumbering logic, error handling, backup management, output formats, and edge cases
+  - Design document with detailed architecture, component interfaces, phase marker adjustment logic, and implementation plan
+  - Decision log tracking 13 architectural and implementation decisions
+  - Implementation tasks organized in 8 phases (34 tasks total) covering core structure, backup, validation, renumbering, output, error handling, integration testing, and documentation
+  - Hierarchical sequential numbering approach (1, 1.1, 1.2, 2, 2.1...) that maintains task hierarchy
+  - Automatic backup creation with .bak extension before renumbering
+  - Phase marker preservation and automatic AfterTaskID adjustment after renumbering
+  - YAML front matter preservation during renumbering
+  - Atomic write operations with temp file pattern for data safety
+  - Support for multiple output formats (table, markdown, json)
+  - Resource limit validation (10MB file size, 10,000 tasks, 10 hierarchy levels)
+  - Path traversal protection and security constraints
+  - Edge case handling (empty files, phase-only files, malformed hierarchies, duplicate IDs)
+
 - GitHub Action specification documentation
   - Requirements document covering installation, versioning, platform support, caching, and integrity verification
   - Design document with simplified architecture emphasizing maintainability
