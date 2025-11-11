@@ -129,7 +129,7 @@ func (tl *TaskList) addTaskAtPosition(parentID, title, position string) (string,
 	}
 
 	// Renumber all tasks to maintain consistency
-	tl.renumberTasks()
+	tl.RenumberTasks()
 	tl.Modified = time.Now()
 
 	// After renumbering, use cached parent reference to avoid redundant FindTask() call
@@ -146,7 +146,7 @@ func (tl *TaskList) addTaskAtPosition(parentID, title, position string) (string,
 // RemoveTask removes a task from the task list and renumbers remaining tasks
 func (tl *TaskList) RemoveTask(taskID string) error {
 	if removed := tl.removeTaskRecursive(&tl.Tasks, taskID, ""); removed {
-		tl.renumberTasks()
+		tl.RenumberTasks()
 		tl.Modified = time.Now()
 		return nil
 	}
@@ -166,7 +166,8 @@ func (tl *TaskList) removeTaskRecursive(tasks *[]Task, taskID string, _ string) 
 	return false
 }
 
-func (tl *TaskList) renumberTasks() {
+// RenumberTasks recalculates all task IDs using sequential hierarchical numbering
+func (tl *TaskList) RenumberTasks() {
 	for i := range tl.Tasks {
 		tl.Tasks[i].ID = fmt.Sprintf("%d", i+1)
 		renumberChildren(&tl.Tasks[i])
@@ -272,7 +273,7 @@ func NewTaskList(title string, frontMatter ...*FrontMatter) *TaskList {
 // This method includes front matter if present
 func (tl *TaskList) WriteFile(filePath string) error {
 	// Validate file path
-	if err := validateFilePath(filePath); err != nil {
+	if err := ValidateFilePath(filePath); err != nil {
 		return err
 	}
 
@@ -326,8 +327,8 @@ func (tl *TaskList) WriteFile(filePath string) error {
 	return nil
 }
 
-// validateFilePath ensures the file path is safe and valid
-func validateFilePath(path string) error {
+// ValidateFilePath ensures the file path is safe and valid
+func ValidateFilePath(path string) error {
 	// Check for null bytes and control characters
 	if containsNullByte(path) {
 		return fmt.Errorf("path contains null bytes or control characters")
@@ -425,7 +426,7 @@ func containsNullByte(s string) bool {
 // checkResourceLimits enforces resource limits
 func (tl *TaskList) checkResourceLimits(parentID string) error {
 	// Count total tasks
-	totalTasks := tl.countTotalTasks()
+	totalTasks := tl.CountTotalTasks()
 	if totalTasks >= MaxTaskCount {
 		return fmt.Errorf("maximum task limit of %d reached", MaxTaskCount)
 	}
@@ -441,8 +442,8 @@ func (tl *TaskList) checkResourceLimits(parentID string) error {
 	return nil
 }
 
-// countTotalTasks counts all tasks in the hierarchy
-func (tl *TaskList) countTotalTasks() int {
+// CountTotalTasks counts all tasks in the hierarchy
+func (tl *TaskList) CountTotalTasks() int {
 	count := 0
 	for _, task := range tl.Tasks {
 		count += 1 + countTasksRecursive(&task)
@@ -599,7 +600,7 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 		}
 
 		// Renumber all tasks
-		tl.renumberTasks()
+		tl.RenumberTasks()
 
 		// Get the actual new task ID after renumbering
 		if insertPosition < len(tl.Tasks) {
@@ -643,7 +644,7 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 // WriteFileWithPhases saves the TaskList to a markdown file preserving phase markers
 func WriteFileWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, filePath string) error {
 	// Validate file path
-	if err := validateFilePath(filePath); err != nil {
+	if err := ValidateFilePath(filePath); err != nil {
 		return err
 	}
 

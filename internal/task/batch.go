@@ -589,7 +589,7 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 	}
 
 	// Renumber all tasks
-	tl.renumberTasks()
+	tl.RenumberTasks()
 
 	// Update phase markers to account for the insertion
 	// IMPORTANT: Since we ALWAYS insert at the END of the phase (insertPosition = phaseEndPos),

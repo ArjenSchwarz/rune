@@ -189,7 +189,7 @@ func TestPathTraversalProtection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateFilePath(tt.path)
+			err := ValidateFilePath(tt.path)
 
 			if tt.wantErr {
 				if err == nil {

@@ -485,53 +485,61 @@ func TestResolveFilename(t *testing.T) {
 
 func TestNextCommandHelperFunctions(t *testing.T) {
 	// Test formatStatusMarkdown
-	tests := []struct {
+	tests := map[string]struct {
 		status   task.Status
 		expected string
 	}{
-		{task.Pending, "[ ]"},
-		{task.InProgress, "[-]"},
-		{task.Completed, "[x]"},
+		"pending":     {task.Pending, "[ ]"},
+		"in progress": {task.InProgress, "[-]"},
+		"completed":   {task.Completed, "[x]"},
 	}
 
-	for _, tc := range tests {
-		result := formatStatusMarkdown(tc.status)
-		if result != tc.expected {
-			t.Errorf("formatStatusMarkdown(%v) = %s, want %s", tc.status, result, tc.expected)
-		}
+	for name, tc := range tests {
+		t.Run("formatStatusMarkdown/"+name, func(t *testing.T) {
+			result := formatStatusMarkdown(tc.status)
+			if result != tc.expected {
+				t.Errorf("got %s, want %s", result, tc.expected)
+			}
+		})
 	}
 
 	// Test getTaskLevel
-	levelTests := []struct {
+	levelTests := map[string]struct {
 		id       string
 		expected int
 	}{
-		{"1", 1},
-		{"1.1", 2},
-		{"1.2.3", 3},
-		{"", 0},
+		"root task":  {"1", 1},
+		"child task": {"1.1", 2},
+		"grandchild": {"1.2.3", 3},
+		"empty id":   {"", 0},
 	}
 
-	for _, tc := range levelTests {
-		result := getTaskLevel(tc.id)
-		if result != tc.expected {
-			t.Errorf("getTaskLevel(%s) = %d, want %d", tc.id, result, tc.expected)
-		}
+	for name, tc := range levelTests {
+		t.Run("getTaskLevel/"+name, func(t *testing.T) {
+			result := getTaskLevel(tc.id)
+			if result != tc.expected {
+				t.Errorf("got %d, want %d", result, tc.expected)
+			}
+		})
 	}
 
 	// Test formatStatus
-	for _, tc := range []struct {
+	statusTests := map[string]struct {
 		status   task.Status
 		expected string
 	}{
-		{task.Pending, "Pending"},
-		{task.InProgress, "In Progress"},
-		{task.Completed, "Completed"},
-	} {
-		result := formatStatus(tc.status)
-		if result != tc.expected {
-			t.Errorf("formatStatus(%v) = %s, want %s", tc.status, result, tc.expected)
-		}
+		"pending":     {task.Pending, "Pending"},
+		"in progress": {task.InProgress, "In Progress"},
+		"completed":   {task.Completed, "Completed"},
+	}
+
+	for name, tc := range statusTests {
+		t.Run("formatStatus/"+name, func(t *testing.T) {
+			result := formatStatus(tc.status)
+			if result != tc.expected {
+				t.Errorf("got %s, want %s", result, tc.expected)
+			}
+		})
 	}
 }
 

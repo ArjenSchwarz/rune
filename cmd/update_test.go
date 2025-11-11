@@ -565,36 +565,42 @@ func TestUpdateCmdFlags(t *testing.T) {
 
 func TestFormatFunctions(t *testing.T) {
 	// Test formatDetailsForDisplay
-	tests := []struct {
+	tests := map[string]struct {
 		input    []string
 		expected string
 	}{
-		{[]string{}, "(none)"},
-		{[]string{"detail1"}, "detail1"},
-		{[]string{"detail1", "detail2"}, "detail1, detail2"},
-		{[]string{"detail1", "detail2", "detail3"}, "detail1, detail2, detail3"},
+		"empty slice":   {[]string{}, "(none)"},
+		"single detail": {[]string{"detail1"}, "detail1"},
+		"two details":   {[]string{"detail1", "detail2"}, "detail1, detail2"},
+		"three details": {[]string{"detail1", "detail2", "detail3"}, "detail1, detail2, detail3"},
 	}
 
-	for _, tt := range tests {
-		result := formatDetailsForDisplay(tt.input)
-		if result != tt.expected {
-			t.Fatalf("formatDetailsForDisplay(%v) = %s, expected %s", tt.input, result, tt.expected)
-		}
+	for name, tc := range tests {
+		t.Run("formatDetailsForDisplay/"+name, func(t *testing.T) {
+			result := formatDetailsForDisplay(tc.input)
+			if result != tc.expected {
+				t.Errorf("got %s, want %s", result, tc.expected)
+			}
+		})
 	}
 
 	// Test formatReferencesForDisplay (should behave the same)
-	for _, tt := range tests {
-		result := formatReferencesForDisplay(tt.input)
-		if result != tt.expected {
-			t.Fatalf("formatReferencesForDisplay(%v) = %s, expected %s", tt.input, result, tt.expected)
-		}
+	for name, tc := range tests {
+		t.Run("formatReferencesForDisplay/"+name, func(t *testing.T) {
+			result := formatReferencesForDisplay(tc.input)
+			if result != tc.expected {
+				t.Errorf("got %s, want %s", result, tc.expected)
+			}
+		})
 	}
 
 	// Test formatRequirementsForDisplay (should behave the same)
-	for _, tt := range tests {
-		result := formatRequirementsForDisplay(tt.input)
-		if result != tt.expected {
-			t.Fatalf("formatRequirementsForDisplay(%v) = %s, expected %s", tt.input, result, tt.expected)
-		}
+	for name, tc := range tests {
+		t.Run("formatRequirementsForDisplay/"+name, func(t *testing.T) {
+			result := formatRequirementsForDisplay(tc.input)
+			if result != tc.expected {
+				t.Errorf("got %s, want %s", result, tc.expected)
+			}
+		})
 	}
 }

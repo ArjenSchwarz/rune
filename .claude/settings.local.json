@@ -27,7 +27,11 @@
       "Bash(rune:*)",
       "Bash(echo \"Exit code: $?\")",
       "Read(//Users/arjenschwarz/projects/personal/rune/.claude/scripts/**)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm test:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)"
     ],
     "deny": [],
     "ask": []

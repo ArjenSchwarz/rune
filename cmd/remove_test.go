@@ -409,19 +409,21 @@ func TestCountTaskChildren(t *testing.T) {
 }
 
 func TestStatusToCheckbox(t *testing.T) {
-	tests := []struct {
+	tests := map[string]struct {
 		status   task.Status
 		expected string
 	}{
-		{task.Pending, "[ ]"},
-		{task.InProgress, "[-]"},
-		{task.Completed, "[x]"},
+		"pending":     {task.Pending, "[ ]"},
+		"in progress": {task.InProgress, "[-]"},
+		"completed":   {task.Completed, "[x]"},
 	}
 
-	for _, tt := range tests {
-		result := statusToCheckbox(tt.status)
-		if result != tt.expected {
-			t.Fatalf("statusToCheckbox(%v) = %s, expected %s", tt.status, result, tt.expected)
-		}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := statusToCheckbox(tc.status)
+			if result != tc.expected {
+				t.Errorf("got %s, want %s", result, tc.expected)
+			}
+		})
 	}
 }
