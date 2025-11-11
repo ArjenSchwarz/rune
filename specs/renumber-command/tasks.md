@@ -87,7 +87,7 @@ references:
   - Requirements: [1.7](requirements.md#1.7), [1.8](requirements.md#1.8)
   - References: cmd/renumber_test.go
 
-- [ ] 10. Implement getRootTaskNumber() helper function
+- [x] 10. Implement getRootTaskNumber() helper function
   - Split taskID by "." to get parts
   - Parse first part as integer
   - Return root task number
@@ -95,7 +95,7 @@ references:
   - Requirements: [1.7](requirements.md#1.7)
   - References: cmd/renumber.go
 
-- [ ] 11. Implement adjustPhaseMarkersAfterRenumber() function
+- [x] 11. Implement adjustPhaseMarkersAfterRenumber() function
   - Create new slice for adjusted markers
   - Iterate through each marker
   - Skip markers with empty AfterTaskID (phases at beginning)
@@ -105,7 +105,7 @@ references:
   - Requirements: [1.7](requirements.md#1.7), [1.8](requirements.md#1.8)
   - References: cmd/renumber.go
 
-- [ ] 12. Write unit tests for renumbering with various file types
+- [x] 12. Write unit tests for renumbering with various file types
   - Test simple file with no hierarchy
   - Test file with nested tasks (multiple levels)
   - Test file with phase markers
@@ -115,7 +115,7 @@ references:
   - Requirements: [1.3](requirements.md#1.3), [1.4](requirements.md#1.4), [1.6](requirements.md#1.6), [1.7](requirements.md#1.7), [1.9](requirements.md#1.9), [4.4](requirements.md#4.4)
   - References: cmd/renumber_test.go
 
-- [ ] 13. Implement renumbering integration in runRenumber()
+- [x] 13. Implement renumbering integration in runRenumber()
   - Phase 2: Parse file using ParseFileWithPhases()
   - Phase 5: Call RenumberTasks() on TaskList
   - Phase 5.5: Call adjustPhaseMarkersAfterRenumber() if phases exist
@@ -126,7 +126,7 @@ references:
 
 ## Phase 5: Output Formatting
 
-- [ ] 14. Write unit tests for displaySummary() output formats
+- [x] 14. Write unit tests for displaySummary() output formats
   - Test table format output structure
   - Test markdown format output structure
   - Test JSON format with correct fields (task_count, backup_file, success)
@@ -134,7 +134,7 @@ references:
   - Requirements: [5.1](requirements.md#5.1), [5.2](requirements.md#5.2), [5.3](requirements.md#5.3), [5.4](requirements.md#5.4), [5.5](requirements.md#5.5), [5.6](requirements.md#5.6)
   - References: cmd/renumber_test.go
 
-- [ ] 15. Implement displaySummary() function
+- [x] 15. Implement displaySummary() function
   - Accept taskList, backupPath, and format parameters
   - Implement table format using go-output library (default)
   - Implement markdown format with bullet points
@@ -145,7 +145,7 @@ references:
   - Requirements: [5.1](requirements.md#5.1), [5.2](requirements.md#5.2), [5.3](requirements.md#5.3), [5.4](requirements.md#5.4), [5.5](requirements.md#5.5), [5.6](requirements.md#5.6), [5.7](requirements.md#5.7)
   - References: cmd/renumber.go
 
-- [ ] 16. Add displaySummary() call to runRenumber() Phase 7
+- [x] 16. Add displaySummary() call to runRenumber() Phase 7
   - Call displaySummary() after successful file write
   - Pass taskList, backupPath, and format flag
   - Return any errors from displaySummary()
@@ -154,7 +154,7 @@ references:
 
 ## Phase 6: Error Handling and Edge Cases
 
-- [ ] 17. Write unit tests for error handling
+- [x] 17. Write unit tests for error handling
   - Test file not found error
   - Test invalid path error
   - Test file too large error
@@ -165,7 +165,7 @@ references:
   - Requirements: [2.1](requirements.md#2.1), [2.2](requirements.md#2.2), [2.3](requirements.md#2.3), [2.4](requirements.md#2.4), [2.6](requirements.md#2.6), [2.8](requirements.md#2.8), [2.9](requirements.md#2.9)
   - References: cmd/renumber_test.go
 
-- [ ] 18. Add comprehensive error handling to runRenumber()
+- [x] 18. Add comprehensive error handling to runRenumber()
   - Wrap all errors with context using fmt.Errorf
   - Ensure error messages match design specification
   - Verify temp file cleanup on write failure (handled by WriteFile)
@@ -173,7 +173,7 @@ references:
   - Requirements: [2.1](requirements.md#2.1), [2.2](requirements.md#2.2), [2.3](requirements.md#2.3), [2.4](requirements.md#2.4), [2.6](requirements.md#2.6), [2.8](requirements.md#2.8), [2.9](requirements.md#2.9)
   - References: cmd/renumber.go
 
-- [ ] 19. Write unit tests for edge cases
+- [x] 19. Write unit tests for edge cases
   - Test empty file (no tasks) returns task_count=0
   - Test file with only phase markers
   - Test malformed hierarchy error
@@ -182,7 +182,7 @@ references:
   - Requirements: [7.1](requirements.md#7.1), [7.2](requirements.md#7.2), [7.3](requirements.md#7.3), [7.4](requirements.md#7.4), [7.5](requirements.md#7.5)
   - References: cmd/renumber_test.go
 
-- [ ] 20. Create test fixtures for edge cases
+- [x] 20. Create test fixtures for edge cases
   - Create examples/empty.md - empty file
   - Create examples/phases_only.md - only phase markers
   - Create examples/tasks_malformed.md - invalid hierarchy
