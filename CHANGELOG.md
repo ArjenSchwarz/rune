@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Renumber command unit tests (Phase 2-4)
+  - Unit tests for createBackup() function covering content verification, permission preservation, backup overwriting, and error handling
+  - Unit tests for validation phase covering ValidateFilePath, file size limits, task count limits, and validation order
+  - Unit tests for adjustPhaseMarkersAfterRenumber() covering empty arrays, phases at beginning, phases after root tasks, phases after nested tasks, and multiple phases
+  - Unit tests for getRootTaskNumber() helper function covering all task ID formats
+  - Phase marker adjustment implementation in runRenumber() to update AfterTaskID values after renumbering
+  - Helper functions adjustPhaseMarkersAfterRenumber() and getRootTaskNumber() for phase marker management
+
 - Renumber command (Phase 1: Core Command Structure)
   - `renumber` command to fix task numbering by recalculating all task IDs sequentially
   - Automatic backup creation with .bak extension before renumbering operations

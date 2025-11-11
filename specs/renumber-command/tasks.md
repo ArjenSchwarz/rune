@@ -32,7 +32,7 @@ references:
 
 ## Phase 2: Backup Functionality
 
-- [ ] 4. Write unit tests for createBackup() function
+- [x] 4. Write unit tests for createBackup() function
   - Test backup file creation with correct content
   - Test backup preserves file permissions
   - Test backup overwrites existing .bak files
@@ -40,7 +40,7 @@ references:
   - Requirements: [3.1](requirements.md#3.1), [3.2](requirements.md#3.2), [3.4](requirements.md#3.4)
   - References: cmd/renumber_test.go
 
-- [ ] 5. Implement createBackup() function
+- [x] 5. Implement createBackup() function
   - Accept filePath and fileInfo parameters
   - Read original file content using os.ReadFile()
   - Create backup with .bak extension
@@ -49,7 +49,7 @@ references:
   - Requirements: [3.1](requirements.md#3.1), [3.2](requirements.md#3.2), [3.4](requirements.md#3.4), [3.5](requirements.md#3.5)
   - References: cmd/renumber.go
 
-- [ ] 6. Add backup creation to runRenumber() Phase 4
+- [x] 6. Add backup creation to runRenumber() Phase 4
   - Call createBackup() after successful parsing
   - Pass filePath and fileInfo from Phase 1 validation
   - Return error if backup creation fails
@@ -59,7 +59,7 @@ references:
 
 ## Phase 3: Validation Integration
 
-- [ ] 7. Write unit tests for validation phase
+- [x] 7. Write unit tests for validation phase
   - Test ValidateFilePath rejects invalid paths
   - Test file size validation rejects files > 10MB
   - Test task count validation rejects > 10000 tasks
@@ -67,7 +67,7 @@ references:
   - Requirements: [2.1](requirements.md#2.1), [2.4](requirements.md#2.4), [2.5](requirements.md#2.5), [2.6](requirements.md#2.6)
   - References: cmd/renumber_test.go
 
-- [ ] 8. Implement validation phase in runRenumber()
+- [x] 8. Implement validation phase in runRenumber()
   - Phase 1: Call ValidateFilePath() on input path
   - Phase 1: Get fileInfo with os.Stat() and check file exists
   - Phase 1: Validate file size <= MaxFileSize before parsing
@@ -78,7 +78,7 @@ references:
 
 ## Phase 4: Renumbering and Phase Marker Adjustment
 
-- [ ] 9. Write unit tests for adjustPhaseMarkersAfterRenumber()
+- [x] 9. Write unit tests for adjustPhaseMarkersAfterRenumber()
   - Test with no phase markers (empty array)
   - Test with phase at beginning (AfterTaskID empty)
   - Test with phase after root task (AfterTaskID like "3")

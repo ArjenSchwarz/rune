@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	output "github.com/ArjenSchwarz/go-output/v2"
 	"github.com/arjenschwarz/rune/internal/task"
@@ -68,6 +70,12 @@ func runRenumber(cmd *cobra.Command, args []string) error {
 
 	// Phase 5: Renumber tasks
 	taskList.RenumberTasks()
+
+	// Phase 5.5: Update phase markers to reflect new task IDs
+	// Note: renumberTasks() changes all task IDs, so phase markers need adjustment
+	if len(phaseMarkers) > 0 {
+		phaseMarkers = adjustPhaseMarkersAfterRenumber(phaseMarkers)
+	}
 
 	// Phase 6: Write file (atomic operation)
 	if len(phaseMarkers) > 0 {
@@ -146,4 +154,41 @@ func displaySummary(tl *task.TaskList, backupPath, format string) error {
 
 		return out.Render(context.Background(), doc)
 	}
+}
+
+// adjustPhaseMarkersAfterRenumber updates phase marker AfterTaskID values
+// to reflect the new task IDs after renumbering.
+//
+// Phase markers are positional - they mark boundaries between sections of tasks.
+// After renumbering, tasks maintain their order, so phase positions remain valid.
+// We extract the root task number from each AfterTaskID and reformat it.
+func adjustPhaseMarkersAfterRenumber(markers []task.PhaseMarker) []task.PhaseMarker {
+	adjustedMarkers := make([]task.PhaseMarker, len(markers))
+
+	for i, marker := range markers {
+		adjustedMarkers[i] = marker
+
+		if marker.AfterTaskID == "" {
+			// Phase at beginning - no adjustment needed
+			continue
+		}
+
+		// Get the root task number from the ID
+		// e.g., "3" -> 3, "3.2.1" -> 3 (all reference root task 3)
+		rootTaskNum := getRootTaskNumber(marker.AfterTaskID)
+
+		// After renumbering, root tasks are numbered 1, 2, 3...
+		// So the phase is still after root task N
+		adjustedMarkers[i].AfterTaskID = fmt.Sprintf("%d", rootTaskNum)
+	}
+
+	return adjustedMarkers
+}
+
+// getRootTaskNumber extracts the root task number from a hierarchical ID.
+// Examples: "3" -> 3, "3.2.1" -> 3, "15.4" -> 15
+func getRootTaskNumber(taskID string) int {
+	parts := strings.Split(taskID, ".")
+	num, _ := strconv.Atoi(parts[0])
+	return num
 }
