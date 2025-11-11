@@ -39,32 +39,28 @@ func TestVersionCommand(t *testing.T) {
 		GitCommit = originalGitCommit
 	}()
 
-	tests := []struct {
-		name         string
+	tests := map[string]struct {
 		version      string
 		buildTime    string
 		gitCommit    string
 		outputFormat string
 		contains     []string
 	}{
-		{
-			name:         "default dev version",
+		"default dev version": {
 			version:      "dev",
 			buildTime:    "unknown",
 			gitCommit:    "unknown",
 			outputFormat: "table",
 			contains:     []string{"rune version dev", "Go: go"},
 		},
-		{
-			name:         "specific version with build info",
+		"specific version with build info": {
 			version:      "1.2.3",
 			buildTime:    "2025-01-15T10:30:00Z",
 			gitCommit:    "abc123def456",
 			outputFormat: "table",
 			contains:     []string{"rune version 1.2.3", "Built: 2025-01-15T10:30:00Z", "Commit: abc123def456", "Go: go"},
 		},
-		{
-			name:         "json output",
+		"json output": {
 			version:      "1.2.3",
 			buildTime:    "2025-01-15T10:30:00Z",
 			gitCommit:    "abc123def456",
@@ -73,13 +69,13 @@ func TestVersionCommand(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
 			// Set test values
-			Version = tt.version
-			BuildTime = tt.buildTime
-			GitCommit = tt.gitCommit
-			versionOutputFormat = tt.outputFormat
+			Version = tc.version
+			BuildTime = tc.buildTime
+			GitCommit = tc.gitCommit
+			versionOutputFormat = tc.outputFormat
 
 			// Capture output
 			buf := new(bytes.Buffer)
@@ -91,7 +87,7 @@ func TestVersionCommand(t *testing.T) {
 
 			// Check output contains expected strings
 			output := buf.String()
-			for _, expected := range tt.contains {
+			for _, expected := range tc.contains {
 				if !bytes.Contains([]byte(output), []byte(expected)) {
 					t.Errorf("Expected output to contain %q, got %q", expected, output)
 				}
@@ -111,45 +107,42 @@ func TestGetVersionInfo(t *testing.T) {
 		GitCommit = originalGitCommit
 	}()
 
-	tests := []struct {
-		name      string
+	tests := map[string]struct {
 		version   string
 		buildTime string
 		gitCommit string
 	}{
-		{
-			name:      "dev version",
+		"dev version": {
 			version:   "dev",
 			buildTime: "unknown",
 			gitCommit: "unknown",
 		},
-		{
-			name:      "release version",
+		"release version": {
 			version:   "1.2.3",
 			buildTime: "2025-01-15T10:30:00Z",
 			gitCommit: "abc123def456",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
 			// Set test values
-			Version = tt.version
-			BuildTime = tt.buildTime
-			GitCommit = tt.gitCommit
+			Version = tc.version
+			BuildTime = tc.buildTime
+			GitCommit = tc.gitCommit
 
 			// Get version info
 			info := GetVersionInfo()
 
 			// Verify values
-			if info.Version != tt.version {
-				t.Errorf("Expected version %q, got %q", tt.version, info.Version)
+			if info.Version != tc.version {
+				t.Errorf("Expected version %q, got %q", tc.version, info.Version)
 			}
-			if info.BuildTime != tt.buildTime {
-				t.Errorf("Expected build time %q, got %q", tt.buildTime, info.BuildTime)
+			if info.BuildTime != tc.buildTime {
+				t.Errorf("Expected build time %q, got %q", tc.buildTime, info.BuildTime)
 			}
-			if info.GitCommit != tt.gitCommit {
-				t.Errorf("Expected git commit %q, got %q", tt.gitCommit, info.GitCommit)
+			if info.GitCommit != tc.gitCommit {
+				t.Errorf("Expected git commit %q, got %q", tc.gitCommit, info.GitCommit)
 			}
 			if !strings.HasPrefix(info.GoVersion, "go") {
 				t.Errorf("Expected Go version to start with 'go', got %q", info.GoVersion)
@@ -168,8 +161,7 @@ func TestVersionInjectionAndDefaults(t *testing.T) {
 		GitCommit = originalGitCommit
 	}()
 
-	tests := []struct {
-		name              string
+	tests := map[string]struct {
 		version           string
 		buildTime         string
 		gitCommit         string
@@ -177,8 +169,7 @@ func TestVersionInjectionAndDefaults(t *testing.T) {
 		expectedBuildTime string
 		expectedGitCommit string
 	}{
-		{
-			name:              "empty version defaults to dev",
+		"empty version defaults to dev": {
 			version:           "",
 			buildTime:         "2025-01-15T10:30:00Z",
 			gitCommit:         "abc123def456",
@@ -186,8 +177,7 @@ func TestVersionInjectionAndDefaults(t *testing.T) {
 			expectedBuildTime: "2025-01-15T10:30:00Z",
 			expectedGitCommit: "abc123def456",
 		},
-		{
-			name:              "empty build time defaults to unknown",
+		"empty build time defaults to unknown": {
 			version:           "1.2.3",
 			buildTime:         "",
 			gitCommit:         "abc123def456",
@@ -195,8 +185,7 @@ func TestVersionInjectionAndDefaults(t *testing.T) {
 			expectedBuildTime: "unknown",
 			expectedGitCommit: "abc123def456",
 		},
-		{
-			name:              "empty git commit defaults to unknown",
+		"empty git commit defaults to unknown": {
 			version:           "1.2.3",
 			buildTime:         "2025-01-15T10:30:00Z",
 			gitCommit:         "",
@@ -204,8 +193,7 @@ func TestVersionInjectionAndDefaults(t *testing.T) {
 			expectedBuildTime: "2025-01-15T10:30:00Z",
 			expectedGitCommit: "unknown",
 		},
-		{
-			name:              "all empty values use defaults",
+		"all empty values use defaults": {
 			version:           "",
 			buildTime:         "",
 			gitCommit:         "",
@@ -213,8 +201,7 @@ func TestVersionInjectionAndDefaults(t *testing.T) {
 			expectedBuildTime: "unknown",
 			expectedGitCommit: "unknown",
 		},
-		{
-			name:              "unknown values remain unknown",
+		"unknown values remain unknown": {
 			version:           "1.2.3",
 			buildTime:         "unknown",
 			gitCommit:         "unknown",
@@ -224,25 +211,25 @@ func TestVersionInjectionAndDefaults(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
 			// Set test values
-			Version = tt.version
-			BuildTime = tt.buildTime
-			GitCommit = tt.gitCommit
+			Version = tc.version
+			BuildTime = tc.buildTime
+			GitCommit = tc.gitCommit
 
 			// Get version info
 			info := GetVersionInfo()
 
 			// Verify values
-			if info.Version != tt.expectedVersion {
-				t.Errorf("Expected version %q, got %q", tt.expectedVersion, info.Version)
+			if info.Version != tc.expectedVersion {
+				t.Errorf("Expected version %q, got %q", tc.expectedVersion, info.Version)
 			}
-			if info.BuildTime != tt.expectedBuildTime {
-				t.Errorf("Expected build time %q, got %q", tt.expectedBuildTime, info.BuildTime)
+			if info.BuildTime != tc.expectedBuildTime {
+				t.Errorf("Expected build time %q, got %q", tc.expectedBuildTime, info.BuildTime)
 			}
-			if info.GitCommit != tt.expectedGitCommit {
-				t.Errorf("Expected git commit %q, got %q", tt.expectedGitCommit, info.GitCommit)
+			if info.GitCommit != tc.expectedGitCommit {
+				t.Errorf("Expected git commit %q, got %q", tc.expectedGitCommit, info.GitCommit)
 			}
 		})
 	}
@@ -260,63 +247,63 @@ func TestVersionHelperFunctions(t *testing.T) {
 	}()
 
 	t.Run("getVersionString", func(t *testing.T) {
-		tests := []struct {
+		tests := map[string]struct {
 			input string
 			want  string
 		}{
-			{"", "dev"},
-			{"1.2.3", "1.2.3"},
-			{"dev", "dev"},
+			"empty":   {"", "dev"},
+			"version": {"1.2.3", "1.2.3"},
+			"dev":     {"dev", "dev"},
 		}
 
-		for _, tt := range tests {
-			t.Run(tt.input, func(t *testing.T) {
-				Version = tt.input
+		for name, tc := range tests {
+			t.Run(name, func(t *testing.T) {
+				Version = tc.input
 				got := getVersionString()
-				if got != tt.want {
-					t.Errorf("getVersionString() with input %q: want %q, got %q", tt.input, tt.want, got)
+				if got != tc.want {
+					t.Errorf("got %q, want %q", got, tc.want)
 				}
 			})
 		}
 	})
 
 	t.Run("getBuildTimeString", func(t *testing.T) {
-		tests := []struct {
+		tests := map[string]struct {
 			input string
 			want  string
 		}{
-			{"", "unknown"},
-			{"unknown", "unknown"},
-			{"2025-01-15T10:30:00Z", "2025-01-15T10:30:00Z"},
+			"empty":     {"", "unknown"},
+			"unknown":   {"unknown", "unknown"},
+			"timestamp": {"2025-01-15T10:30:00Z", "2025-01-15T10:30:00Z"},
 		}
 
-		for _, tt := range tests {
-			t.Run(tt.input, func(t *testing.T) {
-				BuildTime = tt.input
+		for name, tc := range tests {
+			t.Run(name, func(t *testing.T) {
+				BuildTime = tc.input
 				got := getBuildTimeString()
-				if got != tt.want {
-					t.Errorf("getBuildTimeString() with input %q: want %q, got %q", tt.input, tt.want, got)
+				if got != tc.want {
+					t.Errorf("got %q, want %q", got, tc.want)
 				}
 			})
 		}
 	})
 
 	t.Run("getGitCommitString", func(t *testing.T) {
-		tests := []struct {
+		tests := map[string]struct {
 			input string
 			want  string
 		}{
-			{"", "unknown"},
-			{"unknown", "unknown"},
-			{"abc123def456", "abc123def456"},
+			"empty":   {"", "unknown"},
+			"unknown": {"unknown", "unknown"},
+			"commit":  {"abc123def456", "abc123def456"},
 		}
 
-		for _, tt := range tests {
-			t.Run(tt.input, func(t *testing.T) {
-				GitCommit = tt.input
+		for name, tc := range tests {
+			t.Run(name, func(t *testing.T) {
+				GitCommit = tc.input
 				got := getGitCommitString()
-				if got != tt.want {
-					t.Errorf("getGitCommitString() with input %q: want %q, got %q", tt.input, tt.want, got)
+				if got != tc.want {
+					t.Errorf("got %q, want %q", got, tc.want)
 				}
 			})
 		}
@@ -340,29 +327,25 @@ func TestVersionCommandIntegration(t *testing.T) {
 	BuildTime = "2025-01-15T10:30:00Z"
 	GitCommit = "abc123def456"
 
-	tests := []struct {
-		name         string
+	tests := map[string]struct {
 		outputFormat string
 		expectError  bool
 		contains     []string
 		notContains  []string
 	}{
-		{
-			name:         "table output format",
+		"table output format": {
 			outputFormat: "table",
 			expectError:  false,
 			contains:     []string{"rune version 1.2.3", "Built: 2025-01-15T10:30:00Z", "Commit: abc123def456", "Go: go"},
 			notContains:  []string{"{", "}", "\"version\""},
 		},
-		{
-			name:         "json output format",
+		"json output format": {
 			outputFormat: "json",
 			expectError:  false,
 			contains:     []string{`"version": "1.2.3"`, `"build_time": "2025-01-15T10:30:00Z"`, `"git_commit": "abc123def456"`, `"go_version": "go`},
 			notContains:  []string{"rune version", "Built:", "Commit:"},
 		},
-		{
-			name:         "default output format",
+		"default output format": {
 			outputFormat: "",
 			expectError:  false,
 			contains:     []string{"rune version 1.2.3", "Built: 2025-01-15T10:30:00Z", "Commit: abc123def456", "Go: go"},
@@ -370,10 +353,10 @@ func TestVersionCommandIntegration(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
 			// Set output format
-			versionOutputFormat = tt.outputFormat
+			versionOutputFormat = tc.outputFormat
 
 			// Capture output
 			buf := new(bytes.Buffer)
@@ -387,14 +370,14 @@ func TestVersionCommandIntegration(t *testing.T) {
 			output := buf.String()
 
 			// Check expected content
-			for _, expected := range tt.contains {
+			for _, expected := range tc.contains {
 				if !strings.Contains(output, expected) {
 					t.Errorf("Expected output to contain %q, got %q", expected, output)
 				}
 			}
 
 			// Check content that should not be present
-			for _, notExpected := range tt.notContains {
+			for _, notExpected := range tc.notContains {
 				if strings.Contains(output, notExpected) {
 					t.Errorf("Expected output to NOT contain %q, got %q", notExpected, output)
 				}

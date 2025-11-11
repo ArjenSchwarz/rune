@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Refactored test suite to follow Go 2025 best practices
+  - Converted all slice-based table tests to map-based table tests for better test isolation and clearer test names
+  - Split monolithic integration_test.go (4,818 lines) into focused test files by feature area
+  - Created integration_helpers_test.go (67 lines) with shared test setup and helper functions
+  - Created integration_batch_test.go (1,349 lines) for batch operations and position insertion tests
+  - Created integration_phase_test.go (921 lines) for phase-related workflow tests
+  - Created integration_renumber_test.go (738 lines) for renumber command integration tests
+  - Created integration_requirements_test.go (416 lines) for requirements workflow tests
+  - Reduced main integration_test.go to 1,527 lines containing core workflow tests
+  - Updated test variable naming from `tt` to `tc` for consistency with Go conventions
+  - Added descriptive test case names in all map-based tests (e.g., "empty slice", "pending", "root task")
+  - Improved test maintainability with logical file groupings and independent test runners per file
 - Simplified renumber command implementation
   - Removed custom `contains()` helper function wrapper, replaced 17 calls with direct `strings.Contains()` usage
   - Removed redundant `len(phaseMarkers) > 0` check before calling `adjustPhaseMarkersAfterRenumber()` as function handles empty slices correctly
