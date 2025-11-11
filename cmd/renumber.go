@@ -108,9 +108,7 @@ func runRenumber(cmd *cobra.Command, args []string) error {
 
 	// Phase 5.5: Update phase markers to reflect new task IDs
 	// Note: renumberTasks() changes all task IDs, so phase markers need adjustment
-	if len(phaseMarkers) > 0 {
-		phaseMarkers = adjustPhaseMarkersAfterRenumber(phaseMarkers)
-	}
+	phaseMarkers = adjustPhaseMarkersAfterRenumber(phaseMarkers)
 
 	// Phase 6: Write file (atomic operation)
 	if len(phaseMarkers) > 0 {

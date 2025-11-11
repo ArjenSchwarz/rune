@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/arjenschwarz/rune/internal/task"
@@ -175,7 +176,7 @@ func TestCreateBackup(t *testing.T) {
 				if err == nil {
 					t.Fatal("Expected error but got none")
 				}
-				if tc.errorContains != "" && !contains(err.Error(), tc.errorContains) {
+				if tc.errorContains != "" && !strings.Contains(err.Error(), tc.errorContains) {
 					t.Errorf("Expected error containing '%s', got: %v", tc.errorContains, err)
 				}
 				return
@@ -202,21 +203,6 @@ func TestCreateBackup(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && len(substr) > 0 && stringContains(s, substr)))
-}
-
-func stringContains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // TestRenumberValidation tests the validation phase of runRenumber
@@ -303,7 +289,7 @@ func TestRenumberValidation(t *testing.T) {
 				if err == nil {
 					t.Fatal("Expected error but got none")
 				}
-				if tc.errorContains != "" && !contains(err.Error(), tc.errorContains) {
+				if tc.errorContains != "" && !strings.Contains(err.Error(), tc.errorContains) {
 					t.Errorf("Expected error containing '%s', got: %v", tc.errorContains, err)
 				}
 			} else {
@@ -346,12 +332,12 @@ func TestRenumberValidationOrder(t *testing.T) {
 		t.Fatal("Expected error but got none")
 	}
 
-	if !contains(err.Error(), "file exceeds 10MB limit") {
+	if !strings.Contains(err.Error(), "file exceeds 10MB limit") {
 		t.Errorf("Expected file size error, got: %v", err)
 	}
 
 	// Verify we did NOT get a parse error (which would indicate wrong order)
-	if contains(err.Error(), "parse") || contains(err.Error(), "invalid") {
+	if strings.Contains(err.Error(), "parse") || strings.Contains(err.Error(), "invalid") {
 		t.Errorf("Got parse error instead of size error, indicating wrong validation order: %v", err)
 	}
 }
@@ -746,25 +732,25 @@ metadata:
 	t.Logf("Result file content:\n%s", resultStr)
 
 	// Check front matter is preserved
-	if !contains(resultStr, "---") {
+	if !strings.Contains(resultStr, "---") {
 		t.Error("YAML front matter delimiters not found")
 	}
-	if !contains(resultStr, "references:") {
+	if !strings.Contains(resultStr, "references:") {
 		t.Error("Front matter references not preserved")
 	}
-	if !contains(resultStr, "requirements.md") {
+	if !strings.Contains(resultStr, "requirements.md") {
 		t.Error("Front matter reference requirements.md not preserved")
 	}
-	if !contains(resultStr, "design.md") {
+	if !strings.Contains(resultStr, "design.md") {
 		t.Error("Front matter reference design.md not preserved")
 	}
-	if !contains(resultStr, "metadata:") {
+	if !strings.Contains(resultStr, "metadata:") {
 		t.Error("Front matter metadata section not preserved")
 	}
-	if !contains(resultStr, "title: Project Tasks") {
+	if !strings.Contains(resultStr, "title: Project Tasks") {
 		t.Error("Front matter metadata title not preserved")
 	}
-	if !contains(resultStr, "created:") || !contains(resultStr, "2024-01-01") {
+	if !strings.Contains(resultStr, "created:") || !strings.Contains(resultStr, "2024-01-01") {
 		t.Error("Front matter metadata created date not preserved")
 	}
 
@@ -960,7 +946,7 @@ func TestRenumberParseError(t *testing.T) {
 				t.Fatal("Expected parse error but got none")
 			}
 
-			if !contains(err.Error(), tc.errorContains) {
+			if !strings.Contains(err.Error(), tc.errorContains) {
 				t.Errorf("Expected error containing '%s', got: %v", tc.errorContains, err)
 			}
 		})
@@ -1005,7 +991,7 @@ func TestRenumberBackupFailure(t *testing.T) {
 		t.Fatal("Expected backup creation error but got none")
 	}
 
-	if !contains(err.Error(), "failed to create backup") {
+	if !strings.Contains(err.Error(), "failed to create backup") {
 		t.Errorf("Expected error containing 'failed to create backup', got: %v", err)
 	}
 }
@@ -1115,7 +1101,7 @@ func TestRenumberEdgeCases(t *testing.T) {
 				if err == nil {
 					t.Fatal("Expected error but got none")
 				}
-				if tc.errorContains != "" && !contains(err.Error(), tc.errorContains) {
+				if tc.errorContains != "" && !strings.Contains(err.Error(), tc.errorContains) {
 					t.Errorf("Expected error containing '%s', got: %v", tc.errorContains, err)
 				}
 			} else {
@@ -1210,7 +1196,7 @@ func TestDisplaySummaryTable(t *testing.T) {
 
 			// Verify expected strings are present
 			for _, expected := range tc.expectedStrings {
-				if !contains(output, expected) {
+				if !strings.Contains(output, expected) {
 					t.Errorf("Expected output to contain '%s', but it was not found. Output:\n%s", expected, output)
 				}
 			}
@@ -1279,7 +1265,7 @@ func TestDisplaySummaryMarkdown(t *testing.T) {
 
 			// Verify expected strings are present
 			for _, expected := range tc.expectedStrings {
-				if !contains(output, expected) {
+				if !strings.Contains(output, expected) {
 					t.Errorf("Expected output to contain '%s', but it was not found. Output:\n%s", expected, output)
 				}
 			}
