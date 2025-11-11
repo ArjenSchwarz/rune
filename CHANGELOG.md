@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Renumber command integration tests and documentation (Phase 7-8)
+  - Integration test for end-to-end renumber workflow validating backup creation, task renumbering, status preservation, and atomic write behavior
+  - Integration test for renumbering with phases verifying phase marker preservation and AfterTaskID updates
+  - Integration test for front matter preservation ensuring YAML headers remain intact during renumbering
+  - Integration test for write failure scenarios confirming original file remains untouched on errors
+  - Integration test for symlink security documenting known ValidateFilePath limitation
+  - Integration test for malformed phase markers handling edge cases gracefully
+  - Integration test for large file handling testing 1000 tasks with 10-level hierarchy depth
+  - README.md documentation for renumber command with usage examples, feature descriptions, and important notes
+  - Enhanced cmd/renumber.go Long description with detailed features, workflow steps, and use cases
+  - All tests passing with documented known issues for pre-existing limitations
+
 - Renumber command comprehensive testing (Phase 5-6)
   - Unit tests for displaySummary() function covering table, markdown, and JSON output formats with stdout capture and validation
   - Unit tests for error handling covering parse errors, backup failures, and validation errors

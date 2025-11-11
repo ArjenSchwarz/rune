@@ -192,7 +192,7 @@ references:
 
 ## Phase 7: Integration Testing
 
-- [ ] 21. Write integration test for end-to-end renumber workflow
+- [x] 21. Write integration test for end-to-end renumber workflow
   - Test complete workflow: validate -> parse -> backup -> renumber -> write
   - Verify backup file is created with correct content
   - Verify original file is updated with renumbered tasks
@@ -201,7 +201,7 @@ references:
   - Requirements: [1.5](requirements.md#1.5), [1.10](requirements.md#1.10), [3.1](requirements.md#3.1), [3.2](requirements.md#3.2)
   - References: cmd/integration_test.go
 
-- [ ] 22. Write integration test for renumbering with phases
+- [x] 22. Write integration test for renumbering with phases
   - Create test file with phase markers
   - Run renumber command
   - Verify phase markers are preserved in correct positions
@@ -210,7 +210,7 @@ references:
   - Requirements: [1.7](requirements.md#1.7), [1.8](requirements.md#1.8), [4.2](requirements.md#4.2)
   - References: cmd/integration_test.go
 
-- [ ] 23. Write integration test for front matter preservation
+- [x] 23. Write integration test for front matter preservation
   - Create test file with YAML front matter
   - Run renumber command
   - Verify front matter is preserved exactly
@@ -218,7 +218,7 @@ references:
   - Requirements: [1.9](requirements.md#1.9)
   - References: cmd/integration_test.go
 
-- [ ] 24. Write integration test for write failure and cleanup
+- [x] 24. Write integration test for write failure and cleanup
   - Simulate write failure scenario
   - Verify original file remains untouched
   - Verify temp file is cleaned up
@@ -226,7 +226,7 @@ references:
   - Requirements: [2.8](requirements.md#2.8), [2.9](requirements.md#2.9)
   - References: cmd/integration_test.go
 
-- [ ] 25. Write integration test for symlink security
+- [x] 25. Write integration test for symlink security
   - Create symlink pointing outside working directory
   - Attempt to renumber via symlink
   - Verify operation is rejected by ValidateFilePath
@@ -234,7 +234,7 @@ references:
   - Requirements: [2.5](requirements.md#2.5)
   - References: cmd/integration_test.go
 
-- [ ] 26. Write integration test for malformed phase markers
+- [x] 26. Write integration test for malformed phase markers
   - Create file with phase marker pointing to non-existent task
   - Run renumber command
   - Verify command handles gracefully
@@ -242,7 +242,7 @@ references:
   - Requirements: [1.7](requirements.md#1.7)
   - References: cmd/integration_test.go
 
-- [ ] 27. Write integration test for large file handling
+- [x] 27. Write integration test for large file handling
   - Create test file near 10MB limit with ~9000 tasks
   - Test renumbering completes successfully
   - Create test file with 10-level hierarchy depth
@@ -252,26 +252,26 @@ references:
 
 ## Phase 8: Code Quality and Documentation
 
-- [ ] 28. Run golangci-lint and fix any issues
+- [x] 28. Run golangci-lint and fix any issues
   - Run make lint on cmd/renumber.go
   - Fix any linting issues
   - Ensure consistent error handling patterns
   - Verify all exported functions have comments
   - References: cmd/renumber.go
 
-- [ ] 29. Run go fmt and ensure consistent formatting
+- [x] 29. Run go fmt and ensure consistent formatting
   - Run make fmt on all modified files
   - Verify formatting matches project standards
   - References: cmd/renumber.go, cmd/renumber_test.go
 
-- [ ] 30. Verify test coverage meets project standards
+- [x] 30. Verify test coverage meets project standards
   - Run make test-coverage
   - Verify line coverage >= 80%
   - Verify all error paths are tested
   - Verify all edge cases are covered
   - References: cmd/renumber_test.go, cmd/integration_test.go
 
-- [ ] 31. Update README.md with renumber command documentation
+- [x] 31. Update README.md with renumber command documentation
   - Add renumber command to command list
   - Add usage example showing basic renumbering
   - Add example showing renumbering with phases
@@ -281,7 +281,7 @@ references:
   - Requirements: [5.3](requirements.md#5.3), [5.4](requirements.md#5.4)
   - References: README.md
 
-- [ ] 32. Add command documentation to cmd/renumber.go Long description
+- [x] 32. Add command documentation to cmd/renumber.go Long description
   - Document automatic backup creation
   - Document hierarchical numbering behavior
   - Document phase marker preservation
@@ -290,13 +290,13 @@ references:
   - Requirements: [1.3](requirements.md#1.3), [1.7](requirements.md#1.7), [1.9](requirements.md#1.9), [3.1](requirements.md#3.1)
   - References: cmd/renumber.go
 
-- [ ] 33. Run full test suite and verify all tests pass
+- [x] 33. Run full test suite and verify all tests pass
   - Run make test for unit tests
   - Run make test-integration for integration tests
   - Verify all tests pass
   - Fix any failing tests
 
-- [ ] 34. Manual testing with real task files
+- [x] 34. Manual testing with real task files
   - Test renumber with examples/simple.md
   - Test renumber with examples/project.md (has phases)
   - Verify output formats (table, json, markdown)

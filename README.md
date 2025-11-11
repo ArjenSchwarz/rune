@@ -199,6 +199,43 @@ rune remove tasks.md 2
 rune remove tasks.md 1.3
 ```
 
+### renumber - Fix Task Numbering
+
+Recalculate all task IDs to create sequential numbering after manually reordering tasks or fixing numbering inconsistencies.
+
+```bash
+rune renumber [file] [options]
+```
+
+**Options:**
+- `--format [table|markdown|json]` - Output format (default: table)
+
+**Examples:**
+```bash
+rune renumber tasks.md
+rune renumber tasks.md --format json
+```
+
+**How it works:**
+- Creates automatic backup with `.bak` extension before making changes
+- Renumbers all tasks sequentially (fills gaps like 1, 2, 5 → 1, 2, 3)
+- Preserves task hierarchy and parent-child relationships
+- Preserves task statuses, details, and references
+- Preserves phase markers and YAML front matter
+- Uses atomic file operations to prevent corruption
+- Displays summary with task count and backup location
+
+**Important Notes:**
+- Requirement links (`[Req 1.1]`) in task details are NOT updated automatically - these must be manually fixed if they reference renumbered tasks
+- The backup file (`.bak`) is always created for safety - review changes and manually delete if not needed
+- If interrupted (Ctrl+C), original file remains intact until atomic write completes
+
+**Use Cases:**
+- After manually reordering tasks in the markdown file
+- Fixing gaps in task numbering (e.g., 1, 2, 5, 7 → 1, 2, 3, 4)
+- Cleaning up task IDs after complex editing operations
+- Standardizing numbering after merging multiple task sources
+
 ### find - Search Tasks
 
 Search for tasks by content, with filtering options.

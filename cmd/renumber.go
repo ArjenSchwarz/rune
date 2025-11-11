@@ -19,11 +19,46 @@ var renumberCmd = &cobra.Command{
 	Long: `Renumber recalculates all task IDs to create sequential numbering.
 
 This command is useful when tasks have been manually reordered and the
-hierarchical IDs need to be recalculated. It:
-- Creates automatic backups (.bak extension)
-- Uses global sequential numbering (1, 2, 3...)
-- Preserves task hierarchy and metadata
-- Preserves phase markers and YAML front matter`,
+hierarchical IDs need to be recalculated.
+
+Features:
+- Creates automatic backups (.bak extension) before making any changes
+- Uses global sequential numbering (1, 2, 3...) across the entire file
+- Preserves task hierarchy and parent-child relationships
+- Preserves task statuses, details, and references
+- Preserves phase markers and YAML front matter
+- Uses atomic file operations to prevent corruption
+
+Usage Examples:
+  # Renumber tasks with default table output
+  rune renumber tasks.md
+
+  # Renumber with JSON output
+  rune renumber tasks.md --format json
+
+  # Renumber file with phases
+  rune renumber project.md --format markdown
+
+How It Works:
+  1. Validates file path and checks resource limits
+  2. Parses the task file and phase markers
+  3. Creates backup file (.bak extension)
+  4. Renumbers all tasks sequentially (fills gaps)
+  5. Updates phase markers to reflect new task IDs
+  6. Writes changes atomically (temp file → rename)
+  7. Displays summary with task count and backup location
+
+Important Notes:
+  - Requirement links in task details are NOT updated automatically
+  - Backup file is always created for safety
+  - If interrupted (Ctrl+C), original file remains intact
+  - Use backup file to restore if needed
+
+Use Cases:
+  - After manually reordering tasks in the file
+  - Fixing gaps in numbering (1, 2, 5 → 1, 2, 3)
+  - Cleaning up IDs after complex editing
+  - Standardizing numbering after merging sources`,
 	Args: cobra.ExactArgs(1),
 	RunE: runRenumber,
 }
