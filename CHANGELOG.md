@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed renumber command phase marker handling for out-of-order tasks
+  - Phase markers now correctly maintain their positional relationship after renumbering
+  - Added `extractTaskIDOrder()` to capture original task IDs from file before parser renumbers them
+  - Converted phase marker adjustment from simple ID-based mapping to position-based tracking
+  - Phase markers now reference task positions in file rather than task IDs, preventing misplacement when tasks are out of order
+  - Replaced `adjustPhaseMarkersAfterRenumber()` with `convertPhaseMarkersToPositions()` and `convertPhasePositionsToMarkers()` for accurate position tracking
+  - Updated unit tests to cover position-based conversion and task ID extraction
+  - All existing integration tests continue to pass
+
 ### Changed
 
 - Refactored test suite to follow Go 2025 best practices

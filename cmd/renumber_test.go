@@ -342,70 +342,72 @@ func TestRenumberValidationOrder(t *testing.T) {
 	}
 }
 
-// TestAdjustPhaseMarkersAfterRenumber tests the adjustPhaseMarkersAfterRenumber function
-func TestAdjustPhaseMarkersAfterRenumber(t *testing.T) {
+// TestConvertPhaseMarkersToPositions tests the phase marker to position conversion
+func TestConvertPhaseMarkersToPositions(t *testing.T) {
 	tests := map[string]struct {
-		inputMarkers    []task.PhaseMarker
-		expectedMarkers []task.PhaseMarker
+		inputMarkers      []task.PhaseMarker
+		fileTaskIDOrder   []string
+		expectedPositions []phasePosition
 	}{
-		"no phase markers (empty array)": {
-			inputMarkers:    []task.PhaseMarker{},
-			expectedMarkers: []task.PhaseMarker{},
+		"empty markers": {
+			inputMarkers:      []task.PhaseMarker{},
+			fileTaskIDOrder:   []string{"1", "2", "3"},
+			expectedPositions: []phasePosition{},
 		},
-		"phase at beginning (empty AfterTaskID)": {
+		"phase at beginning": {
 			inputMarkers: []task.PhaseMarker{
 				{Name: "Phase 1", AfterTaskID: ""},
 			},
-			expectedMarkers: []task.PhaseMarker{
-				{Name: "Phase 1", AfterTaskID: ""},
+			fileTaskIDOrder: []string{"1", "2", "3"},
+			expectedPositions: []phasePosition{
+				{Name: "Phase 1", AfterPosition: -1},
 			},
 		},
-		"phase after root task": {
+		"phase after task in order": {
 			inputMarkers: []task.PhaseMarker{
-				{Name: "Phase 1", AfterTaskID: "3"},
-			},
-			expectedMarkers: []task.PhaseMarker{
-				{Name: "Phase 1", AfterTaskID: "3"},
-			},
-		},
-		"phase after nested task": {
-			inputMarkers: []task.PhaseMarker{
-				{Name: "Phase 1", AfterTaskID: "2.3"},
-			},
-			expectedMarkers: []task.PhaseMarker{
 				{Name: "Phase 1", AfterTaskID: "2"},
 			},
-		},
-		"multiple phases with various depths": {
-			inputMarkers: []task.PhaseMarker{
-				{Name: "Phase 1", AfterTaskID: ""},
-				{Name: "Phase 2", AfterTaskID: "5"},
-				{Name: "Phase 3", AfterTaskID: "7.2.1"},
-				{Name: "Phase 4", AfterTaskID: "10.3"},
+			fileTaskIDOrder: []string{"1", "2", "3"},
+			expectedPositions: []phasePosition{
+				{Name: "Phase 1", AfterPosition: 1}, // Task 2 is at position 1
 			},
-			expectedMarkers: []task.PhaseMarker{
-				{Name: "Phase 1", AfterTaskID: ""},
-				{Name: "Phase 2", AfterTaskID: "5"},
-				{Name: "Phase 3", AfterTaskID: "7"},
-				{Name: "Phase 4", AfterTaskID: "10"},
+		},
+		"phase after out of order task": {
+			inputMarkers: []task.PhaseMarker{
+				{Name: "Phase 1", AfterTaskID: "7"},
+			},
+			fileTaskIDOrder: []string{"1", "2", "6", "7", "3", "4", "5"},
+			expectedPositions: []phasePosition{
+				{Name: "Phase 1", AfterPosition: 3}, // Task 7 is at position 3 in file
+			},
+		},
+		"multiple phases": {
+			inputMarkers: []task.PhaseMarker{
+				{Name: "Phase 1", AfterTaskID: "2"},
+				{Name: "Phase 2", AfterTaskID: "7"},
+			},
+			fileTaskIDOrder: []string{"1", "2", "6", "7", "3", "4", "5"},
+			expectedPositions: []phasePosition{
+				{Name: "Phase 1", AfterPosition: 1}, // Task 2 at position 1
+				{Name: "Phase 2", AfterPosition: 3}, // Task 7 at position 3
 			},
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			result := adjustPhaseMarkersAfterRenumber(tc.inputMarkers)
+			result := convertPhaseMarkersToPositions(tc.inputMarkers, tc.fileTaskIDOrder)
 
-			if len(result) != len(tc.expectedMarkers) {
-				t.Fatalf("Expected %d markers, got %d", len(tc.expectedMarkers), len(result))
+			if len(result) != len(tc.expectedPositions) {
+				t.Fatalf("Expected %d positions, got %d", len(tc.expectedPositions), len(result))
 			}
 
-			for i, expected := range tc.expectedMarkers {
+			for i, expected := range tc.expectedPositions {
 				if result[i].Name != expected.Name {
-					t.Errorf("Marker %d: expected name '%s', got '%s'", i, expected.Name, result[i].Name)
+					t.Errorf("Position %d: expected name '%s', got '%s'", i, expected.Name, result[i].Name)
 				}
-				if result[i].AfterTaskID != expected.AfterTaskID {
-					t.Errorf("Marker %d: expected AfterTaskID '%s', got '%s'", i, expected.AfterTaskID, result[i].AfterTaskID)
+				if result[i].AfterPosition != expected.AfterPosition {
+					t.Errorf("Position %d: expected AfterPosition %d, got %d", i, expected.AfterPosition, result[i].AfterPosition)
 				}
 			}
 		})
@@ -431,43 +433,98 @@ func getChildTaskIDs(tasks []task.Task) []string {
 	return ids
 }
 
-// TestGetRootTaskNumber tests the getRootTaskNumber function
-func TestGetRootTaskNumber(t *testing.T) {
+// TestGetRootTaskID tests the getRootTaskID function
+func TestGetRootTaskID(t *testing.T) {
 	tests := map[string]struct {
 		taskID   string
-		expected int
+		expected string
 	}{
 		"root task": {
 			taskID:   "3",
-			expected: 3,
+			expected: "3",
 		},
 		"first level nested": {
 			taskID:   "5.2",
-			expected: 5,
+			expected: "5",
 		},
 		"deeply nested": {
 			taskID:   "7.2.1",
-			expected: 7,
+			expected: "7",
 		},
 		"very deeply nested": {
 			taskID:   "15.4.3.2.1",
-			expected: 15,
+			expected: "15",
 		},
 		"single digit": {
 			taskID:   "1",
-			expected: 1,
+			expected: "1",
 		},
 		"double digit root": {
 			taskID:   "42",
-			expected: 42,
+			expected: "42",
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			result := getRootTaskNumber(tc.taskID)
+			result := getRootTaskID(tc.taskID)
 			if result != tc.expected {
-				t.Errorf("Expected %d, got %d", tc.expected, result)
+				t.Errorf("Expected %s, got %s", tc.expected, result)
+			}
+		})
+	}
+}
+
+// TestExtractTaskIDOrder tests the extractTaskIDOrder function
+func TestExtractTaskIDOrder(t *testing.T) {
+	tests := map[string]struct {
+		content  string
+		expected []string
+	}{
+		"sequential tasks": {
+			content: `# Test
+- [ ] 1. First
+- [ ] 2. Second
+- [ ] 3. Third`,
+			expected: []string{"1", "2", "3"},
+		},
+		"out of order tasks": {
+			content: `# Test
+- [ ] 1. First
+- [ ] 2. Second
+- [ ] 6. Sixth
+- [ ] 7. Seventh
+- [ ] 3. Third`,
+			expected: []string{"1", "2", "6", "7", "3"},
+		},
+		"tasks with subtasks": {
+			content: `# Test
+- [ ] 1. First
+  - [ ] 1.1. Subtask
+- [ ] 2. Second`,
+			expected: []string{"1", "2"}, // Only root tasks
+		},
+		"mixed with phases": {
+			content: `# Test
+- [ ] 1. First
+## Phase 1
+- [ ] 2. Second`,
+			expected: []string{"1", "2"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := extractTaskIDOrder(tc.content)
+
+			if len(result) != len(tc.expected) {
+				t.Fatalf("Expected %d IDs, got %d", len(tc.expected), len(result))
+			}
+
+			for i, expected := range tc.expected {
+				if result[i] != expected {
+					t.Errorf("Position %d: expected ID '%s', got '%s'", i, expected, result[i])
+				}
 			}
 		})
 	}

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
+	"regexp"
 	"strings"
 
 	output "github.com/ArjenSchwarz/go-output/v2"
@@ -84,7 +84,14 @@ func runRenumber(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("file exceeds 10MB limit")
 	}
 
-	// Phase 2: Parse file
+	// Phase 2: Read file content to extract task IDs in file order (before parsing renumbers them)
+	fileContent, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+	fileTaskIDOrder := extractTaskIDOrder(string(fileContent))
+
+	// Phase 2.5: Parse file (note: parser renumbers tasks automatically)
 	taskList, phaseMarkers, err := task.ParseFileWithPhases(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse task file: %w", err)
@@ -103,12 +110,14 @@ func runRenumber(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
 
-	// Phase 5: Renumber tasks
+	// Phase 5: Convert phase markers from ID-based to position-based using file task order
+	phasePositions := convertPhaseMarkersToPositions(phaseMarkers, fileTaskIDOrder)
+
+	// Phase 5.5: Renumber tasks
 	taskList.RenumberTasks()
 
-	// Phase 5.5: Update phase markers to reflect new task IDs
-	// Note: renumberTasks() changes all task IDs, so phase markers need adjustment
-	phaseMarkers = adjustPhaseMarkersAfterRenumber(phaseMarkers)
+	// Phase 5.75: Convert phase positions back to ID-based using new IDs
+	phaseMarkers = convertPhasePositionsToMarkers(phasePositions, taskList)
 
 	// Phase 6: Write file (atomic operation)
 	if len(phaseMarkers) > 0 {
@@ -189,39 +198,92 @@ func displaySummary(tl *task.TaskList, backupPath, format string) error {
 	}
 }
 
-// adjustPhaseMarkersAfterRenumber updates phase marker AfterTaskID values
-// to reflect the new task IDs after renumbering.
-//
-// Phase markers are positional - they mark boundaries between sections of tasks.
-// After renumbering, tasks maintain their order, so phase positions remain valid.
-// We extract the root task number from each AfterTaskID and reformat it.
-func adjustPhaseMarkersAfterRenumber(markers []task.PhaseMarker) []task.PhaseMarker {
-	adjustedMarkers := make([]task.PhaseMarker, len(markers))
+// phasePosition represents a phase marker by its position in the task list
+// rather than by task ID. This allows phases to maintain their position
+// even when task IDs change during renumbering.
+type phasePosition struct {
+	Name          string
+	AfterPosition int // -1 means before all tasks, 0+ means after task at that index
+}
+
+// extractTaskIDOrder extracts root-level task IDs in the order they appear in the file.
+// This is needed because the parser automatically renumbers tasks, but phase markers
+// reference the original IDs from the file.
+func extractTaskIDOrder(content string) []string {
+	var taskIDs []string
+	lines := strings.Split(content, "\n")
+
+	taskLinePattern := regexp.MustCompile(`^- \[[ \-xX]\] (\d+(?:\.\d+)*)\. `)
+
+	for _, line := range lines {
+		if matches := taskLinePattern.FindStringSubmatch(line); len(matches) >= 2 {
+			taskID := matches[1]
+			// Only track root-level tasks (no dots in ID)
+			if !strings.Contains(taskID, ".") {
+				taskIDs = append(taskIDs, taskID)
+			}
+		}
+	}
+
+	return taskIDs
+}
+
+// convertPhaseMarkersToPositions converts phase markers from ID-based to position-based.
+// Uses fileTaskIDOrder to map original file task IDs to their position in the file.
+func convertPhaseMarkersToPositions(markers []task.PhaseMarker, fileTaskIDOrder []string) []phasePosition {
+	// Build a map from file task ID to position
+	idToPosition := make(map[string]int)
+	for i, id := range fileTaskIDOrder {
+		idToPosition[id] = i
+	}
+
+	positions := make([]phasePosition, len(markers))
 
 	for i, marker := range markers {
-		adjustedMarkers[i] = marker
+		positions[i].Name = marker.Name
 
 		if marker.AfterTaskID == "" {
-			// Phase at beginning - no adjustment needed
+			// Phase at the beginning
+			positions[i].AfterPosition = -1
 			continue
 		}
 
-		// Get the root task number from the ID
-		// e.g., "3" -> 3, "3.2.1" -> 3 (all reference root task 3)
-		rootTaskNum := getRootTaskNumber(marker.AfterTaskID)
-
-		// After renumbering, root tasks are numbered 1, 2, 3...
-		// So the phase is still after root task N
-		adjustedMarkers[i].AfterTaskID = fmt.Sprintf("%d", rootTaskNum)
+		// Look up the position where this task ID appeared in the file
+		if pos, exists := idToPosition[marker.AfterTaskID]; exists {
+			positions[i].AfterPosition = pos
+		} else {
+			// Task ID not found, default to -1 (shouldn't happen with valid files)
+			positions[i].AfterPosition = -1
+		}
 	}
 
-	return adjustedMarkers
+	return positions
 }
 
-// getRootTaskNumber extracts the root task number from a hierarchical ID.
-// Examples: "3" -> 3, "3.2.1" -> 3, "15.4" -> 15
-func getRootTaskNumber(taskID string) int {
+// convertPhasePositionsToMarkers converts position-based phase data back to
+// ID-based phase markers using the renumbered task IDs.
+func convertPhasePositionsToMarkers(positions []phasePosition, tl *task.TaskList) []task.PhaseMarker {
+	markers := make([]task.PhaseMarker, len(positions))
+
+	for i, pos := range positions {
+		markers[i].Name = pos.Name
+
+		if pos.AfterPosition == -1 {
+			// Phase at the beginning
+			markers[i].AfterTaskID = ""
+		} else if pos.AfterPosition < len(tl.Tasks) {
+			// Use the new ID of the task at this position
+			markers[i].AfterTaskID = tl.Tasks[pos.AfterPosition].ID
+		}
+		// If position is out of bounds, leave AfterTaskID empty (shouldn't happen)
+	}
+
+	return markers
+}
+
+// getRootTaskID extracts the root task ID from a hierarchical ID.
+// Examples: "3" -> "3", "3.2.1" -> "3", "15.4" -> "15"
+func getRootTaskID(taskID string) string {
 	parts := strings.Split(taskID, ".")
-	num, _ := strconv.Atoi(parts[0])
-	return num
+	return parts[0]
 }
