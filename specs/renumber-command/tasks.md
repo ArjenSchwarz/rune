@@ -8,7 +8,7 @@ references:
 
 ## Phase 1: Core Command Structure
 
-- [ ] 1. Export private functions from internal/task package
+- [x] 1. Export private functions from internal/task package
   - Export validateFilePath() by capitalizing to ValidateFilePath()
   - Export countTotalTasks() by capitalizing to CountTotalTasks()
   - Export renumberTasks() by capitalizing to RenumberTasks()
@@ -16,7 +16,7 @@ references:
   - Requirements: [1.1](requirements.md#1.1)
   - References: internal/task/operations.go, internal/task/task.go
 
-- [ ] 2. Create renumber command file and cobra command definition
+- [x] 2. Create renumber command file and cobra command definition
   - Create cmd/renumber.go file
   - Define renumberCmd cobra.Command with Use, Short, Long descriptions
   - Set Args to cobra.ExactArgs(1) for single file argument
@@ -24,7 +24,7 @@ references:
   - Requirements: [1.1](requirements.md#1.1)
   - References: cmd/renumber.go
 
-- [ ] 3. Register renumber command with root command
+- [x] 3. Register renumber command with root command
   - Add command registration in cmd/root.go init() function
   - Verify --format flag is inherited from root
   - Requirements: [5.1](requirements.md#5.1), [5.2](requirements.md#5.2)

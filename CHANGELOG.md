@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Renumber command (Phase 1: Core Command Structure)
+  - `renumber` command to fix task numbering by recalculating all task IDs sequentially
+  - Automatic backup creation with .bak extension before renumbering operations
+  - Support for multiple output formats (table, markdown, json) displaying task count, backup file location, and success status
+  - Phase-aware renumbering that preserves phase markers in files
+  - Atomic file write operations using temporary files for data safety
+  - Exported task management functions for command-level access (ValidateFilePath, CountTotalTasks, RenumberTasks)
+  - Resource limit validation (file size, task count) before renumbering
+  - Command registration with cobra framework and integration with global --format flag
+
 - Renumber command specification documentation
   - Requirements document covering renumbering logic, error handling, backup management, output formats, and edge cases
   - Design document with detailed architecture, component interfaces, phase marker adjustment logic, and implementation plan
