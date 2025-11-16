@@ -30,6 +30,8 @@ The script recognizes two types of specifications:
 
 ### Usage
 
+#### Single Project Mode
+
 ```bash
 # Basic usage (scans specs/ and .kiro/specs/ by default)
 ./scripts/specs-overview.py
@@ -53,10 +55,34 @@ The script recognizes two types of specifications:
 ./scripts/specs-overview.py --rune /usr/local/bin/rune
 ```
 
+#### Multi-Project Mode
+
+Scan multiple projects in a workspace directory:
+
+```bash
+# Scan all projects in ~/workspace
+# Each subdirectory is treated as a project
+./scripts/specs-overview.py --project-dirs ~/workspace
+
+# Scan multiple workspace directories
+./scripts/specs-overview.py --project-dirs ~/workspace ~/other-projects
+
+# Use custom spec directory names within each project
+./scripts/specs-overview.py --project-dirs ~/workspace --dirs specs .specs
+
+# Combine with other options
+./scripts/specs-overview.py --project-dirs ~/workspace \
+  --format markdown \
+  --sort completion --reverse \
+  --rune /usr/local/bin/rune
+```
+
 ### Options
 
 ```
 --dirs [DIR...]         Directories to scan for specs (default: specs .kiro/specs)
+--project-dirs [DIR...] Directories containing multiple projects. Each subdirectory
+                        will be treated as a separate project and scanned for --dirs
 --rune PATH             Path to rune binary (default: ./rune)
 --format {table,markdown,json}
                         Output format (default: table)
@@ -69,6 +95,7 @@ The script recognizes two types of specifications:
 
 #### Table Output (default)
 
+**Single Project:**
 ```
 Spec                             Type        Created       Status        Total   Done  Remaining      %
 =====================================================================================================
@@ -78,8 +105,20 @@ github-action                    full        2025-11-07    ⚠ In Progress    15
 batch-operations-simplification  full        2024-11-05    ○ Pending        20      0         20    0.0%
 ```
 
+**Multi-Project:**
+```
+Project/Spec                     Type        Created       Status        Total   Done  Remaining      %
+=====================================================================================================
+rune/initial-version             full        2024-10-15    ✓ Complete      100    100          0  100.0%
+rune/github-action               full        2025-11-07    ⚠ In Progress    15     12          3   80.0%
+my-app/authentication            full        2024-09-20    ✓ Complete       42     42          0  100.0%
+my-app/payment-integration       smolspec    2024-10-01    ⚠ In Progress    18     10          8   55.6%
+another-project/api-redesign     full        2024-11-10    ○ Pending        30      0         30    0.0%
+```
+
 #### Markdown Output
 
+**Single Project:**
 ```
 | Spec | Type | Created | Status | Total | Done | Remaining | % |
 |------|------|---------|--------|------:|-----:|----------:|--:|
@@ -88,8 +127,18 @@ batch-operations-simplification  full        2024-11-05    ○ Pending        20
 | github-action | full | 2025-11-07 | ⚠ In Progress | 15 | 12 | 3 | 80.0% |
 ```
 
+**Multi-Project:**
+```
+| Project | Spec | Type | Created | Status | Total | Done | Remaining | % |
+|---------|------|------|---------|--------|------:|-----:|----------:|--:|
+| rune | initial-version | full | 2024-10-15 | ✓ Complete | 100 | 100 | 0 | 100.0% |
+| rune | github-action | full | 2025-11-07 | ⚠ In Progress | 15 | 12 | 3 | 80.0% |
+| my-app | authentication | full | 2024-09-20 | ✓ Complete | 42 | 42 | 0 | 100.0% |
+```
+
 #### JSON Output
 
+**Single Project:**
 ```json
 [
   {
@@ -109,6 +158,72 @@ batch-operations-simplification  full        2024-11-05    ○ Pending        20
   }
 ]
 ```
+
+**Multi-Project:**
+```json
+[
+  {
+    "name": "initial-version",
+    "path": "/path/to/rune/specs/initial-version",
+    "type": "full",
+    "created": "2024-10-15T10:30:00+11:00",
+    "status": "Complete",
+    "stats": {
+      "total": 100,
+      "pending": 0,
+      "in_progress": 0,
+      "completed": 100,
+      "remaining": 0
+    },
+    "completion_pct": 100.0,
+    "project": "rune"
+  },
+  {
+    "name": "authentication",
+    "path": "/path/to/my-app/specs/authentication",
+    "type": "full",
+    "created": "2024-09-20T14:20:00+11:00",
+    "status": "Complete",
+    "stats": {
+      "total": 42,
+      "pending": 0,
+      "in_progress": 0,
+      "completed": 42,
+      "remaining": 0
+    },
+    "completion_pct": 100.0,
+    "project": "my-app"
+  }
+]
+```
+
+### Multi-Project Scanning
+
+When using the `--project-dirs` flag, the script operates in multi-project mode:
+
+1. **Discovery**: For each directory in `--project-dirs`, the script lists all immediate subdirectories
+2. **Filtering**: Skips hidden directories (starting with `.`) and common non-project dirs (`node_modules`, `venv`, `__pycache__`)
+3. **Scanning**: Within each project directory, looks for the spec directories specified by `--dirs`
+4. **Labeling**: Tags each spec with its project name for easy identification
+
+This allows you to maintain a workspace with multiple projects and get an aggregated view:
+
+```
+~/workspace/
+  ├── rune/
+  │   └── specs/
+  │       ├── initial-version/tasks.md
+  │       └── github-action/tasks.md
+  ├── my-app/
+  │   └── specs/
+  │       ├── authentication/tasks.md
+  │       └── payment-integration/tasks.md
+  └── another-project/
+      └── .kiro/specs/
+          └── api-redesign/tasks.md
+```
+
+Running `./scripts/specs-overview.py --project-dirs ~/workspace` will find and aggregate all specs across all three projects.
 
 ### Requirements
 
