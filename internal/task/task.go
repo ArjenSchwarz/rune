@@ -149,3 +149,38 @@ type TaskList struct {
 	RequirementsFile string `json:"requirements_file,omitempty"`
 	Modified         time.Time
 }
+
+// Stats represents aggregate statistics for a task list
+type Stats struct {
+	Total      int `json:"Total"`
+	Pending    int `json:"Pending"`
+	InProgress int `json:"InProgress"`
+	Completed  int `json:"Completed"`
+}
+
+// CalculateStats computes aggregate statistics for all tasks in the list
+func (tl *TaskList) CalculateStats() Stats {
+	stats := Stats{}
+
+	var countTasks func(tasks []Task)
+	countTasks = func(tasks []Task) {
+		for _, t := range tasks {
+			stats.Total++
+			switch t.Status {
+			case Pending:
+				stats.Pending++
+			case InProgress:
+				stats.InProgress++
+			case Completed:
+				stats.Completed++
+			}
+			// Recursively count children
+			if len(t.Children) > 0 {
+				countTasks(t.Children)
+			}
+		}
+	}
+
+	countTasks(tl.Tasks)
+	return stats
+}
