@@ -6,6 +6,30 @@ import (
 	"strings"
 )
 
+// TaskListJSON represents a TaskList with statistics for JSON output
+type TaskListJSON struct {
+	Title            string       `json:"title"`
+	Tasks            []Task       `json:"tasks"`
+	Stats            Stats        `json:"stats"`
+	FrontMatter      *FrontMatter `json:"front_matter,omitempty"`
+	RequirementsFile string       `json:"requirements_file,omitempty"`
+}
+
+// TaskListJSONWithPhases represents a TaskList with phases and statistics for JSON output
+type TaskListJSONWithPhases struct {
+	Title        string          `json:"title"`
+	Tasks        []TaskWithPhase `json:"tasks"`
+	Stats        Stats           `json:"stats"`
+	FrontMatter  *FrontMatter    `json:"front_matter,omitempty"`
+	PhaseMarkers []PhaseMarker   `json:"phase_markers,omitempty"`
+}
+
+// TaskWithPhase represents a task with its phase information
+type TaskWithPhase struct {
+	*Task
+	Phase string `json:"phase,omitempty"`
+}
+
 // RenderMarkdown converts a TaskList to markdown format with consistent formatting
 // Note: This does NOT include front matter - that's handled by WriteFile
 func RenderMarkdown(tl *TaskList) []byte {
@@ -202,34 +226,13 @@ func GetTaskPhase(tl *TaskList, phaseMarkers []PhaseMarker, taskID string) strin
 
 // RenderJSONWithPhases converts a TaskList to JSON format with phase information
 func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
-	// Create a wrapper struct that includes phase information
-	type TaskWithPhase struct {
-		*Task
-		Phase string `json:"phase,omitempty"`
-	}
-
-	type TaskListWithPhases struct {
-		Title        string          `json:"title"`
-		Tasks        []TaskWithPhase `json:"tasks"`
-		Stats        Stats           `json:"stats"`
-		FrontMatter  *FrontMatter    `json:"front_matter,omitempty"`
-		PhaseMarkers []PhaseMarker   `json:"phase_markers,omitempty"`
-	}
-
 	// Calculate statistics
 	stats := tl.CalculateStats()
 
 	// Only include phase information if phases exist
 	if len(phaseMarkers) == 0 {
 		// No phases, use regular JSON rendering with stats
-		type TaskListWithStats struct {
-			Title            string       `json:"title"`
-			Tasks            []Task       `json:"tasks"`
-			Stats            Stats        `json:"stats"`
-			FrontMatter      *FrontMatter `json:"front_matter,omitempty"`
-			RequirementsFile string       `json:"requirements_file,omitempty"`
-		}
-		result := TaskListWithStats{
+		result := TaskListJSON{
 			Title:            tl.Title,
 			Tasks:            tl.Tasks,
 			Stats:            stats,
@@ -250,7 +253,7 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 		})
 	}
 
-	result := TaskListWithPhases{
+	result := TaskListJSONWithPhases{
 		Title:        tl.Title,
 		Tasks:        tasksWithPhases,
 		Stats:        stats,
@@ -264,17 +267,8 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 
 // RenderJSON converts a TaskList to indented JSON format
 func RenderJSON(tl *TaskList) ([]byte, error) {
-	// Create wrapper struct that includes stats
-	type TaskListWithStats struct {
-		Title            string       `json:"title"`
-		Tasks            []Task       `json:"tasks"`
-		Stats            Stats        `json:"stats"`
-		FrontMatter      *FrontMatter `json:"front_matter,omitempty"`
-		RequirementsFile string       `json:"requirements_file,omitempty"`
-	}
-
 	stats := tl.CalculateStats()
-	result := TaskListWithStats{
+	result := TaskListJSON{
 		Title:            tl.Title,
 		Tasks:            tl.Tasks,
 		Stats:            stats,
