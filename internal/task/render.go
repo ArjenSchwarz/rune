@@ -211,14 +211,32 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 	type TaskListWithPhases struct {
 		Title        string          `json:"title"`
 		Tasks        []TaskWithPhase `json:"tasks"`
+		Stats        Stats           `json:"stats"`
 		FrontMatter  *FrontMatter    `json:"front_matter,omitempty"`
 		PhaseMarkers []PhaseMarker   `json:"phase_markers,omitempty"`
 	}
 
+	// Calculate statistics
+	stats := tl.CalculateStats()
+
 	// Only include phase information if phases exist
 	if len(phaseMarkers) == 0 {
-		// No phases, use regular JSON rendering
-		data, _ := json.MarshalIndent(tl, "", "  ")
+		// No phases, use regular JSON rendering with stats
+		type TaskListWithStats struct {
+			Title            string       `json:"title"`
+			Tasks            []Task       `json:"tasks"`
+			Stats            Stats        `json:"stats"`
+			FrontMatter      *FrontMatter `json:"front_matter,omitempty"`
+			RequirementsFile string       `json:"requirements_file,omitempty"`
+		}
+		result := TaskListWithStats{
+			Title:            tl.Title,
+			Tasks:            tl.Tasks,
+			Stats:            stats,
+			FrontMatter:      tl.FrontMatter,
+			RequirementsFile: tl.RequirementsFile,
+		}
+		data, _ := json.MarshalIndent(result, "", "  ")
 		return data
 	}
 
@@ -235,6 +253,7 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 	result := TaskListWithPhases{
 		Title:        tl.Title,
 		Tasks:        tasksWithPhases,
+		Stats:        stats,
 		FrontMatter:  tl.FrontMatter,
 		PhaseMarkers: phaseMarkers,
 	}
@@ -245,7 +264,25 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 
 // RenderJSON converts a TaskList to indented JSON format
 func RenderJSON(tl *TaskList) ([]byte, error) {
-	return json.MarshalIndent(tl, "", "  ")
+	// Create wrapper struct that includes stats
+	type TaskListWithStats struct {
+		Title            string       `json:"title"`
+		Tasks            []Task       `json:"tasks"`
+		Stats            Stats        `json:"stats"`
+		FrontMatter      *FrontMatter `json:"front_matter,omitempty"`
+		RequirementsFile string       `json:"requirements_file,omitempty"`
+	}
+
+	stats := tl.CalculateStats()
+	result := TaskListWithStats{
+		Title:            tl.Title,
+		Tasks:            tl.Tasks,
+		Stats:            stats,
+		FrontMatter:      tl.FrontMatter,
+		RequirementsFile: tl.RequirementsFile,
+	}
+
+	return json.MarshalIndent(result, "", "  ")
 }
 
 // FormatTaskListReferences formats TaskList-level references for display in table output
