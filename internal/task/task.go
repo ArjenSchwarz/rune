@@ -152,10 +152,10 @@ type TaskList struct {
 
 // Stats represents aggregate statistics for a task list
 type Stats struct {
-	Total      int `json:"total"`
-	Pending    int `json:"pending"`
-	InProgress int `json:"in_progress"`
-	Completed  int `json:"completed"`
+	Total      int `json:"Total"`
+	Pending    int `json:"Pending"`
+	InProgress int `json:"InProgress"`
+	Completed  int `json:"Completed"`
 }
 
 // CalculateStats computes aggregate statistics for all tasks in the list

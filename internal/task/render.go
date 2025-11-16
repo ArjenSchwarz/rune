@@ -8,26 +8,26 @@ import (
 
 // TaskListJSON represents a TaskList with statistics for JSON output
 type TaskListJSON struct {
-	Title            string       `json:"title"`
-	Tasks            []Task       `json:"tasks"`
-	Stats            Stats        `json:"stats"`
-	FrontMatter      *FrontMatter `json:"front_matter,omitempty"`
+	Title            string       `json:"Title"`
+	Tasks            []Task       `json:"Tasks"`
+	Stats            Stats        `json:"Stats"`
+	FrontMatter      *FrontMatter `json:"FrontMatter,omitempty"`
 	RequirementsFile string       `json:"requirements_file,omitempty"`
 }
 
 // TaskListJSONWithPhases represents a TaskList with phases and statistics for JSON output
 type TaskListJSONWithPhases struct {
-	Title        string          `json:"title"`
-	Tasks        []TaskWithPhase `json:"tasks"`
-	Stats        Stats           `json:"stats"`
-	FrontMatter  *FrontMatter    `json:"front_matter,omitempty"`
-	PhaseMarkers []PhaseMarker   `json:"phase_markers,omitempty"`
+	Title        string          `json:"Title"`
+	Tasks        []TaskWithPhase `json:"Tasks"`
+	Stats        Stats           `json:"Stats"`
+	FrontMatter  *FrontMatter    `json:"FrontMatter,omitempty"`
+	PhaseMarkers []PhaseMarker   `json:"PhaseMarkers,omitempty"`
 }
 
 // TaskWithPhase represents a task with its phase information
 type TaskWithPhase struct {
 	*Task
-	Phase string `json:"phase,omitempty"`
+	Phase string `json:"Phase,omitempty"`
 }
 
 // RenderMarkdown converts a TaskList to markdown format with consistent formatting
