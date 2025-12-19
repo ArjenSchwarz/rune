@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -12,6 +11,13 @@ import (
 	"github.com/arjenschwarz/rune/internal/task"
 	"github.com/spf13/cobra"
 )
+
+// RenumberResponse represents the JSON output for the renumber command.
+type RenumberResponse struct {
+	Success    bool   `json:"success"`
+	TaskCount  int    `json:"task_count"`
+	BackupFile string `json:"backup_file"`
+}
 
 var renumberCmd = &cobra.Command{
 	Use:   "renumber [file]",
@@ -158,14 +164,11 @@ func displaySummary(tl *task.TaskList, backupPath, format string) error {
 
 	switch format {
 	case formatJSON:
-		data := map[string]any{
-			"task_count":  totalTasks,
-			"backup_file": backupPath,
-			"success":     true,
-		}
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		return encoder.Encode(data)
+		return outputJSON(RenumberResponse{
+			Success:    true,
+			TaskCount:  totalTasks,
+			BackupFile: backupPath,
+		})
 
 	case formatMarkdown:
 		fmt.Println("# Renumbering Summary")

@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `outputMessage` function for plain text messages
   - `verboseStderr` function to write verbose output to stderr when JSON format is used
 
+### Changed
+
+- **Renumber Command**: Refactored JSON output to use typed `RenumberResponse` struct for consistency with other commands
+- **has-phases Command**: Updated help text to document that the command only outputs JSON and ignores the `--format` flag
+
 ### Removed
 
 - Unused `outputJSON` function from list command (replaced by `outputJSONWithPhases`)
