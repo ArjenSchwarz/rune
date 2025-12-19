@@ -104,6 +104,9 @@ def get_creation_date(spec_dir: Path) -> Optional[datetime]:
     tasks_file = spec_dir / "tasks.md"
 
     try:
+        # Use absolute path to ensure git command works correctly
+        abs_tasks_file = tasks_file.absolute()
+
         result = subprocess.run(
             [
                 "git",
@@ -112,9 +115,9 @@ def get_creation_date(spec_dir: Path) -> Optional[datetime]:
                 "--format=%aI",
                 "--reverse",
                 "--",
-                str(tasks_file),
+                str(abs_tasks_file),
             ],
-            cwd=spec_dir.parent,
+            cwd=str(abs_tasks_file.parent.parent),  # Parent of parent to get repo root
             capture_output=True,
             text=True,
             check=False,
@@ -132,12 +135,12 @@ def get_creation_date(spec_dir: Path) -> Optional[datetime]:
 
 
 def get_task_stats(spec_dir: Path, rune_path: str) -> dict:
-    """Get task statistics using rune list --output json."""
+    """Get task statistics using rune list --format json."""
     tasks_file = spec_dir / "tasks.md"
 
     try:
         result = subprocess.run(
-            [rune_path, "list", str(tasks_file), "--output", "json"],
+            [rune_path, "list", str(tasks_file), "--format", "json"],
             capture_output=True,
             text=True,
             check=False,
@@ -145,7 +148,14 @@ def get_task_stats(spec_dir: Path, rune_path: str) -> dict:
 
         if result.returncode == 0:
             data = json.loads(result.stdout)
-            return data.get("stats", {})
+            stats = data.get("Stats", {})
+            # Convert capitalized field names to lowercase for consistency
+            return {
+                "total": stats.get("Total", 0),
+                "pending": stats.get("Pending", 0),
+                "in_progress": stats.get("InProgress", 0),
+                "completed": stats.get("Completed", 0),
+            }
 
     except Exception as e:
         print(f"Warning: Failed to get stats for {spec_dir}: {e}", file=sys.stderr)
@@ -243,7 +253,8 @@ def scan_multi_project(project_dirs: List[str], spec_dirs: List[str], rune_path:
 def sort_specs(specs: List[SpecInfo], sort_by: str, reverse: bool = False) -> List[SpecInfo]:
     """Sort specs by the specified field."""
     if sort_by == "name":
-        return sorted(specs, key=lambda s: s.name, reverse=reverse)
+        # Sort by project name first (if present), then by spec name
+        return sorted(specs, key=lambda s: (s.project or "", s.name), reverse=reverse)
     elif sort_by == "date":
         return sorted(
             specs,
@@ -384,8 +395,8 @@ def main():
     )
     parser.add_argument(
         "--rune",
-        default="./rune",
-        help="Path to rune binary (default: ./rune)",
+        default="rune",
+        help="Path to rune binary (default: rune from PATH)",
     )
     parser.add_argument(
         "--format",
