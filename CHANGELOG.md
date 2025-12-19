@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Format-Specific Integration Tests**: End-to-end tests for consistent output format feature
+  - Mutation commands JSON format tests (complete, uncomplete, progress, add, remove, update)
+  - Create command JSON format tests with references and metadata
+  - Empty state JSON format tests (next all-complete, list empty, find no-matches)
+  - Verbose + JSON stderr separation tests to verify verbose output goes to stderr
+
 - **Format Utilities**: Shared utility functions for consistent output format handling
   - `outputJSON` function for standardized JSON output to stdout
   - `outputMarkdownMessage` function for markdown blockquote messages
