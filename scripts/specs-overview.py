@@ -99,6 +99,23 @@ def detect_spec_type(spec_dir: Path) -> str:
         return "unknown"
 
 
+def get_git_root(path: Path) -> Optional[Path]:
+    """Get the git repository root for a given path."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(path),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return Path(result.stdout.strip())
+    except Exception:
+        pass
+    return None
+
+
 def get_creation_date(spec_dir: Path) -> Optional[datetime]:
     """Get creation date from git history."""
     tasks_file = spec_dir / "tasks.md"
@@ -106,6 +123,11 @@ def get_creation_date(spec_dir: Path) -> Optional[datetime]:
     try:
         # Use absolute path to ensure git command works correctly
         abs_tasks_file = tasks_file.absolute()
+
+        # Get the git repository root
+        git_root = get_git_root(spec_dir)
+        if git_root is None:
+            return None
 
         result = subprocess.run(
             [
@@ -117,7 +139,7 @@ def get_creation_date(spec_dir: Path) -> Optional[datetime]:
                 "--",
                 str(abs_tasks_file),
             ],
-            cwd=str(abs_tasks_file.parent.parent),  # Parent of parent to get repo root
+            cwd=str(git_root),
             capture_output=True,
             text=True,
             check=False,
