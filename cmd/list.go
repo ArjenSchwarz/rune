@@ -230,15 +230,6 @@ func outputTable(taskList *task.TaskList, taskData []map[string]any) error {
 	return out.Render(context.Background(), doc)
 }
 
-func outputJSON(taskList *task.TaskList) error {
-	jsonOutput, err := task.RenderJSON(taskList)
-	if err != nil {
-		return fmt.Errorf("failed to render JSON: %w", err)
-	}
-	fmt.Print(string(jsonOutput))
-	return nil
-}
-
 func outputMarkdown(taskList *task.TaskList) error {
 	var buf strings.Builder
 

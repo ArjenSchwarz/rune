@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Format Utilities**: Shared utility functions for consistent output format handling
+  - `outputJSON` function for standardized JSON output to stdout
+  - `outputMarkdownMessage` function for markdown blockquote messages
+  - `outputMessage` function for plain text messages
+  - `verboseStderr` function to write verbose output to stderr when JSON format is used
+
+### Removed
+
+- Unused `outputJSON` function from list command (replaced by `outputJSONWithPhases`)
+
 ## [1.1.0] - 2025-11-12
 
 ### Added
