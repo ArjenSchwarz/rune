@@ -49,7 +49,7 @@ func runList(cmd *cobra.Command, args []string) error {
 	}
 
 	if verbose {
-		fmt.Printf("Using task file: %s\n", filename)
+		verboseStderr("Using task file: %s", filename)
 	}
 
 	// Parse the task file with phase information
@@ -59,16 +59,16 @@ func runList(cmd *cobra.Command, args []string) error {
 	}
 
 	if verbose {
-		fmt.Printf("Title: %s\n", taskList.Title)
-		fmt.Printf("Total tasks: %d\n", countAllTasks(taskList.Tasks))
+		verboseStderr("Title: %s", taskList.Title)
+		verboseStderr("Total tasks: %d", countAllTasks(taskList.Tasks))
 		if len(phaseMarkers) > 0 {
-			fmt.Printf("Phases found: %d\n", len(phaseMarkers))
+			verboseStderr("Phases found: %d", len(phaseMarkers))
 
 			// Check for duplicate phase names
 			duplicates := findDuplicatePhases(phaseMarkers)
 			if len(duplicates) > 0 {
-				fmt.Printf("⚠️  Warning: Duplicate phase names detected: %v\n", duplicates)
-				fmt.Printf("   Operations on these phases will use the first occurrence.\n")
+				verboseStderr("⚠️  Warning: Duplicate phase names detected: %v", duplicates)
+				verboseStderr("   Operations on these phases will use the first occurrence.")
 			}
 		}
 	}
@@ -77,12 +77,13 @@ func runList(cmd *cobra.Command, args []string) error {
 	taskData := flattenTasksWithPhases(taskList, phaseMarkers, listFilter)
 
 	if len(taskData) == 0 {
+		var message string
 		if listFilter != "" {
-			fmt.Printf("No tasks found matching filter: %s\n", listFilter)
+			message = fmt.Sprintf("No tasks found matching filter: %s", listFilter)
 		} else {
-			fmt.Printf("No tasks found in file: %s\n", filename)
+			message = fmt.Sprintf("No tasks found in file: %s", filename)
 		}
-		return nil
+		return outputListEmpty(message)
 	}
 
 	// Create output document based on format
@@ -375,4 +376,31 @@ func outputMarkdownWithPhases(taskList *task.TaskList, phaseMarkers []task.Phase
 
 	fmt.Print(buf.String())
 	return nil
+}
+
+// ListEmptyResponse is the JSON response structure when no tasks are found.
+type ListEmptyResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Count   int    `json:"count"`
+	Data    []any  `json:"data"`
+}
+
+// outputListEmpty handles format-aware output when no tasks are found.
+func outputListEmpty(message string) error {
+	switch format {
+	case formatJSON:
+		return outputJSON(ListEmptyResponse{
+			Success: true,
+			Message: message,
+			Count:   0,
+			Data:    []any{},
+		})
+	case formatMarkdown:
+		outputMarkdownMessage(message)
+		return nil
+	default:
+		outputMessage(message)
+		return nil
+	}
 }
