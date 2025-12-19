@@ -6,6 +6,30 @@ import (
 	"strings"
 )
 
+// TaskListJSON represents a TaskList with statistics for JSON output
+type TaskListJSON struct {
+	Title            string       `json:"Title"`
+	Tasks            []Task       `json:"Tasks"`
+	Stats            Stats        `json:"Stats"`
+	FrontMatter      *FrontMatter `json:"FrontMatter,omitempty"`
+	RequirementsFile string       `json:"requirements_file,omitempty"`
+}
+
+// TaskListJSONWithPhases represents a TaskList with phases and statistics for JSON output
+type TaskListJSONWithPhases struct {
+	Title        string          `json:"Title"`
+	Tasks        []TaskWithPhase `json:"Tasks"`
+	Stats        Stats           `json:"Stats"`
+	FrontMatter  *FrontMatter    `json:"FrontMatter,omitempty"`
+	PhaseMarkers []PhaseMarker   `json:"PhaseMarkers,omitempty"`
+}
+
+// TaskWithPhase represents a task with its phase information
+type TaskWithPhase struct {
+	*Task
+	Phase string `json:"Phase,omitempty"`
+}
+
 // RenderMarkdown converts a TaskList to markdown format with consistent formatting
 // Note: This does NOT include front matter - that's handled by WriteFile
 func RenderMarkdown(tl *TaskList) []byte {
@@ -202,23 +226,20 @@ func GetTaskPhase(tl *TaskList, phaseMarkers []PhaseMarker, taskID string) strin
 
 // RenderJSONWithPhases converts a TaskList to JSON format with phase information
 func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
-	// Create a wrapper struct that includes phase information
-	type TaskWithPhase struct {
-		*Task
-		Phase string `json:"phase,omitempty"`
-	}
-
-	type TaskListWithPhases struct {
-		Title        string          `json:"title"`
-		Tasks        []TaskWithPhase `json:"tasks"`
-		FrontMatter  *FrontMatter    `json:"front_matter,omitempty"`
-		PhaseMarkers []PhaseMarker   `json:"phase_markers,omitempty"`
-	}
+	// Calculate statistics
+	stats := tl.CalculateStats()
 
 	// Only include phase information if phases exist
 	if len(phaseMarkers) == 0 {
-		// No phases, use regular JSON rendering
-		data, _ := json.MarshalIndent(tl, "", "  ")
+		// No phases, use regular JSON rendering with stats
+		result := TaskListJSON{
+			Title:            tl.Title,
+			Tasks:            tl.Tasks,
+			Stats:            stats,
+			FrontMatter:      tl.FrontMatter,
+			RequirementsFile: tl.RequirementsFile,
+		}
+		data, _ := json.MarshalIndent(result, "", "  ")
 		return data
 	}
 
@@ -232,9 +253,10 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 		})
 	}
 
-	result := TaskListWithPhases{
+	result := TaskListJSONWithPhases{
 		Title:        tl.Title,
 		Tasks:        tasksWithPhases,
+		Stats:        stats,
 		FrontMatter:  tl.FrontMatter,
 		PhaseMarkers: phaseMarkers,
 	}
@@ -245,7 +267,16 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 
 // RenderJSON converts a TaskList to indented JSON format
 func RenderJSON(tl *TaskList) ([]byte, error) {
-	return json.MarshalIndent(tl, "", "  ")
+	stats := tl.CalculateStats()
+	result := TaskListJSON{
+		Title:            tl.Title,
+		Tasks:            tl.Tasks,
+		Stats:            stats,
+		FrontMatter:      tl.FrontMatter,
+		RequirementsFile: tl.RequirementsFile,
+	}
+
+	return json.MarshalIndent(result, "", "  ")
 }
 
 // FormatTaskListReferences formats TaskList-level references for display in table output
