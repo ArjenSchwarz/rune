@@ -9,6 +9,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// AddPhaseResponse is the JSON response for the add-phase command
+type AddPhaseResponse struct {
+	Success   bool   `json:"success"`
+	Message   string `json:"message"`
+	PhaseName string `json:"phase_name"`
+	File      string `json:"file"`
+}
+
 var addPhaseCmd = &cobra.Command{
 	Use:   "add-phase [name]",
 	Short: "Add a new phase to the task file",
@@ -55,7 +63,11 @@ func runAddPhase(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if verbose {
+	// Use stderr for verbose when JSON requested
+	if format == formatJSON {
+		verboseStderr("Using task file: %s", filename)
+		verboseStderr("Adding phase: %s", phaseName)
+	} else if verbose {
 		fmt.Printf("Using task file: %s\n", filename)
 		fmt.Printf("Adding phase: %s\n", phaseName)
 	}
@@ -105,8 +117,20 @@ func runAddPhase(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	// Output success message
-	fmt.Printf("Added phase '%s' to %s\n", phaseName, filename)
-
-	return nil
+	// Format-aware output
+	switch format {
+	case formatJSON:
+		return outputJSON(AddPhaseResponse{
+			Success:   true,
+			Message:   fmt.Sprintf("Added phase '%s'", phaseName),
+			PhaseName: phaseName,
+			File:      filename,
+		})
+	case formatMarkdown:
+		fmt.Printf("**Added phase:** %s to %s\n", phaseName, filename)
+		return nil
+	default: // table
+		fmt.Printf("Added phase '%s' to %s\n", phaseName, filename)
+		return nil
+	}
 }

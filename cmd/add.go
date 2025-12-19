@@ -9,6 +9,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// AddResponse is the JSON response for the add command
+type AddResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	TaskID  string `json:"task_id"`
+	Title   string `json:"title"`
+	Parent  string `json:"parent,omitempty"`
+	Phase   string `json:"phase,omitempty"`
+}
+
 var addCmd = &cobra.Command{
 	Use:   "add [file] --title [title]",
 	Short: "Add a new task to a task file",
@@ -63,7 +73,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if verbose {
+	// Use stderr for verbose when JSON requested
+	if format == formatJSON {
+		verboseStderr("Using task file: %s", filename)
+	} else if verbose {
 		fmt.Printf("Using task file: %s\n", filename)
 	}
 
@@ -169,28 +182,47 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if verbose {
-		// Find the newly added task to get its details
-		var newTask *task.Task
-		if newTaskID != "" {
-			newTask = tl.FindTask(newTaskID)
+	// Format-aware output
+	switch format {
+	case formatJSON:
+		return outputJSON(AddResponse{
+			Success: true,
+			Message: fmt.Sprintf("Added task %s", newTaskID),
+			TaskID:  newTaskID,
+			Title:   addTitle,
+			Parent:  addParent,
+			Phase:   addPhase,
+		})
+	case formatMarkdown:
+		if addParent != "" {
+			fmt.Printf("**Added:** %s - %s (under %s)\n", newTaskID, addTitle, addParent)
+		} else {
+			fmt.Printf("**Added:** %s - %s\n", newTaskID, addTitle)
 		}
+		return nil
+	default: // table
+		if verbose {
+			// Find the newly added task to get its details
+			var newTask *task.Task
+			if newTaskID != "" {
+				newTask = tl.FindTask(newTaskID)
+			}
 
-		fmt.Printf("Successfully added task to file: %s\n", filename)
-		if newTask != nil {
-			fmt.Printf("Task ID: %s\n", newTask.ID)
-			fmt.Printf("Title: %s\n", newTask.Title)
-			if addParent != "" {
-				if parent := tl.FindTask(addParent); parent != nil {
-					fmt.Printf("Parent: %s (%s)\n", addParent, parent.Title)
+			fmt.Printf("Successfully added task to file: %s\n", filename)
+			if newTask != nil {
+				fmt.Printf("Task ID: %s\n", newTask.ID)
+				fmt.Printf("Title: %s\n", newTask.Title)
+				if addParent != "" {
+					if parent := tl.FindTask(addParent); parent != nil {
+						fmt.Printf("Parent: %s (%s)\n", addParent, parent.Title)
+					}
 				}
 			}
+		} else {
+			fmt.Printf("Added task %s: %s\n", newTaskID, addTitle)
 		}
-	} else {
-		fmt.Printf("Added task %s: %s\n", newTaskID, addTitle)
+		return nil
 	}
-
-	return nil
 }
 
 // parseRequirementIDs parses comma-separated requirement IDs from a string

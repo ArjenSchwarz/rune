@@ -8,6 +8,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// UncompleteResponse is the JSON response for the uncomplete command
+type UncompleteResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	TaskID  string `json:"task_id"`
+	Title   string `json:"title"`
+}
+
 var uncompleteCmd = &cobra.Command{
 	Use:   "uncomplete [file] [task-id]",
 	Short: "Mark a task as pending (not completed)",
@@ -44,7 +52,11 @@ func runUncomplete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if verbose {
+	// Use stderr for verbose when JSON requested
+	if format == formatJSON {
+		verboseStderr("Using task file: %s", filename)
+		verboseStderr("Marking task %s as incomplete", taskID)
+	} else if verbose {
 		fmt.Printf("Using task file: %s\n", filename)
 		fmt.Printf("Marking task %s as incomplete\n", taskID)
 	}
@@ -89,14 +101,27 @@ func runUncomplete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write updated file: %w", err)
 	}
 
-	if verbose {
-		fmt.Printf("Successfully marked task as pending in file: %s\n", filename)
-		fmt.Printf("Task ID: %s\n", taskID)
-		fmt.Printf("Title: %s\n", targetTask.Title)
-		fmt.Printf("Status: pending [ ]\n")
-	} else {
-		fmt.Printf("Uncompleted task %s: %s\n", taskID, targetTask.Title)
+	// Format-aware output
+	switch format {
+	case formatJSON:
+		return outputJSON(UncompleteResponse{
+			Success: true,
+			Message: fmt.Sprintf("Uncompleted task %s", taskID),
+			TaskID:  taskID,
+			Title:   targetTask.Title,
+		})
+	case formatMarkdown:
+		fmt.Printf("**Uncompleted:** %s - %s\n", taskID, targetTask.Title)
+		return nil
+	default: // table
+		if verbose {
+			fmt.Printf("Successfully marked task as pending in file: %s\n", filename)
+			fmt.Printf("Task ID: %s\n", taskID)
+			fmt.Printf("Title: %s\n", targetTask.Title)
+			fmt.Printf("Status: pending [ ]\n")
+		} else {
+			fmt.Printf("Uncompleted task %s: %s\n", taskID, targetTask.Title)
+		}
+		return nil
 	}
-
-	return nil
 }

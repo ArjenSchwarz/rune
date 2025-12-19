@@ -9,6 +9,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// CompleteResponse is the JSON response for the complete command
+type CompleteResponse struct {
+	Success       bool     `json:"success"`
+	Message       string   `json:"message"`
+	TaskID        string   `json:"task_id"`
+	Title         string   `json:"title"`
+	AutoCompleted []string `json:"auto_completed,omitempty"`
+}
+
 var completeCmd = &cobra.Command{
 	Use:   "complete [file] [task-id]",
 	Short: "Mark a task as completed",
@@ -47,7 +56,11 @@ func runComplete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if verbose {
+	// Use stderr for verbose when JSON requested
+	if format == formatJSON {
+		verboseStderr("Using task file: %s", filename)
+		verboseStderr("Marking task %s as complete", taskID)
+	} else if verbose {
 		fmt.Printf("Using task file: %s\n", filename)
 		fmt.Printf("Marking task %s as complete\n", taskID)
 	}
@@ -98,22 +111,39 @@ func runComplete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write updated file: %w", err)
 	}
 
-	if verbose {
-		fmt.Printf("Successfully marked task as completed in file: %s\n", filename)
-		fmt.Printf("Task ID: %s\n", taskID)
-		fmt.Printf("Title: %s\n", targetTask.Title)
-		fmt.Printf("Status: completed [x]\n")
+	// Format-aware output
+	switch format {
+	case formatJSON:
+		return outputJSON(CompleteResponse{
+			Success:       true,
+			Message:       fmt.Sprintf("Completed task %s", taskID),
+			TaskID:        taskID,
+			Title:         targetTask.Title,
+			AutoCompleted: autoCompleted,
+		})
+	case formatMarkdown:
+		fmt.Printf("**Completed:** %s - %s\n", taskID, targetTask.Title)
 		if len(autoCompleted) > 0 {
-			fmt.Printf("Auto-completed parent tasks: %s\n", strings.Join(autoCompleted, ", "))
+			fmt.Printf("**Auto-completed:** %s\n", strings.Join(autoCompleted, ", "))
 		}
-	} else {
-		fmt.Printf("Completed task %s: %s\n", taskID, targetTask.Title)
-		if len(autoCompleted) > 0 {
-			fmt.Printf("Auto-completed parent tasks: %s\n", strings.Join(autoCompleted, ", "))
+		return nil
+	default: // table
+		if verbose {
+			fmt.Printf("Successfully marked task as completed in file: %s\n", filename)
+			fmt.Printf("Task ID: %s\n", taskID)
+			fmt.Printf("Title: %s\n", targetTask.Title)
+			fmt.Printf("Status: completed [x]\n")
+			if len(autoCompleted) > 0 {
+				fmt.Printf("Auto-completed parent tasks: %s\n", strings.Join(autoCompleted, ", "))
+			}
+		} else {
+			fmt.Printf("Completed task %s: %s\n", taskID, targetTask.Title)
+			if len(autoCompleted) > 0 {
+				fmt.Printf("Auto-completed parent tasks: %s\n", strings.Join(autoCompleted, ", "))
+			}
 		}
+		return nil
 	}
-
-	return nil
 }
 
 // statusToString converts a task status to a readable string

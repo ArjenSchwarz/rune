@@ -9,6 +9,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// AddFrontmatterResponse is the JSON response for the add-frontmatter command
+type AddFrontmatterResponse struct {
+	Success         bool   `json:"success"`
+	Message         string `json:"message"`
+	File            string `json:"file"`
+	ReferencesAdded int    `json:"references_added"`
+	MetadataMerged  int    `json:"metadata_merged"`
+}
+
 var addFrontMatterCmd = &cobra.Command{
 	Use:   "add-frontmatter [file] [flags]",
 	Short: "Add front matter content to a task file",
@@ -126,34 +135,53 @@ func runAddFrontMatter(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	// Provide success feedback
-	if verbose {
-		fmt.Printf("Successfully updated: %s\n", filename)
+	// Format-aware output
+	switch format {
+	case formatJSON:
+		return outputJSON(AddFrontmatterResponse{
+			Success:         true,
+			Message:         fmt.Sprintf("Updated %s", filename),
+			File:            filename,
+			ReferencesAdded: newRefCount,
+			MetadataMerged:  len(parsedMeta),
+		})
+	case formatMarkdown:
+		fmt.Printf("**Updated:** %s\n", filename)
 		if newRefCount > 0 {
-			fmt.Printf("Added %d reference(s):\n", newRefCount)
-			for _, ref := range addFMReferences {
-				fmt.Printf("  - %s\n", ref)
-			}
+			fmt.Printf("- Added %d reference(s)\n", newRefCount)
 		}
 		if len(parsedMeta) > 0 {
-			fmt.Printf("Merged %d metadata field(s):\n", len(parsedMeta))
-			for key, value := range parsedMeta {
-				fmt.Printf("  - %s: %s\n", key, value)
+			fmt.Printf("- Merged %d metadata field(s)\n", len(parsedMeta))
+		}
+		return nil
+	default: // table
+		if verbose {
+			fmt.Printf("Successfully updated: %s\n", filename)
+			if newRefCount > 0 {
+				fmt.Printf("Added %d reference(s):\n", newRefCount)
+				for _, ref := range addFMReferences {
+					fmt.Printf("  - %s\n", ref)
+				}
+			}
+			if len(parsedMeta) > 0 {
+				fmt.Printf("Merged %d metadata field(s):\n", len(parsedMeta))
+				for key, value := range parsedMeta {
+					fmt.Printf("  - %s: %s\n", key, value)
+				}
+			}
+			// Show file stats
+			if info, err := os.Stat(filename); err == nil {
+				fmt.Printf("File size: %d bytes\n", info.Size())
+			}
+		} else {
+			fmt.Printf("Updated: %s\n", filename)
+			if newRefCount > 0 {
+				fmt.Printf("  Added %d reference(s)\n", newRefCount)
+			}
+			if len(parsedMeta) > 0 {
+				fmt.Printf("  Merged %d metadata field(s)\n", len(parsedMeta))
 			}
 		}
-		// Show file stats
-		if info, err := os.Stat(filename); err == nil {
-			fmt.Printf("File size: %d bytes\n", info.Size())
-		}
-	} else {
-		fmt.Printf("Updated: %s\n", filename)
-		if newRefCount > 0 {
-			fmt.Printf("  Added %d reference(s)\n", newRefCount)
-		}
-		if len(parsedMeta) > 0 {
-			fmt.Printf("  Merged %d metadata field(s)\n", len(parsedMeta))
-		}
+		return nil
 	}
-
-	return nil
 }
