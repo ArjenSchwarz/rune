@@ -225,6 +225,7 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 	}
 
 	type OutputJSON struct {
+		Success               bool     `json:"success"`
 		NextTask              TaskJSON `json:"next_task"`
 		TaskReferences        []string `json:"task_references,omitempty"`
 		FrontMatterReferences []string `json:"front_matter_references,omitempty"`
@@ -251,6 +252,7 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 	}
 
 	output := OutputJSON{
+		Success:  true,
 		NextTask: convertTask(nextTask.Task),
 	}
 
@@ -475,6 +477,8 @@ func outputPhaseTasksJSON(phaseResult *task.PhaseTasksResult, frontMatter *task.
 	}
 
 	type OutputJSON struct {
+		Success               bool       `json:"success"`
+		Count                 int        `json:"count"`
 		PhaseName             string     `json:"phase_name,omitempty"`
 		Tasks                 []TaskJSON `json:"tasks"`
 		FrontMatterReferences []string   `json:"front_matter_references,omitempty"`
@@ -501,7 +505,9 @@ func outputPhaseTasksJSON(phaseResult *task.PhaseTasksResult, frontMatter *task.
 	}
 
 	output := OutputJSON{
-		Tasks: []TaskJSON{},
+		Success: true,
+		Count:   len(phaseResult.Tasks),
+		Tasks:   []TaskJSON{},
 	}
 
 	if phaseResult.PhaseName != "" {

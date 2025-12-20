@@ -8,6 +8,8 @@ import (
 
 // TaskListJSON represents a TaskList with statistics for JSON output
 type TaskListJSON struct {
+	Success          bool         `json:"success"`
+	Count            int          `json:"count"`
 	Title            string       `json:"Title"`
 	Tasks            []Task       `json:"Tasks"`
 	Stats            Stats        `json:"Stats"`
@@ -17,6 +19,8 @@ type TaskListJSON struct {
 
 // TaskListJSONWithPhases represents a TaskList with phases and statistics for JSON output
 type TaskListJSONWithPhases struct {
+	Success      bool            `json:"success"`
+	Count        int             `json:"count"`
 	Title        string          `json:"Title"`
 	Tasks        []TaskWithPhase `json:"Tasks"`
 	Stats        Stats           `json:"Stats"`
@@ -233,6 +237,8 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 	if len(phaseMarkers) == 0 {
 		// No phases, use regular JSON rendering with stats
 		result := TaskListJSON{
+			Success:          true,
+			Count:            len(tl.Tasks),
 			Title:            tl.Title,
 			Tasks:            tl.Tasks,
 			Stats:            stats,
@@ -254,6 +260,8 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 	}
 
 	result := TaskListJSONWithPhases{
+		Success:      true,
+		Count:        len(tasksWithPhases),
 		Title:        tl.Title,
 		Tasks:        tasksWithPhases,
 		Stats:        stats,
@@ -269,6 +277,8 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 func RenderJSON(tl *TaskList) ([]byte, error) {
 	stats := tl.CalculateStats()
 	result := TaskListJSON{
+		Success:          true,
+		Count:            len(tl.Tasks),
 		Title:            tl.Title,
 		Tasks:            tl.Tasks,
 		Stats:            stats,

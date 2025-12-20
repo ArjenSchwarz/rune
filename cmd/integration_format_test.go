@@ -40,6 +40,11 @@ func TestIntegrationFormatSpecificOutputs(t *testing.T) {
 			description: "Verify verbose output goes to stderr when --format json",
 			workflow:    testVerboseJSONStderr,
 		},
+		"read_commands_json_success_field": {
+			name:        "Read Commands JSON Success Field",
+			description: "Test that list, find, next commands include success and count fields in non-empty responses",
+			workflow:    testReadCommandsJSONSuccessField,
+		},
 	}
 
 	for testName, tc := range tests {
@@ -511,4 +516,140 @@ func runGoCommandSeparateOutputs(t *testing.T, args ...string) (string, string) 
 		t.Logf("command returned error: %v", err)
 	}
 	return stdout.String(), stderr.String()
+}
+
+// testReadCommandsJSONSuccessField tests that list, find, next commands include success and count fields
+func testReadCommandsJSONSuccessField(t *testing.T, _ string) {
+	filename := "success-field-test.md"
+	taskContent := `# Success Field Test
+
+- [ ] 1. First task
+  - [ ] 1.1. Subtask one
+- [ ] 2. Second task
+- [x] 3. Completed task
+`
+	if err := os.WriteFile(filename, []byte(taskContent), 0644); err != nil {
+		t.Fatalf("failed to create task file: %v", err)
+	}
+
+	// Test 1: list command with tasks includes success and count
+	t.Run("list_with_tasks_json", func(t *testing.T) {
+		output := runGoCommand(t, "list", filename, "--format", "json")
+
+		// Parse as generic map to check field presence
+		var resp map[string]any
+		if err := json.Unmarshal([]byte(output), &resp); err != nil {
+			t.Fatalf("failed to parse list JSON response: %v\nOutput: %s", err, output)
+		}
+
+		// Check success field exists and is true
+		success, ok := resp["success"]
+		if !ok {
+			t.Error("expected 'success' field in list response")
+		}
+		if success != true {
+			t.Errorf("expected success: true, got: %v", success)
+		}
+
+		// Check count field exists and is correct
+		count, ok := resp["count"]
+		if !ok {
+			t.Error("expected 'count' field in list response")
+		}
+		// JSON numbers are float64
+		if count != float64(3) {
+			t.Errorf("expected count: 3, got: %v", count)
+		}
+	})
+
+	// Test 2: find command with matches includes success and count
+	t.Run("find_with_matches_json", func(t *testing.T) {
+		output := runGoCommand(t, "find", filename, "-p", "task", "--format", "json")
+
+		var resp map[string]any
+		if err := json.Unmarshal([]byte(output), &resp); err != nil {
+			t.Fatalf("failed to parse find JSON response: %v\nOutput: %s", err, output)
+		}
+
+		success, ok := resp["success"]
+		if !ok {
+			t.Error("expected 'success' field in find response")
+		}
+		if success != true {
+			t.Errorf("expected success: true, got: %v", success)
+		}
+
+		count, ok := resp["count"]
+		if !ok {
+			t.Error("expected 'count' field in find response")
+		}
+		// Should find at least 3 tasks with "task" in title
+		if count.(float64) < 3 {
+			t.Errorf("expected count >= 3, got: %v", count)
+		}
+	})
+
+	// Test 3: next command with pending task includes success
+	t.Run("next_with_task_json", func(t *testing.T) {
+		output := runGoCommand(t, "next", filename, "--format", "json")
+
+		var resp map[string]any
+		if err := json.Unmarshal([]byte(output), &resp); err != nil {
+			t.Fatalf("failed to parse next JSON response: %v\nOutput: %s", err, output)
+		}
+
+		success, ok := resp["success"]
+		if !ok {
+			t.Error("expected 'success' field in next response")
+		}
+		if success != true {
+			t.Errorf("expected success: true, got: %v", success)
+		}
+
+		// Verify next_task field exists
+		_, ok = resp["next_task"]
+		if !ok {
+			t.Error("expected 'next_task' field in next response")
+		}
+	})
+
+	// Test 4: next --phase with pending tasks includes success and count
+	t.Run("next_phase_with_tasks_json", func(t *testing.T) {
+		phaseFile := "phase-success-test.md"
+		phaseContent := `# Phase Success Test
+
+## Phase: Development
+
+- [ ] 1. Dev task one
+- [ ] 2. Dev task two
+`
+		if err := os.WriteFile(phaseFile, []byte(phaseContent), 0644); err != nil {
+			t.Fatalf("failed to create phase file: %v", err)
+		}
+
+		output := runGoCommand(t, "next", phaseFile, "--phase", "--format", "json")
+
+		var resp map[string]any
+		if err := json.Unmarshal([]byte(output), &resp); err != nil {
+			t.Fatalf("failed to parse next phase JSON response: %v\nOutput: %s", err, output)
+		}
+
+		success, ok := resp["success"]
+		if !ok {
+			t.Error("expected 'success' field in next phase response")
+		}
+		if success != true {
+			t.Errorf("expected success: true, got: %v", success)
+		}
+
+		count, ok := resp["count"]
+		if !ok {
+			t.Error("expected 'count' field in next phase response")
+		}
+		if count != float64(2) {
+			t.Errorf("expected count: 2, got: %v", count)
+		}
+	})
+
+	t.Log("Read commands JSON success field test passed successfully")
 }
