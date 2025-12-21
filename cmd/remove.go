@@ -8,6 +8,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// RemoveResponse is the JSON response for the remove command
+type RemoveResponse struct {
+	Success         bool   `json:"success"`
+	Message         string `json:"message"`
+	TaskID          string `json:"task_id"`
+	Title           string `json:"title"`
+	ChildrenRemoved int    `json:"children_removed"`
+}
+
 var removeCmd = &cobra.Command{
 	Use:   "remove [file] [task-id]",
 	Short: "Remove a task and all its subtasks",
@@ -46,7 +55,11 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if verbose {
+	// Use stderr for verbose when JSON requested
+	if format == formatJSON {
+		verboseStderr("Using task file: %s", filename)
+		verboseStderr("Removing task %s", taskID)
+	} else if verbose {
 		fmt.Printf("Using task file: %s\n", filename)
 		fmt.Printf("Removing task %s\n", taskID)
 	}
@@ -98,23 +111,41 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write updated file: %w", err)
 	}
 
-	if verbose {
-		fmt.Printf("Successfully removed task from file: %s\n", filename)
-		fmt.Printf("Removed task ID: %s\n", taskID)
-		fmt.Printf("Title: %s\n", targetTask.Title)
+	// Format-aware output
+	switch format {
+	case formatJSON:
+		return outputJSON(RemoveResponse{
+			Success:         true,
+			Message:         fmt.Sprintf("Removed task %s", taskID),
+			TaskID:          taskID,
+			Title:           targetTask.Title,
+			ChildrenRemoved: childCount,
+		})
+	case formatMarkdown:
 		if childCount > 0 {
-			fmt.Printf("Also removed %d subtask(s)\n", childCount)
-		}
-		fmt.Printf("Remaining tasks have been renumbered\n")
-	} else {
-		if childCount > 0 {
-			fmt.Printf("Removed task %s and %d subtask(s): %s\n", taskID, childCount, targetTask.Title)
+			fmt.Printf("**Removed:** %s - %s (and %d subtasks)\n", taskID, targetTask.Title, childCount)
 		} else {
-			fmt.Printf("Removed task %s: %s\n", taskID, targetTask.Title)
+			fmt.Printf("**Removed:** %s - %s\n", taskID, targetTask.Title)
 		}
+		return nil
+	default: // table
+		if verbose {
+			fmt.Printf("Successfully removed task from file: %s\n", filename)
+			fmt.Printf("Removed task ID: %s\n", taskID)
+			fmt.Printf("Title: %s\n", targetTask.Title)
+			if childCount > 0 {
+				fmt.Printf("Also removed %d subtask(s)\n", childCount)
+			}
+			fmt.Printf("Remaining tasks have been renumbered\n")
+		} else {
+			if childCount > 0 {
+				fmt.Printf("Removed task %s and %d subtask(s): %s\n", taskID, childCount, targetTask.Title)
+			} else {
+				fmt.Printf("Removed task %s: %s\n", taskID, targetTask.Title)
+			}
+		}
+		return nil
 	}
-
-	return nil
 }
 
 // countTaskChildren recursively counts all children of a task

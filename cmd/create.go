@@ -8,6 +8,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// CreateResponse is the JSON response for the create command
+type CreateResponse struct {
+	Success    bool   `json:"success"`
+	Message    string `json:"message"`
+	Path       string `json:"path"`
+	Title      string `json:"title"`
+	References int    `json:"references,omitempty"`
+	Metadata   int    `json:"metadata,omitempty"`
+}
+
 var createCmd = &cobra.Command{
 	Use:   "create [file] --title [title]",
 	Short: "Create a new task file",
@@ -96,33 +106,61 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
 
-	if verbose {
-		fmt.Printf("Successfully created task file: %s\n", filename)
-		fmt.Printf("Title: %s\n", createTitle)
-		if fm != nil {
-			if len(fm.References) > 0 {
-				fmt.Printf("Added %d reference(s)\n", len(fm.References))
-			}
-			if len(fm.Metadata) > 0 {
-				fmt.Printf("Added %d metadata field(s)\n", len(fm.Metadata))
-			}
-		}
-
-		// Show file stats
-		if info, err := os.Stat(filename); err == nil {
-			fmt.Printf("File size: %d bytes\n", info.Size())
-		}
-	} else {
-		fmt.Printf("Created: %s\n", filename)
-		if fm != nil {
-			if len(fm.References) > 0 {
-				fmt.Printf("Added %d reference(s)\n", len(fm.References))
-			}
-			if len(fm.Metadata) > 0 {
-				fmt.Printf("Added %d metadata field(s)\n", len(fm.Metadata))
-			}
-		}
+	// Count references and metadata for output
+	refCount := 0
+	metaCount := 0
+	if fm != nil {
+		refCount = len(fm.References)
+		metaCount = len(fm.Metadata)
 	}
 
-	return nil
+	// Format-aware output
+	switch format {
+	case formatJSON:
+		return outputJSON(CreateResponse{
+			Success:    true,
+			Message:    fmt.Sprintf("Created %s", filename),
+			Path:       filename,
+			Title:      createTitle,
+			References: refCount,
+			Metadata:   metaCount,
+		})
+	case formatMarkdown:
+		fmt.Printf("**Created:** %s\n", filename)
+		if refCount > 0 || metaCount > 0 {
+			fmt.Printf("- Title: %s\n", createTitle)
+			if refCount > 0 {
+				fmt.Printf("- References: %d\n", refCount)
+			}
+			if metaCount > 0 {
+				fmt.Printf("- Metadata fields: %d\n", metaCount)
+			}
+		}
+		return nil
+	default: // table
+		if verbose {
+			fmt.Printf("Successfully created task file: %s\n", filename)
+			fmt.Printf("Title: %s\n", createTitle)
+			if refCount > 0 {
+				fmt.Printf("Added %d reference(s)\n", refCount)
+			}
+			if metaCount > 0 {
+				fmt.Printf("Added %d metadata field(s)\n", metaCount)
+			}
+
+			// Show file stats
+			if info, err := os.Stat(filename); err == nil {
+				fmt.Printf("File size: %d bytes\n", info.Size())
+			}
+		} else {
+			fmt.Printf("Created: %s\n", filename)
+			if refCount > 0 {
+				fmt.Printf("Added %d reference(s)\n", refCount)
+			}
+			if metaCount > 0 {
+				fmt.Printf("Added %d metadata field(s)\n", metaCount)
+			}
+		}
+		return nil
+	}
 }

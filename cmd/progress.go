@@ -8,6 +8,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// ProgressResponse is the JSON response for the progress command
+type ProgressResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	TaskID  string `json:"task_id"`
+	Title   string `json:"title"`
+}
+
 var progressCmd = &cobra.Command{
 	Use:   "progress [file] [task-id]",
 	Short: "Mark a task as in-progress",
@@ -44,7 +52,11 @@ func runProgress(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if verbose {
+	// Use stderr for verbose when JSON requested
+	if format == formatJSON {
+		verboseStderr("Using task file: %s", filename)
+		verboseStderr("Marking task %s as in-progress", taskID)
+	} else if verbose {
 		fmt.Printf("Using task file: %s\n", filename)
 		fmt.Printf("Marking task %s as in-progress\n", taskID)
 	}
@@ -89,14 +101,27 @@ func runProgress(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write updated file: %w", err)
 	}
 
-	if verbose {
-		fmt.Printf("Successfully marked task as in-progress in file: %s\n", filename)
-		fmt.Printf("Task ID: %s\n", taskID)
-		fmt.Printf("Title: %s\n", targetTask.Title)
-		fmt.Printf("Status: in-progress [-]\n")
-	} else {
-		fmt.Printf("Started task %s: %s\n", taskID, targetTask.Title)
+	// Format-aware output
+	switch format {
+	case formatJSON:
+		return outputJSON(ProgressResponse{
+			Success: true,
+			Message: fmt.Sprintf("Started task %s", taskID),
+			TaskID:  taskID,
+			Title:   targetTask.Title,
+		})
+	case formatMarkdown:
+		fmt.Printf("**Started:** %s - %s\n", taskID, targetTask.Title)
+		return nil
+	default: // table
+		if verbose {
+			fmt.Printf("Successfully marked task as in-progress in file: %s\n", filename)
+			fmt.Printf("Task ID: %s\n", taskID)
+			fmt.Printf("Title: %s\n", targetTask.Title)
+			fmt.Printf("Status: in-progress [-]\n")
+		} else {
+			fmt.Printf("Started task %s: %s\n", taskID, targetTask.Title)
+		}
+		return nil
 	}
-
-	return nil
 }

@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Success and Count Fields in Read Commands**: Added `success` and `count` fields to JSON responses for read commands (`list`, `find`, `next`, `next --phase`) to comply with requirement 1.1 of the consistent output format specification
+- **Integration Tests for Non-Empty JSON Responses**: Tests verifying `success` and `count` fields are present in non-empty JSON responses from read commands
+
+- **Format-Specific Integration Tests**: End-to-end tests for consistent output format feature
+  - Mutation commands JSON format tests (complete, uncomplete, progress, add, remove, update)
+  - Create command JSON format tests with references and metadata
+  - Empty state JSON format tests (next all-complete, list empty, find no-matches)
+  - Verbose + JSON stderr separation tests to verify verbose output goes to stderr
+
+- **Format Utilities**: Shared utility functions for consistent output format handling
+  - `outputJSON` function for standardized JSON output to stdout
+  - `outputMarkdownMessage` function for markdown blockquote messages
+  - `outputMessage` function for plain text messages
+  - `verboseStderr` function to write verbose output to stderr when JSON format is used
+
+### Changed
+
+- **Renumber Command**: Refactored JSON output to use typed `RenumberResponse` struct for consistency with other commands
+- **has-phases Command**: Updated help text to document that the command only outputs JSON and ignores the `--format` flag
+
+### Removed
+
+- Unused `outputJSON` function from list command (replaced by `outputJSONWithPhases`)
+
 ## [1.1.0] - 2025-11-12
 
 ### Added

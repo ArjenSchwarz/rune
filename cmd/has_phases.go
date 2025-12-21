@@ -18,6 +18,10 @@ var hasPhasesCmd = &cobra.Command{
 	Use:   "has-phases [file]",
 	Short: "Check if the task file contains phases",
 	Long: `Check if the task file contains phase headers (H2 markdown headers).
+
+NOTE: This command only outputs JSON. The --format flag is ignored because this
+command is designed for programmatic detection where structured output is required.
+
 Returns JSON output with phase detection results and uses exit codes for scripting:
   - Exit code 0: File contains phases
   - Exit code 1: File does not contain phases or error occurred

@@ -77,7 +77,7 @@ func runFind(cmd *cobra.Command, args []string) error {
 	findPattern = cmd.Flag("pattern").Value.String()
 
 	if verbose {
-		fmt.Printf("Using task file: %s\n", filename)
+		verboseStderr("Using task file: %s", filename)
 	}
 
 	// Parse the task file
@@ -87,8 +87,8 @@ func runFind(cmd *cobra.Command, args []string) error {
 	}
 
 	if verbose {
-		fmt.Printf("Pattern: %s\n", findPattern)
-		fmt.Printf("Total tasks: %d\n", countAllTasks(taskList.Tasks))
+		verboseStderr("Pattern: %s", findPattern)
+		verboseStderr("Total tasks: %d", countAllTasks(taskList.Tasks))
 	}
 
 	// Set up query options
@@ -108,12 +108,11 @@ func runFind(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(results) == 0 {
-		fmt.Printf("No tasks found matching pattern: %s\n", findPattern)
-		return nil
+		return outputFindEmpty(fmt.Sprintf("No matching tasks found for pattern: %s", findPattern))
 	}
 
 	if verbose {
-		fmt.Printf("Found %d matching tasks\n", len(results))
+		verboseStderr("Found %d matching tasks", len(results))
 	}
 
 	// Output results based on format
@@ -261,4 +260,31 @@ func outputSearchResultsMarkdown(results []task.Task, pattern string) error {
 
 	fmt.Print(sb.String())
 	return nil
+}
+
+// FindEmptyResponse is the JSON response structure when no matching tasks are found.
+type FindEmptyResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Count   int    `json:"count"`
+	Data    []any  `json:"data"`
+}
+
+// outputFindEmpty handles format-aware output when no matching tasks are found.
+func outputFindEmpty(message string) error {
+	switch format {
+	case formatJSON:
+		return outputJSON(FindEmptyResponse{
+			Success: true,
+			Message: message,
+			Count:   0,
+			Data:    []any{},
+		})
+	case formatMarkdown:
+		outputMarkdownMessage(message)
+		return nil
+	default:
+		outputMessage(message)
+		return nil
+	}
 }

@@ -54,7 +54,7 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	if verbose {
-		fmt.Printf("Using task file: %s\n", filename)
+		verboseStderr("Using task file: %s", filename)
 	}
 
 	// Handle phase mode
@@ -69,19 +69,18 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	if verbose {
-		fmt.Printf("Title: %s\n", taskList.Title)
-		fmt.Printf("Total tasks: %d\n", countAllTasks(taskList.Tasks))
+		verboseStderr("Title: %s", taskList.Title)
+		verboseStderr("Total tasks: %d", countAllTasks(taskList.Tasks))
 	}
 
 	// Find the next incomplete task
 	nextTask := task.FindNextIncompleteTask(taskList.Tasks)
 	if nextTask == nil {
-		fmt.Println("All tasks are complete!")
-		return nil
+		return outputNextEmpty("All tasks are complete!")
 	}
 
 	if verbose {
-		fmt.Printf("Found next task: %s (with %d incomplete subtasks)\n",
+		verboseStderr("Found next task: %s (with %d incomplete subtasks)",
 			nextTask.Title, len(nextTask.IncompleteChildren))
 	}
 
@@ -226,6 +225,7 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 	}
 
 	type OutputJSON struct {
+		Success               bool     `json:"success"`
 		NextTask              TaskJSON `json:"next_task"`
 		TaskReferences        []string `json:"task_references,omitempty"`
 		FrontMatterReferences []string `json:"front_matter_references,omitempty"`
@@ -252,6 +252,7 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 	}
 
 	output := OutputJSON{
+		Success:  true,
 		NextTask: convertTask(nextTask.Task),
 	}
 
@@ -330,12 +331,7 @@ func runNextPhase(filename string) error {
 	}
 
 	if phaseResult == nil {
-		if format == formatJSON {
-			fmt.Print("{}")
-		} else {
-			fmt.Println("No pending tasks found in any phase!")
-		}
-		return nil
+		return outputNextPhaseEmpty("No pending tasks found in any phase!")
 	}
 
 	// Parse file for front matter
@@ -346,9 +342,9 @@ func runNextPhase(filename string) error {
 
 	if verbose {
 		if phaseResult.PhaseName != "" {
-			fmt.Printf("Found %d pending tasks in phase '%s'\n", len(phaseResult.Tasks), phaseResult.PhaseName)
+			verboseStderr("Found %d pending tasks in phase '%s'", len(phaseResult.Tasks), phaseResult.PhaseName)
 		} else {
-			fmt.Printf("Found %d pending tasks (no phases in document)\n", len(phaseResult.Tasks))
+			verboseStderr("Found %d pending tasks (no phases in document)", len(phaseResult.Tasks))
 		}
 	}
 
@@ -481,6 +477,8 @@ func outputPhaseTasksJSON(phaseResult *task.PhaseTasksResult, frontMatter *task.
 	}
 
 	type OutputJSON struct {
+		Success               bool       `json:"success"`
+		Count                 int        `json:"count"`
 		PhaseName             string     `json:"phase_name,omitempty"`
 		Tasks                 []TaskJSON `json:"tasks"`
 		FrontMatterReferences []string   `json:"front_matter_references,omitempty"`
@@ -507,7 +505,9 @@ func outputPhaseTasksJSON(phaseResult *task.PhaseTasksResult, frontMatter *task.
 	}
 
 	output := OutputJSON{
-		Tasks: []TaskJSON{},
+		Success: true,
+		Count:   len(phaseResult.Tasks),
+		Tasks:   []TaskJSON{},
 	}
 
 	if phaseResult.PhaseName != "" {
@@ -548,5 +548,57 @@ func addAllChildrenToData(parentTask *task.Task, taskData *[]map[string]any, pha
 
 		// Recursively add its children
 		addAllChildrenToData(&child, taskData, phaseName)
+	}
+}
+
+// NextEmptyResponse is the JSON response structure when no next task exists.
+type NextEmptyResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    any    `json:"data"`
+}
+
+// outputNextEmpty handles format-aware output when all tasks are complete.
+func outputNextEmpty(message string) error {
+	switch format {
+	case formatJSON:
+		return outputJSON(NextEmptyResponse{
+			Success: true,
+			Message: message,
+			Data:    nil,
+		})
+	case formatMarkdown:
+		outputMarkdownMessage(message)
+		return nil
+	default:
+		outputMessage(message)
+		return nil
+	}
+}
+
+// NextPhaseEmptyResponse is the JSON response structure when no pending phase tasks exist.
+type NextPhaseEmptyResponse struct {
+	Success   bool   `json:"success"`
+	Message   string `json:"message"`
+	PhaseName string `json:"phase_name"`
+	Tasks     []any  `json:"tasks"`
+}
+
+// outputNextPhaseEmpty handles format-aware output when no pending tasks exist in any phase.
+func outputNextPhaseEmpty(message string) error {
+	switch format {
+	case formatJSON:
+		return outputJSON(NextPhaseEmptyResponse{
+			Success:   true,
+			Message:   message,
+			PhaseName: "",
+			Tasks:     []any{},
+		})
+	case formatMarkdown:
+		outputMarkdownMessage(message)
+		return nil
+	default:
+		outputMessage(message)
+		return nil
 	}
 }

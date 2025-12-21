@@ -9,6 +9,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// UpdateResponse is the JSON response for the update command
+type UpdateResponse struct {
+	Success       bool     `json:"success"`
+	Message       string   `json:"message"`
+	TaskID        string   `json:"task_id"`
+	Title         string   `json:"title"`
+	FieldsUpdated []string `json:"fields_updated"`
+}
+
 var updateCmd = &cobra.Command{
 	Use:   "update [file] [task-id]",
 	Short: "Update task title, details, or references",
@@ -67,7 +76,11 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if verbose {
+	// Use stderr for verbose when JSON requested
+	if format == formatJSON {
+		verboseStderr("Using task file: %s", filename)
+		verboseStderr("Updating task %s", taskID)
+	} else if verbose {
 		fmt.Printf("Using task file: %s\n", filename)
 		fmt.Printf("Updating task %s\n", taskID)
 	}
@@ -182,45 +195,61 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write updated file: %w", err)
 	}
 
-	if verbose {
-		fmt.Printf("Successfully updated task in file: %s\n", filename)
-		fmt.Printf("Task ID: %s\n", taskID)
-		if updateTitle != "" {
-			fmt.Printf("Title updated to: %s\n", updateTitle)
-		}
-		if clearDetails {
-			fmt.Printf("Details cleared\n")
-		} else if updateDetails != "" {
-			fmt.Printf("Details updated to: %s\n", formatDetailsForDisplay(newDetails))
-		}
-		if clearReferences {
-			fmt.Printf("References cleared\n")
-		} else if updateReferences != "" {
-			fmt.Printf("References updated to: %s\n", formatReferencesForDisplay(newReferences))
-		}
-		if clearRequirements {
-			fmt.Printf("Requirements cleared\n")
-		} else if updateRequirements != "" {
-			fmt.Printf("Requirements updated to: %s\n", formatRequirementsForDisplay(newRequirements))
-		}
-	} else {
-		changes := []string{}
-		if updateTitle != "" {
-			changes = append(changes, "title")
-		}
-		if clearDetails || updateDetails != "" {
-			changes = append(changes, "details")
-		}
-		if clearReferences || updateReferences != "" {
-			changes = append(changes, "references")
-		}
-		if clearRequirements || updateRequirements != "" {
-			changes = append(changes, "requirements")
-		}
-		fmt.Printf("Updated task %s (%s): %s\n", taskID, strings.Join(changes, ", "), targetTask.Title)
+	// Collect changes for output
+	changes := []string{}
+	if updateTitle != "" {
+		changes = append(changes, "title")
+	}
+	if clearDetails || updateDetails != "" {
+		changes = append(changes, "details")
+	}
+	if clearReferences || updateReferences != "" {
+		changes = append(changes, "references")
+	}
+	if clearRequirements || updateRequirements != "" {
+		changes = append(changes, "requirements")
 	}
 
-	return nil
+	// Format-aware output
+	switch format {
+	case formatJSON:
+		return outputJSON(UpdateResponse{
+			Success:       true,
+			Message:       fmt.Sprintf("Updated task %s", taskID),
+			TaskID:        taskID,
+			Title:         targetTask.Title,
+			FieldsUpdated: changes,
+		})
+	case formatMarkdown:
+		fmt.Printf("**Updated:** %s - %s (%s)\n", taskID, targetTask.Title, strings.Join(changes, ", "))
+		return nil
+	default: // table
+		if verbose {
+			fmt.Printf("Successfully updated task in file: %s\n", filename)
+			fmt.Printf("Task ID: %s\n", taskID)
+			if updateTitle != "" {
+				fmt.Printf("Title updated to: %s\n", updateTitle)
+			}
+			if clearDetails {
+				fmt.Printf("Details cleared\n")
+			} else if updateDetails != "" {
+				fmt.Printf("Details updated to: %s\n", formatDetailsForDisplay(newDetails))
+			}
+			if clearReferences {
+				fmt.Printf("References cleared\n")
+			} else if updateReferences != "" {
+				fmt.Printf("References updated to: %s\n", formatReferencesForDisplay(newReferences))
+			}
+			if clearRequirements {
+				fmt.Printf("Requirements cleared\n")
+			} else if updateRequirements != "" {
+				fmt.Printf("Requirements updated to: %s\n", formatRequirementsForDisplay(newRequirements))
+			}
+		} else {
+			fmt.Printf("Updated task %s (%s): %s\n", taskID, strings.Join(changes, ", "), targetTask.Title)
+		}
+		return nil
+	}
 }
 
 func formatDetailsForDisplay(details []string) string {
