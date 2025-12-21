@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Phase Marker Adjustment**: Extracted duplicate phase marker adjustment logic into `adjustPhaseMarkersForRemoval` helper function for maintainability
 - **Renumber Command**: Refactored JSON output to use typed `RenumberResponse` struct for consistency with other commands
 - **has-phases Command**: Updated help text to document that the command only outputs JSON and ignores the `--format` flag
 

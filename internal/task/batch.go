@@ -500,32 +500,7 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 		}
 		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
 	case removeOperation:
-		// Only adjust phase markers for top-level task removal (no "." in ID)
-		if !strings.Contains(op.ID, ".") {
-			removedTaskNum := getTaskNumber(op.ID)
-			if removedTaskNum != -1 {
-				// Adjust phase markers to account for renumbered tasks
-				for i := range *phaseMarkers {
-					if (*phaseMarkers)[i].AfterTaskID != "" {
-						afterTaskNum := getTaskNumber((*phaseMarkers)[i].AfterTaskID)
-						if afterTaskNum == removedTaskNum {
-							// This phase was positioned after the removed task
-							// Move it to be positioned after the previous task
-							if removedTaskNum > 1 {
-								(*phaseMarkers)[i].AfterTaskID = fmt.Sprintf("%d", removedTaskNum-1)
-							} else {
-								// Removing task 1, so phase goes to beginning
-								(*phaseMarkers)[i].AfterTaskID = ""
-							}
-						} else if afterTaskNum > removedTaskNum {
-							// This phase marker comes after the removed task, so decrement the ID
-							(*phaseMarkers)[i].AfterTaskID = fmt.Sprintf("%d", afterTaskNum-1)
-						}
-						// If afterTaskNum < removedTaskNum, no adjustment needed
-					}
-				}
-			}
-		}
+		adjustPhaseMarkersForRemoval(op.ID, phaseMarkers)
 		return tl.RemoveTask(op.ID)
 	case updateOperation:
 		// Handle status update only when status field is provided

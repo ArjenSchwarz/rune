@@ -706,34 +706,8 @@ func (tl *TaskList) RemoveTaskWithPhases(taskID string, originalContent []byte) 
 		return err
 	}
 
-	// Only adjust phase markers for top-level task removal (no "." in ID)
-	// Subtask removal does not affect top-level task numbering
-	if !strings.Contains(taskID, ".") {
-		removedTaskNum := getTaskNumber(taskID)
-		if removedTaskNum != -1 {
-			// Adjust phase markers to account for renumbered tasks
-			for i := range phaseMarkers {
-				if phaseMarkers[i].AfterTaskID != "" {
-					afterTaskNum := getTaskNumber(phaseMarkers[i].AfterTaskID)
-					if afterTaskNum == removedTaskNum {
-						// This phase was positioned after the removed task
-						// Move it to be positioned after the previous task
-						if removedTaskNum > 1 {
-							phaseMarkers[i].AfterTaskID = fmt.Sprintf("%d", removedTaskNum-1)
-						} else {
-							// Removing task 1, so phase goes to beginning
-							phaseMarkers[i].AfterTaskID = ""
-						}
-					} else if afterTaskNum > removedTaskNum {
-						// This phase marker comes after the removed task, so decrement the ID
-						// to account for the fact that all subsequent tasks are renumbered
-						phaseMarkers[i].AfterTaskID = fmt.Sprintf("%d", afterTaskNum-1)
-					}
-					// If afterTaskNum < removedTaskNum, no adjustment needed
-				}
-			}
-		}
-	}
+	// Adjust phase markers for the removed task
+	adjustPhaseMarkersForRemoval(taskID, &phaseMarkers)
 
 	// Write with phases preserved
 	return WriteFileWithPhases(tl, phaseMarkers, tl.FilePath)
@@ -791,4 +765,41 @@ func getTaskNumber(taskID string) int {
 		return -1
 	}
 	return num
+}
+
+// adjustPhaseMarkersForRemoval updates phase markers after a top-level task is removed.
+// Only top-level task removal (IDs without ".") affects phase markers since subtask
+// removal does not change the numbering of top-level tasks.
+func adjustPhaseMarkersForRemoval(taskID string, phaseMarkers *[]PhaseMarker) {
+	// Only adjust for top-level tasks
+	if strings.Contains(taskID, ".") {
+		return
+	}
+
+	removedTaskNum := getTaskNumber(taskID)
+	if removedTaskNum == -1 {
+		return
+	}
+
+	for i := range *phaseMarkers {
+		if (*phaseMarkers)[i].AfterTaskID == "" {
+			continue
+		}
+		afterTaskNum := getTaskNumber((*phaseMarkers)[i].AfterTaskID)
+		if afterTaskNum == removedTaskNum {
+			// This phase was positioned after the removed task
+			// Move it to be positioned after the previous task
+			if removedTaskNum > 1 {
+				(*phaseMarkers)[i].AfterTaskID = fmt.Sprintf("%d", removedTaskNum-1)
+			} else {
+				// Removing task 1, so phase goes to beginning
+				(*phaseMarkers)[i].AfterTaskID = ""
+			}
+		} else if afterTaskNum > removedTaskNum {
+			// This phase marker comes after the removed task, so decrement the ID
+			// to account for the fact that all subsequent tasks are renumbered
+			(*phaseMarkers)[i].AfterTaskID = fmt.Sprintf("%d", afterTaskNum-1)
+		}
+		// If afterTaskNum < removedTaskNum, no adjustment needed
+	}
 }
