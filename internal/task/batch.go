@@ -373,8 +373,11 @@ func (tl *TaskList) ExecuteBatchWithPhases(ops []Operation, dryRun bool, phaseMa
 		}
 	}
 
-	// If no phase operations, use regular batch execution
-	if !hasPhaseOps {
+	// Use phase-aware execution if:
+	// 1. The file has phase markers (need to preserve phase boundaries on removes), OR
+	// 2. Any operation specifies a phase (need to add tasks to phases)
+	// Otherwise, use regular batch execution (no phases involved)
+	if len(phaseMarkers) == 0 && !hasPhaseOps {
 		return tl.ExecuteBatch(ops, dryRun)
 	}
 

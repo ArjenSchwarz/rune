@@ -686,3 +686,118 @@ func TestExecuteBatch_SingleAdd(t *testing.T) {
 		t.Errorf("Expected 'First task', got '%s'", tl.Tasks[0].Title)
 	}
 }
+
+// TestExecuteBatch_MultipleRemovesOriginalIDs tests that batch remove operations
+// process in reverse order so users can specify original task IDs.
+// This is a key requirement: users shouldn't need to calculate post-renumbering IDs.
+func TestExecuteBatch_MultipleRemovesOriginalIDs(t *testing.T) {
+	tl := NewTaskList("Multiple Remove Test")
+
+	// Add initial tasks: 1, 2, 3, 4
+	tl.AddTask("", "Task 1", "")
+	tl.AddTask("", "Task 2", "")
+	tl.AddTask("", "Task 3", "")
+	tl.AddTask("", "Task 4", "")
+
+	// Remove tasks 1 and 3 using original IDs
+	// Without reverse-order processing: remove 1 first → task 3 becomes 2 → remove "3" fails
+	// With reverse-order processing: remove 3 first (still task 3) → remove 1 (still task 1) → correct!
+	ops := []Operation{
+		{Type: "remove", ID: "1"},
+		{Type: "remove", ID: "3"},
+	}
+
+	response, err := tl.ExecuteBatch(ops, false)
+	if err != nil {
+		t.Fatalf("ExecuteBatch failed: %v", err)
+	}
+
+	if !response.Success {
+		t.Fatalf("Expected success, got errors: %v", response.Errors)
+	}
+
+	if response.Applied != 2 {
+		t.Errorf("Expected 2 applied operations, got %d", response.Applied)
+	}
+
+	// Should have 2 tasks remaining (original tasks 2 and 4)
+	if len(tl.Tasks) != 2 {
+		t.Errorf("Expected 2 tasks after removals, got %d", len(tl.Tasks))
+	}
+
+	// Verify the remaining tasks are the correct ones (renumbered to 1 and 2)
+	expectedTitles := []string{"Task 2", "Task 4"}
+	for i, task := range tl.Tasks {
+		if task.Title != expectedTitles[i] {
+			t.Errorf("Task %d: expected title '%s', got '%s'", i+1, expectedTitles[i], task.Title)
+		}
+		expectedID := fmt.Sprintf("%d", i+1)
+		if task.ID != expectedID {
+			t.Errorf("Task %d: expected ID '%s', got '%s'", i+1, expectedID, task.ID)
+		}
+	}
+}
+
+// TestExecuteBatch_RemovesWithAddsOriginalIDs tests that removes and adds work correctly
+// when mixed in a batch, with removes using original IDs.
+func TestExecuteBatch_RemovesWithAddsOriginalIDs(t *testing.T) {
+	tl := NewTaskList("Mixed Operations Test")
+
+	// Add initial tasks: 1, 2, 3
+	tl.AddTask("", "Task 1", "")
+	tl.AddTask("", "Task 2", "")
+	tl.AddTask("", "Task 3", "")
+
+	// Mix of adds and removes
+	// Removes should use original IDs regardless of adds
+	ops := []Operation{
+		{Type: "add", Title: "New Task"},     // Appended at end
+		{Type: "remove", ID: "1"},            // Remove original task 1
+		{Type: "remove", ID: "3"},            // Remove original task 3
+		{Type: "add", Title: "Another Task"}, // Appended at end
+	}
+
+	response, err := tl.ExecuteBatch(ops, false)
+	if err != nil {
+		t.Fatalf("ExecuteBatch failed: %v", err)
+	}
+
+	if !response.Success {
+		t.Fatalf("Expected success, got errors: %v", response.Errors)
+	}
+
+	if response.Applied != 4 {
+		t.Errorf("Expected 4 applied operations, got %d", response.Applied)
+	}
+
+	// Should have 3 tasks: Task 2 + 2 new tasks
+	if len(tl.Tasks) != 3 {
+		t.Errorf("Expected 3 tasks after operations, got %d", len(tl.Tasks))
+	}
+
+	// Verify content - order depends on operation ordering
+	// Original Task 2 should remain, plus the two new tasks
+	foundTask2 := false
+	foundNewTask := false
+	foundAnotherTask := false
+	for _, task := range tl.Tasks {
+		switch task.Title {
+		case "Task 2":
+			foundTask2 = true
+		case "New Task":
+			foundNewTask = true
+		case "Another Task":
+			foundAnotherTask = true
+		}
+	}
+
+	if !foundTask2 {
+		t.Error("Expected 'Task 2' to remain after removals")
+	}
+	if !foundNewTask {
+		t.Error("Expected 'New Task' to be added")
+	}
+	if !foundAnotherTask {
+		t.Error("Expected 'Another Task' to be added")
+	}
+}

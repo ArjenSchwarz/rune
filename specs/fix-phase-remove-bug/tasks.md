@@ -12,12 +12,12 @@ references:
 
 ## Batch Operations Fix
 
-- [ ] 3. Batch remove operations process in reverse order so users can specify original task IDs
+- [x] 3. Batch remove operations process in reverse order so users can specify original task IDs
 
-- [ ] 4. Test verifies batch removes work with original task IDs
+- [x] 4. Test verifies batch removes work with original task IDs
 
-- [ ] 5. Batch remove operations adjust phase markers after each removal
+- [x] 5. Batch remove operations adjust phase markers after each removal
 
-- [ ] 6. Test verifies batch removes preserve phase boundaries
+- [x] 6. Test verifies batch removes preserve phase boundaries
 
-- [ ] 7. All existing tests pass after changes
+- [x] 7. All existing tests pass after changes

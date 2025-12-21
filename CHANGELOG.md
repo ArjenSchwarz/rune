@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Batch Remove Phase Preservation**: Batch remove operations now correctly adjust phase markers after each removal to preserve phase boundaries
+  - Phase-aware batch execution is used when the file has phase markers, even if no operations specify a phase
+  - Batch removes process in reverse order (highest ID first) so users can specify original task IDs
+
 ### Added
+
+- **Batch Remove Tests**: Tests verifying batch remove operations work with original task IDs and preserve phase boundaries
+  - `TestExecuteBatch_MultipleRemovesOriginalIDs` - verifies multiple removes use original IDs
+  - `TestExecuteBatch_RemovesWithAddsOriginalIDs` - verifies mixed add/remove operations
+  - `TestExecuteBatchWithPhases_RemovePreservesPhases` - verifies phase preservation on single remove
+  - `TestExecuteBatchWithPhases_MultipleRemovesPreservesPhases` - verifies phase preservation on multiple removes
 
 - **Success and Count Fields in Read Commands**: Added `success` and `count` fields to JSON responses for read commands (`list`, `find`, `next`, `next --phase`) to comply with requirement 1.1 of the consistent output format specification
 - **Integration Tests for Non-Empty JSON Responses**: Tests verifying `success` and `count` fields are present in non-empty JSON responses from read commands

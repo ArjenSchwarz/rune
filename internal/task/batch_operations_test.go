@@ -555,3 +555,226 @@ func TestExecuteBatch_AutoCompleteWithMixedOperations(t *testing.T) {
 		t.Errorf("Expected 1 auto-completed task, got %d", len(response.AutoCompleted))
 	}
 }
+
+// TestExecuteBatchWithPhases_RemovePreservesPhases tests that batch remove operations
+// correctly adjust phase markers to maintain phase boundaries after task removal.
+func TestExecuteBatchWithPhases_RemovePreservesPhases(t *testing.T) {
+	content := `# Test Tasks
+
+## Planning
+
+- [ ] 1. Define requirements
+- [ ] 2. Create design
+
+## Implementation
+
+- [ ] 3. Write code
+- [ ] 4. Write tests`
+
+	tempFile := "test_batch_remove_phases.md"
+	if err := os.WriteFile(tempFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	defer os.Remove(tempFile)
+
+	tl, phaseMarkers, err := ParseFileWithPhases(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+
+	// Verify initial setup
+	if len(tl.Tasks) != 4 {
+		t.Fatalf("Expected 4 initial tasks, got %d", len(tl.Tasks))
+	}
+	if len(phaseMarkers) != 2 {
+		t.Fatalf("Expected 2 phase markers, got %d", len(phaseMarkers))
+	}
+
+	// Remove task 1 (first task in Planning phase)
+	ops := []Operation{
+		{Type: "remove", ID: "1"},
+	}
+
+	response, err := tl.ExecuteBatchWithPhases(ops, false, phaseMarkers, tempFile)
+	if err != nil {
+		t.Fatalf("ExecuteBatchWithPhases failed: %v", err)
+	}
+
+	if !response.Success {
+		t.Fatalf("Expected success, got errors: %v", response.Errors)
+	}
+
+	// Re-parse the file to verify structure
+	tl, newPhaseMarkers, err := ParseFileWithPhases(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to re-parse file: %v", err)
+	}
+
+	// Should have 3 tasks remaining, renumbered 1, 2, 3
+	if len(tl.Tasks) != 3 {
+		t.Errorf("Expected 3 tasks after removal, got %d", len(tl.Tasks))
+	}
+
+	// Verify task content after renumbering
+	expectedTitles := []string{"Create design", "Write code", "Write tests"}
+	for i, task := range tl.Tasks {
+		if task.Title != expectedTitles[i] {
+			t.Errorf("Task %d: expected title '%s', got '%s'", i+1, expectedTitles[i], task.Title)
+		}
+	}
+
+	// Verify phases are still correct
+	if len(newPhaseMarkers) != 2 {
+		t.Errorf("Expected 2 phase markers after removal, got %d", len(newPhaseMarkers))
+	}
+
+	// Read file content to verify phase structure
+	fileContent, err := os.ReadFile(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to read temp file: %v", err)
+	}
+	contentStr := string(fileContent)
+
+	// Planning phase should still contain "Create design" (now task 1)
+	if !strings.Contains(contentStr, "## Planning") {
+		t.Error("Planning phase header missing")
+	}
+	if !strings.Contains(contentStr, "1. Create design") {
+		t.Error("Task 1 (Create design) should be in Planning phase")
+	}
+
+	// Implementation phase should still contain "Write code" and "Write tests"
+	if !strings.Contains(contentStr, "## Implementation") {
+		t.Error("Implementation phase header missing")
+	}
+	if !strings.Contains(contentStr, "2. Write code") {
+		t.Error("Task 2 (Write code) should be in Implementation phase")
+	}
+}
+
+// TestExecuteBatchWithPhases_MultipleRemovesPreservesPhases tests that multiple batch removes
+// correctly adjust phase markers using original task IDs.
+func TestExecuteBatchWithPhases_MultipleRemovesPreservesPhases(t *testing.T) {
+	content := `# Test Tasks
+
+## Planning
+
+- [ ] 1. Define requirements
+- [ ] 2. Create design
+
+## Implementation
+
+- [ ] 3. Write code
+- [ ] 4. Write tests
+
+## Testing
+
+- [ ] 5. Run unit tests
+- [ ] 6. Run integration tests`
+
+	tempFile := "test_batch_multi_remove_phases.md"
+	if err := os.WriteFile(tempFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	defer os.Remove(tempFile)
+
+	tl, phaseMarkers, err := ParseFileWithPhases(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+
+	// Verify initial setup
+	if len(tl.Tasks) != 6 {
+		t.Fatalf("Expected 6 initial tasks, got %d", len(tl.Tasks))
+	}
+	if len(phaseMarkers) != 3 {
+		t.Fatalf("Expected 3 phase markers, got %d", len(phaseMarkers))
+	}
+
+	// Remove tasks 1, 3, and 5 using original IDs
+	// With reverse-order processing: remove 5 first, then 3, then 1
+	ops := []Operation{
+		{Type: "remove", ID: "1"},
+		{Type: "remove", ID: "3"},
+		{Type: "remove", ID: "5"},
+	}
+
+	response, err := tl.ExecuteBatchWithPhases(ops, false, phaseMarkers, tempFile)
+	if err != nil {
+		t.Fatalf("ExecuteBatchWithPhases failed: %v", err)
+	}
+
+	if !response.Success {
+		t.Fatalf("Expected success, got errors: %v", response.Errors)
+	}
+
+	if response.Applied != 3 {
+		t.Errorf("Expected 3 applied operations, got %d", response.Applied)
+	}
+
+	// Re-parse the file to verify structure
+	tl, newPhaseMarkers, err := ParseFileWithPhases(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to re-parse file: %v", err)
+	}
+
+	// Should have 3 tasks remaining (2, 4, 6 → renumbered to 1, 2, 3)
+	if len(tl.Tasks) != 3 {
+		t.Errorf("Expected 3 tasks after removals, got %d", len(tl.Tasks))
+	}
+
+	// Verify task content after renumbering
+	expectedTitles := []string{"Create design", "Write tests", "Run integration tests"}
+	for i, task := range tl.Tasks {
+		if task.Title != expectedTitles[i] {
+			t.Errorf("Task %d: expected title '%s', got '%s'", i+1, expectedTitles[i], task.Title)
+		}
+	}
+
+	// Verify phases are still correct (3 phases preserved)
+	if len(newPhaseMarkers) != 3 {
+		t.Errorf("Expected 3 phase markers after removals, got %d", len(newPhaseMarkers))
+	}
+
+	// Read file content to verify phase structure is intact
+	fileContent, err := os.ReadFile(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to read temp file: %v", err)
+	}
+	contentStr := string(fileContent)
+
+	// All three phases should still exist with correct tasks
+	if !strings.Contains(contentStr, "## Planning") {
+		t.Error("Planning phase header missing")
+	}
+	if !strings.Contains(contentStr, "## Implementation") {
+		t.Error("Implementation phase header missing")
+	}
+	if !strings.Contains(contentStr, "## Testing") {
+		t.Error("Testing phase header missing")
+	}
+
+	// Verify task positions in phases
+	planningIdx := strings.Index(contentStr, "## Planning")
+	implIdx := strings.Index(contentStr, "## Implementation")
+	testingIdx := strings.Index(contentStr, "## Testing")
+
+	task1Idx := strings.Index(contentStr, "1. Create design")
+	task2Idx := strings.Index(contentStr, "2. Write tests")
+	task3Idx := strings.Index(contentStr, "3. Run integration tests")
+
+	// Task 1 should be between Planning and Implementation
+	if task1Idx < planningIdx || task1Idx > implIdx {
+		t.Error("Task 1 (Create design) should be in Planning phase")
+	}
+
+	// Task 2 should be between Implementation and Testing
+	if task2Idx < implIdx || task2Idx > testingIdx {
+		t.Error("Task 2 (Write tests) should be in Implementation phase")
+	}
+
+	// Task 3 should be after Testing
+	if task3Idx < testingIdx {
+		t.Error("Task 3 (Run integration tests) should be in Testing phase")
+	}
+}
