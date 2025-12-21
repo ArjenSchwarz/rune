@@ -50,6 +50,11 @@ func TestIntegrationPhaseFeatures(t *testing.T) {
 			description: "Test has-phases command detection and JSON output",
 			workflow:    testHasPhasesCommand,
 		},
+		"phase_remove_preserves_boundaries": {
+			name:        "Phase Remove Preserves Boundaries",
+			description: "Test CLI remove command preserves phase boundaries when removing tasks",
+			workflow:    testPhaseRemovePreservesBoundaries,
+		},
 	}
 
 	for testName, tc := range tests {
@@ -918,4 +923,277 @@ func testHasPhasesCommand(t *testing.T, tempDir string) {
 	})
 
 	t.Logf("Has-phases command test passed successfully")
+}
+
+// testPhaseRemovePreservesBoundaries tests that the CLI remove command preserves phase boundaries
+func testPhaseRemovePreservesBoundaries(t *testing.T, tempDir string) {
+	// Test 1: Remove first task in a phase
+	t.Run("remove_first_task_in_phase", func(t *testing.T) {
+		filename := "remove-phase-test.md"
+		content := `# Tasks
+
+## Planning
+
+- [ ] 1. Define requirements
+- [ ] 2. Create design
+
+## Implementation
+
+- [ ] 3. Write code
+- [ ] 4. Write tests
+`
+		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to create test file: %v", err)
+		}
+
+		// Remove task 1 (first task in Planning phase)
+		runGoCommand(t, "remove", filename, "1")
+
+		// Read the file content
+		resultContent, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatalf("failed to read result file: %v", err)
+		}
+		contentStr := string(resultContent)
+
+		// Verify phases are preserved
+		if !strings.Contains(contentStr, "## Planning") {
+			t.Error("Planning phase header was not preserved")
+		}
+		if !strings.Contains(contentStr, "## Implementation") {
+			t.Error("Implementation phase header was not preserved")
+		}
+
+		// Parse and verify task structure
+		tl, phaseMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to parse result file: %v", err)
+		}
+
+		// Should have 3 tasks after removing 1
+		if len(tl.Tasks) != 3 {
+			t.Errorf("expected 3 tasks, got %d", len(tl.Tasks))
+		}
+
+		// Verify Implementation phase marker points to correct task
+		for _, marker := range phaseMarkers {
+			if marker.Name == "Implementation" {
+				// After removing task 1 and renumbering:
+				// Planning: 1 (Create design, was 2)
+				// Implementation: 2, 3 (Write code was 3, Write tests was 4)
+				// So Implementation phase should point to task 1 (last task in Planning)
+				if marker.AfterTaskID != "1" {
+					t.Errorf("Implementation phase marker should point to 1, got %s", marker.AfterTaskID)
+				}
+			}
+		}
+
+		// Verify task content is correct
+		if tl.Tasks[0].Title != "Create design" {
+			t.Errorf("expected first task to be 'Create design', got '%s'", tl.Tasks[0].Title)
+		}
+		if tl.Tasks[1].Title != "Write code" {
+			t.Errorf("expected second task to be 'Write code', got '%s'", tl.Tasks[1].Title)
+		}
+	})
+
+	// Test 2: Remove task from middle of file (not at phase boundary)
+	t.Run("remove_middle_task", func(t *testing.T) {
+		filename := "remove-middle-test.md"
+		content := `# Tasks
+
+## Planning
+
+- [ ] 1. Define requirements
+- [ ] 2. Create design
+
+## Implementation
+
+- [ ] 3. Write code
+- [ ] 4. Write tests
+`
+		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to create test file: %v", err)
+		}
+
+		// Remove task 3 (first task in Implementation phase)
+		runGoCommand(t, "remove", filename, "3")
+
+		// Parse and verify
+		tl, phaseMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to parse result file: %v", err)
+		}
+
+		// Should have 3 tasks
+		if len(tl.Tasks) != 3 {
+			t.Errorf("expected 3 tasks, got %d", len(tl.Tasks))
+		}
+
+		// Verify phase markers are correct
+		for _, marker := range phaseMarkers {
+			if marker.Name == "Implementation" {
+				// After removing task 3 (first in Implementation):
+				// Planning: 1, 2
+				// Implementation: 3 (Write tests, was 4)
+				// Implementation phase marker should still point to task 2
+				if marker.AfterTaskID != "2" {
+					t.Errorf("Implementation phase marker should point to 2, got %s", marker.AfterTaskID)
+				}
+			}
+		}
+
+		// Verify remaining task in Implementation is correct
+		if tl.Tasks[2].Title != "Write tests" {
+			t.Errorf("expected third task to be 'Write tests', got '%s'", tl.Tasks[2].Title)
+		}
+	})
+
+	// Test 3: Remove task at phase boundary (last task before next phase)
+	t.Run("remove_at_phase_boundary", func(t *testing.T) {
+		filename := "remove-boundary-test.md"
+		content := `# Tasks
+
+## Planning
+
+- [ ] 1. Define requirements
+- [ ] 2. Create design
+
+## Implementation
+
+- [ ] 3. Write code
+- [ ] 4. Write tests
+`
+		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to create test file: %v", err)
+		}
+
+		// Remove task 2 (last task in Planning, at the boundary)
+		runGoCommand(t, "remove", filename, "2")
+
+		// Parse and verify
+		tl, phaseMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to parse result file: %v", err)
+		}
+
+		// Should have 3 tasks
+		if len(tl.Tasks) != 3 {
+			t.Errorf("expected 3 tasks, got %d", len(tl.Tasks))
+		}
+
+		// Verify phase markers are correct
+		for _, marker := range phaseMarkers {
+			if marker.Name == "Implementation" {
+				// After removing task 2 (boundary task):
+				// Planning: 1 (Define requirements)
+				// Implementation: 2, 3 (Write code was 3, Write tests was 4)
+				// Implementation phase marker should now point to task 1
+				if marker.AfterTaskID != "1" {
+					t.Errorf("Implementation phase marker should point to 1, got %s", marker.AfterTaskID)
+				}
+			}
+		}
+	})
+
+	// Test 4: Remove subtask should not affect phase markers
+	t.Run("remove_subtask_no_phase_change", func(t *testing.T) {
+		filename := "remove-subtask-test.md"
+		content := `# Tasks
+
+## Planning
+
+- [ ] 1. Define requirements
+  - [ ] 1.1. Functional requirements
+  - [ ] 1.2. Non-functional requirements
+- [ ] 2. Create design
+
+## Implementation
+
+- [ ] 3. Write code
+`
+		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to create test file: %v", err)
+		}
+
+		// Get initial phase markers
+		_, initialMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to parse initial file: %v", err)
+		}
+
+		// Remove subtask 1.1
+		runGoCommand(t, "remove", filename, "1.1")
+
+		// Parse and verify
+		tl, phaseMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to parse result file: %v", err)
+		}
+
+		// Should have 3 root tasks
+		if len(tl.Tasks) != 3 {
+			t.Errorf("expected 3 root tasks, got %d", len(tl.Tasks))
+		}
+
+		// Phase markers should be unchanged because subtask removal
+		// does not affect top-level task numbering
+		for i, marker := range phaseMarkers {
+			if marker.AfterTaskID != initialMarkers[i].AfterTaskID {
+				t.Errorf("phase marker %s changed after subtask removal: was %s, now %s",
+					marker.Name, initialMarkers[i].AfterTaskID, marker.AfterTaskID)
+			}
+		}
+
+		// Verify task 1 now has only 1 child
+		if len(tl.Tasks[0].Children) != 1 {
+			t.Errorf("expected task 1 to have 1 child, got %d", len(tl.Tasks[0].Children))
+		}
+	})
+
+	// Test 5: Files without phases should work correctly (no regression)
+	t.Run("remove_without_phases", func(t *testing.T) {
+		filename := "remove-no-phases.md"
+		content := `# Tasks
+
+- [ ] 1. First task
+- [ ] 2. Second task
+- [ ] 3. Third task
+`
+		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to create test file: %v", err)
+		}
+
+		// Remove task 2
+		runGoCommand(t, "remove", filename, "2")
+
+		// Parse and verify
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse result file: %v", err)
+		}
+
+		// Should have 2 tasks
+		if len(tl.Tasks) != 2 {
+			t.Errorf("expected 2 tasks, got %d", len(tl.Tasks))
+		}
+
+		// Verify task IDs are renumbered correctly
+		if tl.Tasks[0].ID != "1" {
+			t.Errorf("expected first task ID to be '1', got '%s'", tl.Tasks[0].ID)
+		}
+		if tl.Tasks[1].ID != "2" {
+			t.Errorf("expected second task ID to be '2', got '%s'", tl.Tasks[1].ID)
+		}
+
+		// Verify correct tasks remain
+		if tl.Tasks[0].Title != "First task" {
+			t.Errorf("expected first task to be 'First task', got '%s'", tl.Tasks[0].Title)
+		}
+		if tl.Tasks[1].Title != "Third task" {
+			t.Errorf("expected second task to be 'Third task', got '%s'", tl.Tasks[1].Title)
+		}
+	})
+
+	t.Logf("Phase remove preserves boundaries test passed successfully")
 }

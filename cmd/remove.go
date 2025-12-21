@@ -72,11 +72,18 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to access file %s: %w", filename, err)
 	}
 
+	// Read original file content for phase-aware operations
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return fmt.Errorf("failed to read file %s: %w", filename, err)
+	}
+
 	// Parse existing file
-	tl, err := task.ParseFile(filename)
+	tl, err := task.ParseMarkdown(content)
 	if err != nil {
 		return fmt.Errorf("failed to parse task file: %w", err)
 	}
+	tl.FilePath = filename
 
 	// Find the task to verify it exists and get info for output
 	targetTask := tl.FindTask(taskID)
@@ -101,14 +108,9 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Remove the task
-	if err := tl.RemoveTask(taskID); err != nil {
+	// Remove the task (phase-aware - handles both phase and non-phase files)
+	if err := tl.RemoveTaskWithPhases(taskID, content); err != nil {
 		return fmt.Errorf("failed to remove task: %w", err)
-	}
-
-	// Write the updated file
-	if err := tl.WriteFile(filename); err != nil {
-		return fmt.Errorf("failed to write updated file: %w", err)
 	}
 
 	// Format-aware output

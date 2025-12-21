@@ -29,9 +29,12 @@ func validateTaskIDFormat(id string) bool {
 	return IsValidID(id)
 }
 
-// sortOperationsForPositionInsertions sorts operations to process position insertions in reverse order
-// This ensures that position references remain valid to the original pre-batch state
-func sortOperationsForPositionInsertions(ops []Operation) []Operation {
+// sortOperationsForExecution sorts operations to ensure correct execution order:
+// 1. Position insertions are sorted in reverse order (highest position first) so position references remain valid
+// 2. Remove operations are sorted in reverse order (highest ID first) so users can specify original task IDs
+// The sorted operations maintain their relative order: position insertions first, then all other operations
+// (with removes sorted in reverse among themselves but in their original position relative to non-removes)
+func sortOperationsForExecution(ops []Operation) []Operation {
 	// Separate position insertions from other operations
 	var positionInsertions []Operation
 	var otherOps []Operation
@@ -48,6 +51,30 @@ func sortOperationsForPositionInsertions(ops []Operation) []Operation {
 	sort.Slice(positionInsertions, func(i, j int) bool {
 		return comparePositions(positionInsertions[i].Position, positionInsertions[j].Position) > 0
 	})
+
+	// Sort remove operations in reverse order (higher IDs first) while preserving their relative
+	// position to non-remove operations. This allows users to specify original task IDs when
+	// doing multiple removes - removing highest first preserves lower IDs.
+	// We achieve this by collecting removes, sorting them, and reinserting at their block position.
+	var removes []Operation
+	removeIndices := []int{}
+
+	for i, op := range otherOps {
+		if strings.ToLower(op.Type) == removeOperation {
+			removes = append(removes, op)
+			removeIndices = append(removeIndices, i)
+		}
+	}
+
+	// Sort removes in reverse order
+	sort.Slice(removes, func(i, j int) bool {
+		return comparePositions(removes[i].ID, removes[j].ID) > 0
+	})
+
+	// Replace removes back at their original indices (in sorted order)
+	for i, idx := range removeIndices {
+		otherOps[idx] = removes[i]
+	}
 
 	// Combine: position insertions first (in reverse order), then other operations
 	result := make([]Operation, 0, len(ops))
@@ -127,9 +154,9 @@ func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, 
 		AutoCompleted: []string{},
 	}
 
-	// Sort operations to process position insertions in reverse order
-	// This ensures position references use original pre-batch state
-	sortedOps := sortOperationsForPositionInsertions(ops)
+	// Sort operations for correct execution order (position insertions and removes in reverse)
+	// This ensures references use original pre-batch state
+	sortedOps := sortOperationsForExecution(ops)
 
 	// Create a deep copy to test all operations first (per Decision #12)
 	testList, err := tl.deepCopy()
@@ -346,13 +373,16 @@ func (tl *TaskList) ExecuteBatchWithPhases(ops []Operation, dryRun bool, phaseMa
 		}
 	}
 
-	// If no phase operations, use regular batch execution
-	if !hasPhaseOps {
+	// Use phase-aware execution if:
+	// 1. The file has phase markers (need to preserve phase boundaries on removes), OR
+	// 2. Any operation specifies a phase (need to add tasks to phases)
+	// Otherwise, use regular batch execution (no phases involved)
+	if len(phaseMarkers) == 0 && !hasPhaseOps {
 		return tl.ExecuteBatch(ops, dryRun)
 	}
 
-	// Sort operations to process position insertions in reverse order
-	sortedOps := sortOperationsForPositionInsertions(ops)
+	// Sort operations for correct execution order (position insertions and removes in reverse)
+	sortedOps := sortOperationsForExecution(ops)
 
 	// Create a deep copy to test all operations first
 	testList, err := tl.deepCopyWithPhases(phaseMarkers)
@@ -470,6 +500,7 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 		}
 		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
 	case removeOperation:
+		adjustPhaseMarkersForRemoval(op.ID, phaseMarkers)
 		return tl.RemoveTask(op.ID)
 	case updateOperation:
 		// Handle status update only when status field is provided
