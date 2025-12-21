@@ -6,9 +6,9 @@ references:
 
 ## CLI Remove Fix
 
-- [ ] 1. CLI remove command preserves phase boundaries when removing tasks
+- [x] 1. CLI remove command preserves phase boundaries when removing tasks
 
-- [ ] 2. Integration test verifies CLI remove with phases matches expected output
+- [x] 2. Integration test verifies CLI remove with phases matches expected output
 
 ## Batch Operations Fix
 
