@@ -12,7 +12,9 @@ import (
 )
 
 // DiscoverFileFromBranch discovers a task file based on the current git branch
-// and the configured template pattern
+// and the configured template pattern. It tries multiple candidate paths:
+// first the stripped branch name (after first /), then the full branch name.
+// If both paths exist, the stripped path takes precedence.
 func DiscoverFileFromBranch(template string) (string, error) {
 	branch, err := getCurrentBranch()
 	if err != nil {
@@ -23,15 +25,28 @@ func DiscoverFileFromBranch(template string) (string, error) {
 		return "", fmt.Errorf("special git state detected: %s (please specify file explicitly)", branch)
 	}
 
-	// Replace {branch} placeholder with actual branch name
-	path := strings.ReplaceAll(template, "{branch}", branch)
-
-	// Verify file exists
-	if !fileExists(path) {
-		return "", fmt.Errorf("branch-based file not found: %s", path)
+	// Strip prefix before first slash
+	strippedBranch := branch
+	if _, after, found := strings.Cut(branch, "/"); found {
+		strippedBranch = after
 	}
 
-	return path, nil
+	// Try stripped name first, then full name
+	candidates := []string{
+		strings.ReplaceAll(template, "{branch}", strippedBranch),
+	}
+	if strippedBranch != branch {
+		candidates = append(candidates, strings.ReplaceAll(template, "{branch}", branch))
+	}
+
+	for _, path := range candidates {
+		if fileExists(path) {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("task file not found for branch %q (tried: %s)",
+		branch, strings.Join(candidates, ", "))
 }
 
 // getCurrentBranch is a variable that points to the function for getting current git branch

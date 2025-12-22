@@ -12,26 +12,49 @@ import (
 
 func TestDiscoverFileFromBranch(t *testing.T) {
 	tests := map[string]struct {
-		template     string
-		branch       string
-		fileExists   bool
-		expectError  bool
-		expectedPath string
-		gitError     error
-		specialState bool
+		template      string
+		branch        string
+		createPaths   []string // paths to create for testing
+		expectError   bool
+		expectedPath  string
+		errorContains string
+		gitError      error
+		specialState  bool
 	}{
-		"successful discovery": {
+		"prefixed branch finds stripped path": {
+			template:     "specs/{branch}/tasks.md",
+			branch:       "specs/my-feature",
+			createPaths:  []string{"specs/my-feature/tasks.md"},
+			expectError:  false,
+			expectedPath: "specs/my-feature/tasks.md",
+		},
+		"prefixed branch falls back to full path": {
 			template:     "specs/{branch}/tasks.md",
 			branch:       "feature/auth",
-			fileExists:   true,
+			createPaths:  []string{"specs/feature/auth/tasks.md"},
 			expectError:  false,
 			expectedPath: "specs/feature/auth/tasks.md",
 		},
-		"file not found": {
-			template:    "specs/{branch}/tasks.md",
-			branch:      "nonexistent",
-			fileExists:  false,
-			expectError: true,
+		"stripped path takes precedence over full path": {
+			template:     "specs/{branch}/tasks.md",
+			branch:       "specs/my-feature",
+			createPaths:  []string{"specs/my-feature/tasks.md", "specs/specs/my-feature/tasks.md"},
+			expectError:  false,
+			expectedPath: "specs/my-feature/tasks.md",
+		},
+		"file not found shows all tried paths": {
+			template:      "specs/{branch}/tasks.md",
+			branch:        "feature/nonexistent",
+			createPaths:   nil,
+			expectError:   true,
+			errorContains: "tried: specs/nonexistent/tasks.md, specs/feature/nonexistent/tasks.md",
+		},
+		"single component branch - file not found shows single path": {
+			template:      "specs/{branch}/tasks.md",
+			branch:        "main",
+			createPaths:   nil,
+			expectError:   true,
+			errorContains: "tried: specs/main/tasks.md",
 		},
 		"git error": {
 			template:    "specs/{branch}/tasks.md",
@@ -53,16 +76,30 @@ func TestDiscoverFileFromBranch(t *testing.T) {
 		"template with complex path": {
 			template:     "projects/{branch}/docs/tasks.md",
 			branch:       "feature/complex-name",
-			fileExists:   true,
+			createPaths:  []string{"projects/complex-name/docs/tasks.md"},
 			expectError:  false,
-			expectedPath: "projects/feature/complex-name/docs/tasks.md",
+			expectedPath: "projects/complex-name/docs/tasks.md",
 		},
 		"branch with single component": {
 			template:     "specs/{branch}/tasks.md",
 			branch:       "main",
-			fileExists:   true,
+			createPaths:  []string{"specs/main/tasks.md"},
 			expectError:  false,
 			expectedPath: "specs/main/tasks.md",
+		},
+		"branch with multiple slashes": {
+			template:     "specs/{branch}/tasks.md",
+			branch:       "feature/auth/oauth",
+			createPaths:  []string{"specs/auth/oauth/tasks.md"},
+			expectError:  false,
+			expectedPath: "specs/auth/oauth/tasks.md",
+		},
+		"branch with multiple slashes falls back to full": {
+			template:     "specs/{branch}/tasks.md",
+			branch:       "feature/auth/oauth",
+			createPaths:  []string{"specs/feature/auth/oauth/tasks.md"},
+			expectError:  false,
+			expectedPath: "specs/feature/auth/oauth/tasks.md",
 		},
 	}
 
@@ -76,14 +113,13 @@ func TestDiscoverFileFromBranch(t *testing.T) {
 			}()
 			os.Chdir(tempDir)
 
-			// Create the expected file if it should exist
-			if tc.fileExists {
-				expectedPath := strings.ReplaceAll(tc.template, "{branch}", tc.branch)
-				dir := filepath.Dir(expectedPath)
+			// Create the test files if specified
+			for _, path := range tc.createPaths {
+				dir := filepath.Dir(path)
 				if err := os.MkdirAll(dir, 0755); err != nil {
 					t.Fatalf("Failed to create test directory: %v", err)
 				}
-				if err := os.WriteFile(expectedPath, []byte("test content"), 0644); err != nil {
+				if err := os.WriteFile(path, []byte("test content"), 0644); err != nil {
 					t.Fatalf("Failed to create test file: %v", err)
 				}
 			}
@@ -110,6 +146,10 @@ func TestDiscoverFileFromBranch(t *testing.T) {
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
+					return
+				}
+				if tc.errorContains != "" && !strings.Contains(err.Error(), tc.errorContains) {
+					t.Errorf("Expected error containing %q, got: %v", tc.errorContains, err)
 				}
 				return
 			}
