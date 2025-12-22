@@ -14,6 +14,7 @@ import (
 // DiscoverFileFromBranch discovers a task file based on the current git branch
 // and the configured template pattern. It tries multiple candidate paths:
 // first the stripped branch name (after first /), then the full branch name.
+// If both paths exist, the stripped path takes precedence.
 func DiscoverFileFromBranch(template string) (string, error) {
 	branch, err := getCurrentBranch()
 	if err != nil {
