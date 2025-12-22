@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Smart Branch Discovery**: Branch-based file discovery now intelligently strips branch prefixes
+  - Branches like `specs/my-feature` or `feature/auth` now resolve correctly by trying the stripped name first (`my-feature`, `auth`)
+  - Falls back to full branch name if stripped path doesn't exist
+  - Single-component branches (e.g., `main`) avoid duplicate path attempts
+  - Error messages now list all candidate paths that were tried
+
 ### Fixed
 
 - **Batch Remove Phase Preservation**: Batch remove operations now correctly adjust phase markers after each removal to preserve phase boundaries
