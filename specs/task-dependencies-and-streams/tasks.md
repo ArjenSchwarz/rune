@@ -295,7 +295,7 @@ references:
 
 ## Integration Tests
 
-- [ ] 35. Write multi-agent workflow integration test
+- [x] 35. Write multi-agent workflow integration test
   - Create task file with streams and dependencies
   - Simulate agent claiming stream 1
   - Simulate agent claiming stream 2
@@ -303,13 +303,13 @@ references:
   - Verify no duplicate claims
   - Requirements: [6.2](requirements.md#6.2), [6.4](requirements.md#6.4), [6.5](requirements.md#6.5), [6.13](requirements.md#6.13)
 
-- [ ] 36. Write dependency chain resolution integration test
+- [x] 36. Write dependency chain resolution integration test
   - Create A → B → C → D dependency chain
   - Verify only A is ready initially
   - Complete tasks sequentially and verify readiness
   - Requirements: [2.4](requirements.md#2.4), [2.5](requirements.md#2.5)
 
-- [ ] 37. Write backward compatibility integration test
+- [x] 37. Write backward compatibility integration test
   - Parse existing file without new fields
   - Verify all operations work
   - Add new task with stable ID

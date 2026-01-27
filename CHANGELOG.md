@@ -171,6 +171,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Empty state JSON format tests (next all-complete, list empty, find no-matches)
   - Verbose + JSON stderr separation tests to verify verbose output goes to stderr
 
+- **Integration Tests for Task Dependencies and Streams**: End-to-end validation of multi-agent workflow capabilities
+  - Multi-agent workflow test: parallel streams claiming, dependency blocking, cross-stream dependencies
+  - Dependency chain resolution test: A → B → C → D chain validation, cycle and self-dependency prevention
+  - Backward compatibility test: legacy files without stable IDs, mixed files with old/new task formats
+
 - **Format Utilities**: Shared utility functions for consistent output format handling
   - `outputJSON` function for standardized JSON output to stdout
   - `outputMarkdownMessage` function for markdown blockquote messages

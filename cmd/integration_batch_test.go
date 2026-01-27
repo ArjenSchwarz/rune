@@ -1346,4 +1346,600 @@ func testFrontMatterIntegration(t *testing.T, tempDir string) {
 	t.Logf("Front matter integration test passed successfully")
 }
 
+// testMultiAgentWorkflow tests streams and dependencies for parallel agent execution
+// This validates: two agents can work in parallel streams, blocked tasks wait for dependencies,
+// next --stream returns correct tasks, claiming works correctly, task completion unblocks dependents
+func testMultiAgentWorkflow(t *testing.T, _ string) {
+	filename := "multi-agent.md"
+
+	// Create task file with stream assignments and dependencies
+	// Use dependencies within streams to test sequential claiming
+	runGoCommand(t, "create", filename, "--title", "Multi-Agent Workflow")
+
+	// Add tasks for agent-1 (stream 1) with sequential dependencies
+	runGoCommand(t, "add", filename, "--title", "Setup database schema", "--stream", "1")                       // Task 1
+	runGoCommand(t, "add", filename, "--title", "Implement user service", "--stream", "1", "--blocked-by", "1") // Task 2 (blocked by 1)
+	runGoCommand(t, "add", filename, "--title", "Add user API endpoints", "--stream", "1", "--blocked-by", "2") // Task 3 (blocked by 2)
+
+	// Add tasks for agent-2 (stream 2) with sequential dependencies
+	runGoCommand(t, "add", filename, "--title", "Setup logging infrastructure", "--stream", "2")                 // Task 4
+	runGoCommand(t, "add", filename, "--title", "Implement audit service", "--stream", "2", "--blocked-by", "4") // Task 5 (blocked by 4)
+	runGoCommand(t, "add", filename, "--title", "Add audit API endpoints", "--stream", "2", "--blocked-by", "5") // Task 6 (blocked by 5)
+
+	// Add a shared task that depends on both streams (stream 1 by default)
+	runGoCommand(t, "add", filename, "--title", "Integration testing", "--blocked-by", "3,6") // Task 7
+
+	// Verify task file structure
+	tl, err := task.ParseFile(filename)
+	if err != nil {
+		t.Fatalf("failed to parse task file: %v", err)
+	}
+
+	if len(tl.Tasks) != 7 {
+		t.Errorf("expected 7 tasks, got %d", len(tl.Tasks))
+	}
+
+	// Test 1: Agent-1 claims next task in stream 1 (only task 1 is ready due to dependencies)
+	t.Run("agent1_claims_stream1_task", func(t *testing.T) {
+		output := runGoCommand(t, "next", filename, "--stream", "1", "--claim", "agent-1", "--format", "json")
+
+		if !strings.Contains(output, `"success": true`) {
+			t.Errorf("expected success, got: %s", output)
+		}
+		if !strings.Contains(output, `"owner": "agent-1"`) {
+			t.Errorf("expected owner agent-1, got: %s", output)
+		}
+		if !strings.Contains(output, "Setup database schema") {
+			t.Errorf("expected task 1 to be claimed, got: %s", output)
+		}
+
+		// Verify only task 1 was claimed (task 2 is blocked)
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+		task1 := tl.FindTask("1")
+		if task1.Owner != "agent-1" {
+			t.Errorf("expected owner agent-1, got %s", task1.Owner)
+		}
+		if task1.Status != task.InProgress {
+			t.Errorf("expected in-progress status, got %v", task1.Status)
+		}
+		// Task 2 should not be claimed yet (blocked)
+		task2 := tl.FindTask("2")
+		if task2.Owner != "" {
+			t.Errorf("task 2 should not be claimed yet, got owner %s", task2.Owner)
+		}
+	})
+
+	// Test 2: Agent-2 claims next task in stream 2 (parallel work)
+	t.Run("agent2_claims_stream2_task", func(t *testing.T) {
+		output := runGoCommand(t, "next", filename, "--stream", "2", "--claim", "agent-2", "--format", "json")
+
+		if !strings.Contains(output, `"success": true`) {
+			t.Errorf("expected success, got: %s", output)
+		}
+		if !strings.Contains(output, `"owner": "agent-2"`) {
+			t.Errorf("expected owner agent-2, got: %s", output)
+		}
+		if !strings.Contains(output, "Setup logging infrastructure") {
+			t.Errorf("expected task 4 to be claimed, got: %s", output)
+		}
+
+		// Verify only task 4 was claimed
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+		task5 := tl.FindTask("5")
+		if task5.Owner != "" {
+			t.Errorf("task 5 should not be claimed yet, got owner %s", task5.Owner)
+		}
+	})
+
+	// Test 3: Verify streams command shows correct status
+	t.Run("streams_status", func(t *testing.T) {
+		// Note: streams command uses --json flag, not --format json
+		output := runGoCommand(t, "streams", filename, "--json")
+
+		// Should have stream 1 and stream 2 listed
+		if !strings.Contains(output, `"id": 1`) || !strings.Contains(output, `"id": 2`) {
+			t.Errorf("expected streams 1 and 2, got: %s", output)
+		}
+		// Both streams should have active tasks
+		if !strings.Contains(output, `"active"`) {
+			t.Errorf("expected active tasks info, got: %s", output)
+		}
+	})
+
+	// Test 4: Complete agent-1's task and verify next is available
+	t.Run("complete_task_unblocks_next", func(t *testing.T) {
+		// Complete task 1
+		runGoCommand(t, "complete", filename, "1")
+
+		// Verify task 2 is now ready in stream 1
+		output := runGoCommand(t, "next", filename, "--stream", "1", "--format", "json")
+
+		if !strings.Contains(output, "Implement user service") {
+			t.Errorf("expected task 2 to be next, got: %s", output)
+		}
+	})
+
+	// Test 5: Verify blocked task waits for dependencies
+	t.Run("blocked_task_waits", func(t *testing.T) {
+		// Task 7 depends on tasks 3 and 6
+		// Check that task 7 is not ready yet
+
+		// Parse and verify task 7 is blocked
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+		index := task.BuildDependencyIndex(tl.Tasks)
+		task7 := tl.FindTask("7")
+		if task7 == nil {
+			t.Fatal("task 7 not found")
+		}
+		if !index.IsBlocked(task7) {
+			t.Error("expected task 7 to be blocked")
+		}
+	})
+
+	// Test 6: Complete all tasks and verify integration task becomes ready
+	t.Run("integration_task_ready_after_dependencies", func(t *testing.T) {
+		// Complete remaining stream 1 tasks
+		runGoCommand(t, "complete", filename, "2")
+		runGoCommand(t, "complete", filename, "3")
+
+		// Complete remaining stream 2 tasks
+		runGoCommand(t, "complete", filename, "4")
+		runGoCommand(t, "complete", filename, "5")
+		runGoCommand(t, "complete", filename, "6")
+
+		// Now task 7 should be ready
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+		index := task.BuildDependencyIndex(tl.Tasks)
+		task7 := tl.FindTask("7")
+		if task7 == nil {
+			t.Fatal("task 7 not found")
+		}
+		if index.IsBlocked(task7) {
+			t.Error("expected task 7 to be unblocked after dependencies completed")
+		}
+
+		// Verify next command returns task 7
+		output := runGoCommand(t, "next", filename, "--format", "json")
+		if !strings.Contains(output, "Integration testing") {
+			t.Errorf("expected integration testing task to be next, got: %s", output)
+		}
+	})
+
+	t.Logf("Multi-agent workflow integration test passed successfully")
+}
+
+// testDependencyChainResolution tests A → B → C → D dependency chain resolution
+// This validates: linear dependency chains resolve correctly, completing a task unblocks next in chain,
+// middle tasks can't start until their blockers complete, batch operations respect dependencies
+func testDependencyChainResolution(t *testing.T, _ string) {
+	filename := "dependency-chain.md"
+
+	// Create task file
+	runGoCommand(t, "create", filename, "--title", "Dependency Chain")
+
+	// Create linear dependency chain: D → C → B → A (task 4 blocked by 3, 3 blocked by 2, etc.)
+	// Note: Task 1 needs to be added with extended options to get a stable ID for later blocked-by refs
+	runGoCommand(t, "add", filename, "--title", "Task A - Foundation", "--stream", "1")                         // Task 1 (with stream to get stable ID)
+	runGoCommand(t, "add", filename, "--title", "Task B - Build layer 1", "--stream", "1", "--blocked-by", "1") // Task 2
+	runGoCommand(t, "add", filename, "--title", "Task C - Build layer 2", "--stream", "1", "--blocked-by", "2") // Task 3
+	runGoCommand(t, "add", filename, "--title", "Task D - Final layer", "--stream", "1", "--blocked-by", "3")   // Task 4
+
+	// Verify initial state
+	t.Run("initial_state", func(t *testing.T) {
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+		index := task.BuildDependencyIndex(tl.Tasks)
+
+		// Task A should be ready
+		if index.IsBlocked(tl.FindTask("1")) {
+			t.Error("task A should not be blocked")
+		}
+
+		// Tasks B, C, D should be blocked
+		if !index.IsBlocked(tl.FindTask("2")) {
+			t.Error("task B should be blocked")
+		}
+		if !index.IsBlocked(tl.FindTask("3")) {
+			t.Error("task C should be blocked")
+		}
+		if !index.IsBlocked(tl.FindTask("4")) {
+			t.Error("task D should be blocked")
+		}
+
+		// Next should return Task A
+		output := runGoCommand(t, "next", filename, "--format", "json")
+		if !strings.Contains(output, "Task A - Foundation") {
+			t.Errorf("expected Task A to be next, got: %s", output)
+		}
+	})
+
+	// Complete Task A and verify B becomes ready
+	t.Run("complete_A_unblocks_B", func(t *testing.T) {
+		runGoCommand(t, "complete", filename, "1")
+
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+		index := task.BuildDependencyIndex(tl.Tasks)
+
+		// Task B should now be ready
+		if index.IsBlocked(tl.FindTask("2")) {
+			t.Error("task B should be unblocked after A completes")
+		}
+
+		// Tasks C, D should still be blocked
+		if !index.IsBlocked(tl.FindTask("3")) {
+			t.Error("task C should still be blocked")
+		}
+		if !index.IsBlocked(tl.FindTask("4")) {
+			t.Error("task D should still be blocked")
+		}
+
+		// Next should return Task B
+		output := runGoCommand(t, "next", filename, "--format", "json")
+		if !strings.Contains(output, "Task B - Build layer 1") {
+			t.Errorf("expected Task B to be next, got: %s", output)
+		}
+	})
+
+	// Complete Task B and verify C becomes ready
+	t.Run("complete_B_unblocks_C", func(t *testing.T) {
+		runGoCommand(t, "complete", filename, "2")
+
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+		index := task.BuildDependencyIndex(tl.Tasks)
+
+		// Task C should now be ready
+		if index.IsBlocked(tl.FindTask("3")) {
+			t.Error("task C should be unblocked after B completes")
+		}
+
+		// Task D should still be blocked
+		if !index.IsBlocked(tl.FindTask("4")) {
+			t.Error("task D should still be blocked")
+		}
+	})
+
+	// Complete Task C and verify D becomes ready
+	t.Run("complete_C_unblocks_D", func(t *testing.T) {
+		runGoCommand(t, "complete", filename, "3")
+
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+		index := task.BuildDependencyIndex(tl.Tasks)
+
+		// Task D should now be ready
+		if index.IsBlocked(tl.FindTask("4")) {
+			t.Error("task D should be unblocked after C completes")
+		}
+
+		// Next should return Task D
+		output := runGoCommand(t, "next", filename, "--format", "json")
+		if !strings.Contains(output, "Task D - Final layer") {
+			t.Errorf("expected Task D to be next, got: %s", output)
+		}
+	})
+
+	// Test circular dependency prevention
+	t.Run("circular_dependency_prevention", func(t *testing.T) {
+		chainFile := "circular-test.md"
+		runGoCommand(t, "create", chainFile, "--title", "Circular Test")
+
+		// Add two tasks (with stream to get stable IDs)
+		runGoCommand(t, "add", chainFile, "--title", "Task X", "--stream", "1")
+		runGoCommand(t, "add", chainFile, "--title", "Task Y", "--stream", "1", "--blocked-by", "1")
+
+		// Try to make X depend on Y (would create cycle)
+		output := runGoCommandWithError(t, "update", chainFile, "1", "--blocked-by", "2")
+		if !strings.Contains(output, "circular") {
+			t.Errorf("expected circular dependency error, got: %s", output)
+		}
+	})
+
+	// Test self-dependency prevention
+	t.Run("self_dependency_prevention", func(t *testing.T) {
+		selfFile := "self-dep-test.md"
+		runGoCommand(t, "create", selfFile, "--title", "Self Dependency Test")
+		// Add with stream to get stable ID
+		runGoCommand(t, "add", selfFile, "--title", "Task Self", "--stream", "1")
+
+		// Try to make task depend on itself
+		output := runGoCommandWithError(t, "update", selfFile, "1", "--blocked-by", "1")
+		// Error message is "task cannot depend on itself"
+		if !strings.Contains(output, "itself") {
+			t.Errorf("expected self-dependency error, got: %s", output)
+		}
+	})
+
+	t.Logf("Dependency chain resolution integration test passed successfully")
+}
+
+// testBackwardCompatibility tests that legacy files without new fields work correctly
+// This validates: files without stable IDs parse and render correctly, files without streams work,
+// files without blocked-by work, mixed files (some tasks with new fields, some without) work
+func testBackwardCompatibility(t *testing.T, _ string) {
+	// Test 1: Legacy file without any new fields
+	t.Run("legacy_file_no_new_fields", func(t *testing.T) {
+		filename := "legacy.md"
+
+		// Create a legacy-style task file manually
+		legacyContent := `# Legacy Task List
+
+- [ ] 1. First task
+  - [ ] 1.1. Subtask one
+  - [x] 1.2. Subtask two (done)
+- [-] 2. Second task (in progress)
+- [x] 3. Third task (completed)
+`
+		if err := os.WriteFile(filename, []byte(legacyContent), 0644); err != nil {
+			t.Fatalf("failed to write legacy file: %v", err)
+		}
+
+		// Parse the file
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse legacy file: %v", err)
+		}
+
+		// Verify structure
+		if len(tl.Tasks) != 3 {
+			t.Errorf("expected 3 top-level tasks, got %d", len(tl.Tasks))
+		}
+		if tl.Tasks[0].Status != task.Pending {
+			t.Error("expected first task to be pending")
+		}
+		if tl.Tasks[1].Status != task.InProgress {
+			t.Error("expected second task to be in-progress")
+		}
+		if tl.Tasks[2].Status != task.Completed {
+			t.Error("expected third task to be completed")
+		}
+
+		// Verify children
+		if len(tl.Tasks[0].Children) != 2 {
+			t.Errorf("expected 2 children, got %d", len(tl.Tasks[0].Children))
+		}
+
+		// Test list command
+		output := runGoCommand(t, "list", filename, "--format", "json")
+		if !strings.Contains(output, `"success": true`) {
+			t.Errorf("list command failed: %s", output)
+		}
+
+		// Test next command
+		output = runGoCommand(t, "next", filename, "--format", "json")
+		if !strings.Contains(output, "First task") {
+			t.Errorf("expected first task from next, got: %s", output)
+		}
+
+		// Test complete command
+		runGoCommand(t, "complete", filename, "1.1")
+
+		// Verify the file still works after modification
+		tl, err = task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse after modification: %v", err)
+		}
+		if tl.Tasks[0].Children[0].Status != task.Completed {
+			t.Error("expected subtask 1.1 to be completed")
+		}
+	})
+
+	// Test 2: Add new-style task to legacy file
+	t.Run("add_new_style_to_legacy", func(t *testing.T) {
+		filename := "legacy-upgrade.md"
+
+		// Start with legacy content
+		legacyContent := `# Upgrade Test
+
+- [ ] 1. Legacy task one
+- [ ] 2. Legacy task two
+`
+		if err := os.WriteFile(filename, []byte(legacyContent), 0644); err != nil {
+			t.Fatalf("failed to write file: %v", err)
+		}
+
+		// Add a new task with stream
+		runGoCommand(t, "add", filename, "--title", "New task with stream", "--stream", "2")
+
+		// Parse and verify
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+
+		// Should have 3 tasks
+		if len(tl.Tasks) != 3 {
+			t.Errorf("expected 3 tasks, got %d", len(tl.Tasks))
+		}
+
+		// New task should have stream
+		task3 := tl.FindTask("3")
+		if task3 == nil {
+			t.Fatal("task 3 not found")
+		}
+		if task3.Stream != 2 {
+			t.Errorf("expected stream 2, got %d", task3.Stream)
+		}
+
+		// Legacy tasks should still have default stream (1)
+		task1 := tl.FindTask("1")
+		if task.GetEffectiveStream(task1) != 1 {
+			t.Error("legacy task should have default stream 1")
+		}
+	})
+
+	// Test 3: Legacy file with phases
+	t.Run("legacy_file_with_phases", func(t *testing.T) {
+		filename := "legacy-phases.md"
+
+		// Create legacy file with phases
+		legacyContent := `# Phased Project
+
+## Phase 1: Setup
+
+- [ ] 1. Initialize project
+- [ ] 2. Configure environment
+
+## Phase 2: Development
+
+- [ ] 3. Implement feature
+- [ ] 4. Write tests
+`
+		if err := os.WriteFile(filename, []byte(legacyContent), 0644); err != nil {
+			t.Fatalf("failed to write file: %v", err)
+		}
+
+		// Parse
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+
+		if len(tl.Tasks) != 4 {
+			t.Errorf("expected 4 tasks, got %d", len(tl.Tasks))
+		}
+
+		// Test next --phase
+		output := runGoCommand(t, "next", filename, "--phase", "--format", "json")
+		if !strings.Contains(output, "Initialize project") || !strings.Contains(output, "Configure environment") {
+			t.Errorf("expected phase 1 tasks, got: %s", output)
+		}
+
+		// Verify legacy operations still work
+		// Complete a task
+		runGoCommand(t, "complete", filename, "1")
+
+		// Add a new task
+		runGoCommand(t, "add", filename, "--title", "New development task", "--phase", "Development")
+
+		// Verify the file with phases still works
+		tl, err = task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse after modifications: %v", err)
+		}
+
+		// Should have 5 tasks now
+		if len(tl.Tasks) != 5 {
+			t.Errorf("expected 5 tasks, got %d", len(tl.Tasks))
+		}
+
+		// Task 1 should be completed
+		task1 := tl.FindTask("1")
+		if task1.Status != task.Completed {
+			t.Error("expected task 1 to be completed")
+		}
+	})
+
+	// Test 4: Mixed file (some tasks with metadata, some without)
+	t.Run("mixed_metadata_tasks", func(t *testing.T) {
+		filename := "mixed.md"
+		runGoCommand(t, "create", filename, "--title", "Mixed Tasks")
+
+		// Add some legacy-style tasks (no special flags)
+		runGoCommand(t, "add", filename, "--title", "Plain task 1")
+		runGoCommand(t, "add", filename, "--title", "Plain task 2")
+
+		// Add some new-style tasks
+		runGoCommand(t, "add", filename, "--title", "Task with stream", "--stream", "2")
+		runGoCommand(t, "add", filename, "--title", "Task with owner", "--owner", "agent-x")
+		// Task with dependency must reference a task with stable ID (task 3 has one)
+		runGoCommand(t, "add", filename, "--title", "Task with dependency", "--blocked-by", "3")
+
+		// Verify all tasks work
+		tl, err := task.ParseFile(filename)
+		if err != nil {
+			t.Fatalf("failed to parse mixed file: %v", err)
+		}
+
+		if len(tl.Tasks) != 5 {
+			t.Errorf("expected 5 tasks, got %d", len(tl.Tasks))
+		}
+
+		// Test streams command (should handle mixed tasks)
+		output := runGoCommand(t, "streams", filename, "--json")
+		if !strings.Contains(output, `"id": 1`) {
+			t.Errorf("expected streams info, got: %s", output)
+		}
+
+		// Test list with various filters
+		output = runGoCommand(t, "list", filename, "--stream", "2", "--format", "json")
+		if !strings.Contains(output, "Task with stream") {
+			t.Errorf("expected stream 2 task in filtered list, got: %s", output)
+		}
+
+		output = runGoCommand(t, "list", filename, "--owner", "agent-x", "--format", "json")
+		if !strings.Contains(output, "Task with owner") {
+			t.Errorf("expected owned task in filtered list, got: %s", output)
+		}
+	})
+
+	// Test 5: Verify render roundtrip preserves legacy format
+	t.Run("render_roundtrip_preserves_format", func(t *testing.T) {
+		filename := "roundtrip.md"
+
+		// Create file with a simple task
+		legacyContent := `# Roundtrip Test
+
+- [ ] 1. Simple task
+`
+		if err := os.WriteFile(filename, []byte(legacyContent), 0644); err != nil {
+			t.Fatalf("failed to write file: %v", err)
+		}
+
+		// Add another simple task
+		runGoCommand(t, "add", filename, "--title", "Another simple task")
+
+		// Read the file content
+		content, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatalf("failed to read file: %v", err)
+		}
+
+		// Verify format (should not have unnecessary metadata)
+		contentStr := string(content)
+
+		// File should have clean task format
+		if !strings.Contains(contentStr, "- [ ] 1. Simple task") {
+			t.Error("expected clean task format preserved")
+		}
+		if !strings.Contains(contentStr, "- [ ] 2. Another simple task") {
+			t.Error("expected new task in clean format")
+		}
+
+		// Should not have stream/owner/blocked-by markers for plain tasks
+		// (unless explicitly set)
+		lines := strings.Split(contentStr, "\n")
+		for _, line := range lines {
+			if strings.Contains(line, "Simple task") || strings.Contains(line, "Another simple") {
+				if strings.Contains(line, "<!-- stream:") || strings.Contains(line, "<!-- owner:") {
+					t.Errorf("plain task should not have metadata markers: %s", line)
+				}
+			}
+		}
+	})
+
+	t.Logf("Backward compatibility integration test passed successfully")
+}
+
 // testPhaseWorkflowEndToEnd tests end-to-end phase creation and task addition

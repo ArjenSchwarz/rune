@@ -75,6 +75,21 @@ func TestIntegrationWorkflows(t *testing.T) {
 			description: "Test front matter creation, modification, and edge cases",
 			workflow:    testFrontMatterIntegration,
 		},
+		"multi_agent_workflow": {
+			name:        "Multi-Agent Workflow",
+			description: "Test streams and dependencies for parallel agent execution",
+			workflow:    testMultiAgentWorkflow,
+		},
+		"dependency_chain_resolution": {
+			name:        "Dependency Chain Resolution",
+			description: "Test A → B → C → D dependency chain resolution",
+			workflow:    testDependencyChainResolution,
+		},
+		"backward_compatibility": {
+			name:        "Backward Compatibility",
+			description: "Test legacy files without new fields work correctly",
+			workflow:    testBackwardCompatibility,
+		},
 	}
 
 	for testName, tc := range tests {
