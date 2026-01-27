@@ -318,30 +318,30 @@ references:
 
 ## Documentation
 
-- [ ] 38. Update README.md with new features
+- [x] 38. Update README.md with new features
   - Add Task Dependencies section
   - Add Work Streams section
   - Add streams command documentation
   - Update next command documentation
 
-- [ ] 39. Update docs/AGENT_INSTRUCTIONS.md
+- [x] 39. Update docs/AGENT_INSTRUCTIONS.md
   - Add Multi-Agent Parallel Execution section
   - Add Task Dependencies section
   - Update batch operation examples
 
-- [ ] 40. Update docs/json-api.md
+- [x] 40. Update docs/json-api.md
   - Add new Operation fields schema
   - Add new Task fields schema
   - Add StreamsResult and StreamStatus schemas
   - Add ClaimResult schema
   - Add Warning schema
 
-- [ ] 41. Update command help text
+- [x] 41. Update command help text
   - Update cmd/next.go Long description
   - Update cmd/list.go Long description
   - Update cmd/add.go Long description
   - Update cmd/update.go Long description
   - Write cmd/streams.go Long description
 
-- [ ] 42. Add example file for parallel agents
+- [x] 42. Add example file for parallel agents
   - Create examples/parallel-agents.md with streams and dependencies example

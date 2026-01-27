@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- **README.md**: Document task dependencies, work streams, and task ownership features
+  - Add Task Dependencies section with blocked-by usage and storage format
+  - Add Work Streams section with stream assignment and status checking
+  - Add Task Ownership section with claiming and filtering by owner
+  - Update streams command documentation with options and examples
+  - Update next command documentation with --stream and --claim flags
+  - Update list command documentation with --stream and --owner filters
+  - Update add command documentation with --stream, --blocked-by, --owner flags
+  - Update update command documentation with --stream, --blocked-by, --owner, --release flags
+
+- **docs/AGENT_INSTRUCTIONS.md**: Add multi-agent workflow guidance
+  - Add Multi-Agent Parallel Execution section with stream setup and orchestrator patterns
+  - Add Task Dependencies section with ready vs blocked explanation
+  - Update batch operation examples with streams and dependencies
+  - Update Quick Reference with new command flags
+
+- **docs/json-api.md**: Document new JSON schemas for dependencies and streams
+  - Add stream, blocked_by, owner, release fields to Operation schema
+  - Add blockedBy, stream, owner fields to Task schema
+  - Add StreamsResult and StreamStatus schemas for streams command output
+  - Add ClaimResult schema for next --claim output
+  - Add Warning schema for non-fatal operational issues
+  - Add operation examples with new fields
+
+- **cmd/list.go**: Enhance Long description with filtering and column display documentation
+
+- **examples/parallel-agents.md**: Add example task file demonstrating multi-agent setup with streams and dependencies
+
 ### Added
 
 - **Add Command Enhancements**: Extended add command for task dependencies and streams

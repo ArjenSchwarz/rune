@@ -316,6 +316,174 @@ else
 fi
 ```
 
+## Multi-Agent Parallel Execution
+
+rune supports parallel task execution across multiple agents using streams and the claiming mechanism.
+
+### Setting Up Streams
+
+Partition tasks into streams for parallel work distribution:
+
+```bash
+# Assign tasks to different streams
+rune add tasks.md --title "Backend API development" --stream 1
+rune add tasks.md --title "Frontend UI development" --stream 2
+rune add tasks.md --title "Database optimization" --stream 1
+rune add tasks.md --title "UI testing" --stream 2
+
+# Check stream status
+rune streams tasks.md
+rune streams tasks.md --json  # For programmatic use
+```
+
+### Claiming Tasks
+
+Agents claim tasks to indicate they're working on them:
+
+```bash
+# Claim a single next ready task (orchestrator assigns to agent)
+rune next tasks.md --claim "agent-1"
+
+# Claim all ready tasks in a specific stream
+rune next tasks.md --stream 2 --claim "agent-2"
+
+# Agent releases a task when done or blocked
+rune update tasks.md 3 --release
+```
+
+### Orchestrator Workflow
+
+A typical orchestrator workflow:
+
+```bash
+# 1. Check available streams
+rune streams tasks.md --available --json
+
+# 2. Assign streams to agents
+rune next tasks.md --stream 1 --claim "agent-backend"
+rune next tasks.md --stream 2 --claim "agent-frontend"
+
+# 3. Monitor progress
+rune list tasks.md --format json
+
+# 4. When agent completes a task, more tasks may become ready
+rune complete tasks.md 1
+rune streams tasks.md --json  # Check for newly available work
+```
+
+### Batch Operations for Multi-Agent Setup
+
+Set up streams and dependencies in a single atomic operation:
+
+```bash
+cat > setup-parallel.json << 'EOF'
+{
+  "file": "tasks.md",
+  "operations": [
+    {
+      "type": "add",
+      "title": "Initialize project",
+      "stream": 1
+    },
+    {
+      "type": "add",
+      "title": "Backend development",
+      "stream": 1,
+      "blocked_by": ["1"]
+    },
+    {
+      "type": "add",
+      "title": "Frontend development",
+      "stream": 2,
+      "blocked_by": ["1"]
+    },
+    {
+      "type": "add",
+      "title": "Integration testing",
+      "stream": 1,
+      "blocked_by": ["2", "3"]
+    }
+  ]
+}
+EOF
+
+rune batch tasks.md --operations setup-parallel.json
+```
+
+## Task Dependencies
+
+Tasks can declare dependencies on other tasks that must complete before they become "ready".
+
+### Adding Dependencies
+
+```bash
+# Create a task with dependencies
+rune add tasks.md --title "Build API" --blocked-by "1,2"
+
+# Add dependencies to existing task
+rune update tasks.md 4 --blocked-by "1,2,3"
+```
+
+### Understanding Ready vs Blocked
+
+- **Ready**: All dependencies completed, task can be started
+- **Blocked**: One or more dependencies not completed
+
+```bash
+# Get only ready tasks (dependencies satisfied)
+rune next tasks.md
+
+# See which tasks are blocked
+rune streams tasks.md --json  # Shows ready/blocked counts per stream
+```
+
+### Dependency Resolution Workflow
+
+```bash
+# 1. Check what's ready to work on
+rune next tasks.md --format json
+
+# 2. Complete a task
+rune complete tasks.md 1
+
+# 3. This may unblock other tasks - check what's now ready
+rune next tasks.md --format json
+```
+
+### Batch Operations with Dependencies
+
+```bash
+cat > with-dependencies.json << 'EOF'
+{
+  "file": "tasks.md",
+  "operations": [
+    {
+      "type": "add",
+      "title": "Setup database",
+      "details": ["Install PostgreSQL", "Create schemas"]
+    },
+    {
+      "type": "add",
+      "title": "Build API layer",
+      "blocked_by": ["1"]
+    },
+    {
+      "type": "add",
+      "title": "Build UI layer",
+      "blocked_by": ["1"]
+    },
+    {
+      "type": "add",
+      "title": "Integration tests",
+      "blocked_by": ["2", "3"]
+    }
+  ]
+}
+EOF
+
+rune batch tasks.md --operations with-dependencies.json
+```
+
 ## Quick Reference
 
 ```bash
@@ -328,6 +496,9 @@ rune add file.md --title "Task" [--parent ID] [--details "a,b,c"] [--references 
 # Add task to phase
 rune add file.md --title "Task" --phase "Phase Name" [--details "a,b,c"]
 
+# Add task with stream and dependencies
+rune add file.md --title "Task" --stream 2 --blocked-by "1,2" --owner "agent-1"
+
 # Add phase header
 rune add-phase file.md "Phase Name"
 
@@ -335,18 +506,25 @@ rune add-phase file.md "Phase Name"
 rune has-phases file.md [--verbose]
 
 # Get next task or next phase
-rune next file.md [--phase]
+rune next file.md [--phase] [--stream N] [--claim AGENT_ID]
 
 # Mark complete/in-progress/pending
 rune complete file.md ID
 rune progress file.md ID
 rune uncomplete file.md ID
 
+# Stream management
+rune streams file.md [--available] [--json]
+rune update file.md ID --stream N
+rune update file.md ID --owner "agent-1"
+rune update file.md ID --release
+
 # Batch operations (most efficient for multiple changes)
 rune batch file.md --operations batch.json [--dry-run]
 
 # Search and filter
 rune find file.md "pattern" [--status STATUS] [--format FORMAT]
+rune list file.md --stream N --owner "agent-1"
 
 # View current state
 rune list file.md [--format table|json|markdown]

@@ -24,7 +24,19 @@ Supports multiple output formats:
 - json: Structured JSON data
 - markdown: Markdown format
 
-The output includes task IDs, titles, statuses, and hierarchy information.`,
+Filtering Options:
+- --filter STATUS: Filter by status (pending, in-progress, completed)
+- --stream N: Filter to tasks in stream N
+- --owner AGENT_ID: Filter to tasks owned by a specific agent
+- --owner "": Filter to unowned tasks only
+
+Column Display:
+The table output adapts based on the data present:
+- Stream column appears when any task has a non-default stream assignment
+- BlockedBy column appears when any task has dependencies
+- Owner column appears when any task has an owner assigned
+
+The output includes task IDs, titles, statuses, dependencies, and hierarchy information.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runList,
 }
