@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Parser Extensions for Task Dependencies and Streams**: Parse new metadata fields from markdown
+  - `stableIDCommentPattern` regex extracts stable IDs from HTML comments (`<!-- id:abc1234 -->`)
+  - `blockedByPattern` regex parses Blocked-by metadata lines with case-insensitive matching
+  - `streamPattern` regex parses Stream metadata lines (positive integers only)
+  - `ownerPattern` regex parses Owner metadata lines
+  - `blockedByRefPattern` extracts stable IDs from references with optional title hints
+  - `extractStableIDFromTitle()` removes stable ID comment from task title
+  - `parseBlockedByLine()`, `parseStreamLine()`, `parseOwnerLine()` helper functions
+  - Lenient parsing: invalid formats are ignored without errors, supporting legacy files
+  - Unit tests for all parsing scenarios (valid, invalid, case-insensitive, mixed)
+  - Negative tests for malformed input handling
+
 - **Stable ID Generator**: Generate unique 7-character base36 identifiers for tasks
   - `StableIDGenerator` struct with collision detection and counter continuation
   - `NewStableIDGenerator` seeds from existing IDs or crypto/rand for new files

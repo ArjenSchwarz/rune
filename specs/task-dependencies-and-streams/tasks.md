@@ -107,7 +107,7 @@ references:
 
 ## Parser Extensions
 
-- [ ] 13. Write unit tests for parsing new metadata
+- [x] 13. Write unit tests for parsing new metadata
   - Test stable ID extraction from HTML comments
   - Test Blocked-by parsing with title hints
   - Test case-insensitive metadata parsing
@@ -116,7 +116,7 @@ references:
   - Test legacy files without new fields
   - Requirements: [7.1](requirements.md#7.1), [7.2](requirements.md#7.2), [7.3](requirements.md#7.3), [7.7](requirements.md#7.7)
 
-- [ ] 14. Write negative parsing tests for malformed input
+- [x] 14. Write negative parsing tests for malformed input
   - Test invalid stable ID format handling
   - Test Blocked-by with malformed references
   - Test Stream with non-integer value
@@ -124,7 +124,7 @@ references:
   - Test duplicate stable IDs warning
   - Requirements: [2.11](requirements.md#2.11), [3.10](requirements.md#3.10), [7.1](requirements.md#7.1)
 
-- [ ] 15. Extend parser in internal/task/parse.go
+- [x] 15. Extend parser in internal/task/parse.go
   - Add stableIDPattern regex for HTML comments
   - Add blockedByPattern, streamPattern, ownerPattern regexes
   - Add blockedByRefPattern for parsing references with title hints
