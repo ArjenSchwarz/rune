@@ -195,14 +195,14 @@ references:
 
 ## Batch Operations Extensions
 
-- [ ] 23. Write unit tests for extended batch operations
+- [x] 23. Write unit tests for extended batch operations
   - Test batch add with stream, blocked_by, owner
   - Test batch update with new fields
   - Test batch with cycle detection
   - Test batch atomicity with dependency errors
   - Requirements: [2.10](requirements.md#2.10), [3.9](requirements.md#3.9), [4.7](requirements.md#4.7)
 
-- [ ] 24. Extend batch operations in internal/task/batch.go
+- [x] 24. Extend batch operations in internal/task/batch.go
   - Add Stream, BlockedBy, Owner, Release fields to Operation struct
   - Update executeAdd to pass new options
   - Update executeUpdate to handle new fields

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Extended Batch Operations**: Batch API now supports task dependencies and streams
+  - `Operation` struct extended with Stream, BlockedBy, Owner, and Release fields
+  - Batch add operations support all new fields via `AddTaskWithOptions`
+  - Batch update operations support all new fields via `UpdateTaskWithOptions`
+  - Validation includes stream range, blocked-by existence, owner format, and cycle detection
+  - Atomic failure: invalid operations cause entire batch to fail
+  - Phase-aware operations also support extended fields
+  - Unit tests for all extended batch scenarios
+
 - **Extended Task Operations**: Support for stream, blocked-by, and owner options in add/update/remove operations
   - `AddOptions` struct with Position, Phase, Stream, BlockedBy, and Owner fields
   - `UpdateOptions` struct with Stream, BlockedBy, Owner, and Release fields
