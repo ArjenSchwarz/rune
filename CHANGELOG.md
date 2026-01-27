@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Task Dependencies and Streams Specification**: Complete spec-driven design for parallel agent execution
+  - Requirements document with 9 sections covering stable IDs, dependencies, streams, ownership, and backward compatibility
+  - Design document with architecture diagrams, component interfaces, data models, and testing strategy
+  - Decision log with 10 key architectural decisions (hybrid storage, no auto-assignment, cycle detection, etc.)
+  - Implementation task list with 42 tasks across 13 phases following test-driven development
+
 ### Changed
 
 - **Smart Branch Discovery**: Branch-based file discovery now intelligently strips branch prefixes
