@@ -227,7 +227,7 @@ references:
 
 ## Next Command Enhancements
 
-- [ ] 27. Write unit tests for next command enhancements
+- [x] 27. Write unit tests for next command enhancements
   - Test --stream filter returns only stream tasks
   - Test --claim without stream claims single task
   - Test --stream --claim claims all ready tasks in stream
@@ -237,7 +237,7 @@ references:
   - Test --phase --json includes streams summary
   - Requirements: [6.1](requirements.md#6.1), [6.2](requirements.md#6.2), [6.3](requirements.md#6.3), [6.4](requirements.md#6.4), [6.5](requirements.md#6.5), [6.6](requirements.md#6.6), [6.7](requirements.md#6.7), [6.8](requirements.md#6.8), [6.9](requirements.md#6.9), [6.10](requirements.md#6.10), [6.11](requirements.md#6.11), [6.12](requirements.md#6.12)
 
-- [ ] 28. Extend next command in cmd/next.go
+- [x] 28. Extend next command in cmd/next.go
   - Add --stream and --claim flags
   - Implement stream filtering with FilterByStream
   - Implement claimStreamTasks for --stream --claim

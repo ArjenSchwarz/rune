@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Next Command Stream and Claim Support**: Extend next command for parallel agent coordination
+  - `--stream N` flag filters tasks to a specific stream using `GetEffectiveStream()`
+  - `--claim AGENT_ID` claims the next ready task by setting status to in-progress and owner
+  - `--stream N --claim AGENT_ID` combination claims ALL ready tasks in the specified stream
+  - Phase JSON output now includes `streams_summary` section with ready/blocked/active/available per stream
+  - Phase output includes stream and dependency metadata (blockedBy) for each task
+  - Stream filtering supported in phase mode via `--phase --stream N`
+  - Claim operations atomically write updated task status and owner to file
+  - Unit tests for stream filtering, claim operations, and combined stream+claim scenarios
+
 - **Extended Batch Operations**: Batch API now supports task dependencies and streams
   - `Operation` struct extended with Stream, BlockedBy, Owner, and Release fields
   - Batch add operations support all new fields via `AddTaskWithOptions`
