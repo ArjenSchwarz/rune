@@ -2,9 +2,57 @@ package task
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
+)
+
+// Error types for dependencies and streams
+var (
+	// Stable ID errors
+	ErrNoStableID        = errors.New("task does not have a stable ID (legacy task)")
+	ErrStableIDNotFound  = errors.New("stable ID not found")
+	ErrDuplicateStableID = errors.New("duplicate stable ID detected")
+
+	// Dependency errors
+	ErrCircularDependency = errors.New("circular dependency detected")
+	ErrInvalidBlockedBy   = errors.New("invalid blocked-by reference")
+
+	// Stream errors
+	ErrInvalidStream = errors.New("stream must be a positive integer")
+
+	// Owner errors
+	ErrInvalidOwner = errors.New("owner contains invalid characters")
+)
+
+// CircularDependencyError provides detailed cycle information
+type CircularDependencyError struct {
+	Path []string // Cycle path: [A, B, C, A] for A→B→C→A
+}
+
+func (e *CircularDependencyError) Error() string {
+	if len(e.Path) == 2 && e.Path[0] == e.Path[1] {
+		return fmt.Sprintf("task cannot depend on itself: %s", e.Path[0])
+	}
+	return fmt.Sprintf("circular dependency detected: %s", strings.Join(e.Path, " → "))
+}
+
+// Warning represents a non-fatal issue encountered during operation
+type Warning struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	TaskID  string `json:"taskId,omitempty"` // Hierarchical ID if applicable
+}
+
+// Common warning codes
+const (
+	WarnInvalidStableID    = "invalid_stable_id"
+	WarnMissingDependency  = "missing_dependency"
+	WarnDuplicateStableID  = "duplicate_stable_id"
+	WarnInvalidStreamValue = "invalid_stream_value"
+	WarnDependentsRemoved  = "dependents_removed"
 )
 
 const (
@@ -111,6 +159,20 @@ type Task struct {
 	Requirements []string `json:"requirements,omitempty"`
 	Children     []Task
 	ParentID     string
+
+	// Fields for dependencies and streams
+	StableID  string   `json:"-"`                   // Hidden from JSON output (system-managed)
+	BlockedBy []string `json:"blockedBy,omitempty"` // Stable IDs of blocking tasks
+	Stream    int      `json:"stream,omitempty"`    // Stream assignment (0 = not explicitly set)
+	Owner     string   `json:"owner,omitempty"`     // Agent identifier
+}
+
+// GetEffectiveStream returns the stream for a task (1 if not explicitly set)
+func GetEffectiveStream(t *Task) int {
+	if t.Stream <= 0 {
+		return 1
+	}
+	return t.Stream
 }
 
 var taskIDPattern = regexp.MustCompile(`^[1-9]\d*(\.[1-9]\d*)*$`)

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Task Dependencies and Streams Core Data Structures**: Foundation for parallel agent execution
+  - Extended Task struct with StableID, BlockedBy, Stream, and Owner fields
+  - GetEffectiveStream() helper function returns stream 1 as default when not explicitly set
+  - Error types for stable ID, dependency, stream, and owner validation (ErrNoStableID, ErrCircularDependency, ErrInvalidStream, ErrInvalidOwner, etc.)
+  - CircularDependencyError struct for detailed cycle path information
+  - Warning struct and codes for non-fatal issues during operations
+
 - **Task Dependencies and Streams Specification**: Complete spec-driven design for parallel agent execution
   - Requirements document with 9 sections covering stable IDs, dependencies, streams, ownership, and backward compatibility
   - Design document with architecture diagrams, component interfaces, data models, and testing strategy

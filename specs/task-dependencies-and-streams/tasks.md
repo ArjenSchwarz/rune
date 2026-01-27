@@ -8,13 +8,13 @@ references:
 
 ## Core Data Structures
 
-- [ ] 1. Extend Task struct with new fields
+- [x] 1. Extend Task struct with new fields
   - Add StableID, BlockedBy, Stream, Owner fields to Task struct in internal/task/task.go
   - Add json:"-" tag for StableID to hide from JSON output
   - Add GetEffectiveStream() helper function
   - Requirements: [1.3](requirements.md#1.3), [1.5](requirements.md#1.5), [2.1](requirements.md#2.1), [3.1](requirements.md#3.1), [3.3](requirements.md#3.3), [4.1](requirements.md#4.1)
 
-- [ ] 2. Implement error types and warning mechanism
+- [x] 2. Implement error types and warning mechanism
   - Create error types: ErrNoStableID, ErrStableIDNotFound, ErrDuplicateStableID, ErrCircularDependency, ErrInvalidBlockedBy, ErrInvalidStream, ErrInvalidOwner
   - Create CircularDependencyError struct with Path field
   - Create Warning struct with Code, Message, TaskID fields
