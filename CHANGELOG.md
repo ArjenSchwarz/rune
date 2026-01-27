@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Add Command Enhancements**: Extended add command for task dependencies and streams
+  - `--stream N` flag assigns task to a specific work stream (positive integer)
+  - `--blocked-by IDs` flag sets task dependencies (comma-separated task IDs)
+  - `--owner AGENT` flag claims the task for a specific agent
+  - Blocked-by references are validated (target tasks must have stable IDs)
+  - Uses `AddTaskWithOptions` internally when extended options are specified
+  - Unit tests for all new flag combinations and error handling
+
+- **Update Command Enhancements**: Extended update command for task dependencies and streams
+  - `--stream N` flag updates task's stream assignment
+  - `--blocked-by IDs` flag updates task dependencies (comma-separated task IDs)
+  - `--owner AGENT` flag updates task owner
+  - `--release` flag clears the task owner (releases the task)
+  - Cycle detection prevents circular dependencies on blocked-by updates
+  - Uses `UpdateTaskWithOptions` internally when extended options are specified
+  - Unit tests for stream, blocked-by, owner, release flags and cycle detection
+
 - **List Command Enhancements**: Extended list command for task dependencies and streams
   - `--stream N` flag filters tasks by stream number using `GetEffectiveStream()`
   - `--owner NAME` flag filters tasks by owner (use empty string for unowned tasks)

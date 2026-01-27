@@ -37,11 +37,20 @@ tasks at that position and beyond to be renumbered.
 Use --phase to add the task to a specific phase. If the phase doesn't exist,
 it will be created at the end of the document.
 
+Use --stream to assign the task to a specific work stream for parallel execution.
+
+Use --blocked-by to specify tasks that must complete before this task is ready.
+The blocked-by flag accepts comma-separated task IDs.
+
+Use --owner to claim the task for a specific agent.
+
 Examples:
   rune add tasks.md --title "Write documentation"
   rune add --title "Write API docs" --parent "1"
   rune add --title "Urgent task" --position "2"
-  rune add --title "Setup database" --phase "Development"`,
+  rune add --title "Setup database" --phase "Development"
+  rune add --title "Build API" --stream 2 --blocked-by "1,2"
+  rune add --title "Review code" --owner "agent-1"`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runAdd,
 }
@@ -53,6 +62,9 @@ var (
 	addPhase            string
 	addRequirements     string
 	addRequirementsFile string
+	addStream           int
+	addBlockedBy        string
+	addOwner            string
 )
 
 func init() {
@@ -63,6 +75,9 @@ func init() {
 	addCmd.Flags().StringVar(&addPhase, "phase", "", "target phase for the new task")
 	addCmd.Flags().StringVar(&addRequirements, "requirements", "", "comma-separated requirement IDs (e.g., \"1.1,1.2,2.3\")")
 	addCmd.Flags().StringVar(&addRequirementsFile, "requirements-file", "", "path to requirements file (default: requirements.md)")
+	addCmd.Flags().IntVar(&addStream, "stream", 0, "stream assignment for the task (positive integer)")
+	addCmd.Flags().StringVar(&addBlockedBy, "blocked-by", "", "comma-separated task IDs that must complete before this task")
+	addCmd.Flags().StringVar(&addOwner, "owner", "", "agent identifier claiming the task")
 	addCmd.MarkFlagRequired("title")
 }
 
@@ -132,9 +147,13 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Check if any extended options are provided
+	hasExtendedOptions := addStream != 0 || addBlockedBy != "" || addOwner != ""
+
 	// Add the task - use phase-aware logic if phase is specified
 	var newTaskID string
-	if addPhase != "" {
+	switch {
+	case addPhase != "":
 		// Validate phase name
 		if err := task.ValidatePhaseName(addPhase); err != nil {
 			return err
@@ -144,7 +163,49 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to add task to phase: %w", err)
 		}
-	} else {
+	case hasExtendedOptions:
+		// Use extended task addition with dependencies/streams support
+		opts := task.AddOptions{
+			Position: addPosition,
+			Stream:   addStream,
+			Owner:    addOwner,
+		}
+
+		// Parse blocked-by references
+		if addBlockedBy != "" {
+			opts.BlockedBy = parseRequirementIDs(addBlockedBy)
+		}
+
+		newTaskID, err = tl.AddTaskWithOptions(addParent, addTitle, opts)
+		if err != nil {
+			return fmt.Errorf("failed to add task: %w", err)
+		}
+
+		// Handle requirements if provided
+		if addRequirements != "" {
+			reqIDs := parseRequirementIDs(addRequirements)
+			for _, reqID := range reqIDs {
+				if !task.IsValidID(reqID) {
+					return fmt.Errorf("invalid requirement ID format: %s", reqID)
+				}
+			}
+			if newTask := tl.FindTask(newTaskID); newTask != nil {
+				newTask.Requirements = reqIDs
+			}
+		}
+
+		// Set requirements file path if provided, otherwise use default
+		if addRequirementsFile != "" {
+			tl.RequirementsFile = addRequirementsFile
+		} else if tl.RequirementsFile == "" && addRequirements != "" {
+			tl.RequirementsFile = task.DefaultRequirementsFile
+		}
+
+		// Write the updated file
+		if err := tl.WriteFile(filename); err != nil {
+			return fmt.Errorf("failed to write updated file: %w", err)
+		}
+	default:
 		// Use regular task addition
 		newTaskID, err = tl.AddTask(addParent, addTitle, addPosition)
 		if err != nil {

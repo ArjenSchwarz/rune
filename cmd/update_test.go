@@ -604,3 +604,495 @@ func TestFormatFunctions(t *testing.T) {
 		})
 	}
 }
+
+func TestRunUpdateWithStream(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-update-stream")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		setupFile     func(string) error
+		taskID        string
+		stream        int
+		expectError   bool
+		errorContains string
+		validateFile  func(*testing.T, string)
+	}{
+		"update stream to 2": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				_, err := tl.AddTaskWithOptions("", "Task", task.AddOptions{Stream: 1})
+				if err != nil {
+					return err
+				}
+				return tl.WriteFile(filename)
+			},
+			taskID:      "1",
+			stream:      2,
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if tl.Tasks[0].Stream != 2 {
+					t.Fatalf("Expected stream 2, got %d", tl.Tasks[0].Stream)
+				}
+			},
+		},
+		"update stream with invalid value (negative)": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				_, err := tl.AddTaskWithOptions("", "Task", task.AddOptions{})
+				if err != nil {
+					return err
+				}
+				return tl.WriteFile(filename)
+			},
+			taskID:        "1",
+			stream:        -1,
+			expectError:   true,
+			errorContains: "stream must be a positive integer",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
+
+			if err := tt.setupFile(filename); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+
+			// Reset all flags
+			updateTitle = ""
+			updateDetails = ""
+			updateReferences = ""
+			updateRequirements = ""
+			clearDetails = false
+			clearReferences = false
+			clearRequirements = false
+			updateStream = tt.stream
+			updateStreamSet = true
+			updateBlockedBy = ""
+			updateOwner = ""
+			updateRelease = false
+			dryRun = false
+
+			cmd := &cobra.Command{}
+			args := []string{filename, tt.taskID}
+
+			err := runUpdate(cmd, args)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Fatalf("Expected error to contain '%s', got: %s", tt.errorContains, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if tt.validateFile != nil {
+				tt.validateFile(t, filename)
+			}
+
+			// Reset flags
+			updateStream = 0
+			updateStreamSet = false
+		})
+	}
+}
+
+func TestRunUpdateWithBlockedBy(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-update-blocked-by")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		setupFile     func(string) error
+		taskID        string
+		blockedBy     string
+		expectError   bool
+		errorContains string
+		validateFile  func(*testing.T, string)
+	}{
+		"update blocked-by to reference another task": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				_, err := tl.AddTaskWithOptions("", "Blocking task", task.AddOptions{})
+				if err != nil {
+					return err
+				}
+				_, err = tl.AddTaskWithOptions("", "Task to update", task.AddOptions{})
+				if err != nil {
+					return err
+				}
+				return tl.WriteFile(filename)
+			},
+			taskID:      "2",
+			blockedBy:   "1",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if len(tl.Tasks[1].BlockedBy) != 1 {
+					t.Fatalf("Expected 1 blocked-by reference, got %d", len(tl.Tasks[1].BlockedBy))
+				}
+				// BlockedBy should contain the stable ID of task 1
+				if tl.Tasks[1].BlockedBy[0] != tl.Tasks[0].StableID {
+					t.Fatalf("Expected blocked-by to reference %s, got %s", tl.Tasks[0].StableID, tl.Tasks[1].BlockedBy[0])
+				}
+			},
+		},
+		"update blocked-by with multiple tasks": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				for i := 0; i < 3; i++ {
+					_, err := tl.AddTaskWithOptions("", "Task", task.AddOptions{})
+					if err != nil {
+						return err
+					}
+				}
+				return tl.WriteFile(filename)
+			},
+			taskID:      "3",
+			blockedBy:   "1,2",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if len(tl.Tasks[2].BlockedBy) != 2 {
+					t.Fatalf("Expected 2 blocked-by references, got %d", len(tl.Tasks[2].BlockedBy))
+				}
+			},
+		},
+		"update blocked-by to non-existent task": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				_, err := tl.AddTaskWithOptions("", "Task", task.AddOptions{})
+				if err != nil {
+					return err
+				}
+				return tl.WriteFile(filename)
+			},
+			taskID:        "1",
+			blockedBy:     "999",
+			expectError:   true,
+			errorContains: "task 999 not found",
+		},
+		"update blocked-by to legacy task without stable ID": {
+			setupFile: func(filename string) error {
+				content := `# Test Tasks
+
+- [ ] 1. Legacy task
+- [ ] 2. Task to update <!-- id:abc1234 -->
+`
+				return os.WriteFile(filename, []byte(content), 0644)
+			},
+			taskID:        "2",
+			blockedBy:     "1",
+			expectError:   true,
+			errorContains: "task does not have a stable ID",
+		},
+		"cycle detection error": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				// Create task 1
+				_, err := tl.AddTaskWithOptions("", "Task 1", task.AddOptions{})
+				if err != nil {
+					return err
+				}
+				// Create task 2 that depends on task 1
+				_, err = tl.AddTaskWithOptions("", "Task 2", task.AddOptions{BlockedBy: []string{"1"}})
+				if err != nil {
+					return err
+				}
+				return tl.WriteFile(filename)
+			},
+			taskID:        "1",
+			blockedBy:     "2", // Task 1 blocked by Task 2, but Task 2 is already blocked by Task 1 -> cycle
+			expectError:   true,
+			errorContains: "circular dependency detected",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
+
+			if err := tt.setupFile(filename); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+
+			// Reset all flags
+			updateTitle = ""
+			updateDetails = ""
+			updateReferences = ""
+			updateRequirements = ""
+			clearDetails = false
+			clearReferences = false
+			clearRequirements = false
+			updateStream = 0
+			updateStreamSet = false
+			updateBlockedBy = tt.blockedBy
+			updateOwner = ""
+			updateRelease = false
+			dryRun = false
+
+			cmd := &cobra.Command{}
+			args := []string{filename, tt.taskID}
+
+			err := runUpdate(cmd, args)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Fatalf("Expected error to contain '%s', got: %s", tt.errorContains, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if tt.validateFile != nil {
+				tt.validateFile(t, filename)
+			}
+
+			// Reset flags
+			updateBlockedBy = ""
+		})
+	}
+}
+
+func TestRunUpdateWithOwner(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-update-owner")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		setupFile     func(string) error
+		taskID        string
+		owner         string
+		expectError   bool
+		errorContains string
+		validateFile  func(*testing.T, string)
+	}{
+		"update owner": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				_, err := tl.AddTaskWithOptions("", "Task", task.AddOptions{})
+				if err != nil {
+					return err
+				}
+				return tl.WriteFile(filename)
+			},
+			taskID:      "1",
+			owner:       "agent-1",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if tl.Tasks[0].Owner != "agent-1" {
+					t.Fatalf("Expected owner 'agent-1', got '%s'", tl.Tasks[0].Owner)
+				}
+			},
+		},
+		"update owner with spaces": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				_, err := tl.AddTaskWithOptions("", "Task", task.AddOptions{})
+				if err != nil {
+					return err
+				}
+				return tl.WriteFile(filename)
+			},
+			taskID:      "1",
+			owner:       "Agent Number One",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if tl.Tasks[0].Owner != "Agent Number One" {
+					t.Fatalf("Expected owner 'Agent Number One', got '%s'", tl.Tasks[0].Owner)
+				}
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
+
+			if err := tt.setupFile(filename); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+
+			// Reset all flags
+			updateTitle = ""
+			updateDetails = ""
+			updateReferences = ""
+			updateRequirements = ""
+			clearDetails = false
+			clearReferences = false
+			clearRequirements = false
+			updateStream = 0
+			updateStreamSet = false
+			updateBlockedBy = ""
+			updateOwner = tt.owner
+			updateOwnerSet = true
+			updateRelease = false
+			dryRun = false
+
+			cmd := &cobra.Command{}
+			args := []string{filename, tt.taskID}
+
+			err := runUpdate(cmd, args)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Fatalf("Expected error to contain '%s', got: %s", tt.errorContains, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if tt.validateFile != nil {
+				tt.validateFile(t, filename)
+			}
+
+			// Reset flags
+			updateOwner = ""
+			updateOwnerSet = false
+		})
+	}
+}
+
+func TestRunUpdateWithRelease(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-update-release")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	filename := filepath.Join(tempDir, "test.md")
+
+	// Create a file with a task that has an owner
+	tl := task.NewTaskList("Test Tasks")
+	_, err := tl.AddTaskWithOptions("", "Task with owner", task.AddOptions{Owner: "agent-1"})
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
+	if err := tl.WriteFile(filename); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	// Verify owner is set
+	tl, err = task.ParseFile(filename)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+	if tl.Tasks[0].Owner != "agent-1" {
+		t.Fatalf("Expected initial owner 'agent-1', got '%s'", tl.Tasks[0].Owner)
+	}
+
+	// Reset all flags and set release
+	updateTitle = ""
+	updateDetails = ""
+	updateReferences = ""
+	updateRequirements = ""
+	clearDetails = false
+	clearReferences = false
+	clearRequirements = false
+	updateStream = 0
+	updateStreamSet = false
+	updateBlockedBy = ""
+	updateOwner = ""
+	updateOwnerSet = false
+	updateRelease = true
+	dryRun = false
+
+	cmd := &cobra.Command{}
+	args := []string{filename, "1"}
+
+	err = runUpdate(cmd, args)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify owner is cleared
+	tl, err = task.ParseFile(filename)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+	if tl.Tasks[0].Owner != "" {
+		t.Fatalf("Expected owner to be cleared, got '%s'", tl.Tasks[0].Owner)
+	}
+
+	// Reset flags
+	updateRelease = false
+}
+
+func TestUpdateCmdDependencyFlags(t *testing.T) {
+	// Test that new flags are properly configured
+	streamFlag := updateCmd.Flag("stream")
+	if streamFlag == nil {
+		t.Fatal("Stream flag not found")
+	}
+	if streamFlag.Usage == "" {
+		t.Fatal("Stream flag should have usage description")
+	}
+
+	blockedByFlag := updateCmd.Flag("blocked-by")
+	if blockedByFlag == nil {
+		t.Fatal("Blocked-by flag not found")
+	}
+	if blockedByFlag.Usage == "" {
+		t.Fatal("Blocked-by flag should have usage description")
+	}
+
+	ownerFlag := updateCmd.Flag("owner")
+	if ownerFlag == nil {
+		t.Fatal("Owner flag not found")
+	}
+	if ownerFlag.Usage == "" {
+		t.Fatal("Owner flag should have usage description")
+	}
+
+	releaseFlag := updateCmd.Flag("release")
+	if releaseFlag == nil {
+		t.Fatal("Release flag not found")
+	}
+	if releaseFlag.Usage == "" {
+		t.Fatal("Release flag should have usage description")
+	}
+}

@@ -266,20 +266,20 @@ references:
 
 ## Add/Update Command Enhancements
 
-- [ ] 31. Write unit tests for add command enhancements
+- [x] 31. Write unit tests for add command enhancements
   - Test --stream flag sets stream
   - Test --blocked-by flag adds dependencies
   - Test --owner flag sets owner
   - Test blocked-by with legacy task target fails
   - Requirements: [2.9](requirements.md#2.9), [2.12](requirements.md#2.12), [3.8](requirements.md#3.8)
 
-- [ ] 32. Extend add command in cmd/add.go
+- [x] 32. Extend add command in cmd/add.go
   - Add --stream, --blocked-by, --owner flags
   - Pass options to AddTask
   - Handle validation errors
   - Requirements: [2.9](requirements.md#2.9), [2.12](requirements.md#2.12), [3.8](requirements.md#3.8)
 
-- [ ] 33. Write unit tests for update command enhancements
+- [x] 33. Write unit tests for update command enhancements
   - Test --stream flag updates stream
   - Test --blocked-by flag updates dependencies
   - Test --owner flag updates owner
@@ -287,7 +287,7 @@ references:
   - Test cycle detection error
   - Requirements: [2.8](requirements.md#2.8), [2.14](requirements.md#2.14), [3.7](requirements.md#3.7), [4.4](requirements.md#4.4), [4.5](requirements.md#4.5)
 
-- [ ] 34. Extend update command in cmd/update.go
+- [x] 34. Extend update command in cmd/update.go
   - Add --stream, --blocked-by, --owner, --release flags
   - Pass options to UpdateTask
   - Handle validation and cycle detection errors
