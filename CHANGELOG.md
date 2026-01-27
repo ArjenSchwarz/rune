@@ -36,6 +36,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - CircularDependencyError struct for detailed cycle path information
   - Warning struct and codes for non-fatal issues during operations
 
+- **Stream Analysis**: Analyze work streams for parallel agent orchestration
+  - `StreamStatus` struct with ID, Ready, Blocked, Active hierarchical task ID arrays
+  - `StreamsResult` struct containing all streams and available stream IDs
+  - `AnalyzeStreams()` computes stream status with ready/blocked/active task classification
+  - `FilterByStream()` returns tasks belonging to a specific stream
+  - Supports nested tasks, cross-stream dependencies, and owned task handling
+  - Streams are sorted by ID in output for consistent ordering
+
 - **Task Dependencies and Streams Specification**: Complete spec-driven design for parallel agent execution
   - Requirements document with 9 sections covering stable IDs, dependencies, streams, ownership, and backward compatibility
   - Design document with architecture diagrams, component interfaces, data models, and testing strategy

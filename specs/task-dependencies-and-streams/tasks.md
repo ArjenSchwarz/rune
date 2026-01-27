@@ -88,7 +88,7 @@ references:
 
 ## Stream Analysis
 
-- [ ] 11. Write unit tests for stream analysis
+- [x] 11. Write unit tests for stream analysis
   - Test stream derivation from tasks
   - Test ready/blocked/active classification
   - Test default stream (1) assignment for unset tasks
@@ -97,7 +97,7 @@ references:
   - Test AnalyzeStreams with mixed streams
   - Requirements: [3.3](requirements.md#3.3), [3.4](requirements.md#3.4), [3.5](requirements.md#3.5)
 
-- [ ] 12. Implement stream functions in internal/task/streams.go
+- [x] 12. Implement stream functions in internal/task/streams.go
   - Create StreamStatus struct with ID, Ready, Blocked, Active fields
   - Create StreamsResult struct with Streams and Available fields
   - Implement AnalyzeStreams function
