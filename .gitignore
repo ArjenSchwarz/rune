@@ -45,3 +45,6 @@ rune
 .claude/scripts
 coverage.out
 coverage.html
+
+/specs/**/.orbit/
+/specs/**/comparison-report/
