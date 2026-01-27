@@ -210,14 +210,14 @@ references:
 
 ## Streams Command
 
-- [ ] 25. Write unit tests for streams command
+- [x] 25. Write unit tests for streams command
   - Test streams output with multiple streams
   - Test --available flag filtering
   - Test --json output format
   - Test empty streams result
   - Requirements: [5.1](requirements.md#5.1), [5.2](requirements.md#5.2), [5.3](requirements.md#5.3), [5.4](requirements.md#5.4), [5.5](requirements.md#5.5), [5.6](requirements.md#5.6)
 
-- [ ] 26. Implement streams command in cmd/streams.go
+- [x] 26. Implement streams command in cmd/streams.go
   - Create streamsCmd with Use, Short, Long descriptions
   - Add --available and --json flags
   - Implement runStreams with stream analysis

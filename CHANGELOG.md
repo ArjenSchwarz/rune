@@ -70,6 +70,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - CircularDependencyError struct for detailed cycle path information
   - Warning struct and codes for non-fatal issues during operations
 
+- **Streams Command**: Display stream status for parallel agent orchestration
+  - `rune streams [file]` command to display all work streams and their task counts
+  - `--available` flag filters to only show streams with ready tasks
+  - `--json` flag outputs structured JSON with task ID arrays per stream
+  - Shows count of ready, blocked, and active tasks per stream
+  - Filters out empty streams (all tasks completed) from output
+  - Supports automatic file discovery via git branch when enabled
+
 - **Stream Analysis**: Analyze work streams for parallel agent orchestration
   - `StreamStatus` struct with ID, Ready, Blocked, Active hierarchical task ID arrays
   - `StreamsResult` struct containing all streams and available stream IDs
