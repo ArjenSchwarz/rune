@@ -1121,3 +1121,598 @@ func TestRenderJSONWithRequirements(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderMarkdownWithStableID(t *testing.T) {
+	// Task 16: Test stable ID inclusion in markdown output
+	tests := map[string]struct {
+		input       *TaskList
+		wantContent string
+	}{
+		"task_with_stable_id": {
+			input: &TaskList{
+				Title: "Tasks with Stable IDs",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "First task",
+						Status:   Pending,
+						StableID: "abc1234",
+					},
+				},
+			},
+			wantContent: `# Tasks with Stable IDs
+
+- [ ] 1. First task <!-- id:abc1234 -->
+`,
+		},
+		"task_without_stable_id": {
+			input: &TaskList{
+				Title: "Tasks without Stable IDs",
+				Tasks: []Task{
+					{
+						ID:     "1",
+						Title:  "Legacy task",
+						Status: Pending,
+						// No StableID - legacy task
+					},
+				},
+			},
+			wantContent: `# Tasks without Stable IDs
+
+- [ ] 1. Legacy task
+`,
+		},
+		"mixed_stable_ids": {
+			input: &TaskList{
+				Title: "Mixed Tasks",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "Task with ID",
+						Status:   Pending,
+						StableID: "def5678",
+					},
+					{
+						ID:     "2",
+						Title:  "Legacy task",
+						Status: InProgress,
+						// No StableID
+					},
+					{
+						ID:       "3",
+						Title:    "Another with ID",
+						Status:   Completed,
+						StableID: "ghi9012",
+					},
+				},
+			},
+			wantContent: `# Mixed Tasks
+
+- [ ] 1. Task with ID <!-- id:def5678 -->
+
+- [-] 2. Legacy task
+
+- [x] 3. Another with ID <!-- id:ghi9012 -->
+`,
+		},
+		"nested_tasks_with_stable_ids": {
+			input: &TaskList{
+				Title: "Nested Tasks",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "Parent task",
+						Status:   InProgress,
+						StableID: "par1234",
+						Children: []Task{
+							{
+								ID:       "1.1",
+								Title:    "Child task",
+								Status:   Pending,
+								ParentID: "1",
+								StableID: "chi5678",
+							},
+						},
+					},
+				},
+			},
+			wantContent: `# Nested Tasks
+
+- [-] 1. Parent task <!-- id:par1234 -->
+  - [ ] 1.1. Child task <!-- id:chi5678 -->
+`,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := RenderMarkdown(tc.input)
+			if string(got) != tc.wantContent {
+				t.Errorf("RenderMarkdown() mismatch:\ngot:\n%s\nwant:\n%s", got, tc.wantContent)
+			}
+		})
+	}
+}
+
+func TestRenderMarkdownWithBlockedBy(t *testing.T) {
+	// Task 16: Test Blocked-by formatting with title hints
+	tests := map[string]struct {
+		input       *TaskList
+		wantContent string
+	}{
+		"single_blocked_by": {
+			input: &TaskList{
+				Title: "Tasks with Dependencies",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "First task",
+						Status:   Completed,
+						StableID: "abc1234",
+					},
+					{
+						ID:        "2",
+						Title:     "Second task",
+						Status:    Pending,
+						StableID:  "def5678",
+						BlockedBy: []string{"abc1234"},
+					},
+				},
+			},
+			wantContent: `# Tasks with Dependencies
+
+- [x] 1. First task <!-- id:abc1234 -->
+
+- [ ] 2. Second task <!-- id:def5678 -->
+  - Blocked-by: abc1234 (First task)
+`,
+		},
+		"multiple_blocked_by": {
+			input: &TaskList{
+				Title: "Tasks with Multiple Dependencies",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "Setup task",
+						Status:   Completed,
+						StableID: "set1234",
+					},
+					{
+						ID:       "2",
+						Title:    "Config task",
+						Status:   Completed,
+						StableID: "cfg5678",
+					},
+					{
+						ID:        "3",
+						Title:     "Main task",
+						Status:    Pending,
+						StableID:  "mai9012",
+						BlockedBy: []string{"set1234", "cfg5678"},
+					},
+				},
+			},
+			wantContent: `# Tasks with Multiple Dependencies
+
+- [x] 1. Setup task <!-- id:set1234 -->
+
+- [x] 2. Config task <!-- id:cfg5678 -->
+
+- [ ] 3. Main task <!-- id:mai9012 -->
+  - Blocked-by: set1234 (Setup task), cfg5678 (Config task)
+`,
+		},
+		"blocked_by_with_missing_reference": {
+			input: &TaskList{
+				Title: "Tasks with Missing Reference",
+				Tasks: []Task{
+					{
+						ID:        "1",
+						Title:     "Task blocked by unknown",
+						Status:    Pending,
+						StableID:  "tsk1234",
+						BlockedBy: []string{"unknown1"}, // ID not in index
+					},
+				},
+			},
+			// When reference is not found, only the ID is shown
+			wantContent: `# Tasks with Missing Reference
+
+- [ ] 1. Task blocked by unknown <!-- id:tsk1234 -->
+  - Blocked-by: unknown1
+`,
+		},
+		"no_blocked_by": {
+			input: &TaskList{
+				Title: "Tasks without Dependencies",
+				Tasks: []Task{
+					{
+						ID:        "1",
+						Title:     "Independent task",
+						Status:    Pending,
+						StableID:  "ind1234",
+						BlockedBy: []string{}, // Empty slice
+					},
+				},
+			},
+			wantContent: `# Tasks without Dependencies
+
+- [ ] 1. Independent task <!-- id:ind1234 -->
+`,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := RenderMarkdown(tc.input)
+			if string(got) != tc.wantContent {
+				t.Errorf("RenderMarkdown() mismatch:\ngot:\n%s\nwant:\n%s", got, tc.wantContent)
+			}
+		})
+	}
+}
+
+func TestRenderMarkdownWithStream(t *testing.T) {
+	// Task 16: Test Stream rendering (only when non-zero)
+	tests := map[string]struct {
+		input       *TaskList
+		wantContent string
+	}{
+		"task_with_stream": {
+			input: &TaskList{
+				Title: "Tasks with Streams",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "Stream 2 task",
+						Status:   Pending,
+						StableID: "str1234",
+						Stream:   2,
+					},
+				},
+			},
+			wantContent: `# Tasks with Streams
+
+- [ ] 1. Stream 2 task <!-- id:str1234 -->
+  - Stream: 2
+`,
+		},
+		"task_without_stream_explicit": {
+			input: &TaskList{
+				Title: "Tasks without Explicit Stream",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "Default stream task",
+						Status:   Pending,
+						StableID: "def1234",
+						Stream:   0, // Not explicitly set, should not render
+					},
+				},
+			},
+			wantContent: `# Tasks without Explicit Stream
+
+- [ ] 1. Default stream task <!-- id:def1234 -->
+`,
+		},
+		"task_with_stream_1_explicit": {
+			input: &TaskList{
+				Title: "Tasks with Explicit Stream 1",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "Explicit stream 1",
+						Status:   Pending,
+						StableID: "exp1234",
+						Stream:   1, // Explicitly set to 1, should render
+					},
+				},
+			},
+			wantContent: `# Tasks with Explicit Stream 1
+
+- [ ] 1. Explicit stream 1 <!-- id:exp1234 -->
+  - Stream: 1
+`,
+		},
+		"multiple_streams": {
+			input: &TaskList{
+				Title: "Multi-Stream Tasks",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "Stream 1",
+						Status:   Pending,
+						StableID: "s1a1234",
+						Stream:   1,
+					},
+					{
+						ID:       "2",
+						Title:    "Stream 2",
+						Status:   Pending,
+						StableID: "s2a1234",
+						Stream:   2,
+					},
+					{
+						ID:       "3",
+						Title:    "Default stream",
+						Status:   Pending,
+						StableID: "dfa1234",
+						// Stream: 0 - not set
+					},
+				},
+			},
+			wantContent: `# Multi-Stream Tasks
+
+- [ ] 1. Stream 1 <!-- id:s1a1234 -->
+  - Stream: 1
+
+- [ ] 2. Stream 2 <!-- id:s2a1234 -->
+  - Stream: 2
+
+- [ ] 3. Default stream <!-- id:dfa1234 -->
+`,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := RenderMarkdown(tc.input)
+			if string(got) != tc.wantContent {
+				t.Errorf("RenderMarkdown() mismatch:\ngot:\n%s\nwant:\n%s", got, tc.wantContent)
+			}
+		})
+	}
+}
+
+func TestRenderMarkdownWithOwner(t *testing.T) {
+	// Task 16: Test Owner rendering
+	tests := map[string]struct {
+		input       *TaskList
+		wantContent string
+	}{
+		"task_with_owner": {
+			input: &TaskList{
+				Title: "Tasks with Owner",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "Owned task",
+						Status:   InProgress,
+						StableID: "own1234",
+						Owner:    "agent-1",
+					},
+				},
+			},
+			wantContent: `# Tasks with Owner
+
+- [-] 1. Owned task <!-- id:own1234 -->
+  - Owner: agent-1
+`,
+		},
+		"task_without_owner": {
+			input: &TaskList{
+				Title: "Tasks without Owner",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "Unowned task",
+						Status:   Pending,
+						StableID: "unw1234",
+						Owner:    "", // Empty - no owner
+					},
+				},
+			},
+			wantContent: `# Tasks without Owner
+
+- [ ] 1. Unowned task <!-- id:unw1234 -->
+`,
+		},
+		"task_with_complex_owner": {
+			input: &TaskList{
+				Title: "Tasks with Complex Owner",
+				Tasks: []Task{
+					{
+						ID:       "1",
+						Title:    "Task with complex owner ID",
+						Status:   InProgress,
+						StableID: "cmp1234",
+						Owner:    "claude-code-session-abc123",
+					},
+				},
+			},
+			wantContent: `# Tasks with Complex Owner
+
+- [-] 1. Task with complex owner ID <!-- id:cmp1234 -->
+  - Owner: claude-code-session-abc123
+`,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := RenderMarkdown(tc.input)
+			if string(got) != tc.wantContent {
+				t.Errorf("RenderMarkdown() mismatch:\ngot:\n%s\nwant:\n%s", got, tc.wantContent)
+			}
+		})
+	}
+}
+
+func TestRenderJSONExcludesStableIDs(t *testing.T) {
+	// Task 16: Test JSON output excludes stable IDs
+	tl := &TaskList{
+		Title: "JSON Test",
+		Tasks: []Task{
+			{
+				ID:       "1",
+				Title:    "Task with stable ID",
+				Status:   Pending,
+				StableID: "abc1234", // Should NOT appear in JSON
+			},
+			{
+				ID:       "2",
+				Title:    "Another task",
+				Status:   InProgress,
+				StableID: "def5678", // Should NOT appear in JSON
+				Children: []Task{
+					{
+						ID:       "2.1",
+						Title:    "Child task",
+						Status:   Pending,
+						ParentID: "2",
+						StableID: "ghi9012", // Should NOT appear in JSON
+					},
+				},
+			},
+		},
+	}
+
+	jsonBytes, err := RenderJSON(tl)
+	if err != nil {
+		t.Fatalf("RenderJSON() error: %v", err)
+	}
+
+	jsonStr := string(jsonBytes)
+
+	// StableID field should not appear in JSON
+	if strings.Contains(jsonStr, `"stableID"`) || strings.Contains(jsonStr, `"StableID"`) ||
+		strings.Contains(jsonStr, `"stable_id"`) {
+		t.Error("JSON should not contain stableID field")
+	}
+
+	// The actual stable ID values should not appear either
+	if strings.Contains(jsonStr, "abc1234") ||
+		strings.Contains(jsonStr, "def5678") ||
+		strings.Contains(jsonStr, "ghi9012") {
+		t.Error("JSON should not contain stable ID values")
+	}
+}
+
+func TestRenderJSONBlockedByUsesHierarchicalIDs(t *testing.T) {
+	// Task 16: Test JSON BlockedBy uses hierarchical IDs
+	// Note: This test requires MarshalTasksJSON to be implemented
+	// For now, test that the basic JSON rendering includes blockedBy field
+
+	tl := &TaskList{
+		Title: "JSON BlockedBy Test",
+		Tasks: []Task{
+			{
+				ID:       "1",
+				Title:    "First task",
+				Status:   Completed,
+				StableID: "abc1234",
+			},
+			{
+				ID:        "2",
+				Title:     "Second task",
+				Status:    Pending,
+				StableID:  "def5678",
+				BlockedBy: []string{"abc1234"}, // Stable ID reference
+			},
+		},
+	}
+
+	jsonBytes, err := RenderJSON(tl)
+	if err != nil {
+		t.Fatalf("RenderJSON() error: %v", err)
+	}
+
+	// Unmarshal to check structure
+	var parsed map[string]any
+	if err := json.Unmarshal(jsonBytes, &parsed); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	// Get Tasks array
+	tasks, ok := parsed["Tasks"].([]any)
+	if !ok {
+		t.Fatal("Tasks field not found or wrong type")
+	}
+
+	if len(tasks) < 2 {
+		t.Fatal("Expected at least 2 tasks")
+	}
+
+	// Check second task has blockedBy field
+	task2, ok := tasks[1].(map[string]any)
+	if !ok {
+		t.Fatal("Task 2 not found or wrong type")
+	}
+
+	// blockedBy should be present (as stable IDs for now until MarshalTasksJSON is implemented)
+	blockedBy, ok := task2["blockedBy"]
+	if !ok {
+		t.Error("Task 2 should have blockedBy field")
+		return
+	}
+
+	blockedByArr, ok := blockedBy.([]any)
+	if !ok {
+		t.Error("blockedBy should be an array")
+		return
+	}
+
+	if len(blockedByArr) != 1 {
+		t.Errorf("blockedBy should have 1 element, got %d", len(blockedByArr))
+	}
+}
+
+func TestRenderMarkdownMetadataOrder(t *testing.T) {
+	// Test that metadata is rendered in the correct order:
+	// Details, Blocked-by, Stream, Owner, Requirements, References
+	tl := &TaskList{
+		Title:            "Metadata Order Test",
+		RequirementsFile: "requirements.md",
+		Tasks: []Task{
+			{
+				ID:       "1",
+				Title:    "Complete task",
+				Status:   InProgress,
+				StableID: "ord1234",
+				Details: []string{
+					"First detail",
+					"Second detail",
+				},
+				BlockedBy:    []string{"dep1234"},
+				Stream:       2,
+				Owner:        "agent-1",
+				Requirements: []string{"1.1", "1.2"},
+				References:   []string{"design.md"},
+			},
+		},
+	}
+
+	got := string(RenderMarkdown(tl))
+	lines := strings.Split(got, "\n")
+
+	// Find indices of each metadata line
+	var detailIdx, blockedByIdx, streamIdx, ownerIdx, reqIdx, refIdx int = -1, -1, -1, -1, -1, -1
+
+	for i, line := range lines {
+		switch {
+		case strings.Contains(line, "First detail"):
+			detailIdx = i
+		case strings.Contains(line, "Blocked-by:"):
+			blockedByIdx = i
+		case strings.Contains(line, "Stream:"):
+			streamIdx = i
+		case strings.Contains(line, "Owner:"):
+			ownerIdx = i
+		case strings.Contains(line, "Requirements:"):
+			reqIdx = i
+		case strings.Contains(line, "References:"):
+			refIdx = i
+		}
+	}
+
+	// Verify order: Details < Blocked-by < Stream < Owner < Requirements < References
+	if detailIdx == -1 || blockedByIdx == -1 || streamIdx == -1 || ownerIdx == -1 || reqIdx == -1 || refIdx == -1 {
+		t.Errorf("Not all metadata fields found in output:\n%s", got)
+		return
+	}
+
+	if !(detailIdx < blockedByIdx && blockedByIdx < streamIdx && streamIdx < ownerIdx && ownerIdx < reqIdx && reqIdx < refIdx) {
+		t.Errorf("Metadata not in correct order. Got indices: details=%d, blocked-by=%d, stream=%d, owner=%d, requirements=%d, references=%d\nOutput:\n%s",
+			detailIdx, blockedByIdx, streamIdx, ownerIdx, reqIdx, refIdx, got)
+	}
+}

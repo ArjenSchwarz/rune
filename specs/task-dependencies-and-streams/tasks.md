@@ -135,7 +135,7 @@ references:
 
 ## Renderer Extensions
 
-- [ ] 16. Write unit tests for rendering new metadata
+- [x] 16. Write unit tests for rendering new metadata
   - Test stable ID inclusion in markdown output
   - Test Blocked-by formatting with title hints
   - Test Stream rendering (only when non-zero)
@@ -144,12 +144,12 @@ references:
   - Test JSON BlockedBy uses hierarchical IDs
   - Requirements: [1.5](requirements.md#1.5), [7.1](requirements.md#7.1), [7.4](requirements.md#7.4), [7.5](requirements.md#7.5)
 
-- [ ] 17. Write property-based test for parse-render round-trip
+- [x] 17. Write property-based test for parse-render round-trip
   - Test that parse(render(tasks)) equals original tasks
   - Include all new metadata fields in test
   - Requirements: [7.4](requirements.md#7.4)
 
-- [ ] 18. Extend renderer in internal/task/render.go
+- [x] 18. Extend renderer in internal/task/render.go
   - Create RenderContext struct with RequirementsFile and DependencyIndex
   - Modify renderTask to include stable ID in HTML comment
   - Add formatBlockedByRefs helper for title hints

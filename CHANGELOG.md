@@ -56,6 +56,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Supports nested tasks, cross-stream dependencies, and owned task handling
   - Streams are sorted by ID in output for consistent ordering
 
+- **Markdown Renderer Extensions**: Render new dependency and stream metadata to markdown
+  - `RenderContext` struct to pass dependencies for rendering (requirements file, dependency index)
+  - Stable IDs rendered as HTML comments after task title (`<!-- id:abc1234 -->`)
+  - `formatBlockedByRefs()` renders Blocked-by with title hints for readability
+  - Stream metadata rendered as `Stream: N` (only when explicitly set, not for default stream)
+  - Owner metadata rendered as `Owner: agent-id` (only when non-empty)
+  - Metadata ordering: Details, Blocked-by, Stream, Owner, Requirements, References
+  - JSON output excludes StableID field (system-managed, not for external use)
+  - Unit tests for all metadata rendering scenarios
+  - Property-based tests ensuring parse-render round-trip preservation
+
 - **Task Dependencies and Streams Specification**: Complete spec-driven design for parallel agent execution
   - Requirements document with 9 sections covering stable IDs, dependencies, streams, ownership, and backward compatibility
   - Design document with architecture diagrams, component interfaces, data models, and testing strategy
