@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Extended Task Operations**: Support for stream, blocked-by, and owner options in add/update/remove operations
+  - `AddOptions` struct with Position, Phase, Stream, BlockedBy, and Owner fields
+  - `UpdateOptions` struct with Stream, BlockedBy, Owner, and Release fields
+  - `AddTaskWithOptions()` generates stable ID and applies extended options
+  - `UpdateTaskWithOptions()` validates and applies stream, blocked-by, owner, and release options
+  - `RemoveTaskWithDependents()` warns about and cleans up dependent task references
+  - `resolveToStableIDs()` converts hierarchical IDs to stable IDs with validation
+  - `removeFromBlockedByLists()` removes stable ID from all BlockedBy lists
+  - `collectStableIDs()` gathers all stable IDs from task hierarchy
+  - `validateOwner()` checks owner strings for invalid control characters
+  - Cycle detection via `DependencyIndex.DetectCycle()` on blocked-by updates
+  - Unit tests for all extended operations including edge cases
+
 - **Parser Extensions for Task Dependencies and Streams**: Parse new metadata fields from markdown
   - `stableIDCommentPattern` regex extracts stable IDs from HTML comments (`<!-- id:abc1234 -->`)
   - `blockedByPattern` regex parses Blocked-by metadata lines with case-insensitive matching

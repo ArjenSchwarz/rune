@@ -160,7 +160,7 @@ references:
 
 ## Operations Extensions
 
-- [ ] 19. Write unit tests for extended add operation
+- [x] 19. Write unit tests for extended add operation
   - Test AddTask generates stable ID
   - Test AddTask with stream option
   - Test AddTask with blocked-by option
@@ -168,7 +168,7 @@ references:
   - Test blocked-by validation (target must have stable ID)
   - Requirements: [1.1](requirements.md#1.1), [2.9](requirements.md#2.9), [2.12](requirements.md#2.12), [3.8](requirements.md#3.8), [4.4](requirements.md#4.4)
 
-- [ ] 20. Write unit tests for extended update operation
+- [x] 20. Write unit tests for extended update operation
   - Test UpdateTask with stream modification
   - Test UpdateTask with blocked-by modification
   - Test UpdateTask with owner modification
@@ -177,13 +177,13 @@ references:
   - Test invalid stream value rejection
   - Requirements: [2.8](requirements.md#2.8), [2.14](requirements.md#2.14), [3.7](requirements.md#3.7), [3.10](requirements.md#3.10), [4.4](requirements.md#4.4), [4.5](requirements.md#4.5)
 
-- [ ] 21. Write unit tests for extended remove operation
+- [x] 21. Write unit tests for extended remove operation
   - Test RemoveTask with dependents generates warning
   - Test dependent references are cleaned up
   - Test stable ID is not reused
   - Requirements: [1.6](requirements.md#1.6), [1.8](requirements.md#1.8), [2.7](requirements.md#2.7)
 
-- [ ] 22. Extend operations in internal/task/operations.go
+- [x] 22. Extend operations in internal/task/operations.go
   - Add AddOptions struct with Stream, BlockedBy, Owner fields
   - Modify AddTask to generate stable ID and apply options
   - Add UpdateOptions struct with Stream, BlockedBy, Owner, Release fields
