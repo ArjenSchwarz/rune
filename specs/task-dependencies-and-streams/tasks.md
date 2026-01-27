@@ -249,7 +249,7 @@ references:
 
 ## List Command Enhancements
 
-- [ ] 29. Write unit tests for list command enhancements
+- [x] 29. Write unit tests for list command enhancements
   - Test stream display when non-default streams exist
   - Test blocked-by display as hierarchical IDs
   - Test --stream filter
@@ -257,7 +257,7 @@ references:
   - Test JSON output includes new fields
   - Requirements: [8.1](requirements.md#8.1), [8.2](requirements.md#8.2), [8.3](requirements.md#8.3), [8.4](requirements.md#8.4), [8.5](requirements.md#8.5)
 
-- [ ] 30. Extend list command in cmd/list.go
+- [x] 30. Extend list command in cmd/list.go
   - Add --stream and --owner filter flags
   - Conditionally display stream column
   - Display blocked-by as hierarchical IDs

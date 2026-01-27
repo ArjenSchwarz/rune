@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **List Command Enhancements**: Extended list command for task dependencies and streams
+  - `--stream N` flag filters tasks by stream number using `GetEffectiveStream()`
+  - `--owner NAME` flag filters tasks by owner (use empty string for unowned tasks)
+  - Stream column conditionally displayed only when non-default streams exist in the file
+  - BlockedBy column displayed as hierarchical IDs (not stable IDs) for user readability
+  - Owner column displayed when any task has an owner
+  - JSON output includes blockedBy, stream, and owner fields for all tasks
+  - Combined filtering: `--filter pending --stream 2 --owner alice`
+  - Unit tests for all new filter options and display enhancements
+
 - **Next Command Stream and Claim Support**: Extend next command for parallel agent coordination
   - `--stream N` flag filters tasks to a specific stream using `GetEffectiveStream()`
   - `--claim AGENT_ID` claims the next ready task by setting status to in-progress and owner
