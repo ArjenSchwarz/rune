@@ -1,34 +1,36 @@
 # Parallel Agent Execution Example
 
-This example demonstrates how to set up and manage tasks for parallel execution across multiple agents using streams and dependencies.
-
-## Tasks
-
-- [ ] 1. Initialize project structure <!-- id:init001 stream:1 -->
+- [ ] 1. Initialize project structure <!-- id:init001 -->
+  - Stream: 1
   - Set up directories
   - Configure build system
 
-- [ ] 2. Backend API development <!-- id:backend001 stream:1 -->
+- [ ] 2. Backend API development <!-- id:bknd002 -->
   - Blocked-by: init001 (Initialize project structure)
+  - Stream: 1
   - Create REST endpoints
   - Implement business logic
 
-- [ ] 3. Frontend UI development <!-- id:frontend001 stream:2 -->
+- [ ] 3. Frontend UI development <!-- id:frnt003 -->
   - Blocked-by: init001 (Initialize project structure)
+  - Stream: 2
   - Build component library
   - Implement views
 
-- [ ] 4. Database schema design <!-- id:db001 stream:1 -->
+- [ ] 4. Database schema design <!-- id:dbs0004 -->
   - Blocked-by: init001 (Initialize project structure)
+  - Stream: 1
   - Design tables
   - Set up migrations
 
-- [ ] 5. Frontend-Backend integration <!-- id:integrate001 stream:1 -->
-  - Blocked-by: backend001 (Backend API development), frontend001 (Frontend UI development)
+- [ ] 5. Frontend-Backend integration <!-- id:intg005 -->
+  - Blocked-by: bknd002 (Backend API development), frnt003 (Frontend UI development)
+  - Stream: 1
   - Connect API endpoints
   - Handle error states
 
-- [ ] 6. End-to-end testing <!-- id:e2e001 stream:1 -->
-  - Blocked-by: integrate001 (Frontend-Backend integration)
+- [ ] 6. End-to-end testing <!-- id:e2e0006 -->
+  - Blocked-by: intg005 (Frontend-Backend integration)
+  - Stream: 1
   - Write test scenarios
   - Automate test runs

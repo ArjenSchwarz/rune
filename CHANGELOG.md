@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **examples/parallel-agents.md**: Add example task file demonstrating multi-agent setup with streams and dependencies
 
+### Fixed
+
+- **examples/parallel-agents.md**: Fix invalid markdown format that prevented parsing
+  - Stream metadata now uses correct list item format (`- Stream: N`) instead of HTML comment attributes
+  - Stable IDs updated to valid 7-character alphanumeric format (e.g., `bknd002` instead of `backend001`)
+  - Removed non-task content (introductory paragraph and H2 header) that caused parser errors
+
 ### Added
 
 - **Add Command Enhancements**: Extended add command for task dependencies and streams
