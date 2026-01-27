@@ -23,7 +23,7 @@ references:
 
 ## Stable ID Generation
 
-- [ ] 3. Write unit tests for StableIDGenerator
+- [x] 3. Write unit tests for StableIDGenerator
   - Test uniqueness across 10,000 generations
   - Test base36 encoding correctness
   - Test 7-character length constraint
@@ -32,7 +32,7 @@ references:
   - Test counter continuation from existing IDs
   - Requirements: [1.1](requirements.md#1.1), [1.4](requirements.md#1.4), [1.7](requirements.md#1.7), [1.8](requirements.md#1.8)
 
-- [ ] 4. Implement StableIDGenerator in internal/task/stable_id.go
+- [x] 4. Implement StableIDGenerator in internal/task/stable_id.go
   - Create StableIDGenerator struct with usedIDs map and counter
   - Implement NewStableIDGenerator with existing ID parsing
   - Implement Generate() with zero-padding and collision detection
@@ -40,7 +40,7 @@ references:
   - Use crypto/rand for initial seeding
   - Requirements: [1.1](requirements.md#1.1), [1.4](requirements.md#1.4), [1.7](requirements.md#1.7), [1.8](requirements.md#1.8)
 
-- [ ] 5. Write property-based tests for stable ID uniqueness
+- [x] 5. Write property-based tests for stable ID uniqueness
   - Use rapid framework for property testing
   - Test that all generated IDs in a list are unique
   - Test that IDs survive multiple generate cycles

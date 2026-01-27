@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Stable ID Generator**: Generate unique 7-character base36 identifiers for tasks
+  - `StableIDGenerator` struct with collision detection and counter continuation
+  - `NewStableIDGenerator` seeds from existing IDs or crypto/rand for new files
+  - `Generate()` produces unique IDs with zero-padding and uniqueness verification
+  - `IsUsed()` check for ID collision detection
+  - `IsValidStableID()` validation for 7-character lowercase alphanumeric format
+  - Unit tests covering uniqueness, encoding, and counter continuation
+  - Property-based tests using rapid framework for uniqueness guarantees
+
 - **Task Dependencies and Streams Core Data Structures**: Foundation for parallel agent execution
   - Extended Task struct with StableID, BlockedBy, Stream, and Owner fields
   - GetEffectiveStream() helper function returns stream 1 as default when not explicitly set
