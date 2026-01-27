@@ -48,7 +48,7 @@ references:
 
 ## Dependency Index
 
-- [ ] 6. Write unit tests for DependencyIndex
+- [x] 6. Write unit tests for DependencyIndex
   - Test index building from task hierarchy
   - Test GetTask by stable ID
   - Test GetTaskByHierarchicalID
@@ -58,7 +58,7 @@ references:
   - Test TranslateToHierarchical accuracy
   - Requirements: [2.4](requirements.md#2.4), [2.5](requirements.md#2.5), [2.6](requirements.md#2.6)
 
-- [ ] 7. Write unit tests for cycle detection
+- [x] 7. Write unit tests for cycle detection
   - Test self-reference detection (A → A)
   - Test direct cycle detection (A → B → A)
   - Test indirect cycle detection (A → B → C → A)
@@ -66,7 +66,7 @@ references:
   - Test depth limit prevents stack overflow
   - Requirements: [2.14](requirements.md#2.14), [2.15](requirements.md#2.15), [2.16](requirements.md#2.16)
 
-- [ ] 8. Implement DependencyIndex in internal/task/dependencies.go
+- [x] 8. Implement DependencyIndex in internal/task/dependencies.go
   - Create DependencyIndex struct with byStableID, byHierarchical, dependents maps
   - Implement BuildDependencyIndex from task list
   - Implement GetTask, GetTaskByHierarchicalID, GetDependents
@@ -74,14 +74,14 @@ references:
   - Implement TranslateToHierarchical
   - Requirements: [2.4](requirements.md#2.4), [2.5](requirements.md#2.5), [2.6](requirements.md#2.6)
 
-- [ ] 9. Implement cycle detection in DependencyIndex
+- [x] 9. Implement cycle detection in DependencyIndex
   - Implement DetectCycle with DFS algorithm
   - Add maxDependencyDepth constant (1000)
   - Return cycle path for error messages
   - Handle self-reference as special case
   - Requirements: [2.14](requirements.md#2.14), [2.15](requirements.md#2.15), [2.16](requirements.md#2.16)
 
-- [ ] 10. Write property-based tests for cycle detection
+- [x] 10. Write property-based tests for cycle detection
   - Test that no cycles can be created through valid operations
   - Test that detected cycles are always real cycles
   - Requirements: [2.14](requirements.md#2.14), [2.15](requirements.md#2.15), [2.16](requirements.md#2.16)

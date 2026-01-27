@@ -18,6 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Unit tests covering uniqueness, encoding, and counter continuation
   - Property-based tests using rapid framework for uniqueness guarantees
 
+- **Dependency Index**: Fast lookup for dependency resolution and cycle detection
+  - `DependencyIndex` struct with byStableID, byHierarchical, and dependents maps
+  - `BuildDependencyIndex()` creates index from task list with recursive child indexing
+  - `GetTask()` and `GetTaskByHierarchicalID()` for task lookup by ID type
+  - `GetDependents()` returns tasks that depend on a given task
+  - `IsReady()` and `IsBlocked()` for dependency status checking
+  - `TranslateToHierarchical()` converts stable IDs to hierarchical IDs
+  - `DetectCycle()` with DFS algorithm for circular dependency detection
+  - Unit tests for index building, lookups, and dependency status
+  - Property-based tests using rapid framework for cycle detection guarantees
+
 - **Task Dependencies and Streams Core Data Structures**: Foundation for parallel agent execution
   - Extended Task struct with StableID, BlockedBy, Stream, and Owner fields
   - GetEffectiveStream() helper function returns stream 1 as default when not explicitly set
