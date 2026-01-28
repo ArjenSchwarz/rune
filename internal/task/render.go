@@ -137,6 +137,9 @@ func renderTask(buf *strings.Builder, task *Task, depth int, ctx *RenderContext)
 
 // formatBlockedByRefs formats stable IDs with current title hints
 func formatBlockedByRefs(stableIDs []string, index *DependencyIndex) string {
+	if len(stableIDs) == 0 {
+		return ""
+	}
 	refs := make([]string, 0, len(stableIDs))
 	for _, id := range stableIDs {
 		if index != nil {
