@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **skill/SKILL.md**: Add Claude Code skill for rune task management
+  - Document task dependencies with blocked-by relationships and stable IDs
+  - Document work streams for multi-agent parallel execution
+  - Document task ownership with claiming and release operations
+  - Add streams command documentation with --available and --json flags
+  - Update add, update, list, next commands with new dependency/stream flags
+  - Add batch operation examples with stream, blocked_by, owner, and release fields
+  - Add multi-agent workflow guidelines and common patterns
+  - Document markdown storage format for dependencies, streams, and owners
+
 - **README.md**: Document task dependencies, work streams, and task ownership features
   - Add Task Dependencies section with blocked-by usage and storage format
   - Add Work Streams section with stream assignment and status checking
