@@ -34,6 +34,12 @@ type TaskWithPhase struct {
 	Phase string `json:"Phase,omitempty"`
 }
 
+// RenderContext provides dependencies needed for rendering
+type RenderContext struct {
+	RequirementsFile string
+	DependencyIndex  *DependencyIndex // For title hint lookup in Blocked-by
+}
+
 // RenderMarkdown converts a TaskList to markdown format with consistent formatting
 // Note: This does NOT include front matter - that's handled by WriteFile
 func RenderMarkdown(tl *TaskList) []byte {
@@ -52,43 +58,72 @@ func RenderMarkdown(tl *TaskList) []byte {
 		reqFile = DefaultRequirementsFile
 	}
 
+	// Build dependency index for blocked-by title hints
+	index := BuildDependencyIndex(tl.Tasks)
+
+	ctx := &RenderContext{
+		RequirementsFile: reqFile,
+		DependencyIndex:  index,
+	}
+
 	// Render each root-level task
 	for i, task := range tl.Tasks {
 		// Add a blank line before each top-level task except the first
 		if i > 0 {
 			buf.WriteString("\n")
 		}
-		renderTask(&buf, &task, 0, reqFile)
+		renderTask(&buf, &task, 0, ctx)
 	}
 
 	return []byte(buf.String())
 }
 
 // renderTask recursively renders a task and its children with proper indentation
-func renderTask(buf *strings.Builder, task *Task, depth int, reqFile string) {
+func renderTask(buf *strings.Builder, task *Task, depth int, ctx *RenderContext) {
 	// Calculate indentation (2 spaces per level)
 	indent := strings.Repeat("  ", depth)
 
-	// Render the task checkbox and title
-	fmt.Fprintf(buf, "%s- %s %s. %s\n",
-		indent, task.Status.String(), task.ID, task.Title)
+	// Render the task checkbox, title, and stable ID (if present)
+	if task.StableID != "" {
+		fmt.Fprintf(buf, "%s- %s %s. %s <!-- id:%s -->\n",
+			indent, task.Status.String(), task.ID, task.Title, task.StableID)
+	} else {
+		fmt.Fprintf(buf, "%s- %s %s. %s\n",
+			indent, task.Status.String(), task.ID, task.Title)
+	}
 
-	// Render task details as bullet points
+	// Render task details as bullet points (first in metadata order)
 	for _, detail := range task.Details {
 		fmt.Fprintf(buf, "%s  - %s\n", indent, detail)
 	}
 
-	// Render requirements if present
+	// Render Blocked-by with title hints (second in metadata order)
+	if len(task.BlockedBy) > 0 {
+		refs := formatBlockedByRefs(task.BlockedBy, ctx.DependencyIndex)
+		fmt.Fprintf(buf, "%s  - Blocked-by: %s\n", indent, refs)
+	}
+
+	// Render Stream (third in metadata order) - only if explicitly set (> 0)
+	if task.Stream > 0 {
+		fmt.Fprintf(buf, "%s  - Stream: %d\n", indent, task.Stream)
+	}
+
+	// Render Owner (fourth in metadata order) - only if non-empty
+	if task.Owner != "" {
+		fmt.Fprintf(buf, "%s  - Owner: %s\n", indent, task.Owner)
+	}
+
+	// Render requirements if present (fifth in metadata order)
 	if len(task.Requirements) > 0 {
 		links := make([]string, len(task.Requirements))
 		for i, reqID := range task.Requirements {
-			links[i] = fmt.Sprintf("[%s](%s#%s)", reqID, reqFile, reqID)
+			links[i] = fmt.Sprintf("[%s](%s#%s)", reqID, ctx.RequirementsFile, reqID)
 		}
 		fmt.Fprintf(buf, "%s  - Requirements: %s\n",
 			indent, strings.Join(links, ", "))
 	}
 
-	// Render references if present
+	// Render references if present (last in metadata order)
 	if len(task.References) > 0 {
 		fmt.Fprintf(buf, "%s  - References: %s\n",
 			indent, strings.Join(task.References, ", "))
@@ -96,8 +131,27 @@ func renderTask(buf *strings.Builder, task *Task, depth int, reqFile string) {
 
 	// Recursively render children
 	for _, child := range task.Children {
-		renderTask(buf, &child, depth+1, reqFile)
+		renderTask(buf, &child, depth+1, ctx)
 	}
+}
+
+// formatBlockedByRefs formats stable IDs with current title hints
+func formatBlockedByRefs(stableIDs []string, index *DependencyIndex) string {
+	if len(stableIDs) == 0 {
+		return ""
+	}
+	refs := make([]string, 0, len(stableIDs))
+	for _, id := range stableIDs {
+		if index != nil {
+			if task := index.GetTask(id); task != nil {
+				refs = append(refs, fmt.Sprintf("%s (%s)", id, task.Title))
+				continue
+			}
+		}
+		// Fallback: ID only if task not found
+		refs = append(refs, id)
+	}
+	return strings.Join(refs, ", ")
 }
 
 // RenderMarkdownWithPhases converts a TaskList to markdown format with phase headers
@@ -115,6 +169,14 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 	reqFile := tl.RequirementsFile
 	if reqFile == "" {
 		reqFile = DefaultRequirementsFile
+	}
+
+	// Build dependency index for blocked-by title hints
+	index := BuildDependencyIndex(tl.Tasks)
+
+	ctx := &RenderContext{
+		RequirementsFile: reqFile,
+		DependencyIndex:  index,
 	}
 
 	// Track which phase marker we're at
@@ -154,7 +216,7 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 			(markerIndex > 0 && phaseMarkers[markerIndex-1].AfterTaskID != tl.Tasks[i-1].ID)) {
 			buf.WriteString("\n")
 		}
-		renderTask(&buf, &task, 0, reqFile)
+		renderTask(&buf, &task, 0, ctx)
 	}
 
 	// Handle any remaining phase markers that come after all tasks

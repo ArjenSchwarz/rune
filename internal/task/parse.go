@@ -15,6 +15,27 @@ var (
 	detailLinePattern      = regexp.MustCompile(`^(\s*)- (.+)$`)
 	phaseHeaderPattern     = regexp.MustCompile(`^## (.+)$`)
 	requirementLinkPattern = regexp.MustCompile(`\[([^\]]+)\]\(([^#\)]+)#[^\)]+\)`)
+
+	// Patterns for new metadata fields (dependencies and streams)
+	// stableIDCommentPattern matches HTML comments with stable IDs: <!-- id:abc1234 -->
+	// Captures the 7-character lowercase alphanumeric ID
+	stableIDCommentPattern = regexp.MustCompile(`<!--\s*id:([a-z0-9]{7})\s*-->`)
+
+	// blockedByPattern matches the Blocked-by metadata line (case-insensitive)
+	blockedByPattern = regexp.MustCompile(`(?i)^blocked-by:\s*(.+)$`)
+
+	// streamPattern matches the Stream metadata line (case-insensitive)
+	// Only matches positive integers
+	streamPattern = regexp.MustCompile(`(?i)^stream:\s*(\d+)$`)
+
+	// ownerPattern matches the Owner metadata line (case-insensitive)
+	ownerPattern = regexp.MustCompile(`(?i)^owner:\s*(.+)$`)
+
+	// blockedByRefPattern extracts stable IDs from blocked-by references
+	// Matches IDs with optional title hints: abc1234 (Task Title) or just abc1234
+	// The ID must be followed by whitespace, parenthesis, comma, or end of string
+	// to avoid matching partial IDs (e.g., extracting "abc1234" from "abc12345")
+	blockedByRefPattern = regexp.MustCompile(`\b([a-z0-9]{7})(?:\s*\([^)]*\))?(?:$|[,\s])`)
 )
 
 // ParseMarkdown parses markdown content into a TaskList structure
@@ -176,14 +197,21 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 				return nil, newIdx, err
 			}
 
-			// Separate details from children
+			// Separate details from children, extracting metadata
 			for _, item := range detailsAndChildren {
 				switch v := item.(type) {
 				case Task:
 					task.Children = append(task.Children, v)
 				case string:
-					// Check if it's a requirements line
-					if reqs, ok := strings.CutPrefix(v, "Requirements: "); ok {
+					// Check for new metadata fields first (case-insensitive)
+					if blockedBy := parseBlockedByLine(v); blockedBy != nil {
+						task.BlockedBy = blockedBy
+					} else if stream := parseStreamLine(v); stream > 0 {
+						task.Stream = stream
+					} else if owner := parseOwnerLine(v); owner != "" {
+						task.Owner = owner
+					} else if reqs, ok := strings.CutPrefix(v, "Requirements: "); ok {
+						// Check if it's a requirements line
 						reqIDs, reqFile := parseRequirements(reqs)
 						// Only treat as requirements if we successfully parsed at least one
 						if len(reqIDs) > 0 {
@@ -320,9 +348,13 @@ func parseTaskLine(line string) (Task, bool, error) {
 			return Task{}, false, err
 		}
 
+		// Extract title and stable ID from the matched title portion
+		title, stableID := extractStableIDFromTitle(matches[4])
+
 		return Task{
-			Title:  matches[4],
-			Status: status,
+			Title:    title,
+			Status:   status,
+			StableID: stableID,
 		}, true, nil
 	}
 
@@ -335,12 +367,88 @@ func parseTaskLine(line string) (Task, bool, error) {
 	return Task{}, false, nil
 }
 
+// extractStableIDFromTitle extracts the stable ID from an HTML comment in the title
+// Returns the cleaned title (without the HTML comment) and the stable ID (if found)
+func extractStableIDFromTitle(title string) (string, string) {
+	matches := stableIDCommentPattern.FindStringSubmatch(title)
+	if len(matches) < 2 {
+		return title, ""
+	}
+
+	stableID := matches[1]
+	// Remove the HTML comment from the title
+	cleanTitle := stableIDCommentPattern.ReplaceAllString(title, "")
+	// Trim any trailing whitespace that was before the comment
+	cleanTitle = strings.TrimRight(cleanTitle, " ")
+
+	return cleanTitle, stableID
+}
+
 func parseDetailLine(line string) string {
 	matches := detailLinePattern.FindStringSubmatch(line)
 	if len(matches) == 3 {
 		return matches[2]
 	}
 	return ""
+}
+
+// parseBlockedByLine parses a Blocked-by metadata line and returns the stable IDs
+// Returns nil if the line is not a Blocked-by line or contains no valid IDs
+func parseBlockedByLine(line string) []string {
+	matches := blockedByPattern.FindStringSubmatch(line)
+	if len(matches) < 2 {
+		return nil
+	}
+
+	// Extract stable IDs from the value (handles both "id (title)" and plain "id" formats)
+	value := matches[1]
+	idMatches := blockedByRefPattern.FindAllStringSubmatch(value, -1)
+	if len(idMatches) == 0 {
+		return nil
+	}
+
+	stableIDs := make([]string, 0, len(idMatches))
+	for _, m := range idMatches {
+		if len(m) >= 2 {
+			stableIDs = append(stableIDs, m[1])
+		}
+	}
+
+	if len(stableIDs) == 0 {
+		return nil
+	}
+	return stableIDs
+}
+
+// parseStreamLine parses a Stream metadata line and returns the stream number
+// Returns 0 if the line is not a Stream line or contains an invalid value
+func parseStreamLine(line string) int {
+	matches := streamPattern.FindStringSubmatch(line)
+	if len(matches) < 2 {
+		return 0
+	}
+
+	// Parse the stream number (pattern already ensures it's a positive integer)
+	var stream int
+	_, err := fmt.Sscanf(matches[1], "%d", &stream)
+	if err != nil || stream <= 0 {
+		return 0
+	}
+
+	return stream
+}
+
+// parseOwnerLine parses an Owner metadata line and returns the owner string
+// Returns empty string if the line is not an Owner line
+func parseOwnerLine(line string) string {
+	matches := ownerPattern.FindStringSubmatch(line)
+	if len(matches) < 2 {
+		return ""
+	}
+
+	// Trim whitespace from the owner value
+	owner := strings.TrimSpace(matches[1])
+	return owner
 }
 
 func parseReferences(refs string) []string {

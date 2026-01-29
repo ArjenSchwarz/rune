@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -748,6 +749,522 @@ func TestNextCommandWithPhases(t *testing.T) {
 				var jsonObj any
 				if err := json.Unmarshal([]byte(output), &jsonObj); err != nil {
 					t.Errorf("JSON format produced invalid JSON: %v\nOutput: %s", err, output)
+				}
+			}
+		})
+	}
+}
+
+func TestNextCommandStreamFilter(t *testing.T) {
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "rune-next-stream-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	tests := map[string]struct {
+		fileContent       string
+		fileName          string
+		streamFlag        int
+		format            string
+		expectInOutput    []string
+		expectNotInOutput []string
+	}{
+		"stream filter returns only stream tasks": {
+			fileContent: `# Project Tasks
+
+- [ ] 1. Task in stream 1 <!-- id:abc1234 -->
+  - Stream: 1
+
+- [ ] 2. Task in stream 2 <!-- id:def5678 -->
+  - Stream: 2
+
+- [ ] 3. Another task in stream 1 <!-- id:ghi9012 -->
+  - Stream: 1
+`,
+			fileName:          "stream-filter.md",
+			streamFlag:        2,
+			format:            "json",
+			expectInOutput:    []string{`"id": "2"`, `"title": "Task in stream 2"`},
+			expectNotInOutput: []string{`"id": "1"`, `"id": "3"`},
+		},
+		"stream filter with default stream": {
+			fileContent: `# Project Tasks
+
+- [ ] 1. Task without explicit stream <!-- id:abc1234 -->
+
+- [ ] 2. Task in stream 2 <!-- id:def5678 -->
+  - Stream: 2
+`,
+			fileName:          "default-stream.md",
+			streamFlag:        1,
+			format:            "json",
+			expectInOutput:    []string{`"id": "1"`, `"title": "Task without explicit stream"`},
+			expectNotInOutput: []string{`"id": "2"`},
+		},
+		"stream filter with no matching tasks": {
+			fileContent: `# Project Tasks
+
+- [ ] 1. Task in stream 1 <!-- id:abc1234 -->
+  - Stream: 1
+`,
+			fileName:       "no-matching-stream.md",
+			streamFlag:     5,
+			format:         "json",
+			expectInOutput: []string{`"success": true`},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Reset flags before each test to ensure isolation
+			streamFlag = 0
+			claimFlag = ""
+			phaseFlag = false
+
+			// Write test file
+			if err := os.WriteFile(tc.fileName, []byte(tc.fileContent), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			// Capture output
+			var buf bytes.Buffer
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			// Build command args
+			args := []string{"next", tc.fileName, "--format", tc.format}
+			if tc.streamFlag > 0 {
+				args = append(args, "--stream", fmt.Sprintf("%d", tc.streamFlag))
+			}
+
+			rootCmd.SetArgs(args)
+			err := rootCmd.Execute()
+
+			// Restore stdout and capture output
+			w.Close()
+			os.Stdout = oldStdout
+			buf.ReadFrom(r)
+			output := buf.String()
+
+			// Reset command args for next test
+			rootCmd.SetArgs([]string{})
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			// Check expected strings in output
+			for _, expected := range tc.expectInOutput {
+				if !strings.Contains(output, expected) {
+					t.Errorf("expected '%s' in output, got: %s", expected, output)
+				}
+			}
+
+			// Check strings NOT expected in output
+			for _, notExpected := range tc.expectNotInOutput {
+				if strings.Contains(output, notExpected) {
+					t.Errorf("did NOT expect '%s' in output, got: %s", notExpected, output)
+				}
+			}
+		})
+	}
+}
+
+func TestNextCommandClaim(t *testing.T) {
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "rune-next-claim-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	tests := map[string]struct {
+		fileContent       string
+		fileName          string
+		streamFlag        int
+		claimFlag         string
+		format            string
+		expectInOutput    []string
+		expectInFile      []string
+		expectNotInOutput []string
+	}{
+		"claim without stream claims single task": {
+			fileContent: `# Project Tasks
+
+- [ ] 1. First ready task <!-- id:abc1234 -->
+  - Stream: 1
+
+- [ ] 2. Second ready task <!-- id:def5678 -->
+  - Stream: 1
+`,
+			fileName:          "claim-single.md",
+			claimFlag:         "agent-1",
+			format:            "json",
+			expectInOutput:    []string{`"id": "1"`, `"owner": "agent-1"`},
+			expectInFile:      []string{"Owner: agent-1", "[-] 1."},
+			expectNotInOutput: []string{`"id": "2"`},
+		},
+		"stream claim claims all ready tasks in stream": {
+			fileContent: `# Project Tasks
+
+- [ ] 1. Task in stream 1 <!-- id:abc1234 -->
+  - Stream: 1
+
+- [ ] 2. Task in stream 2 <!-- id:def5678 -->
+  - Stream: 2
+
+- [ ] 3. Another task in stream 2 <!-- id:ghi9012 -->
+  - Stream: 2
+`,
+			fileName:          "claim-stream.md",
+			streamFlag:        2,
+			claimFlag:         "agent-2",
+			format:            "json",
+			expectInOutput:    []string{`"id": "2"`, `"id": "3"`, `"owner": "agent-2"`},
+			expectInFile:      []string{"Owner: agent-2"},
+			expectNotInOutput: []string{`"id": "1"`},
+		},
+		"claim sets status to in-progress and owner": {
+			fileContent: `# Project Tasks
+
+- [ ] 1. Ready task <!-- id:abc1234 -->
+`,
+			fileName:       "claim-status.md",
+			claimFlag:      "test-agent",
+			format:         "json",
+			expectInOutput: []string{`"status": "In Progress"`, `"owner": "test-agent"`},
+			expectInFile:   []string{"[-] 1.", "Owner: test-agent"},
+		},
+		"already-claimed tasks are skipped": {
+			fileContent: `# Project Tasks
+
+- [-] 1. Already claimed task <!-- id:abc1234 -->
+  - Owner: other-agent
+
+- [ ] 2. Available task <!-- id:def5678 -->
+`,
+			fileName:          "skip-claimed.md",
+			claimFlag:         "new-agent",
+			format:            "json",
+			expectInOutput:    []string{`"id": "2"`, `"owner": "new-agent"`},
+			expectNotInOutput: []string{`"id": "1"`},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Reset flags before each test to ensure isolation
+			streamFlag = 0
+			claimFlag = ""
+			phaseFlag = false
+
+			// Write test file
+			if err := os.WriteFile(tc.fileName, []byte(tc.fileContent), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			// Capture output
+			var buf bytes.Buffer
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			// Build command args
+			args := []string{"next", tc.fileName, "--format", tc.format}
+			if tc.streamFlag > 0 {
+				args = append(args, "--stream", fmt.Sprintf("%d", tc.streamFlag))
+			}
+			if tc.claimFlag != "" {
+				args = append(args, "--claim", tc.claimFlag)
+			}
+
+			rootCmd.SetArgs(args)
+			err := rootCmd.Execute()
+
+			// Restore stdout and capture output
+			w.Close()
+			os.Stdout = oldStdout
+			buf.ReadFrom(r)
+			output := buf.String()
+
+			// Reset command args for next test
+			rootCmd.SetArgs([]string{})
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			// Check expected strings in output
+			for _, expected := range tc.expectInOutput {
+				if !strings.Contains(output, expected) {
+					t.Errorf("expected '%s' in output, got: %s", expected, output)
+				}
+			}
+
+			// Check strings NOT expected in output
+			for _, notExpected := range tc.expectNotInOutput {
+				if strings.Contains(output, notExpected) {
+					t.Errorf("did NOT expect '%s' in output, got: %s", notExpected, output)
+				}
+			}
+
+			// Check file contents if expectInFile is specified
+			if len(tc.expectInFile) > 0 {
+				fileContent, err := os.ReadFile(tc.fileName)
+				if err != nil {
+					t.Fatalf("failed to read file after claim: %v", err)
+				}
+				for _, expected := range tc.expectInFile {
+					if !strings.Contains(string(fileContent), expected) {
+						t.Errorf("expected '%s' in file, got: %s", expected, string(fileContent))
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestNextCommandPhaseWithStreamInfo(t *testing.T) {
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "rune-next-phase-stream-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	tests := map[string]struct {
+		fileContent    string
+		fileName       string
+		streamFlag     int
+		format         string
+		expectInOutput []string
+	}{
+		"phase output includes stream and dependency info": {
+			fileContent: `# Project Tasks
+
+## Phase 1
+
+- [ ] 1. First task <!-- id:abc1234 -->
+  - Stream: 1
+
+- [ ] 2. Second task <!-- id:def5678 -->
+  - Stream: 2
+  - Blocked-by: abc1234 (First task)
+`,
+			fileName:       "phase-stream-info.md",
+			format:         "json",
+			expectInOutput: []string{`"stream": 1`, `"stream": 2`, `"blockedBy"`},
+		},
+		"phase json includes streams summary": {
+			fileContent: `# Project Tasks
+
+## Phase 1
+
+- [ ] 1. Ready task stream 1 <!-- id:abc1234 -->
+  - Stream: 1
+
+- [ ] 2. Ready task stream 2 <!-- id:def5678 -->
+  - Stream: 2
+
+- [ ] 3. Blocked task <!-- id:ghi9012 -->
+  - Stream: 1
+  - Blocked-by: def5678 (Ready task stream 2)
+`,
+			fileName:       "phase-streams-summary.md",
+			format:         "json",
+			expectInOutput: []string{`"streams_summary"`, `"ready"`, `"blocked"`, `"active"`, `"available"`},
+		},
+		"phase with stream filter": {
+			fileContent: `# Project Tasks
+
+## Phase 1
+
+- [ ] 1. Task stream 1 <!-- id:abc1234 -->
+  - Stream: 1
+
+- [ ] 2. Task stream 2 <!-- id:def5678 -->
+  - Stream: 2
+`,
+			fileName:       "phase-stream-filter.md",
+			streamFlag:     1,
+			format:         "json",
+			expectInOutput: []string{`"id": "1"`, `"stream": 1`},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Reset flags before each test to ensure isolation
+			streamFlag = 0
+			claimFlag = ""
+			phaseFlag = false
+
+			// Write test file
+			if err := os.WriteFile(tc.fileName, []byte(tc.fileContent), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			// Capture output
+			var buf bytes.Buffer
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			// Build command args
+			args := []string{"next", tc.fileName, "--phase", "--format", tc.format}
+			if tc.streamFlag > 0 {
+				args = append(args, "--stream", fmt.Sprintf("%d", tc.streamFlag))
+			}
+
+			rootCmd.SetArgs(args)
+			err := rootCmd.Execute()
+
+			// Restore stdout and capture output
+			w.Close()
+			os.Stdout = oldStdout
+			buf.ReadFrom(r)
+			output := buf.String()
+
+			// Reset command args for next test
+			rootCmd.SetArgs([]string{})
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			// Check expected strings in output
+			for _, expected := range tc.expectInOutput {
+				if !strings.Contains(output, expected) {
+					t.Errorf("expected '%s' in output, got: %s", expected, output)
+				}
+			}
+
+			// Validate JSON
+			if tc.format == "json" {
+				var jsonObj any
+				if err := json.Unmarshal([]byte(output), &jsonObj); err != nil {
+					t.Errorf("JSON format produced invalid JSON: %v\nOutput: %s", err, output)
+				}
+			}
+		})
+	}
+}
+
+func TestNextCommandNoReadyTasks(t *testing.T) {
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "rune-next-no-ready-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	tests := map[string]struct {
+		fileContent    string
+		fileName       string
+		claimFlag      string
+		streamFlag     int
+		expectInOutput []string
+		expectSuccess  bool
+	}{
+		"claim with no ready tasks returns success": {
+			fileContent: `# Project Tasks
+
+- [x] 1. Completed task <!-- id:abc1234 -->
+`,
+			fileName:       "no-ready-for-claim.md",
+			claimFlag:      "agent-1",
+			expectInOutput: []string{`"success": true`},
+			expectSuccess:  true,
+		},
+		"stream claim with no ready tasks in stream": {
+			fileContent: `# Project Tasks
+
+- [ ] 1. Task in stream 1 <!-- id:abc1234 -->
+  - Stream: 1
+`,
+			fileName:       "no-ready-in-stream.md",
+			claimFlag:      "agent-1",
+			streamFlag:     2,
+			expectInOutput: []string{`"success": true`, `"claimed": []`},
+			expectSuccess:  true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Reset flags before each test to ensure isolation
+			streamFlag = 0
+			claimFlag = ""
+			phaseFlag = false
+
+			// Write test file
+			if err := os.WriteFile(tc.fileName, []byte(tc.fileContent), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			// Capture output
+			var buf bytes.Buffer
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			// Build command args
+			args := []string{"next", tc.fileName, "--format", "json"}
+			if tc.claimFlag != "" {
+				args = append(args, "--claim", tc.claimFlag)
+			}
+			if tc.streamFlag > 0 {
+				args = append(args, "--stream", fmt.Sprintf("%d", tc.streamFlag))
+			}
+
+			rootCmd.SetArgs(args)
+			err := rootCmd.Execute()
+
+			// Restore stdout and capture output
+			w.Close()
+			os.Stdout = oldStdout
+			buf.ReadFrom(r)
+			output := buf.String()
+
+			// Reset command args for next test
+			rootCmd.SetArgs([]string{})
+
+			// Check error/success expectation
+			if tc.expectSuccess && err != nil {
+				t.Errorf("expected success but got error: %v", err)
+				return
+			}
+
+			// Check expected strings in output
+			for _, expected := range tc.expectInOutput {
+				if !strings.Contains(output, expected) {
+					t.Errorf("expected '%s' in output, got: %s", expected, output)
 				}
 			}
 		})

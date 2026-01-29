@@ -97,13 +97,29 @@ rune list [file] [options]
 - `--format [table|markdown|json]` - Output format (default: table)
 - `--status [pending|in-progress|completed]` - Filter by status
 - `--depth [number]` - Maximum hierarchy depth to show
+- `--stream [N]` - Filter by stream number
+- `--owner [AGENT_ID]` - Filter by owner (use empty string for unowned tasks)
 
 **Examples:**
 ```bash
 rune list tasks.md --format table
 rune list tasks.md --format json --status pending
 rune list tasks.md --depth 2
+
+# Filter by stream
+rune list tasks.md --stream 2
+
+# Filter by owner
+rune list tasks.md --owner "agent-1"
+
+# Show unowned tasks only
+rune list tasks.md --owner ""
 ```
+
+**Column Display:**
+- Stream column appears when any task has a non-default stream assignment
+- BlockedBy column appears when any task has dependencies
+- Owner column appears when any task has an owner assigned
 
 ### add - Add New Task
 
@@ -121,6 +137,9 @@ rune add [file] --title [title] [options]
 - `--references [ref,...]` - Comma-separated references
 - `--requirements [id,...]` - Comma-separated requirement IDs (e.g., "1.1,1.2,2.3")
 - `--requirements-file [path]` - Path to requirements file (default: requirements.md)
+- `--stream [N]` - Assign to stream N for parallel execution
+- `--blocked-by [ids]` - Comma-separated task IDs that must complete first
+- `--owner [AGENT_ID]` - Claim the task for an agent
 
 **Examples:**
 ```bash
@@ -129,6 +148,10 @@ rune add tasks.md --title "Add unit tests" --parent 1
 rune add tasks.md --title "Setup database" --phase "Development"
 rune add tasks.md --title "Review code" --details "Check logic,Verify tests" --references "coding-standards.md"
 rune add tasks.md --title "Implement login" --requirements "1.1,1.2" --requirements-file "specs/requirements.md"
+
+# With streams and dependencies
+rune add tasks.md --title "Build API" --stream 2 --blocked-by "1,2"
+rune add tasks.md --title "Code review" --owner "agent-1"
 ```
 
 ### complete - Mark Task Complete
@@ -163,7 +186,7 @@ rune progress [file] [task-id]
 
 ### update - Modify Task
 
-Update task title, details, or references.
+Update task title, details, references, or dependencies.
 
 ```bash
 rune update [file] [task-id] [options]
@@ -175,6 +198,10 @@ rune update [file] [task-id] [options]
 - `--references [ref,...]` - Replace all references
 - `--requirements [id,...]` - Replace all requirements
 - `--clear-requirements` - Clear all requirements from the task
+- `--stream [N]` - Change stream assignment
+- `--blocked-by [ids]` - Set task dependencies (comma-separated task IDs)
+- `--owner [AGENT_ID]` - Claim the task for an agent
+- `--release` - Clear the owner (release the task)
 
 **Examples:**
 ```bash
@@ -183,6 +210,12 @@ rune update tasks.md 2.1 --details "Step 1,Step 2,Step 3"
 rune update tasks.md 3 --references "spec.md,api-docs.md"
 rune update tasks.md 4 --requirements "2.1,2.2"
 rune update tasks.md 5 --clear-requirements
+
+# Stream and dependency management
+rune update tasks.md 1 --stream 2
+rune update tasks.md 2 --blocked-by "1"
+rune update tasks.md 3 --owner "agent-1"
+rune update tasks.md 3 --release
 ```
 
 ### remove - Delete Task
@@ -262,7 +295,7 @@ rune find tasks.md "api" --parent 2 --max-depth 3
 
 ### next - Get Next Incomplete Task
 
-Retrieve the next incomplete task from your task list using intelligent depth-first traversal.
+Retrieve the next incomplete task from your task list using intelligent depth-first traversal. Supports stream filtering and task claiming for multi-agent workflows.
 
 ```bash
 rune next [file] [options]
@@ -271,6 +304,8 @@ rune next [file] [options]
 **Options:**
 - `--format [table|markdown|json]` - Output format (default: table)
 - `--phase` - Get all pending tasks from the next incomplete phase
+- `--stream, -s [N]` - Filter to tasks in stream N
+- `--claim, -c [AGENT_ID]` - Claim task(s) by setting status to in-progress and owner
 
 **Examples:**
 ```bash
@@ -283,6 +318,15 @@ rune next tasks.md
 # Get all tasks from next phase with incomplete work
 rune next tasks.md --phase
 
+# Get next ready task from stream 2
+rune next tasks.md --stream 2
+
+# Claim the single next ready task
+rune next tasks.md --claim "agent-1"
+
+# Claim all ready tasks in stream 2
+rune next tasks.md --stream 2 --claim "agent-1"
+
 # Output in JSON format
 rune next --format json
 
@@ -293,10 +337,43 @@ rune next --format markdown
 **How it works:**
 - Finds the first task with incomplete work (task itself or any subtask not completed)
 - Uses depth-first traversal through the task hierarchy
-- Returns the task and all its incomplete subtasks for focused work
+- Only returns "ready" tasks when dependencies exist (all blockers completed)
 - With `--phase` flag, returns all pending tasks from the first phase containing incomplete work
+- With `--stream N` flag, filters to tasks assigned to stream N
+- With `--claim AGENT_ID` flag, claims the task by setting status to in-progress and owner
+- With `--stream N --claim AGENT_ID` together, claims ALL ready tasks in stream N
 - Includes task details and references in the output
 - Supports git branch-based file discovery when configured
+
+### streams - Display Stream Status
+
+Display the status of all work streams, showing ready, blocked, and active task counts.
+
+```bash
+rune streams [file] [options]
+```
+
+**Options:**
+- `--available, -a` - Show only streams with ready tasks
+- `--json, -j` - Output as JSON for scripting
+
+**Examples:**
+```bash
+# Show all streams
+rune streams tasks.md
+
+# Show only available streams
+rune streams tasks.md --available
+
+# JSON output
+rune streams tasks.md --json
+```
+
+**Output Information:**
+- **Ready**: Tasks that can be started (dependencies met, not owned)
+- **Blocked**: Tasks waiting on dependencies to complete
+- **Active**: Tasks currently in progress
+- **Available**: Whether the stream has any ready tasks
 
 ### add-phase - Add Phase Header
 
@@ -658,6 +735,113 @@ rune update tasks.md 1 --clear-requirements
 
 - **Requirements**: Links to acceptance criteria with automatic link generation pointing to requirement anchors
 - **References**: Free-form text without link generation
+
+### Task Dependencies
+
+Tasks can declare dependencies on other tasks using the `--blocked-by` flag. A task with dependencies is considered "blocked" until all its dependencies are completed.
+
+**Adding dependencies when creating tasks:**
+
+```bash
+# Create a task that depends on task 1 completing first
+rune add tasks.md --title "Build API" --blocked-by "1"
+
+# Create a task with multiple dependencies
+rune add tasks.md --title "Integration tests" --blocked-by "1,2,3"
+```
+
+**Adding dependencies to existing tasks:**
+
+```bash
+# Set dependencies on an existing task
+rune update tasks.md 4 --blocked-by "1,2"
+```
+
+**How Dependencies Work:**
+
+- Dependencies are stored using stable IDs that survive task renumbering
+- The `next` command only returns tasks that are "ready" (all dependencies completed)
+- The `list` command shows blocked-by relationships when dependencies exist
+- When a task with dependents is deleted, the dependency references are automatically removed (with a warning)
+
+**Markdown Storage Format:**
+
+Dependencies are stored as list items under each task:
+
+```markdown
+- [ ] 1. Setup database <!-- id:abc1234 -->
+  - Blocked-by: xyz7890 (Initialize project)
+```
+
+The ID in parentheses is a title hint for readability. The stable ID is the authoritative reference.
+
+### Work Streams
+
+Streams partition tasks for parallel execution across multiple agents. Each task can be assigned to a numbered stream, allowing different agents to work on different streams without conflict.
+
+**Assigning streams when creating tasks:**
+
+```bash
+# Assign to stream 2
+rune add tasks.md --title "Build UI components" --stream 2
+
+# Combine with dependencies
+rune add tasks.md --title "Frontend tests" --stream 2 --blocked-by "5"
+```
+
+**Updating stream assignments:**
+
+```bash
+rune update tasks.md 3 --stream 2
+```
+
+**Viewing stream status:**
+
+```bash
+# Show all streams and their task counts
+rune streams tasks.md
+
+# Show only streams with ready tasks
+rune streams tasks.md --available
+
+# JSON output for scripting
+rune streams tasks.md --json
+```
+
+**Stream Behavior:**
+
+- Tasks without explicit stream assignment default to stream 1
+- Streams are derived from task assignments (no configuration needed)
+- The `list --stream N` flag filters to tasks in stream N
+- The `next --stream N` flag returns the next ready task from stream N
+- Dependencies can cross streams (a task in stream 2 can depend on a task in stream 1)
+
+### Task Ownership
+
+Tasks can be claimed by agents using the `--owner` flag, indicating which agent is working on a task.
+
+**Setting ownership:**
+
+```bash
+# Claim a task when creating
+rune add tasks.md --title "Code review" --owner "agent-1"
+
+# Claim an existing task
+rune update tasks.md 5 --owner "agent-1"
+
+# Release a claimed task
+rune update tasks.md 5 --release
+```
+
+**Filtering by owner:**
+
+```bash
+# Show only tasks owned by agent-1
+rune list tasks.md --owner "agent-1"
+
+# Show only unowned tasks
+rune list tasks.md --owner ""
+```
 
 ### Using Phases to Organize Tasks
 

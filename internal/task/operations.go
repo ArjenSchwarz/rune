@@ -17,6 +17,27 @@ const (
 	MaxDetailLength   = 1000  // Maximum characters per detail line
 )
 
+// AddOptions contains optional parameters for adding a task with extended features
+type AddOptions struct {
+	Position  string   // Position to insert at (e.g., "1", "2.1")
+	Phase     string   // Phase name (for phase-aware insertion)
+	Stream    int      // Stream assignment (positive integer, 0 = not set)
+	BlockedBy []string // Hierarchical IDs of blocking tasks
+	Owner     string   // Agent identifier
+}
+
+// UpdateOptions contains optional parameters for updating a task with extended features
+type UpdateOptions struct {
+	Title        *string  // New title (nil = no change)
+	Details      []string // New details (nil = no change)
+	References   []string // New references (nil = no change)
+	Requirements []string // New requirements (nil = no change)
+	Stream       *int     // Stream assignment (nil = no change)
+	BlockedBy    []string // Hierarchical IDs of blockers (nil = no change, empty = clear)
+	Owner        *string  // Owner string (nil = no change)
+	Release      bool     // Clear owner if true
+}
+
 // AddTask adds a new task to the task list under the specified parent
 // If position is provided, the task will be inserted at that position, otherwise appended
 // Returns the ID of the newly created task
@@ -802,4 +823,350 @@ func adjustPhaseMarkersForRemoval(taskID string, phaseMarkers *[]PhaseMarker) {
 		}
 		// If afterTaskNum < removedTaskNum, no adjustment needed
 	}
+}
+
+// ============================================================================
+// Extended operations with dependencies and streams support
+// ============================================================================
+
+// AddTaskWithOptions adds a new task with extended options (stream, blocked-by, owner).
+// Returns the hierarchical ID of the newly created task.
+func (tl *TaskList) AddTaskWithOptions(parentID, title string, opts AddOptions) (string, error) {
+	// Validate input
+	if err := validateTaskInput(title); err != nil {
+		return "", err
+	}
+
+	// Check resource limits
+	if err := tl.checkResourceLimits(parentID); err != nil {
+		return "", err
+	}
+
+	// Validate stream (negative is invalid)
+	if opts.Stream < 0 {
+		return "", ErrInvalidStream
+	}
+
+	// Validate owner
+	if opts.Owner != "" {
+		if err := validateOwner(opts.Owner); err != nil {
+			return "", err
+		}
+	}
+
+	// Resolve blocked-by references to stable IDs
+	var blockedByStableIDs []string
+	if len(opts.BlockedBy) > 0 {
+		var err error
+		blockedByStableIDs, err = tl.resolveToStableIDs(opts.BlockedBy)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// Generate stable ID for the new task
+	existingIDs := tl.collectStableIDs()
+	idGen := NewStableIDGenerator(existingIDs)
+	stableID, err := idGen.Generate()
+	if err != nil {
+		return "", fmt.Errorf("generating stable ID: %w", err)
+	}
+
+	// Create the task
+	newTask := Task{
+		Title:     title,
+		Status:    Pending,
+		StableID:  stableID,
+		Stream:    opts.Stream,
+		BlockedBy: blockedByStableIDs,
+		Owner:     opts.Owner,
+	}
+
+	// Add task to appropriate location
+	var newTaskID string
+	switch {
+	case opts.Position != "":
+		var posErr error
+		newTaskID, posErr = tl.addTaskWithOptionsAtPosition(parentID, &newTask, opts.Position)
+		if posErr != nil {
+			return "", posErr
+		}
+	case parentID != "":
+		parent := tl.FindTask(parentID)
+		if parent == nil {
+			return "", fmt.Errorf("parent task %s not found", parentID)
+		}
+		newTaskID = fmt.Sprintf("%s.%d", parentID, len(parent.Children)+1)
+		newTask.ID = newTaskID
+		newTask.ParentID = parentID
+		parent.Children = append(parent.Children, newTask)
+	default:
+		newTaskID = fmt.Sprintf("%d", len(tl.Tasks)+1)
+		newTask.ID = newTaskID
+		tl.Tasks = append(tl.Tasks, newTask)
+	}
+
+	tl.Modified = time.Now()
+	return newTaskID, nil
+}
+
+// addTaskWithOptionsAtPosition inserts a task with options at a specific position
+func (tl *TaskList) addTaskWithOptionsAtPosition(parentID string, newTask *Task, position string) (string, error) {
+	// Validate position format
+	if !IsValidID(position) {
+		return "", fmt.Errorf("invalid position format: %s", position)
+	}
+
+	// Parse position to get insertion index
+	parts := strings.Split(position, ".")
+	lastPart := parts[len(parts)-1]
+	targetIndex, err := strconv.Atoi(lastPart)
+	if err != nil {
+		return "", fmt.Errorf("invalid position format: %s", position)
+	}
+	if targetIndex < 1 {
+		return "", fmt.Errorf("invalid position: positions must be >= 1")
+	}
+	targetIndex-- // Convert to 0-based index
+
+	var parent *Task
+	if parentID != "" {
+		parent = tl.FindTask(parentID)
+		if parent == nil {
+			return "", fmt.Errorf("parent task %s not found", parentID)
+		}
+
+		if targetIndex > len(parent.Children) {
+			targetIndex = len(parent.Children)
+		}
+
+		newTask.ID = "temp"
+		newTask.ParentID = parentID
+		parent.Children = append(parent.Children[:targetIndex],
+			append([]Task{*newTask}, parent.Children[targetIndex:]...)...)
+	} else {
+		if targetIndex > len(tl.Tasks) {
+			targetIndex = len(tl.Tasks)
+		}
+
+		newTask.ID = "temp"
+		tl.Tasks = append(tl.Tasks[:targetIndex],
+			append([]Task{*newTask}, tl.Tasks[targetIndex:]...)...)
+	}
+
+	// Renumber all tasks
+	tl.RenumberTasks()
+
+	// Find the new task ID after renumbering
+	var newTaskID string
+	if parent != nil && targetIndex < len(parent.Children) {
+		newTaskID = parent.Children[targetIndex].ID
+	} else if parentID == "" && targetIndex < len(tl.Tasks) {
+		newTaskID = tl.Tasks[targetIndex].ID
+	}
+
+	return newTaskID, nil
+}
+
+// UpdateTaskWithOptions updates a task with extended options
+func (tl *TaskList) UpdateTaskWithOptions(taskID string, opts UpdateOptions) error {
+	task := tl.FindTask(taskID)
+	if task == nil {
+		return fmt.Errorf("task %s not found", taskID)
+	}
+
+	// Update title if provided
+	if opts.Title != nil && *opts.Title != "" {
+		if err := validateTaskInput(*opts.Title); err != nil {
+			return err
+		}
+		task.Title = *opts.Title
+	}
+
+	// Update details if provided
+	if opts.Details != nil {
+		if err := validateDetails(opts.Details); err != nil {
+			return err
+		}
+		task.Details = opts.Details
+	}
+
+	// Update references if provided
+	if opts.References != nil {
+		if err := validateReferences(opts.References); err != nil {
+			return err
+		}
+		task.References = opts.References
+	}
+
+	// Update requirements if provided
+	if opts.Requirements != nil {
+		if err := validateRequirements(opts.Requirements); err != nil {
+			return err
+		}
+		task.Requirements = opts.Requirements
+	}
+
+	// Update stream if provided
+	if opts.Stream != nil {
+		if *opts.Stream < 0 {
+			return ErrInvalidStream
+		}
+		task.Stream = *opts.Stream
+	}
+
+	// Update blocked-by if provided
+	if opts.BlockedBy != nil {
+		if len(opts.BlockedBy) > 0 {
+			// Resolve hierarchical IDs to stable IDs
+			stableIDs, err := tl.resolveToStableIDs(opts.BlockedBy)
+			if err != nil {
+				return err
+			}
+
+			// Check for cycles
+			if task.StableID != "" {
+				index := BuildDependencyIndex(tl.Tasks)
+				for _, toStableID := range stableIDs {
+					if hasCycle, path := index.DetectCycle(task.StableID, toStableID); hasCycle {
+						return &CircularDependencyError{Path: path}
+					}
+				}
+			}
+
+			task.BlockedBy = stableIDs
+		} else {
+			// Empty slice means clear blocked-by
+			task.BlockedBy = []string{}
+		}
+	}
+
+	// Update owner if provided
+	if opts.Owner != nil {
+		if err := validateOwner(*opts.Owner); err != nil {
+			return err
+		}
+		task.Owner = *opts.Owner
+	}
+
+	// Handle release flag (clears owner)
+	if opts.Release {
+		task.Owner = ""
+	}
+
+	tl.Modified = time.Now()
+	return nil
+}
+
+// RemoveTaskWithDependents removes a task and cleans up dependent references.
+// Returns warnings about any dependents that had references cleaned up.
+func (tl *TaskList) RemoveTaskWithDependents(taskID string) ([]string, error) {
+	task := tl.FindTask(taskID)
+	if task == nil {
+		return nil, fmt.Errorf("task %s not found", taskID)
+	}
+
+	var warnings []string
+
+	// If task has a stable ID, check for dependents
+	if task.StableID != "" {
+		index := BuildDependencyIndex(tl.Tasks)
+		dependents := index.GetDependents(task.StableID)
+
+		if len(dependents) > 0 {
+			// Remove from all blocked-by lists
+			tl.removeFromBlockedByLists(task.StableID)
+			warnings = append(warnings,
+				fmt.Sprintf("removed dependency references from %d task(s)", len(dependents)))
+		}
+	}
+
+	// Remove the task using existing logic
+	if removed := tl.removeTaskRecursive(&tl.Tasks, taskID, ""); removed {
+		tl.RenumberTasks()
+		tl.Modified = time.Now()
+		return warnings, nil
+	}
+
+	return nil, fmt.Errorf("task %s not found", taskID)
+}
+
+// removeFromBlockedByLists removes a stable ID from all BlockedBy lists
+func (tl *TaskList) removeFromBlockedByLists(stableID string) {
+	var removeRecursive func(tasks []Task)
+	removeRecursive = func(tasks []Task) {
+		for i := range tasks {
+			task := &tasks[i]
+			// Remove the stable ID from BlockedBy if present
+			newBlockedBy := make([]string, 0, len(task.BlockedBy))
+			for _, blockerID := range task.BlockedBy {
+				if blockerID != stableID {
+					newBlockedBy = append(newBlockedBy, blockerID)
+				}
+			}
+			task.BlockedBy = newBlockedBy
+
+			// Process children
+			if len(task.Children) > 0 {
+				removeRecursive(task.Children)
+			}
+		}
+	}
+
+	removeRecursive(tl.Tasks)
+}
+
+// collectStableIDs collects all stable IDs from the task list
+func (tl *TaskList) collectStableIDs() []string {
+	var ids []string
+	var collectRecursive func(tasks []Task)
+	collectRecursive = func(tasks []Task) {
+		for _, task := range tasks {
+			if task.StableID != "" {
+				ids = append(ids, task.StableID)
+			}
+			if len(task.Children) > 0 {
+				collectRecursive(task.Children)
+			}
+		}
+	}
+
+	collectRecursive(tl.Tasks)
+	return ids
+}
+
+// resolveToStableIDs converts hierarchical IDs to stable IDs.
+// Returns an error if any task doesn't exist or doesn't have a stable ID.
+func (tl *TaskList) resolveToStableIDs(hierarchicalIDs []string) ([]string, error) {
+	stableIDs := make([]string, 0, len(hierarchicalIDs))
+
+	for _, hid := range hierarchicalIDs {
+		task := tl.FindTask(hid)
+		if task == nil {
+			return nil, fmt.Errorf("task %s not found", hid)
+		}
+		if task.StableID == "" {
+			return nil, ErrNoStableID
+		}
+		stableIDs = append(stableIDs, task.StableID)
+	}
+
+	return stableIDs, nil
+}
+
+// validateOwner checks if an owner string contains valid characters.
+// Owner strings must not contain newlines or other control characters.
+func validateOwner(owner string) error {
+	if owner == "" {
+		return nil // Empty owner is valid
+	}
+
+	for _, r := range owner {
+		// Reject newlines and control characters (except spaces)
+		if r == '\n' || r == '\r' || r == '\t' || r == 0 || (r < 32 && r != ' ') {
+			return ErrInvalidOwner
+		}
+	}
+
+	return nil
 }

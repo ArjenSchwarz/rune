@@ -89,6 +89,28 @@ This document describes the JSON schema for the rune batch operations API.
             "pattern": "^[1-9]\\d*(\\.[1-9]\\d*)*$"
           },
           "description": "Array of requirement IDs (e.g., [\"1.1\", \"1.2\", \"2.3\"])"
+        },
+        "stream": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Stream assignment for parallel execution (positive integer)"
+        },
+        "blocked_by": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[1-9]\\d*(\\.[1-9]\\d*)*$"
+          },
+          "description": "Array of task IDs that must complete before this task (for add/update operations)"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Agent identifier claiming the task (for add/update operations)"
+        },
+        "release": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, clear the owner field (for update operations)"
         }
       },
       "required": ["type"],
@@ -285,6 +307,23 @@ This document describes the JSON schema for the rune batch operations API.
         "parent_id": {
           "type": "string",
           "pattern": "^[1-9]\\d*(\\.[1-9]\\d*)*$"
+        },
+        "blockedBy": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[1-9]\\d*(\\.[1-9]\\d*)*$"
+          },
+          "description": "Array of hierarchical task IDs that must complete before this task"
+        },
+        "stream": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Stream assignment (1 if not explicitly set)"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Agent identifier that owns this task"
         }
       },
       "required": ["id", "title", "status", "details", "references", "children"]
@@ -428,5 +467,306 @@ This document describes the JSON schema for the rune batch operations API.
   "applied": 3,
   "errors": [],
   "preview": "# Project Tasks\n\n- [ ] 1. Setup environment\n  - [ ] 1.1. Install dependencies\n- [-] 2. Implementation\n- [x] 3. Testing\n"
+}
+```
+
+## Streams Schema
+
+### StreamsResult
+
+Returned by `rune streams --json`:
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "streams": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/StreamStatus"},
+      "description": "Status for each stream"
+    },
+    "available": {
+      "type": "array",
+      "items": {"type": "integer"},
+      "description": "Stream IDs that have ready tasks"
+    }
+  },
+  "definitions": {
+    "StreamStatus": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Stream identifier"
+        },
+        "ready": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Hierarchical IDs of tasks ready to start"
+        },
+        "blocked": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Hierarchical IDs of tasks waiting on dependencies"
+        },
+        "active": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Hierarchical IDs of tasks currently in progress"
+        }
+      },
+      "required": ["id", "ready", "blocked", "active"]
+    }
+  }
+}
+```
+
+### StreamsResult Example
+
+```json
+{
+  "streams": [
+    {
+      "id": 1,
+      "ready": ["1"],
+      "blocked": ["2", "4"],
+      "active": []
+    },
+    {
+      "id": 2,
+      "ready": [],
+      "blocked": ["3"],
+      "active": []
+    }
+  ],
+  "available": [1]
+}
+```
+
+## Claim Schema
+
+### ClaimResult
+
+Returned by `rune next --claim AGENT_ID --json`:
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "description": "Whether the claim operation succeeded"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of tasks claimed"
+    },
+    "stream": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Stream ID if --stream flag was used"
+    },
+    "claimed": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/ClaimedTask"},
+      "description": "Tasks that were claimed"
+    }
+  },
+  "required": ["success", "count", "claimed"],
+  "definitions": {
+    "ClaimedTask": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[1-9]\\d*(\\.[1-9]\\d*)*$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["InProgress"],
+          "description": "Always InProgress after claiming"
+        },
+        "stream": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "owner": {
+          "type": "string",
+          "description": "The agent ID that claimed the task"
+        },
+        "blockedBy": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Hierarchical IDs of blocking tasks (should be empty for claimed tasks)"
+        }
+      },
+      "required": ["id", "title", "status", "stream", "owner"]
+    }
+  }
+}
+```
+
+### ClaimResult Example
+
+```json
+{
+  "success": true,
+  "count": 2,
+  "stream": 1,
+  "claimed": [
+    {
+      "id": "1",
+      "title": "Initialize project",
+      "status": "InProgress",
+      "stream": 1,
+      "owner": "agent-1"
+    },
+    {
+      "id": "3",
+      "title": "Setup database",
+      "status": "InProgress",
+      "stream": 1,
+      "owner": "agent-1",
+      "blockedBy": []
+    }
+  ]
+}
+```
+
+## Warning Schema
+
+### Warning
+
+Warnings are returned alongside successful operations when non-fatal issues are encountered:
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "invalid_stable_id",
+        "missing_dependency",
+        "duplicate_stable_id",
+        "invalid_stream_value",
+        "dependents_removed"
+      ],
+      "description": "Machine-readable warning code"
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable warning message"
+    },
+    "taskId": {
+      "type": "string",
+      "pattern": "^[1-9]\\d*(\\.[1-9]\\d*)*$",
+      "description": "Hierarchical ID of the affected task (if applicable)"
+    }
+  },
+  "required": ["code", "message"]
+}
+```
+
+### Response with Warnings Example
+
+```json
+{
+  "success": true,
+  "applied": 1,
+  "errors": [],
+  "warnings": [
+    {
+      "code": "dependents_removed",
+      "message": "Removed dependency references from 2 task(s)",
+      "taskId": "3"
+    }
+  ]
+}
+```
+
+## Operation Examples with New Fields
+
+### Add Task with Stream and Dependencies
+
+```json
+{
+  "type": "add",
+  "title": "Build API endpoints",
+  "stream": 2,
+  "blocked_by": ["1", "2"],
+  "owner": "agent-backend"
+}
+```
+
+### Update Task Dependencies
+
+```json
+{
+  "type": "update",
+  "id": "3",
+  "blocked_by": ["1", "2"]
+}
+```
+
+### Update Task Stream and Owner
+
+```json
+{
+  "type": "update",
+  "id": "4",
+  "stream": 2,
+  "owner": "agent-frontend"
+}
+```
+
+### Release Task (Clear Owner)
+
+```json
+{
+  "type": "update",
+  "id": "4",
+  "release": true
+}
+```
+
+### Batch Setup for Parallel Agents
+
+```json
+{
+  "file": "tasks.md",
+  "operations": [
+    {
+      "type": "add",
+      "title": "Initialize project",
+      "stream": 1
+    },
+    {
+      "type": "add",
+      "title": "Backend development",
+      "stream": 1,
+      "blocked_by": ["1"]
+    },
+    {
+      "type": "add",
+      "title": "Frontend development",
+      "stream": 2,
+      "blocked_by": ["1"]
+    },
+    {
+      "type": "add",
+      "title": "Integration testing",
+      "stream": 1,
+      "blocked_by": ["2", "3"]
+    }
+  ]
 }
 ```

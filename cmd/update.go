@@ -20,17 +20,26 @@ type UpdateResponse struct {
 
 var updateCmd = &cobra.Command{
 	Use:   "update [file] [task-id]",
-	Short: "Update task title, details, or references",
-	Long: `Update the title, details, or references of an existing task.
+	Short: "Update task title, details, references, or dependencies",
+	Long: `Update the title, details, references, or dependencies of an existing task.
 
 Use the flags to specify what to update. If a field is not provided, it will remain unchanged.
-To clear details or references, use empty values.
+To clear details or references, use the --clear-* flags.
+
+Use --stream to change the task's work stream assignment.
+Use --blocked-by to set task dependencies (comma-separated task IDs).
+Use --owner to claim the task for an agent.
+Use --release to clear the owner (release the task).
 
 Examples:
   rune update tasks.md 1 --title "New title"
   rune update tasks.md 1.1 --details "First detail,Second detail"
   rune update tasks.md 2 --references "doc.md,spec.md"
-  rune update tasks.md 3 --title "Updated" --details "New detail"`,
+  rune update tasks.md 3 --title "Updated" --details "New detail"
+  rune update tasks.md 1 --stream 2
+  rune update tasks.md 2 --blocked-by "1"
+  rune update tasks.md 1 --owner "agent-1"
+  rune update tasks.md 1 --release`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: runUpdate,
 }
@@ -45,6 +54,12 @@ var (
 	clearDetails       bool
 	clearReferences    bool
 	clearRequirements  bool
+	updateStream       int
+	updateStreamSet    bool
+	updateBlockedBy    string
+	updateOwner        string
+	updateOwnerSet     bool
+	updateRelease      bool
 )
 
 func init() {
@@ -56,6 +71,10 @@ func init() {
 	updateCmd.Flags().BoolVar(&clearDetails, "clear-details", false, "clear all details from the task")
 	updateCmd.Flags().BoolVar(&clearReferences, "clear-references", false, "clear all references from the task")
 	updateCmd.Flags().BoolVar(&clearRequirements, "clear-requirements", false, "clear all requirements from the task")
+	updateCmd.Flags().IntVar(&updateStream, "stream", 0, "stream assignment for the task (positive integer)")
+	updateCmd.Flags().StringVar(&updateBlockedBy, "blocked-by", "", "comma-separated task IDs that must complete before this task")
+	updateCmd.Flags().StringVar(&updateOwner, "owner", "", "agent identifier claiming the task")
+	updateCmd.Flags().BoolVar(&updateRelease, "release", false, "clear the owner (release the task)")
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
@@ -85,9 +104,20 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Updating task %s\n", taskID)
 	}
 
+	// Check if stream flag was explicitly set (only if not already set by tests)
+	if cmd.Flags().Lookup("stream") != nil {
+		updateStreamSet = cmd.Flags().Changed("stream")
+	}
+	// Check if owner flag was explicitly set (only if not already set by tests)
+	if cmd.Flags().Lookup("owner") != nil {
+		updateOwnerSet = cmd.Flags().Changed("owner")
+	}
+
 	// Validate that at least one update field is provided
-	if updateTitle == "" && updateDetails == "" && updateReferences == "" && updateRequirements == "" && !clearDetails && !clearReferences && !clearRequirements {
-		return fmt.Errorf("at least one update flag must be provided (--title, --details, --references, --requirements, --clear-details, --clear-references, or --clear-requirements)")
+	if updateTitle == "" && updateDetails == "" && updateReferences == "" && updateRequirements == "" &&
+		!clearDetails && !clearReferences && !clearRequirements &&
+		!updateStreamSet && updateBlockedBy == "" && !updateOwnerSet && !updateRelease {
+		return fmt.Errorf("at least one update flag must be provided (--title, --details, --references, --requirements, --clear-details, --clear-references, --clear-requirements, --stream, --blocked-by, --owner, or --release)")
 	}
 
 	// Check if file exists
@@ -185,9 +215,59 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Check if any extended options are being used
+	hasExtendedOptions := updateStreamSet || updateBlockedBy != "" || updateOwnerSet || updateRelease
+
 	// Update the task
-	if err := tl.UpdateTask(taskID, updateTitle, newDetails, newReferences, newRequirements); err != nil {
-		return fmt.Errorf("failed to update task: %w", err)
+	if hasExtendedOptions {
+		// Use extended update with dependencies/streams support
+		opts := task.UpdateOptions{
+			Release: updateRelease,
+		}
+
+		// Set title if provided
+		if updateTitle != "" {
+			opts.Title = &updateTitle
+		}
+
+		// Set details if updating
+		if clearDetails || updateDetails != "" {
+			opts.Details = newDetails
+		}
+
+		// Set references if updating
+		if clearReferences || updateReferences != "" {
+			opts.References = newReferences
+		}
+
+		// Set requirements if updating
+		if clearRequirements || updateRequirements != "" {
+			opts.Requirements = newRequirements
+		}
+
+		// Set stream if flag was used
+		if updateStreamSet {
+			opts.Stream = &updateStream
+		}
+
+		// Set blocked-by if provided
+		if updateBlockedBy != "" {
+			opts.BlockedBy = parseRequirementIDs(updateBlockedBy)
+		}
+
+		// Set owner if flag was used
+		if updateOwnerSet {
+			opts.Owner = &updateOwner
+		}
+
+		if err := tl.UpdateTaskWithOptions(taskID, opts); err != nil {
+			return fmt.Errorf("failed to update task: %w", err)
+		}
+	} else {
+		// Use regular update
+		if err := tl.UpdateTask(taskID, updateTitle, newDetails, newReferences, newRequirements); err != nil {
+			return fmt.Errorf("failed to update task: %w", err)
+		}
 	}
 
 	// Write the updated file
@@ -208,6 +288,18 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 	if clearRequirements || updateRequirements != "" {
 		changes = append(changes, "requirements")
+	}
+	if updateStreamSet {
+		changes = append(changes, "stream")
+	}
+	if updateBlockedBy != "" {
+		changes = append(changes, "blocked-by")
+	}
+	if updateOwnerSet {
+		changes = append(changes, "owner")
+	}
+	if updateRelease {
+		changes = append(changes, "release")
 	}
 
 	// Format-aware output

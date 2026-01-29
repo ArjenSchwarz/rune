@@ -111,6 +111,20 @@ type Task struct {
 	Requirements []string `json:"requirements,omitempty"`
 	Children     []Task
 	ParentID     string
+
+	// Fields for dependencies and streams
+	StableID  string   `json:"-"`                   // Hidden from JSON output (system-managed)
+	BlockedBy []string `json:"blockedBy,omitempty"` // Stable IDs of blocking tasks
+	Stream    int      `json:"stream,omitempty"`    // Stream assignment (0 = not explicitly set)
+	Owner     string   `json:"owner,omitempty"`     // Agent identifier
+}
+
+// GetEffectiveStream returns the stream for a task (1 if not explicitly set)
+func GetEffectiveStream(t *Task) int {
+	if t.Stream <= 0 {
+		return 1
+	}
+	return t.Stream
 }
 
 var taskIDPattern = regexp.MustCompile(`^[1-9]\d*(\.[1-9]\d*)*$`)

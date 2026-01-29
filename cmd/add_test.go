@@ -1153,3 +1153,405 @@ func TestParseRequirementIDs(t *testing.T) {
 		})
 	}
 }
+
+func TestRunAddWithStream(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-add-stream")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		setupFile     func(string) error
+		title         string
+		stream        int
+		expectError   bool
+		errorContains string
+		validateFile  func(*testing.T, string)
+	}{
+		"add task with stream 1": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:       "Task in stream 1",
+			stream:      1,
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if len(tl.Tasks) != 1 {
+					t.Fatalf("Expected 1 task, got %d", len(tl.Tasks))
+				}
+				if tl.Tasks[0].Stream != 1 {
+					t.Fatalf("Expected stream 1, got %d", tl.Tasks[0].Stream)
+				}
+				// Should also have a stable ID
+				if tl.Tasks[0].StableID == "" {
+					t.Fatal("Expected task to have a stable ID")
+				}
+			},
+		},
+		"add task with stream 2": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:       "Task in stream 2",
+			stream:      2,
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if tl.Tasks[0].Stream != 2 {
+					t.Fatalf("Expected stream 2, got %d", tl.Tasks[0].Stream)
+				}
+			},
+		},
+		"add task with invalid stream (negative)": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:         "Task with invalid stream",
+			stream:        -1,
+			expectError:   true,
+			errorContains: "stream must be a positive integer",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
+
+			if err := tt.setupFile(filename); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+
+			// Reset all flags
+			addTitle = tt.title
+			addParent = ""
+			addPosition = ""
+			addPhase = ""
+			addRequirements = ""
+			addRequirementsFile = ""
+			addStream = tt.stream
+			addBlockedBy = ""
+			addOwner = ""
+			dryRun = false
+
+			cmd := &cobra.Command{}
+			args := []string{filename}
+
+			err := runAdd(cmd, args)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Fatalf("Expected error to contain '%s', got: %s", tt.errorContains, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if tt.validateFile != nil {
+				tt.validateFile(t, filename)
+			}
+
+			// Reset flags
+			addStream = 0
+		})
+	}
+}
+
+func TestRunAddWithBlockedBy(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-add-blocked-by")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		setupFile     func(string) error
+		title         string
+		blockedBy     string
+		expectError   bool
+		errorContains string
+		validateFile  func(*testing.T, string)
+	}{
+		"add task blocked by another task": {
+			setupFile: func(filename string) error {
+				// Create a file with a task that has a stable ID
+				tl := task.NewTaskList("Test Tasks")
+				_, err := tl.AddTaskWithOptions("", "Blocking task", task.AddOptions{})
+				if err != nil {
+					return err
+				}
+				return tl.WriteFile(filename)
+			},
+			title:       "Blocked task",
+			blockedBy:   "1",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if len(tl.Tasks) != 2 {
+					t.Fatalf("Expected 2 tasks, got %d", len(tl.Tasks))
+				}
+				// The second task should be blocked by the first
+				if len(tl.Tasks[1].BlockedBy) != 1 {
+					t.Fatalf("Expected 1 blocked-by reference, got %d", len(tl.Tasks[1].BlockedBy))
+				}
+				// BlockedBy should contain the stable ID of task 1
+				blockerTask := tl.Tasks[0]
+				if tl.Tasks[1].BlockedBy[0] != blockerTask.StableID {
+					t.Fatalf("Expected blocked-by to reference %s, got %s", blockerTask.StableID, tl.Tasks[1].BlockedBy[0])
+				}
+			},
+		},
+		"add task blocked by multiple tasks": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				_, err := tl.AddTaskWithOptions("", "First blocking task", task.AddOptions{})
+				if err != nil {
+					return err
+				}
+				_, err = tl.AddTaskWithOptions("", "Second blocking task", task.AddOptions{})
+				if err != nil {
+					return err
+				}
+				return tl.WriteFile(filename)
+			},
+			title:       "Blocked task",
+			blockedBy:   "1,2",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if len(tl.Tasks) != 3 {
+					t.Fatalf("Expected 3 tasks, got %d", len(tl.Tasks))
+				}
+				if len(tl.Tasks[2].BlockedBy) != 2 {
+					t.Fatalf("Expected 2 blocked-by references, got %d", len(tl.Tasks[2].BlockedBy))
+				}
+			},
+		},
+		"add task blocked by non-existent task": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:         "Blocked task",
+			blockedBy:     "999",
+			expectError:   true,
+			errorContains: "task 999 not found",
+		},
+		"add task blocked by legacy task without stable ID": {
+			setupFile: func(filename string) error {
+				// Create a file with a legacy task (no stable ID)
+				content := `# Test Tasks
+
+- [ ] 1. Legacy task without stable ID
+`
+				return os.WriteFile(filename, []byte(content), 0644)
+			},
+			title:         "Blocked task",
+			blockedBy:     "1",
+			expectError:   true,
+			errorContains: "task does not have a stable ID",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
+
+			if err := tt.setupFile(filename); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+
+			// Reset all flags
+			addTitle = tt.title
+			addParent = ""
+			addPosition = ""
+			addPhase = ""
+			addRequirements = ""
+			addRequirementsFile = ""
+			addStream = 0
+			addBlockedBy = tt.blockedBy
+			addOwner = ""
+			dryRun = false
+
+			cmd := &cobra.Command{}
+			args := []string{filename}
+
+			err := runAdd(cmd, args)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Fatalf("Expected error to contain '%s', got: %s", tt.errorContains, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if tt.validateFile != nil {
+				tt.validateFile(t, filename)
+			}
+
+			// Reset flags
+			addBlockedBy = ""
+		})
+	}
+}
+
+func TestRunAddWithOwner(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-add-owner")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		setupFile     func(string) error
+		title         string
+		owner         string
+		expectError   bool
+		errorContains string
+		validateFile  func(*testing.T, string)
+	}{
+		"add task with owner": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:       "Task with owner",
+			owner:       "agent-1",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if len(tl.Tasks) != 1 {
+					t.Fatalf("Expected 1 task, got %d", len(tl.Tasks))
+				}
+				if tl.Tasks[0].Owner != "agent-1" {
+					t.Fatalf("Expected owner 'agent-1', got '%s'", tl.Tasks[0].Owner)
+				}
+			},
+		},
+		"add task with owner containing spaces": {
+			setupFile: func(filename string) error {
+				tl := task.NewTaskList("Test Tasks")
+				return tl.WriteFile(filename)
+			},
+			title:       "Task with owner",
+			owner:       "Agent Number One",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				if tl.Tasks[0].Owner != "Agent Number One" {
+					t.Fatalf("Expected owner 'Agent Number One', got '%s'", tl.Tasks[0].Owner)
+				}
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
+
+			if err := tt.setupFile(filename); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+
+			// Reset all flags
+			addTitle = tt.title
+			addParent = ""
+			addPosition = ""
+			addPhase = ""
+			addRequirements = ""
+			addRequirementsFile = ""
+			addStream = 0
+			addBlockedBy = ""
+			addOwner = tt.owner
+			dryRun = false
+
+			cmd := &cobra.Command{}
+			args := []string{filename}
+
+			err := runAdd(cmd, args)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Fatalf("Expected error to contain '%s', got: %s", tt.errorContains, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if tt.validateFile != nil {
+				tt.validateFile(t, filename)
+			}
+
+			// Reset flags
+			addOwner = ""
+		})
+	}
+}
+
+func TestAddCmdDependencyFlags(t *testing.T) {
+	// Test that new flags are properly configured
+	streamFlag := addCmd.Flag("stream")
+	if streamFlag == nil {
+		t.Fatal("Stream flag not found")
+	}
+	if streamFlag.Usage == "" {
+		t.Fatal("Stream flag should have usage description")
+	}
+
+	blockedByFlag := addCmd.Flag("blocked-by")
+	if blockedByFlag == nil {
+		t.Fatal("Blocked-by flag not found")
+	}
+	if blockedByFlag.Usage == "" {
+		t.Fatal("Blocked-by flag should have usage description")
+	}
+
+	ownerFlag := addCmd.Flag("owner")
+	if ownerFlag == nil {
+		t.Fatal("Owner flag not found")
+	}
+	if ownerFlag.Usage == "" {
+		t.Fatal("Owner flag should have usage description")
+	}
+}

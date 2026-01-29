@@ -12,7 +12,9 @@ import (
 )
 
 var (
-	phaseFlag bool
+	phaseFlag  bool
+	streamFlag int
+	claimFlag  string
 )
 
 var nextCmd = &cobra.Command{
@@ -25,6 +27,12 @@ or any of its subtasks are not marked as completed) using depth-first traversal.
 
 With the --phase flag, the command returns all pending tasks from the next phase
 (the first phase in document order containing pending tasks) instead of a single task.
+
+Stream and Claim Support:
+- --stream N: Filter tasks to only those in stream N
+- --claim AGENT_ID: Claim the task(s) by setting status to in-progress and owner
+- --stream N --claim AGENT_ID: Claim ALL ready tasks in stream N
+- --claim AGENT_ID (without --stream): Claim only the single next ready task
 
 If no filename is provided and git discovery is enabled in configuration, the file
 will be automatically discovered based on the current git branch using the configured
@@ -44,6 +52,8 @@ documents defined in the task file's front matter.`,
 func init() {
 	rootCmd.AddCommand(nextCmd)
 	nextCmd.Flags().BoolVar(&phaseFlag, "phase", false, "get all tasks from next phase")
+	nextCmd.Flags().IntVarP(&streamFlag, "stream", "s", 0, "filter to specific stream")
+	nextCmd.Flags().StringVarP(&claimFlag, "claim", "c", "", "claim task(s) with agent ID")
 }
 
 func runNext(cmd *cobra.Command, args []string) error {
@@ -60,6 +70,16 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// Handle phase mode
 	if phaseFlag {
 		return runNextPhase(filename)
+	}
+
+	// Handle claim mode (with or without stream)
+	if claimFlag != "" {
+		return runNextWithClaim(filename)
+	}
+
+	// Handle stream filter mode (without claim)
+	if streamFlag > 0 {
+		return runNextWithStream(filename)
 	}
 
 	// Parse the task file
@@ -93,6 +113,151 @@ func runNext(cmd *cobra.Command, args []string) error {
 	default:
 		return outputNextTaskTable(nextTask, taskList.FrontMatter)
 	}
+}
+
+// runNextWithStream handles the --stream flag without claiming
+func runNextWithStream(filename string) error {
+	// Parse the task file
+	taskList, err := task.ParseFile(filename)
+	if err != nil {
+		return fmt.Errorf("failed to read task file: %w", err)
+	}
+
+	// Build dependency index
+	index := task.BuildDependencyIndex(taskList.Tasks)
+
+	// Find ready tasks (pending, unblocked, unclaimed)
+	readyTasks := getReadyTasks(taskList.Tasks, index)
+
+	// Filter by stream
+	streamTasks := task.FilterByStream(readyTasks, streamFlag)
+
+	if len(streamTasks) == 0 {
+		return outputNextStreamEmpty(streamFlag)
+	}
+
+	// Return the first ready task in the stream
+	nextTask := &task.TaskWithContext{
+		Task:               &streamTasks[0],
+		IncompleteChildren: filterIncompleteChildren(streamTasks[0].Children),
+	}
+
+	switch format {
+	case formatJSON:
+		return outputNextTaskJSONWithStream(nextTask, taskList.FrontMatter, index)
+	case formatMarkdown:
+		return outputNextTaskMarkdown(nextTask, taskList.FrontMatter)
+	default:
+		return outputNextTaskTable(nextTask, taskList.FrontMatter)
+	}
+}
+
+// runNextWithClaim handles the --claim flag (with or without --stream)
+func runNextWithClaim(filename string) error {
+	// Parse the task file
+	taskList, err := task.ParseFile(filename)
+	if err != nil {
+		return fmt.Errorf("failed to read task file: %w", err)
+	}
+
+	// Build dependency index
+	index := task.BuildDependencyIndex(taskList.Tasks)
+
+	// Find ready tasks (pending, unblocked, unclaimed)
+	readyTasks := getReadyTasks(taskList.Tasks, index)
+
+	var taskIDsToClaim []string
+
+	if streamFlag > 0 {
+		// Claim all ready tasks in the specified stream
+		filteredTasks := task.FilterByStream(readyTasks, streamFlag)
+		for _, t := range filteredTasks {
+			taskIDsToClaim = append(taskIDsToClaim, t.ID)
+		}
+	} else if len(readyTasks) > 0 {
+		// Claim only the single next ready task
+		taskIDsToClaim = append(taskIDsToClaim, readyTasks[0].ID)
+	}
+
+	if len(taskIDsToClaim) == 0 {
+		return outputClaimEmpty(streamFlag)
+	}
+
+	// Claim the tasks (set status to in-progress and owner)
+	for _, taskID := range taskIDsToClaim {
+		taskPtr := taskList.FindTask(taskID)
+		if taskPtr != nil {
+			taskPtr.Status = task.InProgress
+			taskPtr.Owner = claimFlag
+		}
+	}
+
+	// Write the updated task list back to file
+	if err := taskList.WriteFile(filename); err != nil {
+		return fmt.Errorf("failed to write task file: %w", err)
+	}
+
+	// Rebuild index after modification
+	index = task.BuildDependencyIndex(taskList.Tasks)
+
+	// Re-fetch the claimed tasks with updated data
+	var claimedTasks []task.Task
+	for _, taskID := range taskIDsToClaim {
+		t := taskList.FindTask(taskID)
+		if t != nil {
+			claimedTasks = append(claimedTasks, *t)
+		}
+	}
+
+	// Output the claimed tasks
+	switch format {
+	case formatJSON:
+		return outputClaimJSON(claimedTasks, taskList.FrontMatter, index, streamFlag)
+	case formatMarkdown:
+		return outputClaimMarkdown(claimedTasks, taskList.FrontMatter)
+	default:
+		return outputClaimTable(claimedTasks, taskList.FrontMatter)
+	}
+}
+
+// getReadyTasks finds all tasks that are ready to be worked on:
+// - Status is Pending (not InProgress or Completed)
+// - All blockers are completed
+// - No owner assigned
+func getReadyTasks(tasks []task.Task, index *task.DependencyIndex) []task.Task {
+	var ready []task.Task
+
+	var findReady func(tasks []task.Task)
+	findReady = func(taskList []task.Task) {
+		for i := range taskList {
+			t := &taskList[i]
+			// Check if task is ready:
+			// - Pending status
+			// - Not blocked (all dependencies completed)
+			// - No owner
+			if t.Status == task.Pending && !index.IsBlocked(t) && t.Owner == "" {
+				ready = append(ready, *t)
+			}
+			// Check children
+			if len(t.Children) > 0 {
+				findReady(t.Children)
+			}
+		}
+	}
+
+	findReady(tasks)
+	return ready
+}
+
+// filterIncompleteChildren returns children that have incomplete work
+func filterIncompleteChildren(children []task.Task) []task.Task {
+	var incomplete []task.Task
+	for _, child := range children {
+		if child.Status != task.Completed {
+			incomplete = append(incomplete, child)
+		}
+	}
+	return incomplete
 }
 
 // outputNextTaskTable renders the next task in table format
@@ -334,10 +499,22 @@ func runNextPhase(filename string) error {
 		return outputNextPhaseEmpty("No pending tasks found in any phase!")
 	}
 
-	// Parse file for front matter
+	// Parse file for front matter and building dependency index
 	taskList, err := task.ParseFile(filename)
 	if err != nil {
 		return fmt.Errorf("failed to read task file for front matter: %w", err)
+	}
+
+	// Build dependency index
+	index := task.BuildDependencyIndex(taskList.Tasks)
+
+	// Filter by stream if specified
+	if streamFlag > 0 {
+		filteredTasks := filterTasksByStream(phaseResult.Tasks, streamFlag)
+		if len(filteredTasks) == 0 {
+			return outputNextPhaseEmpty(fmt.Sprintf("No pending tasks found in stream %d", streamFlag))
+		}
+		phaseResult.Tasks = filteredTasks
 	}
 
 	if verbose {
@@ -351,12 +528,23 @@ func runNextPhase(filename string) error {
 	// Create output based on format
 	switch format {
 	case formatJSON:
-		return outputPhaseTasksJSON(phaseResult, taskList.FrontMatter)
+		return outputPhaseTasksJSONWithStreams(phaseResult, taskList.FrontMatter, index, taskList.Tasks)
 	case formatMarkdown:
 		return outputPhaseTasksMarkdown(phaseResult, taskList.FrontMatter)
 	default:
 		return outputPhaseTasksTable(phaseResult, taskList.FrontMatter)
 	}
+}
+
+// filterTasksByStream filters tasks by stream number
+func filterTasksByStream(tasks []task.Task, stream int) []task.Task {
+	var filtered []task.Task
+	for _, t := range tasks {
+		if task.GetEffectiveStream(&t) == stream {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered
 }
 
 // outputPhaseTasksTable renders phase tasks in table format
@@ -532,6 +720,106 @@ func outputPhaseTasksJSON(phaseResult *task.PhaseTasksResult, frontMatter *task.
 	return nil
 }
 
+// PhaseTaskJSONWithStreams is a task with stream and dependency info for phase output
+type PhaseTaskJSONWithStreams struct {
+	ID         string                     `json:"id"`
+	Title      string                     `json:"title"`
+	Status     string                     `json:"status"`
+	Stream     int                        `json:"stream"`
+	Owner      string                     `json:"owner,omitempty"`
+	BlockedBy  []string                   `json:"blockedBy,omitempty"`
+	Details    []string                   `json:"details,omitempty"`
+	References []string                   `json:"references,omitempty"`
+	Children   []PhaseTaskJSONWithStreams `json:"children,omitempty"`
+}
+
+// StreamsSummary provides summary info about streams in a phase
+type StreamsSummary struct {
+	ID        int      `json:"id"`
+	Ready     []string `json:"ready"`
+	Blocked   []string `json:"blocked"`
+	Active    []string `json:"active"`
+	Available bool     `json:"available"`
+}
+
+// PhaseOutputJSONWithStreams is the phase output with stream info
+type PhaseOutputJSONWithStreams struct {
+	Success               bool                       `json:"success"`
+	Count                 int                        `json:"count"`
+	PhaseName             string                     `json:"phase_name,omitempty"`
+	Tasks                 []PhaseTaskJSONWithStreams `json:"tasks"`
+	StreamsSummary        []StreamsSummary           `json:"streams_summary,omitempty"`
+	FrontMatterReferences []string                   `json:"front_matter_references,omitempty"`
+}
+
+// outputPhaseTasksJSONWithStreams renders phase tasks with stream/dependency info
+func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter, index *task.DependencyIndex, allTasks []task.Task) error {
+	// Convert tasks with stream info
+	var convertTask func(t *task.Task) PhaseTaskJSONWithStreams
+	convertTask = func(t *task.Task) PhaseTaskJSONWithStreams {
+		tj := PhaseTaskJSONWithStreams{
+			ID:        t.ID,
+			Title:     t.Title,
+			Status:    formatStatus(t.Status),
+			Stream:    task.GetEffectiveStream(t),
+			Owner:     t.Owner,
+			BlockedBy: index.TranslateToHierarchical(t.BlockedBy),
+		}
+		if len(t.Details) > 0 {
+			tj.Details = t.Details
+		}
+		if len(t.References) > 0 {
+			tj.References = t.References
+		}
+		for _, child := range t.Children {
+			tj.Children = append(tj.Children, convertTask(&child))
+		}
+		return tj
+	}
+
+	outputData := PhaseOutputJSONWithStreams{
+		Success: true,
+		Count:   len(phaseResult.Tasks),
+		Tasks:   []PhaseTaskJSONWithStreams{},
+	}
+
+	if phaseResult.PhaseName != "" {
+		outputData.PhaseName = phaseResult.PhaseName
+	}
+
+	for _, t := range phaseResult.Tasks {
+		outputData.Tasks = append(outputData.Tasks, convertTask(&t))
+	}
+
+	// Calculate streams summary
+	streamsResult := task.AnalyzeStreams(allTasks, index)
+	if len(streamsResult.Streams) > 0 {
+		outputData.StreamsSummary = make([]StreamsSummary, len(streamsResult.Streams))
+		for i, s := range streamsResult.Streams {
+			outputData.StreamsSummary[i] = StreamsSummary{
+				ID:        s.ID,
+				Ready:     s.Ready,
+				Blocked:   s.Blocked,
+				Active:    s.Active,
+				Available: len(s.Ready) > 0,
+			}
+		}
+	}
+
+	// Add front matter references if present
+	if frontMatter != nil && len(frontMatter.References) > 0 {
+		outputData.FrontMatterReferences = frontMatter.References
+	}
+
+	jsonData, err := json.MarshalIndent(outputData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+
+	fmt.Print(string(jsonData))
+	return nil
+}
+
 // addAllChildrenToData recursively adds all children (complete and incomplete) to table data
 func addAllChildrenToData(parentTask *task.Task, taskData *[]map[string]any, phaseName string) {
 	for _, child := range parentTask.Children {
@@ -601,4 +889,211 @@ func outputNextPhaseEmpty(message string) error {
 		outputMessage(message)
 		return nil
 	}
+}
+
+// ============================================================================
+// Stream and Claim Output Functions
+// ============================================================================
+
+// NextStreamEmptyResponse is the JSON response when no tasks exist in the specified stream.
+type NextStreamEmptyResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Stream  int    `json:"stream"`
+}
+
+// outputNextStreamEmpty handles format-aware output when no tasks in stream.
+func outputNextStreamEmpty(stream int) error {
+	message := fmt.Sprintf("No ready tasks found in stream %d", stream)
+	switch format {
+	case formatJSON:
+		return outputJSON(NextStreamEmptyResponse{
+			Success: true,
+			Message: message,
+			Stream:  stream,
+		})
+	case formatMarkdown:
+		outputMarkdownMessage(message)
+		return nil
+	default:
+		outputMessage(message)
+		return nil
+	}
+}
+
+// ClaimEmptyResponse is the JSON response when no tasks are available to claim.
+type ClaimEmptyResponse struct {
+	Success bool       `json:"success"`
+	Message string     `json:"message"`
+	Stream  int        `json:"stream,omitempty"`
+	Claimed []struct{} `json:"claimed"`
+}
+
+// outputClaimEmpty handles format-aware output when no tasks to claim.
+func outputClaimEmpty(stream int) error {
+	var message string
+	if stream > 0 {
+		message = fmt.Sprintf("No ready tasks to claim in stream %d", stream)
+	} else {
+		message = "No ready tasks to claim"
+	}
+
+	switch format {
+	case formatJSON:
+		resp := ClaimEmptyResponse{
+			Success: true,
+			Message: message,
+			Claimed: []struct{}{},
+		}
+		if stream > 0 {
+			resp.Stream = stream
+		}
+		return outputJSON(resp)
+	case formatMarkdown:
+		outputMarkdownMessage(message)
+		return nil
+	default:
+		outputMessage(message)
+		return nil
+	}
+}
+
+// ClaimTaskJSON represents a claimed task in JSON output
+type ClaimTaskJSON struct {
+	ID        string   `json:"id"`
+	Title     string   `json:"title"`
+	Status    string   `json:"status"`
+	Stream    int      `json:"stream"`
+	Owner     string   `json:"owner"`
+	BlockedBy []string `json:"blockedBy,omitempty"`
+}
+
+// ClaimResponse is the JSON response after claiming tasks
+type ClaimResponse struct {
+	Success bool            `json:"success"`
+	Count   int             `json:"count"`
+	Stream  int             `json:"stream,omitempty"`
+	Claimed []ClaimTaskJSON `json:"claimed"`
+}
+
+// outputClaimJSON outputs claimed tasks in JSON format
+func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *task.DependencyIndex, stream int) error {
+	claimedJSON := make([]ClaimTaskJSON, len(claimed))
+	for i, t := range claimed {
+		claimedJSON[i] = ClaimTaskJSON{
+			ID:        t.ID,
+			Title:     t.Title,
+			Status:    formatStatus(t.Status),
+			Stream:    task.GetEffectiveStream(&t),
+			Owner:     t.Owner,
+			BlockedBy: index.TranslateToHierarchical(t.BlockedBy),
+		}
+	}
+
+	resp := ClaimResponse{
+		Success: true,
+		Count:   len(claimed),
+		Claimed: claimedJSON,
+	}
+	if stream > 0 {
+		resp.Stream = stream
+	}
+
+	return outputJSON(resp)
+}
+
+// outputClaimMarkdown outputs claimed tasks in markdown format
+func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter) error {
+	fmt.Println("# Claimed Tasks")
+	fmt.Println()
+	for _, t := range claimed {
+		fmt.Printf("- [-] %s. %s\n", t.ID, t.Title)
+		fmt.Printf("  - Owner: %s\n", t.Owner)
+		if t.Stream > 0 {
+			fmt.Printf("  - Stream: %d\n", t.Stream)
+		}
+	}
+	return nil
+}
+
+// outputClaimTable outputs claimed tasks in table format
+func outputClaimTable(claimed []task.Task, _ *task.FrontMatter) error {
+	var taskData []map[string]any
+	for _, t := range claimed {
+		record := map[string]any{
+			"ID":     t.ID,
+			"Title":  t.Title,
+			"Status": formatStatus(t.Status),
+			"Owner":  t.Owner,
+			"Stream": task.GetEffectiveStream(&t),
+		}
+		taskData = append(taskData, record)
+	}
+
+	builder := output.New().
+		Table("Claimed Tasks", taskData, output.WithKeys("ID", "Title", "Status", "Owner", "Stream"))
+
+	doc := builder.Build()
+	out := output.NewOutput(
+		output.WithFormat(output.Table),
+		output.WithWriter(output.NewStdoutWriter()),
+	)
+
+	return out.Render(context.Background(), doc)
+}
+
+// NextTaskJSONWithStream is the JSON output for a single task with stream/dependency info
+type NextTaskJSONWithStream struct {
+	Success               bool                   `json:"success"`
+	NextTask              TaskJSONWithStreamInfo `json:"next_task"`
+	FrontMatterReferences []string               `json:"front_matter_references,omitempty"`
+}
+
+// TaskJSONWithStreamInfo is a task with stream and dependency info
+type TaskJSONWithStreamInfo struct {
+	ID         string                   `json:"id"`
+	Title      string                   `json:"title"`
+	Status     string                   `json:"status"`
+	Stream     int                      `json:"stream"`
+	Owner      string                   `json:"owner,omitempty"`
+	BlockedBy  []string                 `json:"blockedBy,omitempty"`
+	Details    []string                 `json:"details,omitempty"`
+	References []string                 `json:"references,omitempty"`
+	Children   []TaskJSONWithStreamInfo `json:"children,omitempty"`
+}
+
+// outputNextTaskJSONWithStream outputs a single task with stream/dependency info
+func outputNextTaskJSONWithStream(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter, index *task.DependencyIndex) error {
+	var convertTask func(t *task.Task) TaskJSONWithStreamInfo
+	convertTask = func(t *task.Task) TaskJSONWithStreamInfo {
+		tj := TaskJSONWithStreamInfo{
+			ID:        t.ID,
+			Title:     t.Title,
+			Status:    formatStatus(t.Status),
+			Stream:    task.GetEffectiveStream(t),
+			Owner:     t.Owner,
+			BlockedBy: index.TranslateToHierarchical(t.BlockedBy),
+		}
+		if len(t.Details) > 0 {
+			tj.Details = t.Details
+		}
+		if len(t.References) > 0 {
+			tj.References = t.References
+		}
+		for _, child := range t.Children {
+			tj.Children = append(tj.Children, convertTask(&child))
+		}
+		return tj
+	}
+
+	resp := NextTaskJSONWithStream{
+		Success:  true,
+		NextTask: convertTask(nextTask.Task),
+	}
+
+	if frontMatter != nil && len(frontMatter.References) > 0 {
+		resp.FrontMatterReferences = frontMatter.References
+	}
+
+	return outputJSON(resp)
 }

@@ -126,6 +126,12 @@ type Operation struct {
 	Requirements []string `json:"requirements,omitempty"`
 	Position     string   `json:"position,omitempty"`
 	Phase        string   `json:"phase,omitempty"`
+
+	// Fields for dependencies and streams
+	Stream    *int     `json:"stream,omitempty"`
+	BlockedBy []string `json:"blocked_by,omitempty"` // Hierarchical IDs
+	Owner     *string  `json:"owner,omitempty"`
+	Release   bool     `json:"release,omitempty"` // Clear owner
 }
 
 // BatchRequest represents a request for multiple operations
@@ -240,6 +246,10 @@ func validateOperation(tl *TaskList, op Operation) error {
 				}
 			}
 		}
+		// Validate new fields for add operations
+		if err := validateExtendedFields(tl, op); err != nil {
+			return err
+		}
 	case removeOperation:
 		if op.ID == "" {
 			return fmt.Errorf("remove operation requires id")
@@ -268,9 +278,73 @@ func validateOperation(tl *TaskList, op Operation) error {
 				}
 			}
 		}
+		// Validate new fields for update operations
+		if err := validateExtendedFields(tl, op); err != nil {
+			return err
+		}
+		// For updates with blocked-by, check for cycles
+		if len(op.BlockedBy) > 0 {
+			task := tl.FindTask(op.ID)
+			if task != nil && task.StableID != "" {
+				if err := validateNoCycle(tl, task.StableID, op.BlockedBy); err != nil {
+					return err
+				}
+			}
+		}
 	default:
 		return fmt.Errorf("unknown operation type: %s", op.Type)
 	}
+	return nil
+}
+
+// validateExtendedFields validates stream, blocked-by, and owner fields
+func validateExtendedFields(tl *TaskList, op Operation) error {
+	// Validate stream
+	if op.Stream != nil && *op.Stream < 0 {
+		return ErrInvalidStream
+	}
+
+	// Validate blocked-by references
+	if len(op.BlockedBy) > 0 {
+		for _, hid := range op.BlockedBy {
+			task := tl.FindTask(hid)
+			if task == nil {
+				return fmt.Errorf("blocked-by task %s not found", hid)
+			}
+			if task.StableID == "" {
+				return ErrNoStableID
+			}
+		}
+	}
+
+	// Validate owner
+	if op.Owner != nil {
+		if err := validateOwner(*op.Owner); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateNoCycle checks that adding dependencies would not create a cycle
+func validateNoCycle(tl *TaskList, fromStableID string, blockedByIDs []string) error {
+	// Build dependency index
+	index := BuildDependencyIndex(tl.Tasks)
+
+	// Resolve hierarchical IDs to stable IDs
+	for _, hid := range blockedByIDs {
+		task := tl.FindTask(hid)
+		if task == nil || task.StableID == "" {
+			continue // Already validated in validateExtendedFields
+		}
+
+		// Check if adding this dependency would create a cycle
+		if hasCycle, path := index.DetectCycle(fromStableID, task.StableID); hasCycle {
+			return &CircularDependencyError{Path: path}
+		}
+	}
+
 	return nil
 }
 
@@ -278,11 +352,41 @@ func validateOperation(tl *TaskList, op Operation) error {
 func applyOperation(tl *TaskList, op Operation) error {
 	switch strings.ToLower(op.Type) {
 	case addOperation:
-		// Add the task (now supports position parameter)
-		newTaskID, err := tl.AddTask(op.Parent, op.Title, op.Position)
+		return applyAddOperation(tl, op)
+	case removeOperation:
+		return tl.RemoveTask(op.ID)
+	case updateOperation:
+		return applyUpdateOperation(tl, op)
+	default:
+		return fmt.Errorf("unknown operation type: %s", op.Type)
+	}
+}
+
+// applyAddOperation handles add operations with extended fields
+func applyAddOperation(tl *TaskList, op Operation) error {
+	// Check if any extended fields are used
+	hasExtendedFields := op.Stream != nil || len(op.BlockedBy) > 0 || op.Owner != nil
+
+	if hasExtendedFields {
+		// Use AddTaskWithOptions for extended fields
+		opts := AddOptions{
+			Position: op.Position,
+		}
+		if op.Stream != nil {
+			opts.Stream = *op.Stream
+		}
+		if len(op.BlockedBy) > 0 {
+			opts.BlockedBy = op.BlockedBy
+		}
+		if op.Owner != nil {
+			opts.Owner = *op.Owner
+		}
+
+		newTaskID, err := tl.AddTaskWithOptions(op.Parent, op.Title, opts)
 		if err != nil {
 			return err
 		}
+
 		// If details, references, or requirements are provided, update the newly added task
 		if len(op.Details) > 0 || len(op.References) > 0 || len(op.Requirements) > 0 {
 			if newTaskID != "" {
@@ -290,20 +394,71 @@ func applyOperation(tl *TaskList, op Operation) error {
 			}
 		}
 		return nil
-	case removeOperation:
-		return tl.RemoveTask(op.ID)
-	case updateOperation:
-		// Handle status update only when status field is provided
+	}
+
+	// Standard add operation without extended fields
+	newTaskID, err := tl.AddTask(op.Parent, op.Title, op.Position)
+	if err != nil {
+		return err
+	}
+	// If details, references, or requirements are provided, update the newly added task
+	if len(op.Details) > 0 || len(op.References) > 0 || len(op.Requirements) > 0 {
+		if newTaskID != "" {
+			return tl.UpdateTask(newTaskID, "", op.Details, op.References, op.Requirements)
+		}
+	}
+	return nil
+}
+
+// applyUpdateOperation handles update operations with extended fields
+func applyUpdateOperation(tl *TaskList, op Operation) error {
+	// Check if any extended fields are used
+	hasExtendedFields := op.Stream != nil || op.BlockedBy != nil || op.Owner != nil || op.Release
+
+	if hasExtendedFields {
+		// Use UpdateTaskWithOptions for extended fields
+		opts := UpdateOptions{
+			Release: op.Release,
+		}
+		if op.Title != "" {
+			opts.Title = &op.Title
+		}
+		if op.Details != nil {
+			opts.Details = op.Details
+		}
+		if op.References != nil {
+			opts.References = op.References
+		}
+		if op.Requirements != nil {
+			opts.Requirements = op.Requirements
+		}
+		if op.Stream != nil {
+			opts.Stream = op.Stream
+		}
+		if op.BlockedBy != nil {
+			opts.BlockedBy = op.BlockedBy
+		}
+		if op.Owner != nil {
+			opts.Owner = op.Owner
+		}
+
+		// Handle status update separately if provided
 		if hasStatusField(op) {
 			if err := tl.UpdateStatus(op.ID, *op.Status); err != nil {
 				return err
 			}
 		}
-		// Handle other field updates (title, details, references, requirements) if provided
-		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References, op.Requirements)
-	default:
-		return fmt.Errorf("unknown operation type: %s", op.Type)
+
+		return tl.UpdateTaskWithOptions(op.ID, opts)
 	}
+
+	// Standard update operation without extended fields
+	if hasStatusField(op) {
+		if err := tl.UpdateStatus(op.ID, *op.Status); err != nil {
+			return err
+		}
+	}
+	return tl.UpdateTask(op.ID, op.Title, op.Details, op.References, op.Requirements)
 }
 
 // applyOperationWithAutoComplete executes a single operation and tracks auto-completed tasks
@@ -493,6 +648,27 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 			// Phase-aware add operation
 			return addTaskWithPhaseMarkers(tl, op, phaseMarkers)
 		}
+		// Check for extended fields
+		hasExtendedFields := op.Stream != nil || len(op.BlockedBy) > 0 || op.Owner != nil
+		if hasExtendedFields {
+			opts := AddOptions{
+				Position: op.Position,
+			}
+			if op.Stream != nil {
+				opts.Stream = *op.Stream
+			}
+			if len(op.BlockedBy) > 0 {
+				opts.BlockedBy = op.BlockedBy
+			}
+			if op.Owner != nil {
+				opts.Owner = *op.Owner
+			}
+			newTaskID, err := tl.AddTaskWithOptions(op.Parent, op.Title, opts)
+			if err != nil {
+				return err
+			}
+			return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
+		}
 		// Regular add operation
 		newTaskID, err := tl.AddTask(op.Parent, op.Title, op.Position)
 		if err != nil {
@@ -519,6 +695,35 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 					}
 				}
 			}
+		}
+		// Check for extended fields
+		hasExtendedFields := op.Stream != nil || op.BlockedBy != nil || op.Owner != nil || op.Release
+		if hasExtendedFields {
+			opts := UpdateOptions{
+				Release: op.Release,
+			}
+			if op.Title != "" {
+				opts.Title = &op.Title
+			}
+			if op.Details != nil {
+				opts.Details = op.Details
+			}
+			if op.References != nil {
+				opts.References = op.References
+			}
+			if op.Requirements != nil {
+				opts.Requirements = op.Requirements
+			}
+			if op.Stream != nil {
+				opts.Stream = op.Stream
+			}
+			if op.BlockedBy != nil {
+				opts.BlockedBy = op.BlockedBy
+			}
+			if op.Owner != nil {
+				opts.Owner = op.Owner
+			}
+			return tl.UpdateTaskWithOptions(op.ID, opts)
 		}
 		// Handle other field updates (title, details, references, requirements) if provided
 		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References, op.Requirements)
@@ -596,7 +801,25 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 
 	// Handle parentID if specified
 	if op.Parent != "" {
-		// For subtasks, use existing AddTask logic
+		// For subtasks, use existing AddTask logic (with extended fields if present)
+		hasExtendedFields := op.Stream != nil || len(op.BlockedBy) > 0 || op.Owner != nil
+		if hasExtendedFields {
+			opts := AddOptions{}
+			if op.Stream != nil {
+				opts.Stream = *op.Stream
+			}
+			if len(op.BlockedBy) > 0 {
+				opts.BlockedBy = op.BlockedBy
+			}
+			if op.Owner != nil {
+				opts.Owner = *op.Owner
+			}
+			newTaskID, err := tl.AddTaskWithOptions(op.Parent, op.Title, opts)
+			if err != nil {
+				return err
+			}
+			return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
+		}
 		newTaskID, err := tl.AddTask(op.Parent, op.Title, "")
 		if err != nil {
 			return err
@@ -604,11 +827,42 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
 	}
 
+	// Resolve blocked-by references if present
+	var blockedByStableIDs []string
+	if len(op.BlockedBy) > 0 {
+		var err error
+		blockedByStableIDs, err = tl.resolveToStableIDs(op.BlockedBy)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Generate stable ID if extended fields are used
+	var stableID string
+	hasExtendedFields := op.Stream != nil || len(op.BlockedBy) > 0 || op.Owner != nil
+	if hasExtendedFields {
+		existingIDs := tl.collectStableIDs()
+		idGen := NewStableIDGenerator(existingIDs)
+		var err error
+		stableID, err = idGen.Generate()
+		if err != nil {
+			return fmt.Errorf("generating stable ID: %w", err)
+		}
+	}
+
 	// Insert task at the calculated position
 	newTask := Task{
-		ID:     "temp", // Will be renumbered
-		Title:  op.Title,
-		Status: Pending,
+		ID:        "temp", // Will be renumbered
+		Title:     op.Title,
+		Status:    Pending,
+		StableID:  stableID,
+		BlockedBy: blockedByStableIDs,
+	}
+	if op.Stream != nil {
+		newTask.Stream = *op.Stream
+	}
+	if op.Owner != nil {
+		newTask.Owner = *op.Owner
 	}
 
 	// Insert at position
