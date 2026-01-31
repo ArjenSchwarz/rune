@@ -47,7 +47,7 @@ func TestDiscoverFileFromBranch(t *testing.T) {
 			branch:        "feature/nonexistent",
 			createPaths:   nil,
 			expectError:   true,
-			errorContains: "tried: specs/nonexistent/tasks.md, specs/feature/nonexistent/tasks.md",
+			errorContains: "tried: specs/nonexistent/tasks.md, specs/feature/nonexistent/tasks.md", // Last segment is 'nonexistent'
 		},
 		"single component branch - file not found shows single path": {
 			template:      "specs/{branch}/tasks.md",
@@ -90,9 +90,9 @@ func TestDiscoverFileFromBranch(t *testing.T) {
 		"branch with multiple slashes": {
 			template:     "specs/{branch}/tasks.md",
 			branch:       "feature/auth/oauth",
-			createPaths:  []string{"specs/auth/oauth/tasks.md"},
+			createPaths:  []string{"specs/oauth/tasks.md"},
 			expectError:  false,
-			expectedPath: "specs/auth/oauth/tasks.md",
+			expectedPath: "specs/oauth/tasks.md",
 		},
 		"branch with multiple slashes falls back to full": {
 			template:     "specs/{branch}/tasks.md",

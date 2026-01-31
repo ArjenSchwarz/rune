@@ -13,7 +13,7 @@ import (
 
 // DiscoverFileFromBranch discovers a task file based on the current git branch
 // and the configured template pattern. It tries multiple candidate paths:
-// first the stripped branch name (after first /), then the full branch name.
+// first the stripped branch name (after last /), then the full branch name.
 // If both paths exist, the stripped path takes precedence.
 func DiscoverFileFromBranch(template string) (string, error) {
 	branch, err := getCurrentBranch()
@@ -25,10 +25,10 @@ func DiscoverFileFromBranch(template string) (string, error) {
 		return "", fmt.Errorf("special git state detected: %s (please specify file explicitly)", branch)
 	}
 
-	// Strip prefix before first slash
+	// Strip everything before and including last slash
 	strippedBranch := branch
-	if _, after, found := strings.Cut(branch, "/"); found {
-		strippedBranch = after
+	if lastSlash := strings.LastIndex(branch, "/"); lastSlash != -1 {
+		strippedBranch = branch[lastSlash+1:]
 	}
 
 	// Try stripped name first, then full name

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Smart Branch Discovery**: Change branch prefix stripping to use last slash instead of first
+  - Branch `feature/auth/oauth` now strips to `oauth` (previously `auth/oauth`)
+  - Allows deeper branch naming conventions to map to simple spec folder names
+  - Full branch path is still tried as fallback for backward compatibility
+
 ### Added
 
 - **Batch Add-Phase Operation**: Implement "add-phase" operation type for batch API
