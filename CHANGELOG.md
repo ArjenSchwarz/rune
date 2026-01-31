@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Creates phase at end of document with correct AfterTaskID tracking
   - Update batch command help text with add-phase operation type and usage example
   - Update rune skill documentation with add-phase batch operation support
+  - Document add-phase in README.md batch operations section with example
 
 - **Batch Add-Phase Tests**: Unit and integration tests for add-phase batch operation
   - Unit tests for add-phase validation (empty/whitespace names, duplicate phases)

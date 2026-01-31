@@ -489,6 +489,10 @@ rune batch tasks.md --operations updates.json --dry-run
       "requirements": ["1.1", "1.2"]
     },
     {
+      "type": "add-phase",
+      "phase": "Development"
+    },
+    {
       "type": "add",
       "title": "Setup database",
       "phase": "Development"
@@ -517,6 +521,7 @@ rune batch tasks.md --operations updates.json --dry-run
 
 **Operation Types:**
 - `add` - Add new task (requires `title`, optional `parent`, `phase`)
+- `add-phase` - Create new phase header (requires `phase`)
 - `remove` - Delete task (requires `id`)
 - `update` - Modify task content (requires `id`, optional `title`, `details`, `references`, `status`)
 
