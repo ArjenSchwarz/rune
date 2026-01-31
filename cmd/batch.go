@@ -102,9 +102,9 @@ func runBatch(cmd *cobra.Command, args []string) error {
 		req.DryRun = true
 	}
 
-	// Check if any operations use phases
+	// Check if any operations use phases or create new phases
 	hasPhaseOps := slices.ContainsFunc(req.Operations, func(op task.Operation) bool {
-		return op.Phase != ""
+		return op.Phase != "" || strings.ToLower(op.Type) == "add-phase"
 	})
 
 	var response *task.BatchResponse

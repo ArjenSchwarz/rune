@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Batch Add-Phase Operation**: Implement "add-phase" operation type for batch API
+  - Add `addPhaseOperation` constant and validation in batch operations
+  - Add execution logic in `applyOperationWithPhases` to create phase markers
+  - Route add-phase operations to phase-aware execution path in batch command
+  - Creates phase at end of document with correct AfterTaskID tracking
+
 - **Batch Add-Phase Specification**: Spec for adding "add-phase" operation to batch API
   - Smolspec with requirements, JSON format, and implementation approach
   - Task list with 7 tasks across Implementation, Testing, and Documentation phases

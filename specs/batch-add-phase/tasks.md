@@ -6,11 +6,11 @@ references:
 
 ## Implementation
 
-- [ ] 1. Add add-phase operation constant and validation
+- [x] 1. Add add-phase operation constant and validation
 
-- [ ] 2. Add execution logic in applyOperationWithPhases
+- [x] 2. Add execution logic in applyOperationWithPhases
 
-- [ ] 3. Update batch command detection to route add-phase to phase-aware path
+- [x] 3. Update batch command detection to route add-phase to phase-aware path
 
 ## Testing
 
