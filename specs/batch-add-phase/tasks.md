@@ -20,6 +20,6 @@ references:
 
 ## Documentation
 
-- [ ] 6. Update batch command help text with add-phase example
+- [x] 6. Update batch command help text with add-phase example
 
-- [ ] 7. Update rune skill documentation with add-phase batch operation
+- [x] 7. Update rune skill documentation with add-phase batch operation
