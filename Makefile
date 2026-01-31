@@ -19,7 +19,7 @@ help: ## Show available make targets and their descriptions
 	@awk 'BEGIN {FS = ":.*##"} /^(lint|fmt|modernize):.*##/ { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "Build targets:"
-	@awk 'BEGIN {FS = ":.*##"} /^build:.*##/ { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"} /^(build|install):.*##/ { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "Development targets:"
 	@awk 'BEGIN {FS = ":.*##"} /^(mod-tidy|benchmark|clean):.*##/ { printf "  %-18s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -91,6 +91,11 @@ LDFLAGS := -X github.com/arjenschwarz/rune/cmd.Version=$(VERSION) \
 build:
 	@echo "Building rune binary..."
 	go build -ldflags "$(LDFLAGS)" .
+
+.PHONY: install
+install: ## Install rune binary to $GOPATH/bin
+	@echo "Installing rune..."
+	@go install -ldflags "$(LDFLAGS)" .
 
 # Development utility targets
 .PHONY: mod-tidy
