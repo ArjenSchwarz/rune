@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Install Target**: Add `make install` target to Makefile for installing rune binary to $GOPATH/bin
+- Update README.md installation instructions to use `make install`
+- Add install command to CLAUDE.md development commands
 
 ### Changed
 

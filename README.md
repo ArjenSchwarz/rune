@@ -27,12 +27,12 @@ A standalone Go command-line tool designed for AI agents and developers to creat
 go install github.com/ArjenSchwarz/rune@latest
 ```
 
-Or build from source:
+Or install from source:
 
 ```bash
 git clone https://github.com/ArjenSchwarz/rune.git
 cd rune
-make build
+make install
 ```
 
 ## GitHub Actions

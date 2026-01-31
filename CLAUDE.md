@@ -14,6 +14,9 @@ rune is a Go command-line tool for managing hierarchical markdown task lists, op
 # Run complete validation (format, lint, and tests)
 make check
 
+# Install rune to $GOPATH/bin
+make install
+
 # Run unit tests
 make test
 
