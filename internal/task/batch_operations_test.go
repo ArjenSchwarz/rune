@@ -914,6 +914,26 @@ func TestExecuteBatch_AddPhaseOperation(t *testing.T) {
 			// rather than through response.Errors due to early validation
 			description: "Whitespace-only phase name should fail validation",
 		},
+		"add phase with surrounding whitespace trims name": {
+			setup: func() string {
+				return `# Test Tasks`
+			},
+			ops: []Operation{
+				{Type: "add-phase", Phase: "  Trimmed Phase  "},
+			},
+			wantSuccess: true,
+			verify: func(t *testing.T, tl *TaskList, markers []PhaseMarker) {
+				if len(markers) != 1 {
+					t.Errorf("Expected 1 phase marker, got %d", len(markers))
+					return
+				}
+				// Phase name should be trimmed to match CLI behavior
+				if markers[0].Name != "Trimmed Phase" {
+					t.Errorf("Expected trimmed phase name 'Trimmed Phase', got '%s'", markers[0].Name)
+				}
+			},
+			description: "Phase name with whitespace should be trimmed",
+		},
 		"add duplicate phase name succeeds": {
 			setup: func() string {
 				return `# Test Tasks

@@ -126,7 +126,10 @@ type Operation struct {
 	References   []string `json:"references,omitempty"`
 	Requirements []string `json:"requirements,omitempty"`
 	Position     string   `json:"position,omitempty"`
-	Phase        string   `json:"phase,omitempty"`
+	// Phase has context-dependent meaning:
+	// - For "add" operations: the phase to add the task to
+	// - For "add-phase" operations: the name of the phase to create
+	Phase string `json:"phase,omitempty"`
 
 	// Fields for dependencies and streams
 	Stream    *int     `json:"stream,omitempty"`
@@ -293,7 +296,9 @@ func validateOperation(tl *TaskList, op Operation) error {
 			}
 		}
 	case addPhaseOperation:
-		if err := ValidatePhaseName(op.Phase); err != nil {
+		// Trim whitespace to match CLI behavior (cmd/add_phase.go:59)
+		phaseName := strings.TrimSpace(op.Phase)
+		if err := ValidatePhaseName(phaseName); err != nil {
 			return err
 		}
 	default:
@@ -650,6 +655,8 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 	switch strings.ToLower(op.Type) {
 	case addPhaseOperation:
 		// Create a new phase at the end of the document
+		// Trim whitespace to match CLI behavior (cmd/add_phase.go:59)
+		phaseName := strings.TrimSpace(op.Phase)
 		// Determine the AfterTaskID - if there are tasks, use the last one's ID
 		afterTaskID := ""
 		if len(tl.Tasks) > 0 {
@@ -657,7 +664,7 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 		}
 		// Add the phase marker
 		*phaseMarkers = append(*phaseMarkers, PhaseMarker{
-			Name:        op.Phase,
+			Name:        phaseName,
 			AfterTaskID: afterTaskID,
 		})
 		return nil
