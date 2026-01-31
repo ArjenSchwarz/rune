@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Batch Add-Phase Specification**: Spec for adding "add-phase" operation to batch API
+  - Smolspec with requirements, JSON format, and implementation approach
+  - Task list with 7 tasks across Implementation, Testing, and Documentation phases
+  - Enables agents to create phase headers through the batch JSON API
+
 ### Documentation
 
 - **skill/SKILL.md**: Add Claude Code skill for rune task management
