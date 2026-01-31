@@ -90,6 +90,11 @@ func TestIntegrationWorkflows(t *testing.T) {
 			description: "Test legacy files without new fields work correctly",
 			workflow:    testBackwardCompatibility,
 		},
+		"batch_add_phase_operations": {
+			name:        "Batch Add-Phase Operations",
+			description: "Test add-phase operation in batch workflow",
+			workflow:    testBatchAddPhaseOperations,
+		},
 	}
 
 	for testName, tc := range tests {
@@ -1539,4 +1544,229 @@ metadata:
 	})
 
 	t.Logf("Configuration integration test passed successfully")
+}
+
+func testBatchAddPhaseOperations(t *testing.T, tempDir string) {
+	filename := "batch-phases.md"
+
+	// Create initial task file with existing phase
+	initialContent := `# Batch Phase Operations Test
+
+## Initial Phase
+
+- [ ] 1. Initial task
+- [ ] 2. Second task`
+
+	if err := os.WriteFile(filename, []byte(initialContent), 0644); err != nil {
+		t.Fatalf("failed to create task file: %v", err)
+	}
+
+	// Test 1: Create new phase using batch operation
+	t.Run("create_phase_via_batch", func(t *testing.T) {
+		tl, phaseMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to parse file: %v", err)
+		}
+
+		// Create new phase and add task to it
+		ops := []task.Operation{
+			{Type: "add-phase", Phase: "Development"},
+			{Type: "add", Title: "Development task", Phase: "Development"},
+		}
+
+		response, err := tl.ExecuteBatchWithPhases(ops, false, phaseMarkers, filename)
+		if err != nil {
+			t.Fatalf("failed to execute batch operations: %v", err)
+		}
+		if !response.Success {
+			t.Fatalf("batch operations failed: %v", response.Errors)
+		}
+
+		// Verify the new phase exists
+		fileContent, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatalf("failed to read file: %v", err)
+		}
+		content := string(fileContent)
+
+		if !strings.Contains(content, "## Development") {
+			t.Error("expected Development phase to be created")
+		}
+		if !strings.Contains(content, "Development task") {
+			t.Error("expected development task to be added")
+		}
+	})
+
+	// Test 2: Add multiple phases in batch
+	t.Run("add_multiple_phases_batch", func(t *testing.T) {
+		tl, phaseMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to parse file: %v", err)
+		}
+
+		ops := []task.Operation{
+			{Type: "add-phase", Phase: "Testing"},
+			{Type: "add-phase", Phase: "Deployment"},
+			{Type: "add", Title: "Test task", Phase: "Testing"},
+			{Type: "add", Title: "Deploy task", Phase: "Deployment"},
+		}
+
+		response, err := tl.ExecuteBatchWithPhases(ops, false, phaseMarkers, filename)
+		if err != nil {
+			t.Fatalf("failed to execute batch operations: %v", err)
+		}
+		if !response.Success {
+			t.Fatalf("batch operations failed: %v", response.Errors)
+		}
+
+		// Verify both phases exist
+		tl, newMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to re-parse file: %v", err)
+		}
+
+		phaseNames := make(map[string]bool)
+		for _, m := range newMarkers {
+			phaseNames[m.Name] = true
+		}
+
+		if !phaseNames["Testing"] {
+			t.Error("expected Testing phase to exist")
+		}
+		if !phaseNames["Deployment"] {
+			t.Error("expected Deployment phase to exist")
+		}
+
+		// Verify tasks were added
+		testTask := tl.Find("Test task", task.QueryOptions{})
+		if len(testTask) == 0 {
+			t.Error("expected to find Test task")
+		}
+		deployTask := tl.Find("Deploy task", task.QueryOptions{})
+		if len(deployTask) == 0 {
+			t.Error("expected to find Deploy task")
+		}
+	})
+
+	// Test 3: Dry-run add-phase does not modify file
+	t.Run("dry_run_add_phase", func(t *testing.T) {
+		originalContent, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatalf("failed to read file: %v", err)
+		}
+
+		tl, phaseMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to parse file: %v", err)
+		}
+
+		ops := []task.Operation{
+			{Type: "add-phase", Phase: "DryRunPhase"},
+		}
+
+		response, err := tl.ExecuteBatchWithPhases(ops, true, phaseMarkers, filename)
+		if err != nil {
+			t.Fatalf("failed to execute dry-run: %v", err)
+		}
+		if !response.Success {
+			t.Fatalf("dry-run failed: %v", response.Errors)
+		}
+
+		// Preview should contain the new phase
+		if !strings.Contains(response.Preview, "DryRunPhase") {
+			t.Error("expected preview to contain DryRunPhase")
+		}
+
+		// File should be unchanged
+		currentContent, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatalf("failed to read file: %v", err)
+		}
+		if string(currentContent) != string(originalContent) {
+			t.Error("file was modified during dry-run")
+		}
+	})
+
+	// Test 4: Invalid phase name fails validation
+	t.Run("invalid_phase_name_fails", func(t *testing.T) {
+		tl, phaseMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to parse file: %v", err)
+		}
+
+		ops := []task.Operation{
+			{Type: "add-phase", Phase: ""},
+		}
+
+		response, err := tl.ExecuteBatchWithPhases(ops, false, phaseMarkers, filename)
+		// Either err is returned or response.Success is false
+		if err == nil && response.Success {
+			t.Error("expected empty phase name to fail validation")
+		}
+	})
+
+	// Test 5: Batch with add-phase and update operations
+	t.Run("batch_add_phase_with_updates", func(t *testing.T) {
+		tl, phaseMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to parse file: %v", err)
+		}
+
+		ops := []task.Operation{
+			{Type: "add-phase", Phase: "Review"},
+			{Type: "add", Title: "Code review", Phase: "Review"},
+			{Type: "update", ID: "1", Status: task.StatusPtr(task.Completed)},
+		}
+
+		response, err := tl.ExecuteBatchWithPhases(ops, false, phaseMarkers, filename)
+		if err != nil {
+			t.Fatalf("failed to execute batch operations: %v", err)
+		}
+		if !response.Success {
+			t.Fatalf("batch operations failed: %v", response.Errors)
+		}
+
+		// Verify task 1 was completed
+		tl, _, err = task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to re-parse file: %v", err)
+		}
+
+		task1 := tl.FindTask("1")
+		if task1 == nil {
+			t.Fatal("task 1 not found")
+		}
+		if task1.Status != task.Completed {
+			t.Errorf("expected task 1 to be completed, got status %v", task1.Status)
+		}
+	})
+
+	// Test 6: Verify file structure integrity
+	t.Run("verify_phase_structure", func(t *testing.T) {
+		fileContent, err := os.ReadFile(filename)
+		if err != nil {
+			t.Fatalf("failed to read file: %v", err)
+		}
+		content := string(fileContent)
+
+		// Verify phase headers exist in file
+		expectedPhases := []string{"Initial Phase", "Development", "Testing", "Deployment", "Review"}
+		for _, phase := range expectedPhases {
+			if !strings.Contains(content, "## "+phase) {
+				t.Errorf("expected phase '%s' not found in file", phase)
+			}
+		}
+
+		// Parse and verify markers
+		_, phaseMarkers, err := task.ParseFileWithPhases(filename)
+		if err != nil {
+			t.Fatalf("failed to parse file: %v", err)
+		}
+
+		if len(phaseMarkers) < 5 {
+			t.Errorf("expected at least 5 phase markers, got %d", len(phaseMarkers))
+		}
+	})
+
+	t.Logf("Batch add-phase operations test passed successfully")
 }

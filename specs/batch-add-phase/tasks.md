@@ -14,9 +14,9 @@ references:
 
 ## Testing
 
-- [ ] 4. Add unit tests for add-phase validation and execution
+- [x] 4. Add unit tests for add-phase validation and execution
 
-- [ ] 5. Add integration test for add-phase in batch workflow
+- [x] 5. Add integration test for add-phase in batch workflow
 
 ## Documentation
 

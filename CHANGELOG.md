@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Route add-phase operations to phase-aware execution path in batch command
   - Creates phase at end of document with correct AfterTaskID tracking
 
+- **Batch Add-Phase Tests**: Unit and integration tests for add-phase batch operation
+  - Unit tests for add-phase validation (empty/whitespace names, duplicate phases)
+  - Unit tests for add-phase execution (single phase, multiple phases, with tasks)
+  - Unit tests for dry-run mode preview generation
+  - Integration tests for end-to-end add-phase batch workflow
+  - Tests verify phase creation, task assignment, and file structure integrity
+
 - **Batch Add-Phase Specification**: Spec for adding "add-phase" operation to batch API
   - Smolspec with requirements, JSON format, and implementation approach
   - Task list with 7 tasks across Implementation, Testing, and Documentation phases
