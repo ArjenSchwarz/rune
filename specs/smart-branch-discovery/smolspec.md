@@ -6,7 +6,7 @@ Enhance the git branch-based file discovery to intelligently strip branch prefix
 
 ## Requirements
 
-- The system MUST strip the prefix before the first `/` from the branch name when constructing candidate paths (e.g., `specs/my-feature` becomes `my-feature`)
+- The system MUST strip everything before and including the last `/` from the branch name when constructing candidate paths (e.g., `feature/auth/oauth` becomes `oauth`, `specs/my-feature` becomes `my-feature`)
 - The system MUST try the stripped branch name path first, then fall back to the full branch name path
 - The system MUST skip duplicate candidates when the branch has no `/` (e.g., `main` produces only one candidate, not two identical paths)
 - The system MUST preserve all existing security validations (branch stripping happens after validation in `DiscoverFileFromBranch`)
@@ -33,10 +33,10 @@ func DiscoverFileFromBranch(template string) (string, error) {
         return "", fmt.Errorf("special git state detected: %s", branch)
     }
 
-    // Strip prefix before first slash
+    // Strip everything before and including last slash
     strippedBranch := branch
-    if _, after, found := strings.Cut(branch, "/"); found {
-        strippedBranch = after
+    if lastSlash := strings.LastIndex(branch, "/"); lastSlash != -1 {
+        strippedBranch = branch[lastSlash+1:]
     }
 
     // Try stripped name first, then full name
@@ -72,7 +72,7 @@ This works with any template pattern without special-casing.
 
 ## Risks and Assumptions
 
-- **Risk**: Branch names with multiple slashes (e.g., `feature/auth/oauth`) strip to `auth/oauth` | **Mitigation**: The full branch path is always tried as fallback; this handles any edge cases where stripping produces the wrong name
+- **Risk**: Branch names with multiple slashes (e.g., `feature/auth/oauth`) strip to just `oauth` which may be too aggressive | **Mitigation**: The full branch path is always tried as fallback; this handles any edge cases where stripping produces the wrong name
 - **Risk**: Both stripped and full paths might exist with different content | **Mitigation**: Document that stripped path takes precedence; users should not maintain duplicate task files
 - **Assumption**: Specs directories follow the `specs/{name}/tasks.md` convention
 - **Assumption**: Users on branches like `specs/my-feature` expect the spec at `specs/my-feature/tasks.md`

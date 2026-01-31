@@ -598,16 +598,26 @@ discovery:
 
 When enabled, rune automatically discovers task files based on your current git branch:
 
+**Smart Branch Name Stripping:**
+
+rune intelligently strips branch prefixes to find task files. For branches with slashes, it tries the suffix (after the last `/`) first, then falls back to the full branch name:
+
+- Branch `specs/my-feature` → tries `specs/my-feature/tasks.md` first, falls back to `specs/specs/my-feature/tasks.md`
+- Branch `feature/auth/oauth` → tries `specs/oauth/tasks.md` first, falls back to `specs/feature/auth/oauth/tasks.md`
+- Branch `main` → tries `specs/main/tasks.md` (no stripping needed)
+
+This allows branches like `specs/my-feature` to map directly to `specs/my-feature/tasks.md` without creating nested `specs/specs/` directories.
+
 **Examples:**
-- Branch `feature/auth` with template `specs/{branch}/tasks.md` → `specs/feature/auth/tasks.md`
-- Branch `bugfix/login` with template `tasks/{branch}.md` → `tasks/bugfix/login.md`
+- Branch `feature/auth` with template `specs/{branch}/tasks.md` → `specs/auth/tasks.md` (or `specs/feature/auth/tasks.md` as fallback)
+- Branch `bugfix/login` with template `tasks/{branch}.md` → `tasks/login.md` (or `tasks/bugfix/login.md` as fallback)
 - Branch `main` with template `{branch}-tasks.md` → `main-tasks.md`
 
 **Requirements:**
 - Must be in a git repository
 - Git must be available in PATH
 - Target file must exist
-- Works with branch names containing slashes (treated as path separators)
+- Works with branch names containing slashes (suffix is tried first, then full name)
 
 **Special Cases:**
 - Detached HEAD: Requires explicit filename
