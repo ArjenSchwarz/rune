@@ -43,6 +43,7 @@ The JSON format should be:
 
 Operation types:
 - add: Add a new task (requires title, optional parent, phase)
+- add-phase: Create a new phase header (requires phase)
 - remove: Remove a task (requires id)
 - update: Update task fields (requires id, optional title, status, details, references)
 
@@ -102,9 +103,9 @@ func runBatch(cmd *cobra.Command, args []string) error {
 		req.DryRun = true
 	}
 
-	// Check if any operations use phases
+	// Check if any operations use phases or create new phases
 	hasPhaseOps := slices.ContainsFunc(req.Operations, func(op task.Operation) bool {
-		return op.Phase != ""
+		return op.Phase != "" || strings.ToLower(op.Type) == "add-phase"
 	})
 
 	var response *task.BatchResponse
@@ -254,5 +255,8 @@ func init() {
   rune batch operations.json --dry-run
 
   # Get JSON output
-  rune batch operations.json --format json`
+  rune batch operations.json --format json
+
+  # Create a phase and add a task to it
+  rune batch --input '{"file":"tasks.md","operations":[{"type":"add-phase","phase":"Planning"},{"type":"add","title":"First task","phase":"Planning"}]}'`
 }

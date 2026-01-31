@@ -778,3 +778,381 @@ func TestExecuteBatchWithPhases_MultipleRemovesPreservesPhases(t *testing.T) {
 		t.Error("Task 3 (Run integration tests) should be in Testing phase")
 	}
 }
+
+// TestExecuteBatch_AddPhaseOperation tests the add-phase batch operation validation and execution
+func TestExecuteBatch_AddPhaseOperation(t *testing.T) {
+	tests := map[string]struct {
+		setup       func() string
+		ops         []Operation
+		wantSuccess bool
+		wantError   string
+		verify      func(*testing.T, *TaskList, []PhaseMarker)
+		description string
+	}{
+		"add single phase to empty file": {
+			setup: func() string {
+				return `# Test Tasks`
+			},
+			ops: []Operation{
+				{Type: "add-phase", Phase: "Planning"},
+			},
+			wantSuccess: true,
+			verify: func(t *testing.T, tl *TaskList, markers []PhaseMarker) {
+				if len(markers) != 1 {
+					t.Errorf("Expected 1 phase marker, got %d", len(markers))
+					return
+				}
+				if markers[0].Name != "Planning" {
+					t.Errorf("Expected phase name 'Planning', got '%s'", markers[0].Name)
+				}
+				if markers[0].AfterTaskID != "" {
+					t.Errorf("Expected empty AfterTaskID for first phase, got '%s'", markers[0].AfterTaskID)
+				}
+			},
+			description: "Single phase should be added to empty file",
+		},
+		"add phase to file with tasks": {
+			setup: func() string {
+				return `# Test Tasks
+
+- [ ] 1. Existing task
+- [ ] 2. Another task`
+			},
+			ops: []Operation{
+				{Type: "add-phase", Phase: "New Phase"},
+			},
+			wantSuccess: true,
+			verify: func(t *testing.T, tl *TaskList, markers []PhaseMarker) {
+				if len(markers) != 1 {
+					t.Errorf("Expected 1 phase marker, got %d", len(markers))
+					return
+				}
+				if markers[0].Name != "New Phase" {
+					t.Errorf("Expected phase name 'New Phase', got '%s'", markers[0].Name)
+				}
+				if markers[0].AfterTaskID != "2" {
+					t.Errorf("Expected AfterTaskID '2', got '%s'", markers[0].AfterTaskID)
+				}
+			},
+			description: "Phase should be added after last task",
+		},
+		"add phase then add task to it": {
+			setup: func() string {
+				return `# Test Tasks
+
+- [ ] 1. Existing task`
+			},
+			ops: []Operation{
+				{Type: "add-phase", Phase: "Development"},
+				{Type: "add", Title: "New dev task", Phase: "Development"},
+			},
+			wantSuccess: true,
+			verify: func(t *testing.T, tl *TaskList, markers []PhaseMarker) {
+				if len(tl.Tasks) != 2 {
+					t.Errorf("Expected 2 tasks, got %d", len(tl.Tasks))
+					return
+				}
+				// The new task should be task 2
+				task := findTaskByTitle(tl, "New dev task")
+				if task == nil {
+					t.Error("New dev task not found")
+					return
+				}
+				if task.ID != "2" {
+					t.Errorf("Expected task ID '2', got '%s'", task.ID)
+				}
+			},
+			description: "Task should be added to newly created phase",
+		},
+		"add multiple phases in sequence": {
+			setup: func() string {
+				return `# Test Tasks
+
+- [ ] 1. Initial task`
+			},
+			ops: []Operation{
+				{Type: "add-phase", Phase: "Phase One"},
+				{Type: "add-phase", Phase: "Phase Two"},
+				{Type: "add-phase", Phase: "Phase Three"},
+			},
+			wantSuccess: true,
+			verify: func(t *testing.T, tl *TaskList, markers []PhaseMarker) {
+				if len(markers) != 3 {
+					t.Errorf("Expected 3 phase markers, got %d", len(markers))
+					return
+				}
+				expectedPhases := []string{"Phase One", "Phase Two", "Phase Three"}
+				for i, expected := range expectedPhases {
+					if markers[i].Name != expected {
+						t.Errorf("Phase %d: expected '%s', got '%s'", i, expected, markers[i].Name)
+					}
+				}
+			},
+			description: "Multiple phases should be added in order",
+		},
+		"add phase with empty name fails": {
+			setup: func() string {
+				return `# Test Tasks`
+			},
+			ops: []Operation{
+				{Type: "add-phase", Phase: ""},
+			},
+			wantSuccess: false,
+			wantError:   "phase name cannot be empty",
+			description: "Empty phase name should fail validation",
+		},
+		"add phase with whitespace-only name fails": {
+			setup: func() string {
+				return `# Test Tasks`
+			},
+			ops: []Operation{
+				{Type: "add-phase", Phase: "   "},
+			},
+			wantSuccess: false,
+			wantError:   "phase name cannot be empty",
+			// Note: For whitespace-only names, the error is returned directly
+			// rather than through response.Errors due to early validation
+			description: "Whitespace-only phase name should fail validation",
+		},
+		"add phase with surrounding whitespace trims name": {
+			setup: func() string {
+				return `# Test Tasks`
+			},
+			ops: []Operation{
+				{Type: "add-phase", Phase: "  Trimmed Phase  "},
+			},
+			wantSuccess: true,
+			verify: func(t *testing.T, tl *TaskList, markers []PhaseMarker) {
+				if len(markers) != 1 {
+					t.Errorf("Expected 1 phase marker, got %d", len(markers))
+					return
+				}
+				// Phase name should be trimmed to match CLI behavior
+				if markers[0].Name != "Trimmed Phase" {
+					t.Errorf("Expected trimmed phase name 'Trimmed Phase', got '%s'", markers[0].Name)
+				}
+			},
+			description: "Phase name with whitespace should be trimmed",
+		},
+		"add duplicate phase name succeeds": {
+			setup: func() string {
+				return `# Test Tasks
+
+## Existing Phase
+
+- [ ] 1. Task in existing phase`
+			},
+			ops: []Operation{
+				{Type: "add-phase", Phase: "Existing Phase"},
+			},
+			wantSuccess: true,
+			verify: func(t *testing.T, tl *TaskList, markers []PhaseMarker) {
+				// Duplicate phases are allowed (matches CLI behavior)
+				if len(markers) < 2 {
+					t.Errorf("Expected at least 2 phase markers (original + new), got %d", len(markers))
+				}
+			},
+			description: "Duplicate phase names should be allowed",
+		},
+		"add phase with existing phases preserves order": {
+			setup: func() string {
+				return `# Test Tasks
+
+## Phase A
+
+- [ ] 1. Task A
+
+## Phase B
+
+- [ ] 2. Task B`
+			},
+			ops: []Operation{
+				{Type: "add-phase", Phase: "Phase C"},
+			},
+			wantSuccess: true,
+			verify: func(t *testing.T, tl *TaskList, markers []PhaseMarker) {
+				if len(markers) != 3 {
+					t.Errorf("Expected 3 phase markers, got %d", len(markers))
+					return
+				}
+				if markers[0].Name != "Phase A" {
+					t.Errorf("Expected first phase 'Phase A', got '%s'", markers[0].Name)
+				}
+				if markers[1].Name != "Phase B" {
+					t.Errorf("Expected second phase 'Phase B', got '%s'", markers[1].Name)
+				}
+				if markers[2].Name != "Phase C" {
+					t.Errorf("Expected third phase 'Phase C', got '%s'", markers[2].Name)
+				}
+			},
+			description: "New phase should be added at end, preserving existing order",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Create temp file with initial content
+			content := tc.setup()
+			tempFile := fmt.Sprintf("test_batch_add_phase_%s.md", strings.ReplaceAll(name, " ", "_"))
+			if err := os.WriteFile(tempFile, []byte(content), 0644); err != nil {
+				t.Fatalf("Failed to write temp file: %v", err)
+			}
+			defer os.Remove(tempFile)
+
+			// Parse the file with phases
+			tl, phaseMarkers, err := ParseFileWithPhases(tempFile)
+			if err != nil {
+				t.Fatalf("Failed to parse file: %v", err)
+			}
+
+			// Execute batch with phase operations
+			response, err := tl.ExecuteBatchWithPhases(tc.ops, false, phaseMarkers, tempFile)
+
+			if tc.wantSuccess {
+				if err != nil {
+					t.Fatalf("ExecuteBatchWithPhases failed: %v", err)
+				}
+				if !response.Success {
+					t.Fatalf("%s: Expected success, got errors: %v", tc.description, response.Errors)
+				}
+
+				// Re-parse to verify
+				tl, newMarkers, err := ParseFileWithPhases(tempFile)
+				if err != nil {
+					t.Fatalf("Failed to re-parse file: %v", err)
+				}
+
+				// Run verification
+				if tc.verify != nil {
+					tc.verify(t, tl, newMarkers)
+				}
+			} else {
+				// Error can come back either as err or in response.Errors
+				if err != nil {
+					// Error returned directly
+					if tc.wantError != "" && !strings.Contains(err.Error(), tc.wantError) {
+						t.Errorf("Expected error containing '%s', got '%s'", tc.wantError, err.Error())
+					}
+					return
+				}
+				if response.Success {
+					t.Fatalf("%s: Expected failure, but got success", tc.description)
+				}
+				if tc.wantError != "" {
+					found := false
+					for _, errMsg := range response.Errors {
+						if strings.Contains(errMsg, tc.wantError) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("Expected error containing '%s', got: %v", tc.wantError, response.Errors)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestExecuteBatch_AddPhaseOperationDryRun tests dry-run mode for add-phase operations
+func TestExecuteBatch_AddPhaseOperationDryRun(t *testing.T) {
+	content := `# Test Tasks
+
+- [ ] 1. Existing task`
+
+	tempFile := "test_batch_add_phase_dry_run.md"
+	if err := os.WriteFile(tempFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	defer os.Remove(tempFile)
+
+	tl, phaseMarkers, err := ParseFileWithPhases(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+
+	ops := []Operation{
+		{Type: "add-phase", Phase: "New Phase"},
+		{Type: "add", Title: "Task in new phase", Phase: "New Phase"},
+	}
+
+	response, err := tl.ExecuteBatchWithPhases(ops, true, phaseMarkers, tempFile)
+	if err != nil {
+		t.Fatalf("ExecuteBatchWithPhases dry-run failed: %v", err)
+	}
+
+	if !response.Success {
+		t.Fatalf("Expected dry-run success, got errors: %v", response.Errors)
+	}
+
+	// Preview should contain the new phase
+	if !strings.Contains(response.Preview, "## New Phase") {
+		t.Error("Expected preview to contain new phase header")
+	}
+
+	// Preview should contain the new task
+	if !strings.Contains(response.Preview, "Task in new phase") {
+		t.Error("Expected preview to contain new task")
+	}
+
+	// Original file should be unchanged
+	originalContent, err := os.ReadFile(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to read temp file: %v", err)
+	}
+	if strings.Contains(string(originalContent), "New Phase") {
+		t.Error("Original file should not be modified in dry-run mode")
+	}
+}
+
+// TestValidateOperation_AddPhase tests the validateOperation function for add-phase operations
+func TestValidateOperation_AddPhase(t *testing.T) {
+	tests := map[string]struct {
+		op        Operation
+		wantError bool
+		errMsg    string
+	}{
+		"valid phase name": {
+			op:        Operation{Type: "add-phase", Phase: "Planning"},
+			wantError: false,
+		},
+		"valid phase name with spaces": {
+			op:        Operation{Type: "add-phase", Phase: "Development and Testing"},
+			wantError: false,
+		},
+		"empty phase name": {
+			op:        Operation{Type: "add-phase", Phase: ""},
+			wantError: true,
+			errMsg:    "phase name cannot be empty",
+		},
+		"whitespace-only phase name": {
+			op:        Operation{Type: "add-phase", Phase: "   \t\n   "},
+			wantError: true,
+			errMsg:    "phase name cannot be empty",
+		},
+		"phase name with leading/trailing spaces": {
+			op:        Operation{Type: "add-phase", Phase: "  Valid Phase  "},
+			wantError: false,
+		},
+	}
+
+	tl := NewTaskList("Test")
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateOperation(tl, tc.op)
+			if tc.wantError {
+				if err == nil {
+					t.Errorf("Expected error containing '%s', got nil", tc.errMsg)
+				} else if !strings.Contains(err.Error(), tc.errMsg) {
+					t.Errorf("Expected error containing '%s', got '%s'", tc.errMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, got '%s'", err.Error())
+				}
+			}
+		})
+	}
+}

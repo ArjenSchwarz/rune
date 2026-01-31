@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Batch Add-Phase Operation**: Implement "add-phase" operation type for batch API
+  - Add `addPhaseOperation` constant and validation in batch operations
+  - Add execution logic in `applyOperationWithPhases` to create phase markers
+  - Route add-phase operations to phase-aware execution path in batch command
+  - Creates phase at end of document with correct AfterTaskID tracking
+  - Update batch command help text with add-phase operation type and usage example
+  - Update rune skill documentation with add-phase batch operation support
+  - Document add-phase in README.md batch operations section with example
+  - Trim whitespace from phase names in batch operations to match CLI behavior
+
+- **Batch Add-Phase Tests**: Unit and integration tests for add-phase batch operation
+  - Unit tests for add-phase validation (empty/whitespace names, duplicate phases)
+  - Unit tests for add-phase execution (single phase, multiple phases, with tasks)
+  - Unit tests for dry-run mode preview generation
+  - Integration tests for end-to-end add-phase batch workflow
+  - Tests verify phase creation, task assignment, and file structure integrity
+
+- **Batch Add-Phase Specification**: Spec for adding "add-phase" operation to batch API
+  - Smolspec with requirements, JSON format, and implementation approach
+  - Task list with 7 tasks across Implementation, Testing, and Documentation phases
+  - Enables agents to create phase headers through the batch JSON API
+
 ### Documentation
 
 - **skill/SKILL.md**: Add Claude Code skill for rune task management

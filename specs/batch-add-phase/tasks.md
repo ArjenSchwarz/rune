@@ -1,0 +1,25 @@
+---
+references:
+    - specs/batch-add-phase/smolspec.md
+---
+# Batch Add-Phase Operation
+
+## Implementation
+
+- [x] 1. Add add-phase operation constant and validation
+
+- [x] 2. Add execution logic in applyOperationWithPhases
+
+- [x] 3. Update batch command detection to route add-phase to phase-aware path
+
+## Testing
+
+- [x] 4. Add unit tests for add-phase validation and execution
+
+- [x] 5. Add integration test for add-phase in batch workflow
+
+## Documentation
+
+- [x] 6. Update batch command help text with add-phase example
+
+- [x] 7. Update rune skill documentation with add-phase batch operation
