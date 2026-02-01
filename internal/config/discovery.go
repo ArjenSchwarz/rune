@@ -12,9 +12,14 @@ import (
 )
 
 // DiscoverFileFromBranch discovers a task file based on the current git branch
-// and the configured template pattern. It tries multiple candidate paths:
-// first the stripped branch name (after last /), then the full branch name.
-// If both paths exist, the stripped path takes precedence.
+// and the configured template pattern. It strips the branch prefix (everything
+// before and including the first /) to extract the spec name:
+//   - "feature/my-feature" -> "my-feature"
+//   - "feature/sub/deep" -> "sub/deep"
+//   - "main" -> "main" (no change)
+//
+// It tries multiple candidate paths: first the stripped branch name, then the
+// full branch name. If both paths exist, the stripped path takes precedence.
 func DiscoverFileFromBranch(template string) (string, error) {
 	branch, err := getCurrentBranch()
 	if err != nil {
@@ -25,10 +30,12 @@ func DiscoverFileFromBranch(template string) (string, error) {
 		return "", fmt.Errorf("special git state detected: %s (please specify file explicitly)", branch)
 	}
 
-	// Strip everything before and including last slash
+	// Strip everything before and including first slash (branch prefix)
+	// e.g., "feature/my-feature" -> "my-feature"
+	// e.g., "feature/sub/deep" -> "sub/deep"
 	strippedBranch := branch
-	if lastSlash := strings.LastIndex(branch, "/"); lastSlash != -1 {
-		strippedBranch = branch[lastSlash+1:]
+	if _, after, found := strings.Cut(branch, "/"); found {
+		strippedBranch = after
 	}
 
 	// Try stripped name first, then full name
