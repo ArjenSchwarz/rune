@@ -586,13 +586,13 @@ Configuration is loaded in the following order of precedence:
 # Example configuration file
 discovery:
   enabled: true
-  template: "{branch}/tasks.md"
+  template: "specs/{branch}/tasks.md"
 ```
 
 **Configuration Options:**
 
 - `discovery.enabled` (boolean) - Enable/disable git branch-based file discovery (default: true)
-- `discovery.template` (string) - Path template for branch-based files (default: "{branch}/tasks.md")
+- `discovery.template` (string) - Path template for branch-based files (default: "specs/{branch}/tasks.md")
 
 ### Git Branch Discovery
 
@@ -600,13 +600,13 @@ When enabled, rune automatically discovers task files based on your current git 
 
 **Smart Branch Name Stripping:**
 
-rune intelligently strips branch prefixes to find task files. For branches with slashes, it tries the suffix (after the last `/`) first, then falls back to the full branch name:
+rune intelligently strips branch prefixes to find task files. For branches with slashes, it strips the prefix (everything before and including the first `/`) first, then falls back to the full branch name:
 
-- Branch `specs/my-feature` → tries `specs/my-feature/tasks.md` first, falls back to `specs/specs/my-feature/tasks.md`
-- Branch `feature/auth/oauth` → tries `specs/oauth/tasks.md` first, falls back to `specs/feature/auth/oauth/tasks.md`
+- Branch `feature/my-feature` → tries `specs/my-feature/tasks.md` first, falls back to `specs/feature/my-feature/tasks.md`
+- Branch `feature/auth/oauth` → tries `specs/auth/oauth/tasks.md` first, falls back to `specs/feature/auth/oauth/tasks.md`
 - Branch `main` → tries `specs/main/tasks.md` (no stripping needed)
 
-This allows branches like `specs/my-feature` to map directly to `specs/my-feature/tasks.md` without creating nested `specs/specs/` directories.
+This allows branches like `feature/my-feature` to map directly to `specs/my-feature/tasks.md` without including the branch prefix in the path.
 
 **Examples:**
 - Branch `feature/auth` with template `specs/{branch}/tasks.md` → `specs/auth/tasks.md` (or `specs/feature/auth/tasks.md` as fallback)
@@ -617,7 +617,7 @@ This allows branches like `specs/my-feature` to map directly to `specs/my-featur
 - Must be in a git repository
 - Git must be available in PATH
 - Target file must exist
-- Works with branch names containing slashes (suffix is tried first, then full name)
+- Works with branch names containing slashes (prefix is stripped first, then full name as fallback)
 
 **Special Cases:**
 - Detached HEAD: Requires explicit filename
@@ -628,7 +628,7 @@ This allows branches like `specs/my-feature` to map directly to `specs/my-featur
 
 If no configuration file exists, rune uses these defaults:
 - Git discovery enabled
-- Template: `{branch}/tasks.md`
+- Template: `specs/{branch}/tasks.md`
 
 ## File Format
 

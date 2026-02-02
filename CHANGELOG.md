@@ -15,10 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Smart Branch Discovery**: Change branch prefix stripping to use last slash instead of first
-  - Branch `feature/auth/oauth` now strips to `oauth` (previously `auth/oauth`)
-  - Allows deeper branch naming conventions to map to simple spec folder names
+- **Smart Branch Discovery**: Change branch prefix stripping to use first slash instead of last
+  - Branch `feature/auth/oauth` now strips to `auth/oauth` (previously `oauth`)
+  - Matches Orbit's spec detection behavior for consistent tooling
   - Full branch path is still tried as fallback for backward compatibility
+- **Default Discovery Template**: Change default template from `{branch}/tasks.md` to `specs/{branch}/tasks.md`
+  - Matches Orbit's convention of storing specs in `specs/` directory
+  - Users can override in `.rune.yml` or `~/.config/rune/config.yml`
 
 ### Added
 

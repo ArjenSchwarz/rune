@@ -71,7 +71,7 @@ func loadConfigFile(path string) (*Config, error) {
 
 	// Apply defaults for missing values
 	if cfg.Discovery.Template == "" {
-		cfg.Discovery.Template = "{branch}/tasks.md"
+		cfg.Discovery.Template = "specs/{branch}/tasks.md"
 	}
 
 	return &cfg, nil
@@ -82,7 +82,7 @@ func defaultConfig() *Config {
 	return &Config{
 		Discovery: GitDiscovery{
 			Enabled:  true,
-			Template: "{branch}/tasks.md",
+			Template: "specs/{branch}/tasks.md",
 		},
 	}
 }
