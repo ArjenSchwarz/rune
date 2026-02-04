@@ -1,6 +1,6 @@
 module github.com/arjenschwarz/rune
 
-go 1.25.0
+go 1.25
 
 require (
 	github.com/ArjenSchwarz/go-output/v2 v2.2.0
