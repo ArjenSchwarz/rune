@@ -66,31 +66,31 @@ references:
 
 ## Integration Tests
 
-- [ ] 10. Add integration test for stream-aware phase navigation <!-- id:dlv5hh1 -->
+- [x] 10. Add integration test for stream-aware phase navigation <!-- id:dlv5hh1 -->
   - File: cmd/integration_test.go - Test --phase --stream returns correct phase when earlier phases lack the stream
   - Blocked-by: dlv5hgw (Modify runNextPhase for stream-aware discovery)
   - Stream: 1
   - Requirements: [1.1](requirements.md#1.1), [2.1](requirements.md#2.1), [2.2](requirements.md#2.2)
 
-- [ ] 11. Add integration test for blocked tasks in output <!-- id:dlv5hh2 -->
+- [x] 11. Add integration test for blocked tasks in output <!-- id:dlv5hh2 -->
   - File: cmd/integration_test.go - Verify blocked tasks appear in output with blocking status and hierarchical IDs
   - Blocked-by: dlv5hgy (Add blocking status to JSON output), dlv5hgz (Add blocking status to table output), dlv5hh0 (Add blocking status to markdown output)
   - Stream: 2
   - Requirements: [1.3](requirements.md#1.3), [3.6](requirements.md#3.6)
 
-- [ ] 12. Add integration test for all stream tasks blocked skips phase <!-- id:dlv5hh3 -->
+- [x] 12. Add integration test for all stream tasks blocked skips phase <!-- id:dlv5hh3 -->
   - File: cmd/integration_test.go - Test phase with all stream tasks blocked is skipped
   - Blocked-by: dlv5hgw (Modify runNextPhase for stream-aware discovery)
   - Stream: 1
   - Requirements: [3.1](requirements.md#3.1), [3.2](requirements.md#3.2)
 
-- [ ] 13. Add integration test for claim with phase and stream <!-- id:dlv5hh4 -->
+- [x] 13. Add integration test for claim with phase and stream <!-- id:dlv5hh4 -->
   - File: cmd/integration_test.go - Test --phase --stream --claim only claims ready tasks
   - Blocked-by: dlv5hgx (Modify runNextWithClaim for phase+stream+claim)
   - Stream: 1
   - Requirements: [4.1](requirements.md#4.1), [4.2](requirements.md#4.2), [4.3](requirements.md#4.3)
 
-- [ ] 14. Add integration test for no phases returns error <!-- id:dlv5hh5 -->
+- [x] 14. Add integration test for no phases returns error <!-- id:dlv5hh5 -->
   - File: cmd/integration_test.go - Test --phase --stream with no H2 headers returns error
   - Blocked-by: dlv5hgw (Modify runNextPhase for stream-aware discovery)
   - Stream: 1

@@ -95,6 +95,31 @@ func TestIntegrationWorkflows(t *testing.T) {
 			description: "Test add-phase operation in batch workflow",
 			workflow:    testBatchAddPhaseOperations,
 		},
+		"stream_aware_phase_navigation": {
+			name:        "Stream-Aware Phase Navigation",
+			description: "Test --phase --stream returns correct phase when earlier phases lack the stream",
+			workflow:    testStreamAwarePhaseNavigation,
+		},
+		"blocked_tasks_in_output": {
+			name:        "Blocked Tasks in Output",
+			description: "Verify blocked tasks appear in output with blocking status and hierarchical IDs",
+			workflow:    testBlockedTasksInOutput,
+		},
+		"all_stream_tasks_blocked_skips_phase": {
+			name:        "All Stream Tasks Blocked Skips Phase",
+			description: "Test phase with all stream tasks blocked is skipped",
+			workflow:    testAllStreamTasksBlockedSkipsPhase,
+		},
+		"claim_with_phase_and_stream": {
+			name:        "Claim with Phase and Stream",
+			description: "Test --phase --stream --claim only claims ready tasks",
+			workflow:    testClaimWithPhaseAndStream,
+		},
+		"no_phases_returns_error": {
+			name:        "No Phases Returns Error",
+			description: "Test --phase --stream with no H2 headers returns error",
+			workflow:    testNoPhasesReturnsError,
+		},
 	}
 
 	for testName, tc := range tests {
@@ -1769,4 +1794,215 @@ func testBatchAddPhaseOperations(t *testing.T, tempDir string) {
 	})
 
 	t.Logf("Batch add-phase operations test passed successfully")
+}
+
+
+// testStreamAwarePhaseNavigation tests --phase --stream returns correct phase when earlier phases lack the stream
+func testStreamAwarePhaseNavigation(t *testing.T, tempDir string) {
+	filename := "tasks.md"
+
+	// Create file with multiple phases, stream 2 only in Phase B
+	content := `## Phase A
+- [ ] 1. Task A1
+  - Stream: 1
+
+## Phase B
+- [ ] 2. Task B1
+  - Stream: 1
+- [ ] 3. Task B2
+  - Stream: 2
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Test --phase --stream 2 should return Phase B
+	output := runGoCommand(t, "next", filename, "--phase", "--stream", "2", "--format", "json")
+	
+	if !strings.Contains(output, `"phase_name": "Phase B"`) {
+		t.Errorf("expected Phase B, got: %s", output)
+	}
+	if !strings.Contains(output, `"id": "3"`) {
+		t.Errorf("expected task 3, got: %s", output)
+	}
+	if strings.Contains(output, `"id": "2"`) {
+		t.Errorf("should not include task 2 (stream 1), got: %s", output)
+	}
+
+	t.Logf("Stream-aware phase navigation test passed")
+}
+
+// testBlockedTasksInOutput verifies blocked tasks appear in output with blocking status
+func testBlockedTasksInOutput(t *testing.T, tempDir string) {
+	filename := "tasks.md"
+
+	// Create file with blocked tasks
+	content := `## Phase A
+- [ ] 1. Task A1 <!-- id:abc1234 -->
+  - Stream: 2
+- [ ] 2. Task A2
+  - Stream: 2
+  - Blocked-by: abc1234 (Task A1)
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Test JSON output includes blocked field and blockedBy array
+	jsonOutput := runGoCommand(t, "next", filename, "--phase", "--stream", "2", "--format", "json")
+	
+	if !strings.Contains(jsonOutput, `"blocked": false`) {
+		t.Errorf("expected blocked: false for task 1, got: %s", jsonOutput)
+	}
+	if !strings.Contains(jsonOutput, `"blocked": true`) {
+		t.Errorf("expected blocked: true for task 2, got: %s", jsonOutput)
+	}
+	// Check for blockedBy array with task 1 (allow for whitespace variations)
+	if !strings.Contains(jsonOutput, `"blockedBy"`) || !strings.Contains(jsonOutput, `"1"`) {
+		t.Errorf("expected blockedBy with task 1 for task 2, got: %s", jsonOutput)
+	}
+
+	// Test table output includes blocking indicators
+	tableOutput := runGoCommand(t, "next", filename, "--phase", "--stream", "2")
+	
+	if !strings.Contains(tableOutput, "Pending (ready)") {
+		t.Errorf("expected 'Pending (ready)' in table output, got: %s", tableOutput)
+	}
+	if !strings.Contains(tableOutput, "Pending (blocked)") {
+		t.Errorf("expected 'Pending (blocked)' in table output, got: %s", tableOutput)
+	}
+
+	// Test markdown output includes blocking notation
+	markdownOutput := runGoCommand(t, "next", filename, "--phase", "--stream", "2", "--format", "markdown")
+	
+	if !strings.Contains(markdownOutput, "(blocked by: 1)") {
+		t.Errorf("expected '(blocked by: 1)' in markdown output, got: %s", markdownOutput)
+	}
+
+	t.Logf("Blocked tasks in output test passed")
+}
+
+// testAllStreamTasksBlockedSkipsPhase tests phase with all stream tasks blocked is skipped
+func testAllStreamTasksBlockedSkipsPhase(t *testing.T, tempDir string) {
+	filename := "tasks.md"
+
+	// Create file where Phase B has stream 2 but all are blocked
+	content := `## Phase A
+- [ ] 1. Task A1 <!-- id:abc1234 -->
+  - Stream: 1
+
+## Phase B
+- [ ] 2. Task B1
+  - Stream: 2
+  - Blocked-by: abc1234 (Task A1)
+
+## Phase C
+- [ ] 3. Task C1
+  - Stream: 2
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Test --phase --stream 2 should skip Phase B and return Phase C
+	output := runGoCommand(t, "next", filename, "--phase", "--stream", "2", "--format", "json")
+	
+	if !strings.Contains(output, `"phase_name": "Phase C"`) {
+		t.Errorf("expected Phase C, got: %s", output)
+	}
+	if !strings.Contains(output, `"id": "3"`) {
+		t.Errorf("expected task 3, got: %s", output)
+	}
+	if strings.Contains(output, `"id": "2"`) {
+		t.Errorf("should not include task 2 (blocked), got: %s", output)
+	}
+
+	t.Logf("All stream tasks blocked skips phase test passed")
+}
+
+// testClaimWithPhaseAndStream tests --phase --stream --claim only claims ready tasks
+func testClaimWithPhaseAndStream(t *testing.T, tempDir string) {
+	filename := "tasks.md"
+
+	// Create file with ready and blocked tasks in same phase
+	content := `# Tasks
+
+## Phase A
+- [ ] 1. Task A1 <!-- id:abc1234 -->
+  - Stream: 2
+- [ ] 2. Task A2
+  - Stream: 2
+  - Blocked-by: abc1234 (Task A1)
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Test --phase --stream --claim should only claim ready task (A1)
+	output := runGoCommand(t, "next", filename, "--phase", "--stream", "2", "--claim", "agent-1", "--format", "json")
+	
+	// Should only claim task 1 (ready), not task 2 (blocked)
+	if !strings.Contains(output, `"id": "1"`) {
+		t.Errorf("expected task 1 to be claimed, got: %s", output)
+	}
+	if strings.Contains(output, `"id": "2"`) {
+		t.Errorf("task 2 should not be claimed (blocked), got: %s", output)
+	}
+	if !strings.Contains(output, `"owner": "agent-1"`) {
+		t.Errorf("expected owner to be agent-1, got: %s", output)
+	}
+
+	// Verify file was updated
+	taskList, err := task.ParseFile(filename)
+	if err != nil {
+		t.Fatalf("failed to parse file: %v", err)
+	}
+
+	task1 := taskList.FindTask("1")
+	if task1 == nil {
+		t.Fatal("task 1 not found")
+	}
+	if task1.Status != task.InProgress {
+		t.Errorf("task 1 should be in-progress, got: %v", task1.Status)
+	}
+	if task1.Owner != "agent-1" {
+		t.Errorf("task 1 owner should be agent-1, got: %s", task1.Owner)
+	}
+
+	task2 := taskList.FindTask("2")
+	if task2 == nil {
+		t.Fatal("task 2 not found")
+	}
+	if task2.Status != task.Pending {
+		t.Errorf("task 2 should remain pending, got: %v", task2.Status)
+	}
+	if task2.Owner != "" {
+		t.Errorf("task 2 should have no owner, got: %s", task2.Owner)
+	}
+
+	t.Logf("Claim with phase and stream test passed")
+}
+
+// testNoPhasesReturnsError tests --phase --stream with no H2 headers returns error
+func testNoPhasesReturnsError(t *testing.T, tempDir string) {
+	filename := "tasks.md"
+
+	// Create file without phases (no H2 headers)
+	content := `- [ ] 1. Task 1
+  - Stream: 2
+- [ ] 2. Task 2
+  - Stream: 2
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Test --phase --stream should return error message
+	output := runGoCommandWithError(t, "next", filename, "--phase", "--stream", "2")
+	
+	if !strings.Contains(output, "No ready tasks found in stream 2") {
+		t.Errorf("expected 'No ready tasks found in stream 2' error, got: %s", output)
+	}
+
+	t.Logf("No phases returns error test passed")
 }
