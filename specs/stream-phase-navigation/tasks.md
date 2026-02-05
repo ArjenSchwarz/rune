@@ -33,13 +33,13 @@ references:
 
 ## Command Integration
 
-- [ ] 5. Modify runNextPhase for stream-aware discovery <!-- id:dlv5hgw -->
+- [x] 5. Modify runNextPhase for stream-aware discovery <!-- id:dlv5hgw -->
   - File: cmd/next.go - Add conditional: if streamFlag > 0 call FindNextPhaseTasksForStream else use existing behavior
   - Blocked-by: dlv5hgu (Implement FindNextPhaseTasksForStream function)
   - Stream: 1
   - Requirements: [1.1](requirements.md#1.1), [1.2](requirements.md#1.2), [2.1](requirements.md#2.1)
 
-- [ ] 6. Modify runNextWithClaim for phase+stream+claim <!-- id:dlv5hgx -->
+- [x] 6. Modify runNextWithClaim for phase+stream+claim <!-- id:dlv5hgx -->
   - File: cmd/next.go - Handle --phase --stream --claim: discover phase then claim only ready tasks
   - Blocked-by: dlv5hgw (Modify runNextPhase for stream-aware discovery)
   - Stream: 1

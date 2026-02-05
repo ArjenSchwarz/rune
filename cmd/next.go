@@ -67,17 +67,17 @@ func runNext(cmd *cobra.Command, args []string) error {
 		verboseStderr("Using task file: %s", filename)
 	}
 
-	// Handle phase mode
-	if phaseFlag {
-		return runNextPhase(filename)
-	}
-
-	// Handle claim mode (with or without stream)
+	// Handle claim mode (with or without phase/stream)
 	if claimFlag != "" {
 		return runNextWithClaim(filename)
 	}
 
-	// Handle stream filter mode (without claim)
+	// Handle phase mode (without claim)
+	if phaseFlag {
+		return runNextPhase(filename)
+	}
+
+	// Handle stream filter mode (without claim or phase)
 	if streamFlag > 0 {
 		return runNextWithStream(filename)
 	}
@@ -163,20 +163,42 @@ func runNextWithClaim(filename string) error {
 	// Build dependency index
 	index := task.BuildDependencyIndex(taskList.Tasks)
 
-	// Find ready tasks (pending, unblocked, unclaimed)
-	readyTasks := getReadyTasks(taskList.Tasks, index)
-
 	var taskIDsToClaim []string
 
-	if streamFlag > 0 {
-		// Claim all ready tasks in the specified stream
-		filteredTasks := task.FilterByStream(readyTasks, streamFlag)
-		for _, t := range filteredTasks {
-			taskIDsToClaim = append(taskIDsToClaim, t.ID)
+	// Handle --phase --stream --claim combination
+	if phaseFlag && streamFlag > 0 {
+		// Use stream-aware phase discovery
+		phaseResult, err := task.FindNextPhaseTasksForStream(filename, streamFlag)
+		if err != nil {
+			return fmt.Errorf("failed to find next phase tasks for stream %d: %w", streamFlag, err)
 		}
-	} else if len(readyTasks) > 0 {
-		// Claim only the single next ready task
-		taskIDsToClaim = append(taskIDsToClaim, readyTasks[0].ID)
+
+		if phaseResult == nil {
+			return outputClaimEmpty(streamFlag)
+		}
+
+		// Filter to only ready tasks (pending, no owner, not blocked)
+		for i := range phaseResult.Tasks {
+			t := &phaseResult.Tasks[i]
+			if t.Status == task.Pending && t.Owner == "" && !index.IsBlocked(t) {
+				taskIDsToClaim = append(taskIDsToClaim, t.ID)
+			}
+		}
+	} else {
+		// Existing behavior for other flag combinations
+		// Find ready tasks (pending, unblocked, unclaimed)
+		readyTasks := getReadyTasks(taskList.Tasks, index)
+
+		if streamFlag > 0 {
+			// Claim all ready tasks in the specified stream
+			filteredTasks := task.FilterByStream(readyTasks, streamFlag)
+			for _, t := range filteredTasks {
+				taskIDsToClaim = append(taskIDsToClaim, t.ID)
+			}
+		} else if len(readyTasks) > 0 {
+			// Claim only the single next ready task
+			taskIDsToClaim = append(taskIDsToClaim, readyTasks[0].ID)
+		}
 	}
 
 	if len(taskIDsToClaim) == 0 {
@@ -489,14 +511,29 @@ func renderTaskMarkdown(t *task.Task, indent string) string {
 
 // runNextPhase handles the --phase flag functionality
 func runNextPhase(filename string) error {
-	// Find next phase tasks
-	phaseResult, err := task.FindNextPhaseTasks(filename)
-	if err != nil {
-		return fmt.Errorf("failed to find next phase tasks: %w", err)
-	}
+	var phaseResult *task.PhaseTasksResult
+	var err error
 
-	if phaseResult == nil {
-		return outputNextPhaseEmpty("No pending tasks found in any phase!")
+	// Use stream-aware phase discovery if stream is specified
+	if streamFlag > 0 {
+		phaseResult, err = task.FindNextPhaseTasksForStream(filename, streamFlag)
+		if err != nil {
+			return fmt.Errorf("failed to find next phase tasks for stream %d: %w", streamFlag, err)
+		}
+
+		if phaseResult == nil {
+			return outputNextPhaseEmpty(fmt.Sprintf("No ready tasks found in stream %d", streamFlag))
+		}
+	} else {
+		// Use existing behavior for backward compatibility
+		phaseResult, err = task.FindNextPhaseTasks(filename)
+		if err != nil {
+			return fmt.Errorf("failed to find next phase tasks: %w", err)
+		}
+
+		if phaseResult == nil {
+			return outputNextPhaseEmpty("No pending tasks found in any phase!")
+		}
 	}
 
 	// Parse file for front matter and building dependency index
@@ -508,18 +545,13 @@ func runNextPhase(filename string) error {
 	// Build dependency index
 	index := task.BuildDependencyIndex(taskList.Tasks)
 
-	// Filter by stream if specified
-	if streamFlag > 0 {
-		filteredTasks := filterTasksByStream(phaseResult.Tasks, streamFlag)
-		if len(filteredTasks) == 0 {
-			return outputNextPhaseEmpty(fmt.Sprintf("No pending tasks found in stream %d", streamFlag))
-		}
-		phaseResult.Tasks = filteredTasks
-	}
-
 	if verbose {
 		if phaseResult.PhaseName != "" {
-			verboseStderr("Found %d pending tasks in phase '%s'", len(phaseResult.Tasks), phaseResult.PhaseName)
+			if streamFlag > 0 {
+				verboseStderr("Found %d tasks in stream %d from phase '%s'", len(phaseResult.Tasks), streamFlag, phaseResult.PhaseName)
+			} else {
+				verboseStderr("Found %d pending tasks in phase '%s'", len(phaseResult.Tasks), phaseResult.PhaseName)
+			}
 		} else {
 			verboseStderr("Found %d pending tasks (no phases in document)", len(phaseResult.Tasks))
 		}
