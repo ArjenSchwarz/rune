@@ -8,24 +8,24 @@ references:
 
 ## Core Implementation
 
-- [ ] 1. Add hasReadyTaskInStream helper function <!-- id:dlv5hgs -->
+- [x] 1. Add hasReadyTaskInStream helper function <!-- id:dlv5hgs -->
   - File: internal/task/next.go - Implement helper that checks if any task in a stream is ready (pending + no owner + not blocked)
   - Stream: 1
   - Requirements: [3.1](requirements.md#3.1), [3.3](requirements.md#3.3)
 
-- [ ] 2. Add unit tests for hasReadyTaskInStream <!-- id:dlv5hgt -->
+- [x] 2. Add unit tests for hasReadyTaskInStream <!-- id:dlv5hgt -->
   - File: internal/task/next_test.go - Test hasReadyTaskInStream with various task states
   - Blocked-by: dlv5hgs (Add hasReadyTaskInStream helper function)
   - Stream: 1
   - Requirements: [3.1](requirements.md#3.1)
 
-- [ ] 3. Implement FindNextPhaseTasksForStream function <!-- id:dlv5hgu -->
+- [x] 3. Implement FindNextPhaseTasksForStream function <!-- id:dlv5hgu -->
   - File: internal/task/next.go - Find first phase with ready stream N tasks and return all stream N tasks from that phase
   - Blocked-by: dlv5hgs (Add hasReadyTaskInStream helper function)
   - Stream: 1
   - Requirements: [1.1](requirements.md#1.1), [1.3](requirements.md#1.3), [1.4](requirements.md#1.4), [1.5](requirements.md#1.5), [1.6](requirements.md#1.6), [1.7](requirements.md#1.7), [3.2](requirements.md#3.2)
 
-- [ ] 4. Add unit tests for FindNextPhaseTasksForStream <!-- id:dlv5hgv -->
+- [x] 4. Add unit tests for FindNextPhaseTasksForStream <!-- id:dlv5hgv -->
   - File: internal/task/next_test.go - Test phase discovery with various stream and blocking scenarios
   - Blocked-by: dlv5hgu (Implement FindNextPhaseTasksForStream function)
   - Stream: 1
