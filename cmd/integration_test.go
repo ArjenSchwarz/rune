@@ -120,6 +120,16 @@ func TestIntegrationWorkflows(t *testing.T) {
 			description: "Test --phase --stream with no H2 headers returns error",
 			workflow:    testNoPhasesReturnsError,
 		},
+		"verify_existing_phase_behavior": {
+			name:        "Verify Existing Phase Behavior",
+			description: "Verify --phase alone returns first phase with any pending tasks",
+			workflow:    testVerifyExistingPhaseBehavior,
+		},
+		"verify_existing_stream_behavior": {
+			name:        "Verify Existing Stream Behavior",
+			description: "Verify --stream without --phase returns first ready task ignoring phases",
+			workflow:    testVerifyExistingStreamBehavior,
+		},
 	}
 
 	for testName, tc := range tests {
@@ -2005,4 +2015,101 @@ func testNoPhasesReturnsError(t *testing.T, tempDir string) {
 	}
 
 	t.Logf("No phases returns error test passed")
+}
+
+
+// testVerifyExistingPhaseBehavior verifies --phase alone returns first phase with any pending tasks
+func testVerifyExistingPhaseBehavior(t *testing.T, tempDir string) {
+	filename := "tasks.md"
+
+	// Create file with multiple phases, first phase has pending tasks
+	content := `## Phase A
+- [x] 1. Task A1 (completed)
+  - Stream: 1
+- [ ] 2. Task A2 (pending)
+  - Stream: 1
+
+## Phase B
+- [ ] 3. Task B1
+  - Stream: 2
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Test --phase (without --stream) should return Phase A (first phase with pending tasks)
+	output := runGoCommand(t, "next", filename, "--phase", "--format", "json")
+	
+	if !strings.Contains(output, `"phase_name": "Phase A"`) {
+		t.Errorf("expected Phase A, got: %s", output)
+	}
+	// Should include both tasks from Phase A (completed and pending)
+	if !strings.Contains(output, `"id": "2"`) {
+		t.Errorf("expected task 2, got: %s", output)
+	}
+
+	// Create file where first phase is all completed
+	content2 := `## Phase A
+- [x] 1. Task A1
+  - Stream: 1
+
+## Phase B
+- [ ] 2. Task B1
+  - Stream: 2
+`
+	if err := os.WriteFile(filename, []byte(content2), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Test --phase should skip completed Phase A and return Phase B
+	output2 := runGoCommand(t, "next", filename, "--phase", "--format", "json")
+	
+	if !strings.Contains(output2, `"phase_name": "Phase B"`) {
+		t.Errorf("expected Phase B, got: %s", output2)
+	}
+	if !strings.Contains(output2, `"id": "2"`) {
+		t.Errorf("expected task 2, got: %s", output2)
+	}
+
+	t.Logf("Existing phase behavior verification passed")
+}
+
+// testVerifyExistingStreamBehavior verifies --stream without --phase returns first ready task ignoring phases
+func testVerifyExistingStreamBehavior(t *testing.T, tempDir string) {
+	filename := "tasks.md"
+
+	// Create file with phases and stream tasks
+	content := `## Phase A
+- [ ] 1. Task A1 <!-- id:abc1234 -->
+  - Stream: 1
+
+## Phase B
+- [ ] 2. Task B1
+  - Stream: 2
+  - Blocked-by: abc1234 (Task A1)
+- [ ] 3. Task B2
+  - Stream: 2
+`
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Test --stream 2 (without --phase) should return first ready task in stream 2
+	// Task B1 is blocked, so should return Task B2
+	output := runGoCommand(t, "next", filename, "--stream", "2", "--format", "json")
+	
+	// Should return single task (not all tasks from phase)
+	if !strings.Contains(output, `"id": "3"`) {
+		t.Errorf("expected task 3 (first ready in stream 2), got: %s", output)
+	}
+	// Should not include blocked task
+	if strings.Contains(output, `"id": "2"`) {
+		t.Errorf("should not include task 2 (blocked), got: %s", output)
+	}
+	// Should not have phase_name in output (not using --phase)
+	if strings.Contains(output, `"phase_name"`) {
+		t.Errorf("should not include phase_name without --phase flag, got: %s", output)
+	}
+
+	t.Logf("Existing stream behavior verification passed")
 }

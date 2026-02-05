@@ -98,13 +98,13 @@ references:
 
 ## Backward Compatibility Verification
 
-- [ ] 15. Verify existing next --phase behavior unchanged <!-- id:dlv5hh6 -->
+- [x] 15. Verify existing next --phase behavior unchanged <!-- id:dlv5hh6 -->
   - File: cmd/integration_test.go - Verify --phase alone returns first phase with any pending tasks
   - Blocked-by: dlv5hgw (Modify runNextPhase for stream-aware discovery)
   - Stream: 1
   - Requirements: [2.1](requirements.md#2.1), [2.3](requirements.md#2.3)
 
-- [ ] 16. Verify existing next --stream behavior unchanged <!-- id:dlv5hh7 -->
+- [x] 16. Verify existing next --stream behavior unchanged <!-- id:dlv5hh7 -->
   - File: cmd/integration_test.go - Verify --stream without --phase returns first ready task ignoring phases
   - Blocked-by: dlv5hgw (Modify runNextPhase for stream-aware discovery)
   - Stream: 1
