@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Stream-Aware Phase Navigation**: Implement `next --phase --stream N` to find first phase with ready stream N tasks
+  - Add `FindNextPhaseTasksForStream` function to find phases with ready tasks in specified stream
+  - Add `hasReadyTaskInStream` helper to check for ready (pending + no owner + not blocked) tasks
+  - Integrate stream-aware discovery into `runNextPhase` when both flags are specified
+  - Integrate stream-aware discovery into `runNextWithClaim` for `--phase --stream --claim` combination
+  - Add blocking status indicators to all output formats:
+    - JSON: `blocked` boolean and `blockedBy` array with hierarchical task IDs
+    - Table: "(ready)" or "(blocked)" status indicators
+    - Markdown: "(blocked by: N)" notation with hierarchical IDs
+  - Maintain backward compatibility: existing `--phase` and `--stream` behaviors unchanged
+  - Add 7 integration tests covering stream-aware navigation, blocked tasks, claim operations, and backward compatibility
+  - Add comprehensive unit tests for new functions with map-based test tables
+  - Update README.md with `--phase --stream` examples and behavior documentation
+
 - **Stream-Aware Phase Navigation Specification**: Complete spec for improving `next --phase --stream N` behavior
   - Requirements document with 5 user stories and 24 acceptance criteria covering stream-aware phase discovery, backward compatibility, dependency-aware selection, claim integration, and output consistency
   - Design document with architecture diagrams, component interfaces, data models, error handling, and testing strategy

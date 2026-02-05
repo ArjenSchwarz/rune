@@ -1806,7 +1806,6 @@ func testBatchAddPhaseOperations(t *testing.T, tempDir string) {
 	t.Logf("Batch add-phase operations test passed successfully")
 }
 
-
 // testStreamAwarePhaseNavigation tests --phase --stream returns correct phase when earlier phases lack the stream
 func testStreamAwarePhaseNavigation(t *testing.T, tempDir string) {
 	filename := "tasks.md"
@@ -1828,7 +1827,7 @@ func testStreamAwarePhaseNavigation(t *testing.T, tempDir string) {
 
 	// Test --phase --stream 2 should return Phase B
 	output := runGoCommand(t, "next", filename, "--phase", "--stream", "2", "--format", "json")
-	
+
 	if !strings.Contains(output, `"phase_name": "Phase B"`) {
 		t.Errorf("expected Phase B, got: %s", output)
 	}
@@ -1860,7 +1859,7 @@ func testBlockedTasksInOutput(t *testing.T, tempDir string) {
 
 	// Test JSON output includes blocked field and blockedBy array
 	jsonOutput := runGoCommand(t, "next", filename, "--phase", "--stream", "2", "--format", "json")
-	
+
 	if !strings.Contains(jsonOutput, `"blocked": false`) {
 		t.Errorf("expected blocked: false for task 1, got: %s", jsonOutput)
 	}
@@ -1874,7 +1873,7 @@ func testBlockedTasksInOutput(t *testing.T, tempDir string) {
 
 	// Test table output includes blocking indicators
 	tableOutput := runGoCommand(t, "next", filename, "--phase", "--stream", "2")
-	
+
 	if !strings.Contains(tableOutput, "Pending (ready)") {
 		t.Errorf("expected 'Pending (ready)' in table output, got: %s", tableOutput)
 	}
@@ -1884,7 +1883,7 @@ func testBlockedTasksInOutput(t *testing.T, tempDir string) {
 
 	// Test markdown output includes blocking notation
 	markdownOutput := runGoCommand(t, "next", filename, "--phase", "--stream", "2", "--format", "markdown")
-	
+
 	if !strings.Contains(markdownOutput, "(blocked by: 1)") {
 		t.Errorf("expected '(blocked by: 1)' in markdown output, got: %s", markdownOutput)
 	}
@@ -1916,7 +1915,7 @@ func testAllStreamTasksBlockedSkipsPhase(t *testing.T, tempDir string) {
 
 	// Test --phase --stream 2 should skip Phase B and return Phase C
 	output := runGoCommand(t, "next", filename, "--phase", "--stream", "2", "--format", "json")
-	
+
 	if !strings.Contains(output, `"phase_name": "Phase C"`) {
 		t.Errorf("expected Phase C, got: %s", output)
 	}
@@ -1950,7 +1949,7 @@ func testClaimWithPhaseAndStream(t *testing.T, tempDir string) {
 
 	// Test --phase --stream --claim should only claim ready task (A1)
 	output := runGoCommand(t, "next", filename, "--phase", "--stream", "2", "--claim", "agent-1", "--format", "json")
-	
+
 	// Should only claim task 1 (ready), not task 2 (blocked)
 	if !strings.Contains(output, `"id": "1"`) {
 		t.Errorf("expected task 1 to be claimed, got: %s", output)
@@ -2009,14 +2008,13 @@ func testNoPhasesReturnsError(t *testing.T, tempDir string) {
 
 	// Test --phase --stream should return error message
 	output := runGoCommandWithError(t, "next", filename, "--phase", "--stream", "2")
-	
+
 	if !strings.Contains(output, "No ready tasks found in stream 2") {
 		t.Errorf("expected 'No ready tasks found in stream 2' error, got: %s", output)
 	}
 
 	t.Logf("No phases returns error test passed")
 }
-
 
 // testVerifyExistingPhaseBehavior verifies --phase alone returns first phase with any pending tasks
 func testVerifyExistingPhaseBehavior(t *testing.T, tempDir string) {
@@ -2039,7 +2037,7 @@ func testVerifyExistingPhaseBehavior(t *testing.T, tempDir string) {
 
 	// Test --phase (without --stream) should return Phase A (first phase with pending tasks)
 	output := runGoCommand(t, "next", filename, "--phase", "--format", "json")
-	
+
 	if !strings.Contains(output, `"phase_name": "Phase A"`) {
 		t.Errorf("expected Phase A, got: %s", output)
 	}
@@ -2063,7 +2061,7 @@ func testVerifyExistingPhaseBehavior(t *testing.T, tempDir string) {
 
 	// Test --phase should skip completed Phase A and return Phase B
 	output2 := runGoCommand(t, "next", filename, "--phase", "--format", "json")
-	
+
 	if !strings.Contains(output2, `"phase_name": "Phase B"`) {
 		t.Errorf("expected Phase B, got: %s", output2)
 	}
@@ -2097,7 +2095,7 @@ func testVerifyExistingStreamBehavior(t *testing.T, tempDir string) {
 	// Test --stream 2 (without --phase) should return first ready task in stream 2
 	// Task B1 is blocked, so should return Task B2
 	output := runGoCommand(t, "next", filename, "--stream", "2", "--format", "json")
-	
+
 	// Should return single task (not all tasks from phase)
 	if !strings.Contains(output, `"id": "3"`) {
 		t.Errorf("expected task 3 (first ready in stream 2), got: %s", output)

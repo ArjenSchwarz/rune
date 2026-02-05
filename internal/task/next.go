@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const frontMatterDelimiter = "---"
+
 // TaskWithContext represents a task along with its incomplete children
 type TaskWithContext struct {
 	*Task
@@ -109,12 +111,12 @@ func FindNextPhaseTasks(filepath string) (*PhaseTasksResult, error) {
 	lines := strings.Split(string(content), "\n")
 
 	// Skip front matter if present
-	if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
+	if strings.HasPrefix(strings.TrimSpace(string(content)), frontMatterDelimiter) {
 		inFrontMatter := false
 		frontMatterCount := 0
 		newLines := []string{}
 		for _, line := range lines {
-			if strings.TrimSpace(line) == "---" {
+			if strings.TrimSpace(line) == frontMatterDelimiter {
 				frontMatterCount++
 				if frontMatterCount == 2 {
 					inFrontMatter = false
@@ -298,12 +300,12 @@ func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult
 	lines := strings.Split(string(content), "\n")
 
 	// Skip front matter if present
-	if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
+	if strings.HasPrefix(strings.TrimSpace(string(content)), frontMatterDelimiter) {
 		inFrontMatter := false
 		frontMatterCount := 0
 		newLines := []string{}
 		for _, line := range lines {
-			if strings.TrimSpace(line) == "---" {
+			if strings.TrimSpace(line) == frontMatterDelimiter {
 				frontMatterCount++
 				if frontMatterCount == 2 {
 					inFrontMatter = false
