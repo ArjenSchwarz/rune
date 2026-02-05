@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Skill Documentation Optimization**: Reduce skill token usage from ~5k to ~1.5k tokens
+  - Consolidate command reference into compact format
+  - Move verbose batch examples to `references/patterns.md`
+  - Add error handling section and git config example
+  - Document `add-phase` batch operation type
+
 ### Added
 
 - **Install Target**: Add `make install` target to Makefile for installing rune binary to $GOPATH/bin
