@@ -47,18 +47,18 @@ references:
 
 ## Output Enhancements
 
-- [ ] 7. Add blocking status to JSON output <!-- id:dlv5hgy -->
+- [x] 7. Add blocking status to JSON output <!-- id:dlv5hgy -->
   - File: cmd/next.go - Add blocked boolean and blockedBy array (hierarchical IDs) to JSON output
   - Stream: 2
   - Requirements: [3.6](requirements.md#3.6), [5.2](requirements.md#5.2), [5.3](requirements.md#5.3)
 
-- [ ] 8. Add blocking status to table output <!-- id:dlv5hgz -->
+- [x] 8. Add blocking status to table output <!-- id:dlv5hgz -->
   - File: cmd/next.go - Show (ready) or (blocked) indicator in table Status column
   - Blocked-by: dlv5hgy (Add blocking status to JSON output)
   - Stream: 2
   - Requirements: [3.6](requirements.md#3.6), [5.4](requirements.md#5.4)
 
-- [ ] 9. Add blocking status to markdown output <!-- id:dlv5hh0 -->
+- [x] 9. Add blocking status to markdown output <!-- id:dlv5hh0 -->
   - File: cmd/next.go - Add (blocked by: N) notation for blocked tasks in markdown output
   - Blocked-by: dlv5hgy (Add blocking status to JSON output)
   - Stream: 2
