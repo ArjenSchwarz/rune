@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Claude Code Settings**: Add `.claude/settings.json` with session start hook and Go development permissions
+  - Session start hook for remote configuration synchronization
+  - Bash permissions for git, make, go, golangci-lint, staticcheck, and govulncheck commands
+
 ### Changed
 
 - **Skill Documentation Optimization**: Reduce skill token usage from ~5k to ~1.5k tokens
