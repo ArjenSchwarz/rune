@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Stream-Aware Phase Navigation Specification**: Complete spec for improving `next --phase --stream N` behavior
+  - Requirements document with 5 user stories and 24 acceptance criteria covering stream-aware phase discovery, backward compatibility, dependency-aware selection, claim integration, and output consistency
+  - Design document with architecture diagrams, component interfaces, data models, error handling, and testing strategy
+  - Decision log with 5 key decisions (phase selection algorithm, backward compatibility, dependency handling, no verbose skip info, return all stream tasks including blocked)
+  - Implementation task list with 16 tasks across 2 parallel work streams
+
 - **Claude Code Settings**: Add `.claude/settings.json` with session start hook and Go development permissions
   - Session start hook for remote configuration synchronization
   - Bash permissions for git, make, go, golangci-lint, staticcheck, and govulncheck commands
