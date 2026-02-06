@@ -23,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add comprehensive unit tests for new functions with map-based test tables
   - Update README.md with `--phase --stream` examples and behavior documentation
 
+- **Stream-Aware Phase Navigation Implementation Docs**: Add multi-level implementation explanation with completeness assessment
+
+### Removed
+
+- Dead `outputPhaseTasksJSON` function superseded by `outputPhaseTasksJSONWithStreams`
+
+### Added
+
 - **Stream-Aware Phase Navigation Specification**: Complete spec for improving `next --phase --stream N` behavior
   - Requirements document with 5 user stories and 24 acceptance criteria covering stream-aware phase discovery, backward compatibility, dependency-aware selection, claim integration, and output consistency
   - Design document with architecture diagrams, component interfaces, data models, error handling, and testing strategy
