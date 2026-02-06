@@ -1171,6 +1171,270 @@ func TestNextCommandPhaseWithStreamInfo(t *testing.T) {
 	}
 }
 
+func TestNextCommandPhaseTableShowsReadyAndBlockedStatus(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-phase-table-blocked-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+
+	const taskFile = "phase-table-blocked.md"
+	content := `# Project Tasks
+
+## Phase 1
+- [ ] 1. Ready task <!-- id:abc1234 -->
+
+- [ ] 2. Blocked task <!-- id:def5678 -->
+  - Blocked-by: abc1234 (Ready task)
+`
+
+	if err := os.WriteFile(taskFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", taskFile, "--phase", "--format", "table"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(output, "Pending (ready)") {
+		t.Fatalf("expected ready indicator in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Pending (blocked)") {
+		t.Fatalf("expected blocked indicator in output, got: %s", output)
+	}
+}
+
+func TestNextCommandPhaseMarkdownShowsBlockedByNotation(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-phase-markdown-blocked-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+
+	const taskFile = "phase-markdown-blocked.md"
+	content := `# Project Tasks
+
+## Phase 1
+- [ ] 1. Ready task <!-- id:abc1234 -->
+
+- [ ] 2. Blocked task <!-- id:def5678 -->
+  - Blocked-by: abc1234 (Ready task)
+`
+
+	if err := os.WriteFile(taskFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", taskFile, "--phase", "--format", "markdown"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(output, "- [ ] 1. Ready task") {
+		t.Fatalf("expected ready task in output, got: %s", output)
+	}
+	if !strings.Contains(output, "- [ ] 2. Blocked task (blocked by: 1)") {
+		t.Fatalf("expected blocked-by notation in output, got: %s", output)
+	}
+}
+
+func TestNextCommandPhaseStreamSelectsFirstPhaseWithReadyStreamTasks(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-phase-stream-select-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+
+	const taskFile = "phase-stream-selection.md"
+	content := `# Project Tasks
+
+## Phase A
+- [ ] 1. External blocker <!-- id:aaa0001 -->
+  - Stream: 1
+
+## Phase B
+- [ ] 2. Stream 2 blocked <!-- id:bbb0002 -->
+  - Stream: 2
+  - Blocked-by: aaa0001 (External blocker)
+
+## Phase C
+- [ ] 3. Stream 2 ready <!-- id:ccc0003 -->
+  - Stream: 2
+- [ ] 4. Stream 2 blocked in selected phase <!-- id:ddd0004 -->
+  - Stream: 2
+  - Blocked-by: ccc0003 (Stream 2 ready)
+`
+
+	if err := os.WriteFile(taskFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", taskFile, "--phase", "--stream", "2", "--format", "json"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(output, `"phase_name": "Phase C"`) {
+		t.Fatalf("expected phase C in output, got: %s", output)
+	}
+	if !strings.Contains(output, `"id": "3"`) || !strings.Contains(output, `"id": "4"`) {
+		t.Fatalf("expected stream 2 tasks from selected phase, got: %s", output)
+	}
+	if strings.Contains(output, `"id": "2"`) {
+		t.Fatalf("did not expect blocked-only prior phase task in output, got: %s", output)
+	}
+}
+
+func TestNextCommandPhaseStreamClaimClaimsOnlyReadyTasksFromSelectedPhase(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-phase-stream-claim-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+
+	const taskFile = "phase-stream-claim.md"
+	content := `# Project Tasks
+
+## Phase A
+- [ ] 1. External blocker <!-- id:aaa0001 -->
+  - Stream: 1
+
+## Phase B
+- [ ] 2. Stream 2 blocked <!-- id:bbb0002 -->
+  - Stream: 2
+  - Blocked-by: aaa0001 (External blocker)
+
+## Phase C
+- [ ] 3. Stream 2 ready <!-- id:ccc0003 -->
+  - Stream: 2
+- [ ] 4. Stream 2 blocked in selected phase <!-- id:ddd0004 -->
+  - Stream: 2
+  - Blocked-by: ccc0003 (Stream 2 ready)
+
+## Phase D
+- [ ] 5. Later phase stream 2 ready <!-- id:eee0005 -->
+  - Stream: 2
+`
+
+	if err := os.WriteFile(taskFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", taskFile, "--phase", "--stream", "2", "--claim", "agent-1", "--format", "json"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(output, `"count": 1`) || !strings.Contains(output, `"id": "3"`) {
+		t.Fatalf("expected only task 3 claimed, got: %s", output)
+	}
+	if strings.Contains(output, `"id": "4"`) || strings.Contains(output, `"id": "5"`) {
+		t.Fatalf("did not expect blocked or later-phase tasks to be claimed, got: %s", output)
+	}
+
+	fileContent, err := os.ReadFile(taskFile)
+	if err != nil {
+		t.Fatalf("failed to read task file after claim: %v", err)
+	}
+
+	updated := string(fileContent)
+	if !strings.Contains(updated, "- [-] 3. Stream 2 ready") || !strings.Contains(updated, "Owner: agent-1") {
+		t.Fatalf("expected task 3 to be in-progress and owned after claim, got: %s", updated)
+	}
+	if strings.Contains(updated, "- [-] 5. Later phase stream 2 ready") {
+		t.Fatalf("did not expect later phase task to be claimed, got: %s", updated)
+	}
+}
+
 func TestNextCommandNoReadyTasks(t *testing.T) {
 	// Create temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "rune-next-no-ready-test")

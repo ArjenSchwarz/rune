@@ -321,11 +321,17 @@ rune next tasks.md --phase
 # Get next ready task from stream 2
 rune next tasks.md --stream 2
 
+# Get all stream 2 tasks from first phase with ready stream 2 work
+rune next tasks.md --phase --stream 2
+
 # Claim the single next ready task
 rune next tasks.md --claim "agent-1"
 
 # Claim all ready tasks in stream 2
 rune next tasks.md --stream 2 --claim "agent-1"
+
+# Claim all ready stream 2 tasks from appropriate phase
+rune next tasks.md --phase --stream 2 --claim "agent-1"
 
 # Output in JSON format
 rune next --format json
@@ -340,8 +346,10 @@ rune next --format markdown
 - Only returns "ready" tasks when dependencies exist (all blockers completed)
 - With `--phase` flag, returns all pending tasks from the first phase containing incomplete work
 - With `--stream N` flag, filters to tasks assigned to stream N
+- With `--phase --stream N` together, finds the first phase with ready stream N tasks and returns all stream N tasks from that phase (including blocked tasks with blocking status)
 - With `--claim AGENT_ID` flag, claims the task by setting status to in-progress and owner
 - With `--stream N --claim AGENT_ID` together, claims ALL ready tasks in stream N
+- With `--phase --stream N --claim AGENT_ID` together, claims all ready stream N tasks from the appropriate phase
 - Includes task details and references in the output
 - Supports git branch-based file discovery when configured
 
