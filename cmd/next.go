@@ -67,6 +67,11 @@ func runNext(cmd *cobra.Command, args []string) error {
 		verboseStderr("Using task file: %s", filename)
 	}
 
+	// Validate stream flag early
+	if streamFlag < 0 {
+		return fmt.Errorf("stream must be non-negative, got %d", streamFlag)
+	}
+
 	// Handle claim mode (with or without phase/stream)
 	if claimFlag != "" {
 		return runNextWithClaim(filename)

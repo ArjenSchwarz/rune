@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add comprehensive unit tests for new functions with map-based test tables
   - Update README.md with `--phase --stream` examples and behavior documentation
 
+### Fixed
+
+- **Next Command Stream Validation**: Add early input validation for negative `--stream` flag values with clear error message
+
+### Added
+
 - **Stream-Aware Phase Navigation Implementation Docs**: Add multi-level implementation explanation with completeness assessment
 
 ### Removed
