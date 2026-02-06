@@ -165,9 +165,9 @@ func runNextWithClaim(filename string) error {
 
 	var taskIDsToClaim []string
 
-	// Handle --phase --stream --claim combination
-	if phaseFlag && streamFlag > 0 {
-		// Use stream-aware phase discovery
+	switch {
+	case phaseFlag && streamFlag > 0:
+		// Handle --phase --stream --claim combination
 		phaseResult, err := task.FindNextPhaseTasksForStream(filename, streamFlag)
 		if err != nil {
 			return fmt.Errorf("failed to find next phase tasks for stream %d: %w", streamFlag, err)
@@ -184,19 +184,17 @@ func runNextWithClaim(filename string) error {
 				taskIDsToClaim = append(taskIDsToClaim, t.ID)
 			}
 		}
-	} else {
-		// Existing behavior for other flag combinations
-		// Find ready tasks (pending, unblocked, unclaimed)
+	case streamFlag > 0:
+		// Claim all ready tasks in the specified stream
 		readyTasks := getReadyTasks(taskList.Tasks, index)
-
-		if streamFlag > 0 {
-			// Claim all ready tasks in the specified stream
-			filteredTasks := task.FilterByStream(readyTasks, streamFlag)
-			for _, t := range filteredTasks {
-				taskIDsToClaim = append(taskIDsToClaim, t.ID)
-			}
-		} else if len(readyTasks) > 0 {
-			// Claim only the single next ready task
+		filteredTasks := task.FilterByStream(readyTasks, streamFlag)
+		for _, t := range filteredTasks {
+			taskIDsToClaim = append(taskIDsToClaim, t.ID)
+		}
+	default:
+		// Claim only the single next ready task
+		readyTasks := getReadyTasks(taskList.Tasks, index)
+		if len(readyTasks) > 0 {
 			taskIDsToClaim = append(taskIDsToClaim, readyTasks[0].ID)
 		}
 	}
@@ -568,17 +566,6 @@ func runNextPhase(filename string) error {
 	}
 }
 
-// filterTasksByStream filters tasks by stream number
-func filterTasksByStream(tasks []task.Task, stream int) []task.Task {
-	var filtered []task.Task
-	for _, t := range tasks {
-		if task.GetEffectiveStream(&t) == stream {
-			filtered = append(filtered, t)
-		}
-	}
-	return filtered
-}
-
 // outputPhaseTasksTable renders phase tasks in table format
 func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter, index *task.DependencyIndex) error {
 	// Build task data for display
@@ -586,18 +573,10 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 
 	// Add all tasks from the phase
 	for _, t := range phaseResult.Tasks {
-		status := formatStatus(t.Status)
-		// Add blocking indicator if task is blocked
-		if index != nil && index.IsBlocked(&t) {
-			status += " (blocked)"
-		} else if t.Status == task.Pending && t.Owner == "" {
-			status += " (ready)"
-		}
-
 		taskRecord := map[string]any{
 			"ID":     t.ID,
 			"Title":  t.Title,
-			"Status": status,
+			"Status": formatStatusWithBlocking(&t, index),
 			"Level":  getTaskLevel(t.ID),
 		}
 		if phaseResult.PhaseName != "" {
@@ -606,7 +585,7 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 		taskData = append(taskData, taskRecord)
 
 		// Add all children (incomplete and complete for context)
-		addAllChildrenToData(&t, &taskData, phaseResult.PhaseName)
+		addAllChildrenToData(&t, &taskData, phaseResult.PhaseName, index)
 	}
 
 	// Create table document
@@ -647,59 +626,80 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 
 // outputPhaseTasksMarkdown renders phase tasks in markdown format
 func outputPhaseTasksMarkdown(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter, index *task.DependencyIndex) error {
-	var result string
+	var result strings.Builder
 
 	// Add header
 	if phaseResult.PhaseName != "" {
-		result += fmt.Sprintf("# Next Phase Tasks (%s)\n\n", phaseResult.PhaseName)
+		fmt.Fprintf(&result, "# Next Phase Tasks (%s)\n\n", phaseResult.PhaseName)
 	} else {
-		result += "# Next Phase Tasks\n\n"
+		result.WriteString("# Next Phase Tasks\n\n")
 	}
 
 	// Add all tasks from the phase
 	for _, t := range phaseResult.Tasks {
-		result += fmt.Sprintf("- %s %s. %s",
-			formatStatusMarkdown(t.Status), t.ID, t.Title)
-
-		// Add blocking notation if task is blocked
-		if index != nil && index.IsBlocked(&t) {
-			blockedByHierarchical := index.TranslateToHierarchical(t.BlockedBy)
-			if len(blockedByHierarchical) > 0 {
-				result += fmt.Sprintf(" (blocked by: %s)", strings.Join(blockedByHierarchical, ", "))
-			}
-		}
-
-		result += "\n"
-
-		// Add task details if present
-		if len(t.Details) > 0 {
-			for _, detail := range t.Details {
-				result += fmt.Sprintf("  %s\n", detail)
-			}
-		}
-
-		// Add task references if present
-		if len(t.References) > 0 {
-			refList := strings.Join(t.References, ", ")
-			result += fmt.Sprintf("  References: %s\n", refList)
-		}
-
-		// Add all children
-		for _, child := range t.Children {
-			result += renderTaskMarkdown(&child, "  ")
-		}
+		result.WriteString(renderPhaseTaskMarkdownWithBlocking(&t, "", index))
+		result.WriteString("\n")
 	}
 
 	// Add front matter references if present
 	if frontMatter != nil && len(frontMatter.References) > 0 {
-		result += "\n## References\n\n"
+		result.WriteString("\n## References\n\n")
 		for _, ref := range frontMatter.References {
-			result += fmt.Sprintf("- %s\n", ref)
+			result.WriteString("- ")
+			result.WriteString(ref)
+			result.WriteString("\n")
 		}
 	}
 
-	fmt.Print(result)
+	fmt.Print(result.String())
 	return nil
+}
+
+// renderPhaseTaskMarkdownWithBlocking renders a task with blocking info using strings.Builder
+func renderPhaseTaskMarkdownWithBlocking(t *task.Task, indent string, index *task.DependencyIndex) string {
+	var b strings.Builder
+
+	b.WriteString(indent)
+	b.WriteString("- ")
+	b.WriteString(formatStatusMarkdown(t.Status))
+	b.WriteString(" ")
+	b.WriteString(t.ID)
+	b.WriteString(". ")
+	b.WriteString(t.Title)
+
+	if t.Status == task.Pending && index != nil && index.IsBlocked(t) {
+		blockedBy := index.TranslateToHierarchical(t.BlockedBy)
+		if len(blockedBy) > 0 {
+			b.WriteString(" (blocked by: ")
+			b.WriteString(strings.Join(blockedBy, ", "))
+			b.WriteString(")")
+		} else {
+			b.WriteString(" (blocked)")
+		}
+	}
+	b.WriteString("\n")
+
+	if len(t.Details) > 0 {
+		for _, detail := range t.Details {
+			b.WriteString(indent)
+			b.WriteString("  ")
+			b.WriteString(detail)
+			b.WriteString("\n")
+		}
+	}
+
+	if len(t.References) > 0 {
+		b.WriteString(indent)
+		b.WriteString("  References: ")
+		b.WriteString(strings.Join(t.References, ", "))
+		b.WriteString("\n")
+	}
+
+	for i := range t.Children {
+		b.WriteString(renderPhaseTaskMarkdownWithBlocking(&t.Children[i], indent+"  ", index))
+	}
+
+	return b.String()
 }
 
 // outputPhaseTasksJSON renders phase tasks in JSON format
@@ -872,13 +872,14 @@ func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMa
 	return nil
 }
 
-// addAllChildrenToData recursively adds all children (complete and incomplete) to table data
-func addAllChildrenToData(parentTask *task.Task, taskData *[]map[string]any, phaseName string) {
+// addAllChildrenToData recursively adds all children (complete and incomplete) to table data.
+// When index is non-nil, blocking status is included in the status field.
+func addAllChildrenToData(parentTask *task.Task, taskData *[]map[string]any, phaseName string, index *task.DependencyIndex) {
 	for _, child := range parentTask.Children {
 		childRecord := map[string]any{
 			"ID":     child.ID,
 			"Title":  child.Title,
-			"Status": formatStatus(child.Status),
+			"Status": formatStatusWithBlocking(&child, index),
 			"Level":  getTaskLevel(child.ID),
 		}
 		if phaseName != "" {
@@ -887,8 +888,21 @@ func addAllChildrenToData(parentTask *task.Task, taskData *[]map[string]any, pha
 		*taskData = append(*taskData, childRecord)
 
 		// Recursively add its children
-		addAllChildrenToData(&child, taskData, phaseName)
+		addAllChildrenToData(&child, taskData, phaseName, index)
 	}
+}
+
+// formatStatusWithBlocking returns the status string with a blocking/ready indicator
+// for pending tasks when a dependency index is available.
+func formatStatusWithBlocking(t *task.Task, index *task.DependencyIndex) string {
+	status := formatStatus(t.Status)
+	if t.Status != task.Pending || index == nil {
+		return status
+	}
+	if index.IsBlocked(t) {
+		return status + " (blocked)"
+	}
+	return status + " (ready)"
 }
 
 // NextEmptyResponse is the JSON response structure when no next task exists.

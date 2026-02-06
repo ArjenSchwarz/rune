@@ -93,6 +93,37 @@ type PhaseTasksResult struct {
 	Tasks     []Task
 }
 
+// skipFrontMatter removes YAML front matter from lines if present.
+// Returns the lines without front matter delimiters and content.
+func skipFrontMatter(content string, lines []string) []string {
+	if !strings.HasPrefix(strings.TrimSpace(content), frontMatterDelimiter) {
+		return lines
+	}
+
+	inFrontMatter := false
+	frontMatterCount := 0
+	newLines := []string{}
+	for _, line := range lines {
+		if strings.TrimSpace(line) == frontMatterDelimiter {
+			frontMatterCount++
+			if frontMatterCount == 2 {
+				inFrontMatter = false
+				continue
+			} else {
+				inFrontMatter = true
+				continue
+			}
+		}
+		if !inFrontMatter && frontMatterCount > 0 {
+			newLines = append(newLines, line)
+		}
+	}
+	if frontMatterCount >= 2 {
+		return newLines
+	}
+	return lines
+}
+
 // FindNextPhaseTasks finds all pending tasks from the first phase that has pending tasks
 func FindNextPhaseTasks(filepath string) (*PhaseTasksResult, error) {
 	// Read file content to parse phases and tasks together
@@ -109,31 +140,7 @@ func FindNextPhaseTasks(filepath string) (*PhaseTasksResult, error) {
 
 	// Also parse the raw content to extract phase information
 	lines := strings.Split(string(content), "\n")
-
-	// Skip front matter if present
-	if strings.HasPrefix(strings.TrimSpace(string(content)), frontMatterDelimiter) {
-		inFrontMatter := false
-		frontMatterCount := 0
-		newLines := []string{}
-		for _, line := range lines {
-			if strings.TrimSpace(line) == frontMatterDelimiter {
-				frontMatterCount++
-				if frontMatterCount == 2 {
-					inFrontMatter = false
-					continue
-				} else {
-					inFrontMatter = true
-					continue
-				}
-			}
-			if !inFrontMatter && frontMatterCount > 0 {
-				newLines = append(newLines, line)
-			}
-		}
-		if frontMatterCount >= 2 {
-			lines = newLines
-		}
-	}
+	lines = skipFrontMatter(string(content), lines)
 
 	// If no phases exist, return all pending tasks
 	if !hasPhases(lines) {
@@ -298,31 +305,7 @@ func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult
 
 	// Parse raw content to extract phase information
 	lines := strings.Split(string(content), "\n")
-
-	// Skip front matter if present
-	if strings.HasPrefix(strings.TrimSpace(string(content)), frontMatterDelimiter) {
-		inFrontMatter := false
-		frontMatterCount := 0
-		newLines := []string{}
-		for _, line := range lines {
-			if strings.TrimSpace(line) == frontMatterDelimiter {
-				frontMatterCount++
-				if frontMatterCount == 2 {
-					inFrontMatter = false
-					continue
-				} else {
-					inFrontMatter = true
-					continue
-				}
-			}
-			if !inFrontMatter && frontMatterCount > 0 {
-				newLines = append(newLines, line)
-			}
-		}
-		if frontMatterCount >= 2 {
-			lines = newLines
-		}
-	}
+	lines = skipFrontMatter(string(content), lines)
 
 	// Check if document has phases
 	if !hasPhases(lines) {
@@ -339,10 +322,19 @@ func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult
 
 		// Check if any task in the stream is ready
 		if hasReadyTaskInStream(phase.Tasks, stream, index) {
-			// Return all stream tasks from this phase (including blocked)
+			// Return all non-completed stream tasks from this phase
+			var result []Task
+			for _, t := range streamTasks {
+				if t.Status != Completed {
+					result = append(result, t)
+				}
+			}
+			if len(result) == 0 {
+				continue
+			}
 			return &PhaseTasksResult{
 				PhaseName: phase.Name,
-				Tasks:     streamTasks,
+				Tasks:     result,
 			}, nil
 		}
 	}
