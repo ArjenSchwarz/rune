@@ -5,327 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-02-06
 
 ### Added
 
-- **Stream-Aware Phase Navigation**: Implement `next --phase --stream N` to find first phase with ready stream N tasks
-  - Add `FindNextPhaseTasksForStream` function to find phases with ready tasks in specified stream
-  - Add `hasReadyTaskInStream` helper to check for ready (pending + no owner + not blocked) tasks
-  - Integrate stream-aware discovery into `runNextPhase` when both flags are specified
-  - Integrate stream-aware discovery into `runNextWithClaim` for `--phase --stream --claim` combination
-  - Add blocking status indicators to all output formats:
-    - JSON: `blocked` boolean and `blockedBy` array with hierarchical task IDs
-    - Table: "(ready)" or "(blocked)" status indicators
-    - Markdown: "(blocked by: N)" notation with hierarchical IDs
-  - Maintain backward compatibility: existing `--phase` and `--stream` behaviors unchanged
-  - Add 7 integration tests covering stream-aware navigation, blocked tasks, claim operations, and backward compatibility
-  - Add comprehensive unit tests for new functions with map-based test tables
-  - Update README.md with `--phase --stream` examples and behavior documentation
+- **Task Dependencies**: Tasks can declare dependencies on other tasks using `--blocked-by`
+  - Dependencies stored using stable IDs that survive task renumbering
+  - Automatic cycle detection prevents circular dependencies
+  - Dependent references cleaned up when blocking tasks are removed
+  - `next` command only returns "ready" tasks (all blockers completed)
 
-### Fixed
+- **Work Streams**: Partition tasks for parallel execution across multiple agents
+  - `--stream N` flag on `add`, `update`, and `list` commands
+  - `streams` command shows ready, blocked, and active task counts per stream
+  - `--available` flag filters to streams with ready tasks
+  - Cross-stream dependencies supported
 
-- **Next Command Stream Validation**: Add early input validation for negative `--stream` flag values with clear error message
+- **Task Ownership**: Claim tasks for specific agents
+  - `--owner AGENT_ID` flag on `add` and `update` commands
+  - `--release` flag on `update` to clear ownership
+  - `--owner` filter on `list` command (empty string for unowned tasks)
 
-### Added
+- **Task Claiming**: Atomic claim operations for multi-agent coordination
+  - `next --claim AGENT_ID` claims the next ready task (sets in-progress + owner)
+  - `next --stream N --claim AGENT_ID` claims all ready tasks in a stream
+  - `next --phase --stream N --claim AGENT_ID` claims ready stream tasks from the appropriate phase
 
-- **Stream-Aware Phase Navigation Implementation Docs**: Add multi-level implementation explanation with completeness assessment
+- **Stream-Aware Phase Navigation**: `next --phase --stream N` finds the first phase with ready tasks in the specified stream
+  - Blocking status indicators in all output formats (JSON, table, markdown)
+  - Backward compatible with existing `--phase` and `--stream` behaviors
 
-### Removed
+- **Batch Add-Phase Operation**: New `add-phase` operation type for the batch JSON API to create phase headers programmatically
 
-- Dead `outputPhaseTasksJSON` function superseded by `outputPhaseTasksJSONWithStreams`
+- **Streams Command**: `rune streams [file]` displays work stream status
+  - `--available` flag shows only streams with ready tasks
+  - `--json` flag outputs structured JSON for scripting
 
-### Added
+- **Consistent Output Format**: All commands now include `success` and `count` fields in JSON output, with verbose output directed to stderr when using JSON format
 
-- **Stream-Aware Phase Navigation Specification**: Complete spec for improving `next --phase --stream N` behavior
-  - Requirements document with 5 user stories and 24 acceptance criteria covering stream-aware phase discovery, backward compatibility, dependency-aware selection, claim integration, and output consistency
-  - Design document with architecture diagrams, component interfaces, data models, error handling, and testing strategy
-  - Decision log with 5 key decisions (phase selection algorithm, backward compatibility, dependency handling, no verbose skip info, return all stream tasks including blocked)
-  - Implementation task list with 16 tasks across 2 parallel work streams
-
-- **Claude Code Settings**: Add `.claude/settings.json` with session start hook and Go development permissions
-  - Session start hook for remote configuration synchronization
-  - Bash permissions for git, make, go, golangci-lint, staticcheck, and govulncheck commands
+- **Install Target**: `make install` installs rune binary to `$GOPATH/bin`
 
 ### Changed
 
-- **Skill Documentation Optimization**: Reduce skill token usage from ~5k to ~1.5k tokens
-  - Consolidate command reference into compact format
-  - Move verbose batch examples to `references/patterns.md`
-  - Add error handling section and git config example
-  - Document `add-phase` batch operation type
-
-### Added
-
-- **Install Target**: Add `make install` target to Makefile for installing rune binary to $GOPATH/bin
-- Update README.md installation instructions to use `make install`
-- Add install command to CLAUDE.md development commands
-
-### Changed
-
-- **Smart Branch Discovery**: Change branch prefix stripping to use first slash instead of last
-  - Branch `feature/auth/oauth` now strips to `auth/oauth` (previously `oauth`)
-  - Matches Orbit's spec detection behavior for consistent tooling
-  - Full branch path is still tried as fallback for backward compatibility
-- **Default Discovery Template**: Change default template from `{branch}/tasks.md` to `specs/{branch}/tasks.md`
-  - Matches Orbit's convention of storing specs in `specs/` directory
+- **Dependencies**: Updated `go-output/v2` (v2.2.0 → v2.6.0), `cobra` (v1.9.1 → v1.10.2)
+- **Smart Branch Discovery**: Branch prefix stripping now uses the first slash instead of the last
+  - `feature/auth/oauth` strips to `auth/oauth` (previously `oauth`)
+  - Full branch path is tried as fallback for backward compatibility
+- **Default Discovery Template**: Changed from `{branch}/tasks.md` to `specs/{branch}/tasks.md`
   - Users can override in `.rune.yml` or `~/.config/rune/config.yml`
-
-### Added
-
-- **Batch Add-Phase Operation**: Implement "add-phase" operation type for batch API
-  - Add `addPhaseOperation` constant and validation in batch operations
-  - Add execution logic in `applyOperationWithPhases` to create phase markers
-  - Route add-phase operations to phase-aware execution path in batch command
-  - Creates phase at end of document with correct AfterTaskID tracking
-  - Update batch command help text with add-phase operation type and usage example
-  - Update rune skill documentation with add-phase batch operation support
-  - Document add-phase in README.md batch operations section with example
-  - Trim whitespace from phase names in batch operations to match CLI behavior
-
-- **Batch Add-Phase Tests**: Unit and integration tests for add-phase batch operation
-  - Unit tests for add-phase validation (empty/whitespace names, duplicate phases)
-  - Unit tests for add-phase execution (single phase, multiple phases, with tasks)
-  - Unit tests for dry-run mode preview generation
-  - Integration tests for end-to-end add-phase batch workflow
-  - Tests verify phase creation, task assignment, and file structure integrity
-
-- **Batch Add-Phase Specification**: Spec for adding "add-phase" operation to batch API
-  - Smolspec with requirements, JSON format, and implementation approach
-  - Task list with 7 tasks across Implementation, Testing, and Documentation phases
-  - Enables agents to create phase headers through the batch JSON API
-
-### Documentation
-
-- **skill/SKILL.md**: Add Claude Code skill for rune task management
-  - Document task dependencies with blocked-by relationships and stable IDs
-  - Document work streams for multi-agent parallel execution
-  - Document task ownership with claiming and release operations
-  - Add streams command documentation with --available and --json flags
-  - Update add, update, list, next commands with new dependency/stream flags
-  - Add batch operation examples with stream, blocked_by, owner, and release fields
-  - Add multi-agent workflow guidelines and common patterns
-  - Document markdown storage format for dependencies, streams, and owners
-
-- **README.md**: Document task dependencies, work streams, and task ownership features
-  - Add Task Dependencies section with blocked-by usage and storage format
-  - Add Work Streams section with stream assignment and status checking
-  - Add Task Ownership section with claiming and filtering by owner
-  - Update streams command documentation with options and examples
-  - Update next command documentation with --stream and --claim flags
-  - Update list command documentation with --stream and --owner filters
-  - Update add command documentation with --stream, --blocked-by, --owner flags
-  - Update update command documentation with --stream, --blocked-by, --owner, --release flags
-
-- **docs/AGENT_INSTRUCTIONS.md**: Add multi-agent workflow guidance
-  - Add Multi-Agent Parallel Execution section with stream setup and orchestrator patterns
-  - Add Task Dependencies section with ready vs blocked explanation
-  - Update batch operation examples with streams and dependencies
-  - Update Quick Reference with new command flags
-
-- **docs/json-api.md**: Document new JSON schemas for dependencies and streams
-  - Add stream, blocked_by, owner, release fields to Operation schema
-  - Add blockedBy, stream, owner fields to Task schema
-  - Add StreamsResult and StreamStatus schemas for streams command output
-  - Add ClaimResult schema for next --claim output
-  - Add Warning schema for non-fatal operational issues
-  - Add operation examples with new fields
-
-- **cmd/list.go**: Enhance Long description with filtering and column display documentation
-
-- **examples/parallel-agents.md**: Add example task file demonstrating multi-agent setup with streams and dependencies
+- List command conditionally shows Stream, BlockedBy, and Owner columns only when relevant data exists
 
 ### Fixed
 
-- **examples/parallel-agents.md**: Fix invalid markdown format that prevented parsing
-  - Stream metadata now uses correct list item format (`- Stream: N`) instead of HTML comment attributes
-  - Stable IDs updated to valid 7-character alphanumeric format (e.g., `bknd002` instead of `backend001`)
-  - Removed non-task content (introductory paragraph and H2 header) that caused parser errors
-
-### Added
-
-- **Add Command Enhancements**: Extended add command for task dependencies and streams
-  - `--stream N` flag assigns task to a specific work stream (positive integer)
-  - `--blocked-by IDs` flag sets task dependencies (comma-separated task IDs)
-  - `--owner AGENT` flag claims the task for a specific agent
-  - Blocked-by references are validated (target tasks must have stable IDs)
-  - Uses `AddTaskWithOptions` internally when extended options are specified
-  - Unit tests for all new flag combinations and error handling
-
-- **Update Command Enhancements**: Extended update command for task dependencies and streams
-  - `--stream N` flag updates task's stream assignment
-  - `--blocked-by IDs` flag updates task dependencies (comma-separated task IDs)
-  - `--owner AGENT` flag updates task owner
-  - `--release` flag clears the task owner (releases the task)
-  - Cycle detection prevents circular dependencies on blocked-by updates
-  - Uses `UpdateTaskWithOptions` internally when extended options are specified
-  - Unit tests for stream, blocked-by, owner, release flags and cycle detection
-
-- **List Command Enhancements**: Extended list command for task dependencies and streams
-  - `--stream N` flag filters tasks by stream number using `GetEffectiveStream()`
-  - `--owner NAME` flag filters tasks by owner (use empty string for unowned tasks)
-  - Stream column conditionally displayed only when non-default streams exist in the file
-  - BlockedBy column displayed as hierarchical IDs (not stable IDs) for user readability
-  - Owner column displayed when any task has an owner
-  - JSON output includes blockedBy, stream, and owner fields for all tasks
-  - Combined filtering: `--filter pending --stream 2 --owner alice`
-  - Unit tests for all new filter options and display enhancements
-
-- **Next Command Stream and Claim Support**: Extend next command for parallel agent coordination
-  - `--stream N` flag filters tasks to a specific stream using `GetEffectiveStream()`
-  - `--claim AGENT_ID` claims the next ready task by setting status to in-progress and owner
-  - `--stream N --claim AGENT_ID` combination claims ALL ready tasks in the specified stream
-  - Phase JSON output now includes `streams_summary` section with ready/blocked/active/available per stream
-  - Phase output includes stream and dependency metadata (blockedBy) for each task
-  - Stream filtering supported in phase mode via `--phase --stream N`
-  - Claim operations atomically write updated task status and owner to file
-  - Unit tests for stream filtering, claim operations, and combined stream+claim scenarios
-
-- **Extended Batch Operations**: Batch API now supports task dependencies and streams
-  - `Operation` struct extended with Stream, BlockedBy, Owner, and Release fields
-  - Batch add operations support all new fields via `AddTaskWithOptions`
-  - Batch update operations support all new fields via `UpdateTaskWithOptions`
-  - Validation includes stream range, blocked-by existence, owner format, and cycle detection
-  - Atomic failure: invalid operations cause entire batch to fail
-  - Phase-aware operations also support extended fields
-  - Unit tests for all extended batch scenarios
-
-- **Extended Task Operations**: Support for stream, blocked-by, and owner options in add/update/remove operations
-  - `AddOptions` struct with Position, Phase, Stream, BlockedBy, and Owner fields
-  - `UpdateOptions` struct with Stream, BlockedBy, Owner, and Release fields
-  - `AddTaskWithOptions()` generates stable ID and applies extended options
-  - `UpdateTaskWithOptions()` validates and applies stream, blocked-by, owner, and release options
-  - `RemoveTaskWithDependents()` warns about and cleans up dependent task references
-  - `resolveToStableIDs()` converts hierarchical IDs to stable IDs with validation
-  - `removeFromBlockedByLists()` removes stable ID from all BlockedBy lists
-  - `collectStableIDs()` gathers all stable IDs from task hierarchy
-  - `validateOwner()` checks owner strings for invalid control characters
-  - Cycle detection via `DependencyIndex.DetectCycle()` on blocked-by updates
-  - Unit tests for all extended operations including edge cases
-
-- **Parser Extensions for Task Dependencies and Streams**: Parse new metadata fields from markdown
-  - `stableIDCommentPattern` regex extracts stable IDs from HTML comments (`<!-- id:abc1234 -->`)
-  - `blockedByPattern` regex parses Blocked-by metadata lines with case-insensitive matching
-  - `streamPattern` regex parses Stream metadata lines (positive integers only)
-  - `ownerPattern` regex parses Owner metadata lines
-  - `blockedByRefPattern` extracts stable IDs from references with optional title hints
-  - `extractStableIDFromTitle()` removes stable ID comment from task title
-  - `parseBlockedByLine()`, `parseStreamLine()`, `parseOwnerLine()` helper functions
-  - Lenient parsing: invalid formats are ignored without errors, supporting legacy files
-  - Unit tests for all parsing scenarios (valid, invalid, case-insensitive, mixed)
-  - Negative tests for malformed input handling
-
-- **Stable ID Generator**: Generate unique 7-character base36 identifiers for tasks
-  - `StableIDGenerator` struct with collision detection and counter continuation
-  - `NewStableIDGenerator` seeds from existing IDs or crypto/rand for new files
-  - `Generate()` produces unique IDs with zero-padding and uniqueness verification
-  - `IsUsed()` check for ID collision detection
-  - `IsValidStableID()` validation for 7-character lowercase alphanumeric format
-  - Unit tests covering uniqueness, encoding, and counter continuation
-  - Property-based tests using rapid framework for uniqueness guarantees
-
-- **Dependency Index**: Fast lookup for dependency resolution and cycle detection
-  - `DependencyIndex` struct with byStableID, byHierarchical, and dependents maps
-  - `BuildDependencyIndex()` creates index from task list with recursive child indexing
-  - `GetTask()` and `GetTaskByHierarchicalID()` for task lookup by ID type
-  - `GetDependents()` returns tasks that depend on a given task
-  - `IsReady()` and `IsBlocked()` for dependency status checking
-  - `TranslateToHierarchical()` converts stable IDs to hierarchical IDs
-  - `DetectCycle()` with DFS algorithm for circular dependency detection
-  - Unit tests for index building, lookups, and dependency status
-  - Property-based tests using rapid framework for cycle detection guarantees
-
-- **Task Dependencies and Streams Core Data Structures**: Foundation for parallel agent execution
-  - Extended Task struct with StableID, BlockedBy, Stream, and Owner fields
-  - GetEffectiveStream() helper function returns stream 1 as default when not explicitly set
-  - Error types for stable ID, dependency, stream, and owner validation (ErrNoStableID, ErrCircularDependency, ErrInvalidStream, ErrInvalidOwner, etc.)
-  - CircularDependencyError struct for detailed cycle path information
-  - Warning struct and codes for non-fatal issues during operations
-
-- **Streams Command**: Display stream status for parallel agent orchestration
-  - `rune streams [file]` command to display all work streams and their task counts
-  - `--available` flag filters to only show streams with ready tasks
-  - `--json` flag outputs structured JSON with task ID arrays per stream
-  - Shows count of ready, blocked, and active tasks per stream
-  - Filters out empty streams (all tasks completed) from output
-  - Supports automatic file discovery via git branch when enabled
-
-- **Stream Analysis**: Analyze work streams for parallel agent orchestration
-  - `StreamStatus` struct with ID, Ready, Blocked, Active hierarchical task ID arrays
-  - `StreamsResult` struct containing all streams and available stream IDs
-  - `AnalyzeStreams()` computes stream status with ready/blocked/active task classification
-  - `FilterByStream()` returns tasks belonging to a specific stream
-  - Supports nested tasks, cross-stream dependencies, and owned task handling
-  - Streams are sorted by ID in output for consistent ordering
-
-- **Markdown Renderer Extensions**: Render new dependency and stream metadata to markdown
-  - `RenderContext` struct to pass dependencies for rendering (requirements file, dependency index)
-  - Stable IDs rendered as HTML comments after task title (`<!-- id:abc1234 -->`)
-  - `formatBlockedByRefs()` renders Blocked-by with title hints for readability
-  - Stream metadata rendered as `Stream: N` (only when explicitly set, not for default stream)
-  - Owner metadata rendered as `Owner: agent-id` (only when non-empty)
-  - Metadata ordering: Details, Blocked-by, Stream, Owner, Requirements, References
-  - JSON output excludes StableID field (system-managed, not for external use)
-  - Unit tests for all metadata rendering scenarios
-  - Property-based tests ensuring parse-render round-trip preservation
-
-- **Task Dependencies and Streams Specification**: Complete spec-driven design for parallel agent execution
-  - Requirements document with 9 sections covering stable IDs, dependencies, streams, ownership, and backward compatibility
-  - Design document with architecture diagrams, component interfaces, data models, and testing strategy
-  - Decision log with 10 key architectural decisions (hybrid storage, no auto-assignment, cycle detection, etc.)
-  - Implementation task list with 42 tasks across 13 phases following test-driven development
-
-### Changed
-
-- **Smart Branch Discovery**: Branch-based file discovery now intelligently strips branch prefixes
-  - Branches like `specs/my-feature` or `feature/auth` now resolve correctly by trying the stripped name first (`my-feature`, `auth`)
-  - Falls back to full branch name if stripped path doesn't exist
-  - Single-component branches (e.g., `main`) avoid duplicate path attempts
-  - Error messages now list all candidate paths that were tried
-
-### Fixed
-
-- **Batch Remove Phase Preservation**: Batch remove operations now correctly adjust phase markers after each removal to preserve phase boundaries
-  - Phase-aware batch execution is used when the file has phase markers, even if no operations specify a phase
-  - Batch removes process in reverse order (highest ID first) so users can specify original task IDs
-
-### Added
-
-- **Batch Remove Tests**: Tests verifying batch remove operations work with original task IDs and preserve phase boundaries
-  - `TestExecuteBatch_MultipleRemovesOriginalIDs` - verifies multiple removes use original IDs
-  - `TestExecuteBatch_RemovesWithAddsOriginalIDs` - verifies mixed add/remove operations
-  - `TestExecuteBatchWithPhases_RemovePreservesPhases` - verifies phase preservation on single remove
-  - `TestExecuteBatchWithPhases_MultipleRemovesPreservesPhases` - verifies phase preservation on multiple removes
-
-- **Success and Count Fields in Read Commands**: Added `success` and `count` fields to JSON responses for read commands (`list`, `find`, `next`, `next --phase`) to comply with requirement 1.1 of the consistent output format specification
-- **Integration Tests for Non-Empty JSON Responses**: Tests verifying `success` and `count` fields are present in non-empty JSON responses from read commands
-
-- **Format-Specific Integration Tests**: End-to-end tests for consistent output format feature
-  - Mutation commands JSON format tests (complete, uncomplete, progress, add, remove, update)
-  - Create command JSON format tests with references and metadata
-  - Empty state JSON format tests (next all-complete, list empty, find no-matches)
-  - Verbose + JSON stderr separation tests to verify verbose output goes to stderr
-
-- **Integration Tests for Task Dependencies and Streams**: End-to-end validation of multi-agent workflow capabilities
-  - Multi-agent workflow test: parallel streams claiming, dependency blocking, cross-stream dependencies
-  - Dependency chain resolution test: A → B → C → D chain validation, cycle and self-dependency prevention
-  - Backward compatibility test: legacy files without stable IDs, mixed files with old/new task formats
-
-- **Format Utilities**: Shared utility functions for consistent output format handling
-  - `outputJSON` function for standardized JSON output to stdout
-  - `outputMarkdownMessage` function for markdown blockquote messages
-  - `outputMessage` function for plain text messages
-  - `verboseStderr` function to write verbose output to stderr when JSON format is used
-
-### Changed
-
-- **Phase Marker Adjustment**: Extracted duplicate phase marker adjustment logic into `adjustPhaseMarkersForRemoval` helper function for maintainability
-- **Renumber Command**: Refactored JSON output to use typed `RenumberResponse` struct for consistency with other commands
-- **has-phases Command**: Updated help text to document that the command only outputs JSON and ignores the `--format` flag
-
-### Removed
-
-- Unused `outputJSON` function from list command (replaced by `outputJSONWithPhases`)
+- Phase marker corruption when removing tasks from phase-based files
+- Batch remove operations now preserve phase boundaries and process in reverse order
+- Negative `--stream` flag values now rejected with a clear error message
 
 ## [1.1.0] - 2025-11-12
 
