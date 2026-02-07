@@ -56,7 +56,7 @@ func NewStableIDGenerator(existingIDs []string) *StableIDGenerator {
 
 // Generate creates a new unique 7-character base36 ID
 func (g *StableIDGenerator) Generate() (string, error) {
-	for attempts := 0; attempts < 1000; attempts++ {
+	for range 1000 {
 		g.counter++
 
 		// Check for exhaustion (practically impossible with 78 billion IDs)

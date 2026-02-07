@@ -199,7 +199,7 @@ func outputSearchResultsTable(results []task.Task, pattern, title string) error 
 
 	// Create output renderer
 	out := output.NewOutput(
-		output.WithFormat(output.Table),
+		output.WithFormat(output.Table()),
 		output.WithWriter(output.NewStdoutWriter()),
 	)
 

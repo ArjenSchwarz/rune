@@ -759,7 +759,7 @@ func TestRunUpdateWithBlockedBy(t *testing.T) {
 		"update blocked-by with multiple tasks": {
 			setupFile: func(filename string) error {
 				tl := task.NewTaskList("Test Tasks")
-				for i := 0; i < 3; i++ {
+				for range 3 {
 					_, err := tl.AddTaskWithOptions("", "Task", task.AddOptions{})
 					if err != nil {
 						return err

@@ -89,7 +89,7 @@ func TestStableIDGenerator_SevenCharLength(t *testing.T) {
 	gen := NewStableIDGenerator([]string{})
 
 	// Generate multiple IDs and verify all are 7 characters
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		id, err := gen.Generate()
 		if err != nil {
 			t.Fatalf("Generate() iteration %d error = %v", i, err)
@@ -148,7 +148,7 @@ func TestStableIDGenerator_CollisionDetection(t *testing.T) {
 		generatedIDs[id] = true
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		id, err := gen.Generate()
 		if err != nil {
 			t.Fatalf("Generate() iteration %d error = %v", i, err)
@@ -164,7 +164,7 @@ func TestStableIDGenerator_Uniqueness10000(t *testing.T) {
 	gen := NewStableIDGenerator([]string{})
 	seen := make(map[string]bool)
 
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		id, err := gen.Generate()
 		if err != nil {
 			t.Fatalf("Generate() iteration %d error = %v", i, err)
@@ -267,7 +267,7 @@ func TestStableIDGenerator_IsUsed(t *testing.T) {
 func TestStableIDGenerator_LowercaseOnly(t *testing.T) {
 	gen := NewStableIDGenerator([]string{})
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		id, err := gen.Generate()
 		if err != nil {
 			t.Fatalf("Generate() iteration %d error = %v", i, err)

@@ -354,7 +354,7 @@ func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.Front
 
 	// Render the document
 	out := output.NewOutput(
-		output.WithFormat(output.Table),
+		output.WithFormat(output.Table()),
 		output.WithWriter(output.NewStdoutWriter()),
 	)
 
@@ -363,42 +363,42 @@ func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.Front
 
 // outputNextTaskMarkdown renders the next task in markdown format
 func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter) error {
-	var result string
+	var result strings.Builder
 
 	// Add main task
-	result += "# Next Task\n\n"
-	result += fmt.Sprintf("- %s %s. %s\n",
-		formatStatusMarkdown(nextTask.Status), nextTask.ID, nextTask.Title)
+	result.WriteString("# Next Task\n\n")
+	result.WriteString(fmt.Sprintf("- %s %s. %s\n",
+		formatStatusMarkdown(nextTask.Status), nextTask.ID, nextTask.Title))
 
 	// Add task details if present
 	if len(nextTask.Details) > 0 {
 		for _, detail := range nextTask.Details {
-			result += fmt.Sprintf("  %s\n", detail)
+			result.WriteString(fmt.Sprintf("  %s\n", detail))
 		}
 	}
 
 	// Add incomplete children
 	for _, child := range nextTask.IncompleteChildren {
-		result += renderTaskMarkdown(&child, "  ")
+		result.WriteString(renderTaskMarkdown(&child, "  "))
 	}
 
 	// Add task-level references if present
 	if len(nextTask.References) > 0 {
-		result += "\n## Task References\n\n"
+		result.WriteString("\n## Task References\n\n")
 		for _, ref := range nextTask.References {
-			result += fmt.Sprintf("- %s\n", ref)
+			result.WriteString(fmt.Sprintf("- %s\n", ref))
 		}
 	}
 
 	// Add front matter references if present
 	if frontMatter != nil && len(frontMatter.References) > 0 {
-		result += "\n## References\n\n"
+		result.WriteString("\n## References\n\n")
 		for _, ref := range frontMatter.References {
-			result += fmt.Sprintf("- %s\n", ref)
+			result.WriteString(fmt.Sprintf("- %s\n", ref))
 		}
 	}
 
-	fmt.Print(result)
+	fmt.Print(result.String())
 	return nil
 }
 
@@ -487,29 +487,30 @@ func addIncompleteChildrenToData(parentTask *task.Task, taskData *[]map[string]a
 
 // renderTaskMarkdown recursively renders a task in markdown format
 func renderTaskMarkdown(t *task.Task, indent string) string {
-	result := fmt.Sprintf("%s- %s %s. %s\n",
-		indent, formatStatusMarkdown(t.Status), t.ID, t.Title)
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("%s- %s %s. %s\n",
+		indent, formatStatusMarkdown(t.Status), t.ID, t.Title))
 
 	// Add task details if present
 	if len(t.Details) > 0 {
 		for _, detail := range t.Details {
-			result += fmt.Sprintf("%s  %s\n", indent, detail)
+			result.WriteString(fmt.Sprintf("%s  %s\n", indent, detail))
 		}
 	}
 
 	// Add task references if present (for individual tasks)
 	if len(t.References) > 0 {
 		refList := strings.Join(t.References, ", ")
-		result += fmt.Sprintf("%s  References: %s\n", indent, refList)
+		result.WriteString(fmt.Sprintf("%s  References: %s\n", indent, refList))
 	}
 
 	for _, child := range t.Children {
 		if child.Status != task.Completed {
-			result += renderTaskMarkdown(&child, indent+"  ")
+			result.WriteString(renderTaskMarkdown(&child, indent+"  "))
 		}
 	}
 
-	return result
+	return result.String()
 }
 
 // runNextPhase handles the --phase flag functionality
@@ -622,7 +623,7 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 
 	// Render the document
 	out := output.NewOutput(
-		output.WithFormat(output.Table),
+		output.WithFormat(output.Table()),
 		output.WithWriter(output.NewStdoutWriter()),
 	)
 
@@ -1038,7 +1039,7 @@ func outputClaimTable(claimed []task.Task, _ *task.FrontMatter) error {
 
 	doc := builder.Build()
 	out := output.NewOutput(
-		output.WithFormat(output.Table),
+		output.WithFormat(output.Table()),
 		output.WithWriter(output.NewStdoutWriter()),
 	)
 

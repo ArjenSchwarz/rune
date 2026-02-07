@@ -239,11 +239,11 @@ func outputTable(taskList *task.TaskList, taskData []map[string]any) error {
 	var outputFormat output.Format
 	switch format {
 	case "json":
-		outputFormat = output.JSON
+		outputFormat = output.JSON()
 	case "markdown":
-		outputFormat = output.Markdown
+		outputFormat = output.Markdown()
 	default:
-		outputFormat = output.Table
+		outputFormat = output.Table()
 	}
 
 	// Create output renderer
@@ -360,11 +360,11 @@ func outputTableWithPhases(taskList *task.TaskList, taskData []map[string]any, p
 	var outputFormat output.Format
 	switch format {
 	case "json":
-		outputFormat = output.JSON
+		outputFormat = output.JSON()
 	case "markdown":
-		outputFormat = output.Markdown
+		outputFormat = output.Markdown()
 	default:
-		outputFormat = output.Table
+		outputFormat = output.Table()
 	}
 
 	// Create output renderer
@@ -635,7 +635,7 @@ func outputTableWithFilters(taskList *task.TaskList, taskData []map[string]any, 
 
 	// Create output renderer
 	out := output.NewOutput(
-		output.WithFormat(output.Table),
+		output.WithFormat(output.Table()),
 		output.WithWriter(output.NewStdoutWriter()),
 	)
 

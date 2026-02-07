@@ -24,13 +24,13 @@ func ParseMetadataFlags(flags []string) (map[string]string, error) {
 		}
 
 		// Split on first colon only to allow colons in values
-		colonIndex := strings.Index(flag, ":")
-		if colonIndex == -1 {
+		before, after, ok := strings.Cut(flag, ":")
+		if !ok {
 			return nil, fmt.Errorf("invalid metadata format: %s (expected key:value)", flag)
 		}
 
-		key := flag[:colonIndex]
-		value := flag[colonIndex+1:]
+		key := before
+		value := after
 
 		if key == "" {
 			return nil, fmt.Errorf("empty metadata key in: %s", flag)

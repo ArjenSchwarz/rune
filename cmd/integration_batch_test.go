@@ -1929,8 +1929,8 @@ func testBackwardCompatibility(t *testing.T, _ string) {
 
 		// Should not have stream/owner/blocked-by markers for plain tasks
 		// (unless explicitly set)
-		lines := strings.Split(contentStr, "\n")
-		for _, line := range lines {
+		lines := strings.SplitSeq(contentStr, "\n")
+		for line := range lines {
 			if strings.Contains(line, "Simple task") || strings.Contains(line, "Another simple") {
 				if strings.Contains(line, "<!-- stream:") || strings.Contains(line, "<!-- owner:") {
 					t.Errorf("plain task should not have metadata markers: %s", line)

@@ -2,6 +2,7 @@ package task
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"pgregory.net/rapid"
@@ -180,10 +181,8 @@ func hasActualCycle(tasks []Task) bool {
 
 		task := taskMap[id]
 		if task != nil {
-			for _, depID := range task.BlockedBy {
-				if dfs(depID) {
-					return true
-				}
+			if slices.ContainsFunc(task.BlockedBy, dfs) {
+				return true
 			}
 		}
 

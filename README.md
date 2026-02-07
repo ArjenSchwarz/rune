@@ -914,7 +914,7 @@ See the [`examples/`](examples/) directory for sample task files and common usag
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.25+
 - Make
 - golangci-lint (for linting)
 

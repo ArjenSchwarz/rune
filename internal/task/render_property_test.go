@@ -131,7 +131,7 @@ func TestProperty_RenderBlockedByPreserved(t *testing.T) {
 				// Pick 1-2 earlier tasks to depend on
 				numDeps := rapid.IntRange(1, min(2, i)).Draw(t, "numDeps")
 				deps := make([]string, 0, numDeps)
-				for j := 0; j < numDeps; j++ {
+				for range numDeps {
 					depIdx := rapid.IntRange(0, i-1).Draw(t, "depIdx")
 					deps = append(deps, stableIDs[depIdx])
 				}
@@ -289,7 +289,7 @@ func TestProperty_RenderAllMetadataPreserved(t *testing.T) {
 			// Generate details
 			numDetails := rapid.IntRange(0, 3).Draw(t, "numDetails")
 			details := make([]string, 0, numDetails)
-			for j := 0; j < numDetails; j++ {
+			for range numDetails {
 				detail := rapid.StringMatching(`[A-Za-z0-9 ]+`).Draw(t, "detail")
 				if detail != "" {
 					details = append(details, detail)

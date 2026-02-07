@@ -30,8 +30,8 @@ func getTaskPhase(taskID string, content []byte) string {
 
 	// For subtasks, find the parent task ID
 	parentID := taskID
-	if idx := strings.Index(taskID, "."); idx != -1 {
-		parentID = taskID[:idx]
+	if before, _, ok := strings.Cut(taskID, "."); ok {
+		parentID = before
 	}
 
 	lines := strings.Split(string(content), "\n")

@@ -193,7 +193,7 @@ func displaySummary(tl *task.TaskList, backupPath, format string) error {
 			Build()
 
 		out := output.NewOutput(
-			output.WithFormat(output.Table),
+			output.WithFormat(output.Table()),
 			output.WithWriter(output.NewStdoutWriter()),
 		)
 

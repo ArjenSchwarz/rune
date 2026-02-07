@@ -146,7 +146,7 @@ func outputStreamsTable(result *task.StreamsResult) error {
 		Build()
 
 	out := output.NewOutput(
-		output.WithFormat(output.Table),
+		output.WithFormat(output.Table()),
 		output.WithWriter(output.NewStdoutWriter()),
 	)
 
