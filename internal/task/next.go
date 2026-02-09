@@ -87,6 +87,29 @@ func filterIncompleteChildren(children []Task) []Task {
 	return incomplete
 }
 
+// FilterToFirstIncompletePath modifies a TaskWithContext to show only the first
+// incomplete child at each level, creating a single path through the hierarchy
+func FilterToFirstIncompletePath(taskCtx *TaskWithContext) {
+	if taskCtx == nil {
+		return
+	}
+	taskCtx.IncompleteChildren = filterToFirstIncompletePath(taskCtx.IncompleteChildren)
+}
+
+// filterToFirstIncompletePath returns a slice containing only the first child
+// with incomplete work, recursively filtering its children as well
+func filterToFirstIncompletePath(children []Task) []Task {
+	for i := range children {
+		if hasIncompleteWork(&children[i]) {
+			// Found first incomplete child, filter its children recursively
+			filtered := children[i]
+			filtered.Children = filterToFirstIncompletePath(filtered.Children)
+			return []Task{filtered}
+		}
+	}
+	return []Task{}
+}
+
 // PhaseTasksResult represents tasks from a phase along with the phase name
 type PhaseTasksResult struct {
 	PhaseName string

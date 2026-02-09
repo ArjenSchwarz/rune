@@ -45,11 +45,7 @@ test-integration: ## Run integration tests with INTEGRATION=1 environment variab
 	@INTEGRATION=1 go test ./...
 
 .PHONY: test-all
-test-all: ## Run both unit and integration tests
-	@echo "Running all tests..."
-	@go test ./...
-	@echo "Running integration tests..."
-	@INTEGRATION=1 go test ./...
+test-all: test test-integration  ## Run both unit and integration tests
 
 .PHONY: test-coverage
 test-coverage: ## Generate test coverage report and open in browser

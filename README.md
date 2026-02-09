@@ -306,6 +306,7 @@ rune next [file] [options]
 - `--phase` - Get all pending tasks from the next incomplete phase
 - `--stream, -s [N]` - Filter to tasks in stream N
 - `--claim, -c [AGENT_ID]` - Claim task(s) by setting status to in-progress and owner
+- `--one, -1` - Show only the first incomplete subtask at each level
 
 **Examples:**
 ```bash
@@ -338,6 +339,12 @@ rune next --format json
 
 # Output in markdown format
 rune next --format markdown
+
+# Show only first incomplete path (single task chain)
+rune next tasks.md --one
+
+# Combine with other options
+rune next tasks.md --one --format json
 ```
 
 **How it works:**
@@ -347,6 +354,7 @@ rune next --format markdown
 - With `--phase` flag, returns all pending tasks from the first phase containing incomplete work
 - With `--stream N` flag, filters to tasks assigned to stream N
 - With `--phase --stream N` together, finds the first phase with ready stream N tasks and returns all stream N tasks from that phase (including blocked tasks with blocking status)
+- With `--one` flag, shows only the first incomplete subtask at each level, creating a single path from parent to leaf
 - With `--claim AGENT_ID` flag, claims the task by setting status to in-progress and owner
 - With `--stream N --claim AGENT_ID` together, claims ALL ready tasks in stream N
 - With `--phase --stream N --claim AGENT_ID` together, claims all ready stream N tasks from the appropriate phase

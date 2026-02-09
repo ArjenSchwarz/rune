@@ -15,6 +15,7 @@ var (
 	phaseFlag  bool
 	streamFlag int
 	claimFlag  string
+	oneFlag    bool
 )
 
 var nextCmd = &cobra.Command{
@@ -27,6 +28,10 @@ or any of its subtasks are not marked as completed) using depth-first traversal.
 
 With the --phase flag, the command returns all pending tasks from the next phase
 (the first phase in document order containing pending tasks) instead of a single task.
+
+With the --one flag, the command shows only the first incomplete subtask at each
+level of the hierarchy, creating a single path from the parent to the first
+incomplete leaf task.
 
 Stream and Claim Support:
 - --stream N: Filter tasks to only those in stream N
@@ -54,6 +59,7 @@ func init() {
 	nextCmd.Flags().BoolVar(&phaseFlag, "phase", false, "get all tasks from next phase")
 	nextCmd.Flags().IntVarP(&streamFlag, "stream", "s", 0, "filter to specific stream")
 	nextCmd.Flags().StringVarP(&claimFlag, "claim", "c", "", "claim task(s) with agent ID")
+	nextCmd.Flags().BoolVarP(&oneFlag, "one", "1", false, "show only first incomplete subtask at each level")
 }
 
 func runNext(cmd *cobra.Command, args []string) error {
@@ -70,6 +76,11 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// Validate stream flag early
 	if streamFlag < 0 {
 		return fmt.Errorf("stream must be non-negative, got %d", streamFlag)
+	}
+
+	// Validate --one flag compatibility
+	if oneFlag && (phaseFlag || streamFlag > 0) {
+		return fmt.Errorf("--one flag cannot be combined with --phase or --stream")
 	}
 
 	// Handle claim mode (with or without phase/stream)
@@ -102,6 +113,13 @@ func runNext(cmd *cobra.Command, args []string) error {
 	nextTask := task.FindNextIncompleteTask(taskList.Tasks)
 	if nextTask == nil {
 		return outputNextEmpty("All tasks are complete!")
+	}
+
+	// Apply --one filter if requested
+	if oneFlag {
+		task.FilterToFirstIncompletePath(nextTask)
+		// Replace Task.Children with filtered IncompleteChildren for consistent output
+		nextTask.Task.Children = nextTask.IncompleteChildren
 	}
 
 	if verbose {
@@ -200,7 +218,22 @@ func runNextWithClaim(filename string) error {
 		// Claim only the single next ready task
 		readyTasks := getReadyTasks(taskList.Tasks, index)
 		if len(readyTasks) > 0 {
-			taskIDsToClaim = append(taskIDsToClaim, readyTasks[0].ID)
+			// If --one flag is set, find the deepest incomplete task
+			if oneFlag {
+				// Find the next incomplete task with full context
+				nextTask := task.FindNextIncompleteTask(taskList.Tasks)
+				if nextTask != nil {
+					// Apply --one filter to get single path
+					task.FilterToFirstIncompletePath(nextTask)
+					// Find the deepest task in the filtered path
+					deepestTask := findDeepestTask(nextTask)
+					if deepestTask != nil {
+						taskIDsToClaim = append(taskIDsToClaim, deepestTask.ID)
+					}
+				}
+			} else {
+				taskIDsToClaim = append(taskIDsToClaim, readyTasks[0].ID)
+			}
 		}
 	}
 
@@ -283,6 +316,27 @@ func filterIncompleteChildren(children []task.Task) []task.Task {
 		}
 	}
 	return incomplete
+}
+
+// findDeepestTask finds the deepest (leaf) task in a TaskWithContext
+// by traversing the IncompleteChildren recursively
+func findDeepestTask(taskCtx *task.TaskWithContext) *task.Task {
+	if taskCtx == nil {
+		return nil
+	}
+
+	// If there are no incomplete children, this is the deepest task
+	if len(taskCtx.IncompleteChildren) == 0 {
+		return taskCtx.Task
+	}
+
+	// Recursively find the deepest task in the first incomplete child
+	firstChild := &taskCtx.IncompleteChildren[0]
+	childCtx := &task.TaskWithContext{
+		Task:               firstChild,
+		IncompleteChildren: filterIncompleteChildren(firstChild.Children),
+	}
+	return findDeepestTask(childCtx)
 }
 
 // outputNextTaskTable renders the next task in table format

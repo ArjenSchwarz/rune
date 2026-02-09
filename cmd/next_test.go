@@ -1534,3 +1534,262 @@ func TestNextCommandNoReadyTasks(t *testing.T) {
 		})
 	}
 }
+
+func TestNextCommandOneFlag(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-one-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	content := `# Project Tasks
+
+- [ ] 1. Parent task
+  - [ ] 1.1. First child
+    - [ ] 1.1.1. First grandchild
+    - [ ] 1.1.2. Second grandchild
+  - [ ] 1.2. Second child
+    - [ ] 1.2.1. Third grandchild
+`
+
+	tests := map[string]struct {
+		format            string
+		expectInOutput    []string
+		expectNotInOutput []string
+	}{
+		"table format with --one shows single path": {
+			format:            "table",
+			expectInOutput:    []string{"1", "Parent task", "1.1", "First child", "1.1.1", "First grandchild"},
+			expectNotInOutput: []string{"1.1.2", "Second grandchild", "1.2", "Second child", "1.2.1", "Third grandchild"},
+		},
+		"markdown format with --one shows single path": {
+			format:            "markdown",
+			expectInOutput:    []string{"- [ ] 1. Parent task", "- [ ] 1.1. First child", "- [ ] 1.1.1. First grandchild"},
+			expectNotInOutput: []string{"1.1.2. Second grandchild", "1.2. Second child", "1.2.1. Third grandchild"},
+		},
+		"json format with --one shows single path": {
+			format:            "json",
+			expectInOutput:    []string{`"id": "1"`, `"title": "Parent task"`, `"id": "1.1"`, `"title": "First child"`, `"id": "1.1.1"`, `"title": "First grandchild"`},
+			expectNotInOutput: []string{`"id": "1.1.2"`, `"id": "1.2"`, `"id": "1.2.1"`},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Reset all flags before each test
+			oneFlag = false
+			streamFlag = 0
+			claimFlag = ""
+			phaseFlag = false
+
+			testFile := fmt.Sprintf("test-one-%s.md", tc.format)
+			if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			var buf bytes.Buffer
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			rootCmd.SetArgs([]string{"next", testFile, "--one", "--format", tc.format})
+			err := rootCmd.Execute()
+
+			w.Close()
+			os.Stdout = oldStdout
+			buf.ReadFrom(r)
+			output := buf.String()
+
+			rootCmd.SetArgs([]string{})
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			for _, expected := range tc.expectInOutput {
+				if !strings.Contains(output, expected) {
+					t.Errorf("expected '%s' in output, got: %s", expected, output)
+				}
+			}
+
+			for _, notExpected := range tc.expectNotInOutput {
+				if strings.Contains(output, notExpected) {
+					t.Errorf("did NOT expect '%s' in output, got: %s", notExpected, output)
+				}
+			}
+
+			if tc.format == "json" {
+				var jsonObj any
+				if err := json.Unmarshal([]byte(output), &jsonObj); err != nil {
+					t.Errorf("JSON format produced invalid JSON: %v\nOutput: %s", err, output)
+				}
+			}
+		})
+	}
+}
+
+func TestNextCommandOneFlagValidation(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-one-validation-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	content := `# Project Tasks
+
+- [ ] 1. Parent task
+  - [ ] 1.1. First child
+`
+
+	testFile := "test-validation.md"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	tests := map[string]struct {
+		args        []string
+		expectError bool
+	}{
+		"--one with --phase should error": {
+			args:        []string{"next", testFile, "--one", "--phase"},
+			expectError: true,
+		},
+		"--one with --stream should error": {
+			args:        []string{"next", testFile, "--one", "--stream", "2"},
+			expectError: true,
+		},
+		"--one with --claim should work": {
+			args:        []string{"next", testFile, "--one", "--claim", "agent-1"},
+			expectError: false,
+		},
+		"--one alone should work": {
+			args:        []string{"next", testFile, "--one"},
+			expectError: false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Reset flags
+			oneFlag = false
+			streamFlag = 0
+			claimFlag = ""
+			phaseFlag = false
+
+			rootCmd.SetArgs(tc.args)
+			err := rootCmd.Execute()
+			rootCmd.SetArgs([]string{})
+
+			if tc.expectError && err == nil {
+				t.Errorf("expected error but got none")
+			}
+			if !tc.expectError && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestNextCommandOneWithClaim(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-one-claim-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	content := `# Project Tasks
+
+- [ ] 1. Parent task <!-- id:abc1234 -->
+  - [ ] 1.1. First child <!-- id:def5678 -->
+    - [ ] 1.1.1. First grandchild <!-- id:ghi9012 -->
+    - [ ] 1.1.2. Second grandchild <!-- id:jkl3456 -->
+  - [ ] 1.2. Second child <!-- id:mno7890 -->
+    - [ ] 1.2.1. Third grandchild <!-- id:pqr1234 -->
+`
+
+	testFile := "test-one-claim.md"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Reset flags
+	oneFlag = false
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", testFile, "--one", "--claim", "test-agent", "--format", "json"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify JSON output contains only the first incomplete task
+	if !strings.Contains(output, `"id": "1.1.1"`) {
+		t.Errorf("expected first grandchild (1.1.1) in output, got: %s", output)
+	}
+
+	// Verify siblings are NOT in output
+	if strings.Contains(output, `"id": "1.1.2"`) {
+		t.Errorf("did not expect second grandchild (1.1.2) in output, got: %s", output)
+	}
+	if strings.Contains(output, `"id": "1.2"`) {
+		t.Errorf("did not expect second child (1.2) in output, got: %s", output)
+	}
+
+	// Verify the task was claimed
+	if !strings.Contains(output, `"owner": "test-agent"`) {
+		t.Errorf("expected owner to be test-agent, got: %s", output)
+	}
+	if !strings.Contains(output, `"status": "In Progress"`) {
+		t.Errorf("expected status to be In Progress, got: %s", output)
+	}
+
+	// Verify file was updated with claim
+	fileContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to read file after claim: %v", err)
+	}
+
+	fileStr := string(fileContent)
+	if !strings.Contains(fileStr, "Owner: test-agent") {
+		t.Errorf("expected Owner: test-agent in file, got: %s", fileStr)
+	}
+	if !strings.Contains(fileStr, "[-] 1.1.1. First grandchild") {
+		t.Errorf("expected task 1.1.1 to be in-progress, got: %s", fileStr)
+	}
+
+	// Verify only one task was claimed (not siblings)
+	if strings.Contains(fileStr, "[-] 1.1.2") {
+		t.Errorf("did not expect task 1.1.2 to be claimed, got: %s", fileStr)
+	}
+	if strings.Contains(fileStr, "[-] 1.2") {
+		t.Errorf("did not expect task 1.2 to be claimed, got: %s", fileStr)
+	}
+}
