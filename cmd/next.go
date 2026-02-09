@@ -119,7 +119,7 @@ func runNext(cmd *cobra.Command, args []string) error {
 	if oneFlag {
 		task.FilterToFirstIncompletePath(nextTask)
 		// Replace Task.Children with filtered IncompleteChildren for consistent output
-		nextTask.Task.Children = nextTask.IncompleteChildren
+		nextTask.Children = nextTask.IncompleteChildren
 	}
 
 	if verbose {

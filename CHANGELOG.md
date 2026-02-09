@@ -7,18 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-02-09
+
 ### Added
 
-- **Contributing Guide**: Added `CONTRIBUTING.md` with development workflow, code standards, testing conventions, documentation checklist, and commit message format
+- **Contributing Guide**: Added `CONTRIBUTING.md` with development workflow, code standards, and testing conventions
 - **Single Path Filter**: `next --one` (`-1`) flag shows only the first incomplete subtask at each level, creating a single path from parent to leaf task (thanks @paulgear, #30)
   - Works with `--claim` to claim the deepest leaf task in the path
-  - Incompatible with `--phase` and `--stream` (returns clear error)
   - Supported in all output formats (table, markdown, JSON)
 
 ### Changed
 
-- **Batch Command**: Positional file argument is now treated as the target task file when `--input` flag provides the JSON operations, matching the convention used by all other commands. Errors clearly when positional arg conflicts with the JSON `file` field.
-- **Makefile**: `test-all` target now uses Make dependencies instead of duplicated commands
+- **Batch Command**: Positional file argument is now treated as the target task file when `--input` flag provides the JSON operations, matching the convention used by all other commands
 
 ## [1.2.0] - 2026-02-06
 
