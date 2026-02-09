@@ -41,6 +41,10 @@ The JSON format should be:
   "dry_run": false
 }
 
+When using --input or stdin, you can specify the target file as a positional
+argument instead of (or in addition to) the "file" field in the JSON. If both
+are provided, they must match.
+
 Operation types:
 - add: Add a new task (requires title, optional parent, phase)
 - add-phase: Create a new phase header (requires phase)
@@ -62,11 +66,15 @@ func runBatch(cmd *cobra.Command, args []string) error {
 	// Read JSON input
 	var jsonData []byte
 	var err error
+	var positionalFile string // positional arg used as target file (not JSON source)
 
 	switch {
 	case batchInput != "":
-		// Input provided as flag
+		// Input provided as flag; positional arg (if any) is the target file
 		jsonData = []byte(batchInput)
+		if len(args) > 0 && args[0] != "" {
+			positionalFile = args[0]
+		}
 	case len(args) > 0 && args[0] != "":
 		// Input from file
 		jsonData, err = os.ReadFile(args[0])
@@ -74,7 +82,7 @@ func runBatch(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("reading input file: %w", err)
 		}
 	default:
-		// Input from stdin
+		// Input from stdin; positional arg not possible (cobra.MaximumNArgs(1))
 		jsonData, err = io.ReadAll(os.Stdin)
 		if err != nil {
 			return fmt.Errorf("reading from stdin: %w", err)
@@ -85,6 +93,17 @@ func runBatch(cmd *cobra.Command, args []string) error {
 	var req task.BatchRequest
 	if err := json.Unmarshal(jsonData, &req); err != nil {
 		return fmt.Errorf("parsing JSON input: %w", err)
+	}
+
+	// When a positional file arg is provided alongside --input, use it as target file
+	if positionalFile != "" {
+		switch {
+		case req.File == "":
+			req.File = positionalFile
+		case req.File != positionalFile:
+			return fmt.Errorf("conflicting file: positional argument %q does not match JSON file field %q", positionalFile, req.File)
+		}
+		// If req.File == positionalFile, no action needed — they agree
 	}
 
 	// Validate request
@@ -250,6 +269,9 @@ func init() {
 
   # Execute operations from string input
   rune batch --input '{"file":"tasks.md","operations":[{"type":"add","title":"New task"}]}'
+
+  # Specify target file as positional argument (file field in JSON is optional)
+  rune batch tasks.md --input '{"operations":[{"type":"add","title":"New task"}]}'
 
   # Dry run to preview changes
   rune batch operations.json --dry-run
