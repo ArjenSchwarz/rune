@@ -780,3 +780,217 @@ func TestFindNextPhaseTasksForStream(t *testing.T) {
 		})
 	}
 }
+
+func TestFilterToFirstIncompletePath(t *testing.T) {
+	tests := map[string]struct {
+		children []Task
+		wantIDs  []string // IDs of tasks in the filtered path
+	}{
+		"multiple incomplete children - returns first": {
+			children: []Task{
+				{ID: "1.1", Title: "Child 1", Status: Pending},
+				{ID: "1.2", Title: "Child 2", Status: Pending},
+				{ID: "1.3", Title: "Child 3", Status: InProgress},
+			},
+			wantIDs: []string{"1.1"},
+		},
+		"first child complete, second incomplete": {
+			children: []Task{
+				{ID: "1.1", Title: "Child 1", Status: Completed},
+				{ID: "1.2", Title: "Child 2", Status: Pending},
+				{ID: "1.3", Title: "Child 3", Status: Pending},
+			},
+			wantIDs: []string{"1.2"},
+		},
+		"all children complete": {
+			children: []Task{
+				{ID: "1.1", Title: "Child 1", Status: Completed},
+				{ID: "1.2", Title: "Child 2", Status: Completed},
+			},
+			wantIDs: []string{},
+		},
+		"empty children list": {
+			children: []Task{},
+			wantIDs:  []string{},
+		},
+		"deeply nested - returns single path": {
+			children: []Task{
+				{
+					ID:     "1.1",
+					Title:  "Child 1",
+					Status: Pending,
+					Children: []Task{
+						{
+							ID:     "1.1.1",
+							Title:  "Grandchild 1",
+							Status: Pending,
+							Children: []Task{
+								{ID: "1.1.1.1", Title: "Great-grandchild 1", Status: Pending},
+								{ID: "1.1.1.2", Title: "Great-grandchild 2", Status: Pending},
+							},
+						},
+						{ID: "1.1.2", Title: "Grandchild 2", Status: Pending},
+					},
+				},
+				{ID: "1.2", Title: "Child 2", Status: Pending},
+			},
+			wantIDs: []string{"1.1", "1.1.1", "1.1.1.1"},
+		},
+		"child with multiple incomplete grandchildren - returns first grandchild": {
+			children: []Task{
+				{
+					ID:     "1.1",
+					Title:  "Child 1",
+					Status: Completed,
+					Children: []Task{
+						{ID: "1.1.1", Title: "Grandchild 1", Status: Pending},
+						{ID: "1.1.2", Title: "Grandchild 2", Status: Pending},
+						{ID: "1.1.3", Title: "Grandchild 3", Status: InProgress},
+					},
+				},
+				{ID: "1.2", Title: "Child 2", Status: Pending},
+			},
+			wantIDs: []string{"1.1", "1.1.1"},
+		},
+		"single incomplete child at each level": {
+			children: []Task{
+				{
+					ID:     "1.1",
+					Title:  "Child 1",
+					Status: Pending,
+					Children: []Task{
+						{
+							ID:     "1.1.1",
+							Title:  "Grandchild 1",
+							Status: Pending,
+						},
+					},
+				},
+			},
+			wantIDs: []string{"1.1", "1.1.1"},
+		},
+		"skip completed children to find incomplete": {
+			children: []Task{
+				{ID: "1.1", Title: "Child 1", Status: Completed},
+				{ID: "1.2", Title: "Child 2", Status: Completed},
+				{
+					ID:     "1.3",
+					Title:  "Child 3",
+					Status: Pending,
+					Children: []Task{
+						{ID: "1.3.1", Title: "Grandchild 1", Status: Pending},
+						{ID: "1.3.2", Title: "Grandchild 2", Status: Pending},
+					},
+				},
+			},
+			wantIDs: []string{"1.3", "1.3.1"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := filterToFirstIncompletePath(tc.children)
+
+			// Collect all IDs in the filtered path
+			var gotIDs []string
+			var collectIDs func([]Task)
+			collectIDs = func(tasks []Task) {
+				for _, task := range tasks {
+					gotIDs = append(gotIDs, task.ID)
+					if len(task.Children) > 0 {
+						collectIDs(task.Children)
+					}
+				}
+			}
+			collectIDs(result)
+
+			if len(gotIDs) != len(tc.wantIDs) {
+				t.Errorf("expected %d tasks in path, got %d\nwant: %v\ngot: %v",
+					len(tc.wantIDs), len(gotIDs), tc.wantIDs, gotIDs)
+				return
+			}
+
+			for i, wantID := range tc.wantIDs {
+				if gotIDs[i] != wantID {
+					t.Errorf("at position %d: expected ID %s, got %s", i, wantID, gotIDs[i])
+				}
+			}
+		})
+	}
+}
+
+func TestFilterToFirstIncompletePathIntegration(t *testing.T) {
+	// Test the public FilterToFirstIncompletePath function
+	tests := map[string]struct {
+		taskCtx *TaskWithContext
+		wantIDs []string
+	}{
+		"nil task context": {
+			taskCtx: nil,
+			wantIDs: nil,
+		},
+		"task with multiple incomplete children": {
+			taskCtx: &TaskWithContext{
+				Task: &Task{ID: "1", Title: "Parent", Status: Pending},
+				IncompleteChildren: []Task{
+					{ID: "1.1", Title: "Child 1", Status: Pending},
+					{ID: "1.2", Title: "Child 2", Status: InProgress},
+				},
+			},
+			wantIDs: []string{"1.1"},
+		},
+		"task with nested incomplete children": {
+			taskCtx: &TaskWithContext{
+				Task: &Task{ID: "1", Title: "Parent", Status: Pending},
+				IncompleteChildren: []Task{
+					{
+						ID:     "1.1",
+						Title:  "Child 1",
+						Status: Pending,
+						Children: []Task{
+							{ID: "1.1.1", Title: "Grandchild 1", Status: Pending},
+							{ID: "1.1.2", Title: "Grandchild 2", Status: Pending},
+						},
+					},
+					{ID: "1.2", Title: "Child 2", Status: Pending},
+				},
+			},
+			wantIDs: []string{"1.1", "1.1.1"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			FilterToFirstIncompletePath(tc.taskCtx)
+
+			if tc.taskCtx == nil {
+				return
+			}
+
+			// Collect all IDs in the filtered path
+			var gotIDs []string
+			var collectIDs func([]Task)
+			collectIDs = func(tasks []Task) {
+				for _, task := range tasks {
+					gotIDs = append(gotIDs, task.ID)
+					if len(task.Children) > 0 {
+						collectIDs(task.Children)
+					}
+				}
+			}
+			collectIDs(tc.taskCtx.IncompleteChildren)
+
+			if len(gotIDs) != len(tc.wantIDs) {
+				t.Errorf("expected %d tasks in path, got %d\nwant: %v\ngot: %v",
+					len(tc.wantIDs), len(gotIDs), tc.wantIDs, gotIDs)
+				return
+			}
+
+			for i, wantID := range tc.wantIDs {
+				if gotIDs[i] != wantID {
+					t.Errorf("at position %d: expected ID %s, got %s", i, wantID, gotIDs[i])
+				}
+			}
+		})
+	}
+}

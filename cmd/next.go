@@ -15,6 +15,7 @@ var (
 	phaseFlag  bool
 	streamFlag int
 	claimFlag  string
+	oneTask    bool
 )
 
 var nextCmd = &cobra.Command{
@@ -27,6 +28,10 @@ or any of its subtasks are not marked as completed) using depth-first traversal.
 
 With the --phase flag, the command returns all pending tasks from the next phase
 (the first phase in document order containing pending tasks) instead of a single task.
+
+With the --one flag, the command shows only the first incomplete subtask at each
+level of the hierarchy, creating a single path from the parent to the first
+incomplete leaf task.
 
 Stream and Claim Support:
 - --stream N: Filter tasks to only those in stream N
@@ -54,6 +59,7 @@ func init() {
 	nextCmd.Flags().BoolVar(&phaseFlag, "phase", false, "get all tasks from next phase")
 	nextCmd.Flags().IntVarP(&streamFlag, "stream", "s", 0, "filter to specific stream")
 	nextCmd.Flags().StringVarP(&claimFlag, "claim", "c", "", "claim task(s) with agent ID")
+	nextCmd.Flags().BoolVarP(&oneTask, "one", "1", false, "show only first incomplete subtask at each level")
 }
 
 func runNext(cmd *cobra.Command, args []string) error {
@@ -102,6 +108,11 @@ func runNext(cmd *cobra.Command, args []string) error {
 	nextTask := task.FindNextIncompleteTask(taskList.Tasks)
 	if nextTask == nil {
 		return outputNextEmpty("All tasks are complete!")
+	}
+
+	// Apply --one filter if requested
+	if oneTask {
+		task.FilterToFirstIncompletePath(nextTask)
 	}
 
 	if verbose {
@@ -422,8 +433,8 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 	}
 
 	// Convert main task
-	var convertTask func(t *task.Task) TaskJSON
-	convertTask = func(t *task.Task) TaskJSON {
+	var convertTask func(t *task.Task, children []task.Task) TaskJSON
+	convertTask = func(t *task.Task, children []task.Task) TaskJSON {
 		tj := TaskJSON{
 			ID:     t.ID,
 			Title:  t.Title,
@@ -435,15 +446,15 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 		if len(t.References) > 0 {
 			tj.References = t.References
 		}
-		for _, child := range t.Children {
-			tj.Children = append(tj.Children, convertTask(&child))
+		for i := range children {
+			tj.Children = append(tj.Children, convertTask(&children[i], children[i].Children))
 		}
 		return tj
 	}
 
 	output := OutputJSON{
 		Success:  true,
-		NextTask: convertTask(nextTask.Task),
+		NextTask: convertTask(nextTask.Task, nextTask.IncompleteChildren),
 	}
 
 	// Add task-level references if present
