@@ -14,6 +14,7 @@ Manage hierarchical task lists using the `rune` CLI tool.
 - `rune create [file] --title "Title" --reference "file.md"` - With references (repeatable)
 - `rune list [file]` - Display tasks (supports `--filter`, `--format`, `--stream N`, `--owner "name"`)
 - `rune next [file]` - Get next incomplete task
+- `rune next [file] --one` - Show only first incomplete path (single task chain)
 - `rune next [file] --phase` - Get all tasks from next phase
 - `rune next [file] --stream N --claim "agent-id"` - Claim ready tasks in stream
 - `rune streams [file]` - Show stream status (`--available`, `--json`)

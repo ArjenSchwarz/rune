@@ -15,7 +15,7 @@ var (
 	phaseFlag  bool
 	streamFlag int
 	claimFlag  string
-	oneTask    bool
+	oneFlag    bool
 )
 
 var nextCmd = &cobra.Command{
@@ -59,7 +59,7 @@ func init() {
 	nextCmd.Flags().BoolVar(&phaseFlag, "phase", false, "get all tasks from next phase")
 	nextCmd.Flags().IntVarP(&streamFlag, "stream", "s", 0, "filter to specific stream")
 	nextCmd.Flags().StringVarP(&claimFlag, "claim", "c", "", "claim task(s) with agent ID")
-	nextCmd.Flags().BoolVarP(&oneTask, "one", "1", false, "show only first incomplete subtask at each level")
+	nextCmd.Flags().BoolVarP(&oneFlag, "one", "1", false, "show only first incomplete subtask at each level")
 }
 
 func runNext(cmd *cobra.Command, args []string) error {
@@ -76,6 +76,11 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// Validate stream flag early
 	if streamFlag < 0 {
 		return fmt.Errorf("stream must be non-negative, got %d", streamFlag)
+	}
+
+	// Validate --one flag compatibility
+	if oneFlag && (phaseFlag || streamFlag > 0) {
+		return fmt.Errorf("--one flag cannot be combined with --phase or --stream")
 	}
 
 	// Handle claim mode (with or without phase/stream)
@@ -111,8 +116,10 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	// Apply --one filter if requested
-	if oneTask {
+	if oneFlag {
 		task.FilterToFirstIncompletePath(nextTask)
+		// Replace Task.Children with filtered IncompleteChildren for consistent output
+		nextTask.Task.Children = nextTask.IncompleteChildren
 	}
 
 	if verbose {
@@ -211,7 +218,22 @@ func runNextWithClaim(filename string) error {
 		// Claim only the single next ready task
 		readyTasks := getReadyTasks(taskList.Tasks, index)
 		if len(readyTasks) > 0 {
-			taskIDsToClaim = append(taskIDsToClaim, readyTasks[0].ID)
+			// If --one flag is set, find the deepest incomplete task
+			if oneFlag {
+				// Find the next incomplete task with full context
+				nextTask := task.FindNextIncompleteTask(taskList.Tasks)
+				if nextTask != nil {
+					// Apply --one filter to get single path
+					task.FilterToFirstIncompletePath(nextTask)
+					// Find the deepest task in the filtered path
+					deepestTask := findDeepestTask(nextTask)
+					if deepestTask != nil {
+						taskIDsToClaim = append(taskIDsToClaim, deepestTask.ID)
+					}
+				}
+			} else {
+				taskIDsToClaim = append(taskIDsToClaim, readyTasks[0].ID)
+			}
 		}
 	}
 
@@ -294,6 +316,27 @@ func filterIncompleteChildren(children []task.Task) []task.Task {
 		}
 	}
 	return incomplete
+}
+
+// findDeepestTask finds the deepest (leaf) task in a TaskWithContext
+// by traversing the IncompleteChildren recursively
+func findDeepestTask(taskCtx *task.TaskWithContext) *task.Task {
+	if taskCtx == nil {
+		return nil
+	}
+
+	// If there are no incomplete children, this is the deepest task
+	if len(taskCtx.IncompleteChildren) == 0 {
+		return taskCtx.Task
+	}
+
+	// Recursively find the deepest task in the first incomplete child
+	firstChild := &taskCtx.IncompleteChildren[0]
+	childCtx := &task.TaskWithContext{
+		Task:               firstChild,
+		IncompleteChildren: filterIncompleteChildren(firstChild.Children),
+	}
+	return findDeepestTask(childCtx)
 }
 
 // outputNextTaskTable renders the next task in table format
@@ -433,8 +476,8 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 	}
 
 	// Convert main task
-	var convertTask func(t *task.Task, children []task.Task) TaskJSON
-	convertTask = func(t *task.Task, children []task.Task) TaskJSON {
+	var convertTask func(t *task.Task) TaskJSON
+	convertTask = func(t *task.Task) TaskJSON {
 		tj := TaskJSON{
 			ID:     t.ID,
 			Title:  t.Title,
@@ -446,21 +489,15 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 		if len(t.References) > 0 {
 			tj.References = t.References
 		}
-		for i := range children {
-			tj.Children = append(tj.Children, convertTask(&children[i], children[i].Children))
+		for _, child := range t.Children {
+			tj.Children = append(tj.Children, convertTask(&child))
 		}
 		return tj
 	}
 
-	// Use IncompleteChildren if --one flag is set, otherwise use all Children for context
-	childrenToShow := nextTask.Task.Children
-	if oneTask {
-		childrenToShow = nextTask.IncompleteChildren
-	}
-
 	output := OutputJSON{
 		Success:  true,
-		NextTask: convertTask(nextTask.Task, childrenToShow),
+		NextTask: convertTask(nextTask.Task),
 	}
 
 	// Add task-level references if present
