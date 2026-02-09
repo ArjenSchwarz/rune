@@ -452,9 +452,15 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 		return tj
 	}
 
+	// Use IncompleteChildren if --one flag is set, otherwise use all Children for context
+	childrenToShow := nextTask.Task.Children
+	if oneTask {
+		childrenToShow = nextTask.IncompleteChildren
+	}
+
 	output := OutputJSON{
 		Success:  true,
-		NextTask: convertTask(nextTask.Task, nextTask.IncompleteChildren),
+		NextTask: convertTask(nextTask.Task, childrenToShow),
 	}
 
 	// Add task-level references if present
