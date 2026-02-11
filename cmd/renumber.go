@@ -32,6 +32,7 @@ Features:
 - Uses global sequential numbering (1, 2, 3...) across the entire file
 - Preserves task hierarchy and parent-child relationships
 - Preserves task statuses, details, and references
+- Preserves stable IDs, blocked-by dependencies, streams, and owners
 - Preserves phase markers and YAML front matter
 - Uses atomic file operations to prevent corruption
 
