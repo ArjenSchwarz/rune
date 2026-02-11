@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Renumber Command**: Document that stable IDs, blocked-by dependencies, streams, and owners are preserved during renumbering
+- **Renumber Test Coverage**: Add test verifying stable IDs and dependency metadata survive renumbering
+
 ## [1.3.0] - 2026-02-09
 
 ### Added

@@ -949,6 +949,128 @@ func TestRenumberPreservesMetadata(t *testing.T) {
 	}
 }
 
+// TestRenumberPreservesStableIDs tests that stable IDs, blocked-by dependencies,
+// streams, and owners survive renumbering
+func TestRenumberPreservesStableIDs(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-renumber-stableids")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	testFile := filepath.Join(tempDir, "stableids.md")
+
+	// Create task content with stable IDs, dependencies, streams, and owners.
+	// Use out-of-order IDs so renumbering actually changes them.
+	content := `# Stable ID Test
+
+- [ ] 5. Setup database <!-- id:abc1234 -->
+  - Stream: 1
+  - Owner: agent-a
+- [ ] 10. Build API <!-- id:def5678 -->
+  - Blocked-by: abc1234
+  - Stream: 2
+  - Owner: agent-b
+- [ ] 15. Write tests <!-- id:ghi9012 -->
+  - Blocked-by: abc1234, def5678
+  - Stream: 1
+`
+
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	// Run renumber command
+	cmd := &cobra.Command{}
+	args := []string{testFile}
+	if err := runRenumber(cmd, args); err != nil {
+		t.Fatalf("Renumber failed: %v", err)
+	}
+
+	// Parse the renumbered file
+	result, _, err := task.ParseFileWithPhases(testFile)
+	if err != nil {
+		t.Fatalf("Failed to parse result: %v", err)
+	}
+
+	if len(result.Tasks) != 3 {
+		t.Fatalf("Expected 3 tasks, got %d", len(result.Tasks))
+	}
+
+	// Verify stable IDs are preserved unchanged
+	expectedStableIDs := []string{"abc1234", "def5678", "ghi9012"}
+	for i, want := range expectedStableIDs {
+		if result.Tasks[i].StableID != want {
+			t.Errorf("Task %d: expected stable ID %q, got %q", i, want, result.Tasks[i].StableID)
+		}
+	}
+
+	// Verify blocked-by dependencies are preserved
+	if len(result.Tasks[0].BlockedBy) != 0 {
+		t.Errorf("Task 1: expected 0 blocked-by refs, got %d", len(result.Tasks[0].BlockedBy))
+	}
+	if len(result.Tasks[1].BlockedBy) != 1 || result.Tasks[1].BlockedBy[0] != "abc1234" {
+		t.Errorf("Task 2: expected blocked-by [abc1234], got %v", result.Tasks[1].BlockedBy)
+	}
+	expectedBlockedBy := []string{"abc1234", "def5678"}
+	if len(result.Tasks[2].BlockedBy) != len(expectedBlockedBy) {
+		t.Errorf("Task 3: expected blocked-by %v, got %v", expectedBlockedBy, result.Tasks[2].BlockedBy)
+	} else {
+		for i, want := range expectedBlockedBy {
+			if result.Tasks[2].BlockedBy[i] != want {
+				t.Errorf("Task 3: blocked-by[%d] expected %q, got %q", i, want, result.Tasks[2].BlockedBy[i])
+			}
+		}
+	}
+
+	// Verify streams are preserved
+	if result.Tasks[0].Stream != 1 {
+		t.Errorf("Task 1: expected stream 1, got %d", result.Tasks[0].Stream)
+	}
+	if result.Tasks[1].Stream != 2 {
+		t.Errorf("Task 2: expected stream 2, got %d", result.Tasks[1].Stream)
+	}
+	if result.Tasks[2].Stream != 1 {
+		t.Errorf("Task 3: expected stream 1, got %d", result.Tasks[2].Stream)
+	}
+
+	// Verify owners are preserved
+	if result.Tasks[0].Owner != "agent-a" {
+		t.Errorf("Task 1: expected owner %q, got %q", "agent-a", result.Tasks[0].Owner)
+	}
+	if result.Tasks[1].Owner != "agent-b" {
+		t.Errorf("Task 2: expected owner %q, got %q", "agent-b", result.Tasks[1].Owner)
+	}
+
+	// Verify against raw file content (the parser auto-renumbers during parsing,
+	// so parsed IDs alone can't prove the file was rewritten)
+	rawContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("Failed to read result file: %v", err)
+	}
+	raw := string(rawContent)
+
+	// Hierarchical IDs should be 1, 2, 3 on disk (not 5, 10, 15)
+	for _, want := range []string{"- [ ] 1.", "- [ ] 2.", "- [ ] 3."} {
+		if !strings.Contains(raw, want) {
+			t.Errorf("Raw file missing renumbered task line %q", want)
+		}
+	}
+	for _, gone := range []string{"- [ ] 5.", "- [ ] 10.", "- [ ] 15."} {
+		if strings.Contains(raw, gone) {
+			t.Errorf("Raw file still contains old task ID line %q", gone)
+		}
+	}
+
+	// Stable ID markers should be present in raw file
+	for _, stableID := range expectedStableIDs {
+		marker := fmt.Sprintf("<!-- id:%s -->", stableID)
+		if !strings.Contains(raw, marker) {
+			t.Errorf("Raw file missing stable ID marker %q", marker)
+		}
+	}
+}
+
 // TestRenumberParseError tests that parse errors are reported correctly
 func TestRenumberParseError(t *testing.T) {
 	tempDir := filepath.Join(".", "test-tmp-renumber-parse-error")
