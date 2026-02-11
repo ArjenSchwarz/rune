@@ -997,14 +997,6 @@ func TestRenumberPreservesStableIDs(t *testing.T) {
 		t.Fatalf("Expected 3 tasks, got %d", len(result.Tasks))
 	}
 
-	// Verify hierarchical IDs were renumbered (5, 10, 15 -> 1, 2, 3)
-	expectedIDs := []string{"1", "2", "3"}
-	for i, want := range expectedIDs {
-		if result.Tasks[i].ID != want {
-			t.Errorf("Task %d: expected ID %q, got %q", i, want, result.Tasks[i].ID)
-		}
-	}
-
 	// Verify stable IDs are preserved unchanged
 	expectedStableIDs := []string{"abc1234", "def5678", "ghi9012"}
 	for i, want := range expectedStableIDs {
@@ -1020,8 +1012,15 @@ func TestRenumberPreservesStableIDs(t *testing.T) {
 	if len(result.Tasks[1].BlockedBy) != 1 || result.Tasks[1].BlockedBy[0] != "abc1234" {
 		t.Errorf("Task 2: expected blocked-by [abc1234], got %v", result.Tasks[1].BlockedBy)
 	}
-	if len(result.Tasks[2].BlockedBy) != 2 {
-		t.Errorf("Task 3: expected 2 blocked-by refs, got %d", len(result.Tasks[2].BlockedBy))
+	expectedBlockedBy := []string{"abc1234", "def5678"}
+	if len(result.Tasks[2].BlockedBy) != len(expectedBlockedBy) {
+		t.Errorf("Task 3: expected blocked-by %v, got %v", expectedBlockedBy, result.Tasks[2].BlockedBy)
+	} else {
+		for i, want := range expectedBlockedBy {
+			if result.Tasks[2].BlockedBy[i] != want {
+				t.Errorf("Task 3: blocked-by[%d] expected %q, got %q", i, want, result.Tasks[2].BlockedBy[i])
+			}
+		}
 	}
 
 	// Verify streams are preserved
@@ -1043,14 +1042,30 @@ func TestRenumberPreservesStableIDs(t *testing.T) {
 		t.Errorf("Task 2: expected owner %q, got %q", "agent-b", result.Tasks[1].Owner)
 	}
 
-	// Also verify the raw file contains the stable ID comments
+	// Verify against raw file content (the parser auto-renumbers during parsing,
+	// so parsed IDs alone can't prove the file was rewritten)
 	rawContent, err := os.ReadFile(testFile)
 	if err != nil {
 		t.Fatalf("Failed to read result file: %v", err)
 	}
+	raw := string(rawContent)
+
+	// Hierarchical IDs should be 1, 2, 3 on disk (not 5, 10, 15)
+	for _, want := range []string{"- [ ] 1.", "- [ ] 2.", "- [ ] 3."} {
+		if !strings.Contains(raw, want) {
+			t.Errorf("Raw file missing renumbered task line %q", want)
+		}
+	}
+	for _, gone := range []string{"- [ ] 5.", "- [ ] 10.", "- [ ] 15."} {
+		if strings.Contains(raw, gone) {
+			t.Errorf("Raw file still contains old task ID line %q", gone)
+		}
+	}
+
+	// Stable ID markers should be present in raw file
 	for _, stableID := range expectedStableIDs {
 		marker := fmt.Sprintf("<!-- id:%s -->", stableID)
-		if !strings.Contains(string(rawContent), marker) {
+		if !strings.Contains(raw, marker) {
 			t.Errorf("Raw file missing stable ID marker %q", marker)
 		}
 	}
