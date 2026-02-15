@@ -12,6 +12,10 @@ When used as target file, it's reconciled with the JSON blob's `file` field:
 - If JSON `file` matches positional arg: no conflict
 - If they differ: error
 
+## Stdin Support
+
+The `--input` flag accepts `-` as a stdin marker. When `--input -` is passed, the batch command reads JSON from stdin instead of treating the value as literal JSON. This allows combining piped input with a positional file argument: `echo '...' | rune batch tasks.md --input -`.
+
 ## Testing Gotcha: Cobra Flag State
 
 Cobra flag values and `Changed` bits persist across `Execute()` calls in the same process. This matters in tests where multiple tests share `rootCmd`. The `resetBatchFlags()` helper in `batch_test.go` resets `batchInput` and the flag's `Changed` bit. Call it at the start of any batch test that does NOT use `--input` to avoid false positives from stale state.
