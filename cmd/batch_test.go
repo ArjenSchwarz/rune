@@ -404,6 +404,65 @@ func TestBatchCommand_FileInput(t *testing.T) {
 	}
 }
 
+func TestBatchCommand_StdinViaDash(t *testing.T) {
+	// Regression test: --input - should read JSON from stdin, not treat "-" as literal JSON.
+	resetBatchFlags()
+
+	tmpDir := t.TempDir()
+	taskFile := filepath.Join(tmpDir, "test_tasks.md")
+
+	initialContent := `# Test Tasks
+
+- [ ] 1. First task
+`
+	if err := os.WriteFile(taskFile, []byte(initialContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	os.Chdir(tmpDir)
+
+	req := task.BatchRequest{
+		Operations: []task.Operation{
+			{
+				Type:  "add",
+				Title: "Stdin dash task",
+			},
+		},
+		DryRun: true,
+	}
+
+	jsonData, _ := json.Marshal(req)
+
+	// Set up stdin
+	oldStdin := os.Stdin
+	r, w, _ := os.Pipe()
+	os.Stdin = r
+
+	go func() {
+		defer w.Close()
+		w.Write(jsonData)
+	}()
+
+	var output bytes.Buffer
+	rootCmd.SetOut(&output)
+	rootCmd.SetArgs([]string{"batch", "test_tasks.md", "--input", "-", "--format", "table"})
+
+	err := rootCmd.Execute()
+
+	os.Stdin = oldStdin
+
+	if err != nil {
+		t.Fatalf("Batch command failed: %v", err)
+	}
+
+	outputStr := output.String()
+	if !strings.Contains(outputStr, "Dry run successful") || !strings.Contains(outputStr, "operations validated") {
+		t.Errorf("Expected dry run success message, got: %q", outputStr)
+	}
+}
+
 func TestBatchCommand_PositionalFileArg(t *testing.T) {
 	// Create temporary directory
 	tmpDir := t.TempDir()

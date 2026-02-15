@@ -69,6 +69,15 @@ func runBatch(cmd *cobra.Command, args []string) error {
 	var positionalFile string // positional arg used as target file (not JSON source)
 
 	switch {
+	case batchInput == "-":
+		// Conventional stdin marker; positional arg (if any) is the target file
+		jsonData, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("reading from stdin: %w", err)
+		}
+		if len(args) > 0 && args[0] != "" {
+			positionalFile = args[0]
+		}
 	case batchInput != "":
 		// Input provided as flag; positional arg (if any) is the target file
 		jsonData = []byte(batchInput)
@@ -258,14 +267,17 @@ func init() {
 
 	// Add batch-specific flags
 	batchCmd.Flags().StringVarP(&batchInput, "input", "i", "",
-		"JSON input as string (alternative to file or stdin)")
+		"JSON input as string, or '-' to read from stdin (alternative to file)")
 
 	// Add usage examples
 	batchCmd.Example = `  # Execute operations from file
   rune batch operations.json
 
-  # Execute operations from stdin
+  # Execute operations from stdin (implicit)
   echo '{"file":"tasks.md","operations":[{"type":"add","title":"New task"}]}' | rune batch
+
+  # Execute operations from stdin with explicit dash and target file
+  echo '{"operations":[{"type":"add","title":"New task"}]}' | rune batch tasks.md --input -
 
   # Execute operations from string input
   rune batch --input '{"file":"tasks.md","operations":[{"type":"add","title":"New task"}]}'
