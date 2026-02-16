@@ -492,12 +492,12 @@ func TestExecuteBatch_DependencyOnLegacyTask(t *testing.T) {
 	// Add a new task with stable ID
 	tl.AddTaskWithOptions("", "New task", AddOptions{})
 
-	// Try to add dependency on legacy task
+	// Add dependency on legacy task — should auto-assign a stable ID
 	ops := []Operation{
 		{
 			Type:      "update",
 			ID:        "2",
-			BlockedBy: []string{"1"}, // Task 1 has no stable ID
+			BlockedBy: []string{"1"},
 		},
 	}
 
@@ -506,12 +506,20 @@ func TestExecuteBatch_DependencyOnLegacyTask(t *testing.T) {
 		t.Fatalf("ExecuteBatch returned error: %v", err)
 	}
 
-	if response.Success {
-		t.Error("Expected batch to fail when depending on legacy task")
+	if !response.Success {
+		t.Errorf("Expected batch to succeed, got errors: %v", response.Errors)
 	}
 
-	if len(response.Errors) == 0 {
-		t.Error("Expected error message about legacy task")
+	// Legacy task should now have a stable ID
+	legacyTask := tl.FindTask("1")
+	if legacyTask.StableID == "" {
+		t.Error("Expected legacy task to get an auto-assigned stable ID")
+	}
+
+	// Task 2 should reference the legacy task's new stable ID
+	task2 := tl.FindTask("2")
+	if len(task2.BlockedBy) != 1 || task2.BlockedBy[0] != legacyTask.StableID {
+		t.Errorf("Expected task 2 blocked-by [%s], got %v", legacyTask.StableID, task2.BlockedBy)
 	}
 }
 
@@ -612,6 +620,51 @@ func intPtr(i int) *int {
 
 func stringPtr(s string) *string {
 	return &s
+}
+
+func TestExecuteBatch_BlockedByAutoAssignsStableID(t *testing.T) {
+	tl := NewTaskList("Auto-assign Test")
+
+	// Batch: add two tasks — second depends on first, neither has extended fields initially
+	ops := []Operation{
+		{
+			Type:  "add",
+			Title: "Foundation task",
+			// No stream, no owner — no extended fields
+		},
+		{
+			Type:      "add",
+			Title:     "Dependent task",
+			BlockedBy: []string{"1"}, // References the first task by hierarchical ID
+		},
+	}
+
+	response, err := tl.ExecuteBatch(ops, false)
+	if err != nil {
+		t.Fatalf("ExecuteBatch returned error: %v", err)
+	}
+
+	if !response.Success {
+		t.Errorf("Expected batch to succeed, got errors: %v", response.Errors)
+	}
+
+	// Foundation task should have an auto-assigned stable ID
+	foundation := tl.FindTask("1")
+	if foundation == nil {
+		t.Fatal("foundation task not found")
+	}
+	if foundation.StableID == "" {
+		t.Error("Expected foundation task to get an auto-assigned stable ID")
+	}
+
+	// Dependent task should reference foundation's stable ID
+	dependent := tl.FindTask("2")
+	if dependent == nil {
+		t.Fatal("dependent task not found")
+	}
+	if len(dependent.BlockedBy) != 1 || dependent.BlockedBy[0] != foundation.StableID {
+		t.Errorf("Expected dependent blocked-by [%s], got %v", foundation.StableID, dependent.BlockedBy)
+	}
 }
 
 // findTaskByTitleRecursive is a local helper to avoid conflicts with other test files

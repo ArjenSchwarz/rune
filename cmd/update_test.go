@@ -794,7 +794,7 @@ func TestRunUpdateWithBlockedBy(t *testing.T) {
 			expectError:   true,
 			errorContains: "task 999 not found",
 		},
-		"update blocked-by to legacy task without stable ID": {
+		"update blocked-by to legacy task auto-assigns stable ID": {
 			setupFile: func(filename string) error {
 				content := `# Test Tasks
 
@@ -803,10 +803,25 @@ func TestRunUpdateWithBlockedBy(t *testing.T) {
 `
 				return os.WriteFile(filename, []byte(content), 0644)
 			},
-			taskID:        "2",
-			blockedBy:     "1",
-			expectError:   true,
-			errorContains: "task does not have a stable ID",
+			taskID:    "2",
+			blockedBy: "1",
+			validateFile: func(t *testing.T, filename string) {
+				t.Helper()
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				// Legacy task should now have a stable ID
+				legacyTask := tl.FindTask("1")
+				if legacyTask.StableID == "" {
+					t.Error("Expected legacy task to get an auto-assigned stable ID")
+				}
+				// Task 2 should reference it
+				task2 := tl.FindTask("2")
+				if len(task2.BlockedBy) != 1 || task2.BlockedBy[0] != legacyTask.StableID {
+					t.Errorf("Expected blocked-by [%s], got %v", legacyTask.StableID, task2.BlockedBy)
+				}
+			},
 		},
 		"cycle detection error": {
 			setupFile: func(filename string) error {
