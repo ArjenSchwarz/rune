@@ -289,7 +289,18 @@ func validateOperation(tl *TaskList, op Operation) error {
 		// For updates with blocked-by, check for cycles
 		if len(op.BlockedBy) > 0 {
 			task := tl.FindTask(op.ID)
-			if task != nil && task.StableID != "" {
+			if task != nil {
+				// Auto-assign stable ID to the task being updated so cycle
+				// detection can track it in the dependency graph.
+				if task.StableID == "" {
+					existingIDs := tl.collectStableIDs()
+					idGen := NewStableIDGenerator(existingIDs)
+					newID, genErr := idGen.Generate()
+					if genErr != nil {
+						return fmt.Errorf("generating stable ID for task %s: %w", op.ID, genErr)
+					}
+					task.StableID = newID
+				}
 				if err := validateNoCycle(tl, task.StableID, op.BlockedBy); err != nil {
 					return err
 				}

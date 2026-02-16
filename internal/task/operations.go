@@ -1024,13 +1024,24 @@ func (tl *TaskList) UpdateTaskWithOptions(taskID string, opts UpdateOptions) err
 				return err
 			}
 
+			// Auto-assign stable ID to the task being updated if it doesn't have one.
+			// A task with BlockedBy must have a StableID so that it appears in the
+			// dependency index and can be referenced by other tasks.
+			if task.StableID == "" {
+				existingIDs := tl.collectStableIDs()
+				idGen := NewStableIDGenerator(existingIDs)
+				newID, genErr := idGen.Generate()
+				if genErr != nil {
+					return fmt.Errorf("generating stable ID for task %s: %w", taskID, genErr)
+				}
+				task.StableID = newID
+			}
+
 			// Check for cycles
-			if task.StableID != "" {
-				index := BuildDependencyIndex(tl.Tasks)
-				for _, toStableID := range stableIDs {
-					if hasCycle, path := index.DetectCycle(task.StableID, toStableID); hasCycle {
-						return &CircularDependencyError{Path: path}
-					}
+			index := BuildDependencyIndex(tl.Tasks)
+			for _, toStableID := range stableIDs {
+				if hasCycle, path := index.DetectCycle(task.StableID, toStableID); hasCycle {
+					return &CircularDependencyError{Path: path}
 				}
 			}
 
