@@ -1359,7 +1359,7 @@ func TestRunAddWithBlockedBy(t *testing.T) {
 			expectError:   true,
 			errorContains: "task 999 not found",
 		},
-		"add task blocked by legacy task without stable ID": {
+		"add task blocked by legacy task auto-assigns stable ID": {
 			setupFile: func(filename string) error {
 				// Create a file with a legacy task (no stable ID)
 				content := `# Test Tasks
@@ -1368,10 +1368,25 @@ func TestRunAddWithBlockedBy(t *testing.T) {
 `
 				return os.WriteFile(filename, []byte(content), 0644)
 			},
-			title:         "Blocked task",
-			blockedBy:     "1",
-			expectError:   true,
-			errorContains: "task does not have a stable ID",
+			title:     "Blocked task",
+			blockedBy: "1",
+			validateFile: func(t *testing.T, filename string) {
+				t.Helper()
+				tl, err := task.ParseFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to parse file: %v", err)
+				}
+				// Legacy task should now have a stable ID
+				legacyTask := tl.FindTask("1")
+				if legacyTask.StableID == "" {
+					t.Error("Expected legacy task to get an auto-assigned stable ID")
+				}
+				// New task should reference it
+				newTask := tl.FindTask("2")
+				if len(newTask.BlockedBy) != 1 || newTask.BlockedBy[0] != legacyTask.StableID {
+					t.Errorf("Expected blocked-by [%s], got %v", legacyTask.StableID, newTask.BlockedBy)
+				}
+			},
 		},
 	}
 

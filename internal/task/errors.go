@@ -9,7 +9,6 @@ import (
 // Error types for dependencies and streams
 var (
 	// Stable ID errors
-	ErrNoStableID        = errors.New("task does not have a stable ID (legacy task)")
 	ErrStableIDNotFound  = errors.New("stable ID not found")
 	ErrDuplicateStableID = errors.New("duplicate stable ID detected")
 

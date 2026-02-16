@@ -1530,11 +1530,11 @@ func testDependencyChainResolution(t *testing.T, _ string) {
 	runGoCommand(t, "create", filename, "--title", "Dependency Chain")
 
 	// Create linear dependency chain: D → C → B → A (task 4 blocked by 3, 3 blocked by 2, etc.)
-	// Note: Task 1 needs to be added with extended options to get a stable ID for later blocked-by refs
-	runGoCommand(t, "add", filename, "--title", "Task A - Foundation", "--stream", "1")                         // Task 1 (with stream to get stable ID)
-	runGoCommand(t, "add", filename, "--title", "Task B - Build layer 1", "--stream", "1", "--blocked-by", "1") // Task 2
-	runGoCommand(t, "add", filename, "--title", "Task C - Build layer 2", "--stream", "1", "--blocked-by", "2") // Task 3
-	runGoCommand(t, "add", filename, "--title", "Task D - Final layer", "--stream", "1", "--blocked-by", "3")   // Task 4
+	// Stable IDs are auto-assigned when a task is referenced as a blocked-by target
+	runGoCommand(t, "add", filename, "--title", "Task A - Foundation")                         // Task 1
+	runGoCommand(t, "add", filename, "--title", "Task B - Build layer 1", "--blocked-by", "1") // Task 2
+	runGoCommand(t, "add", filename, "--title", "Task C - Build layer 2", "--blocked-by", "2") // Task 3
+	runGoCommand(t, "add", filename, "--title", "Task D - Final layer", "--blocked-by", "3")   // Task 4
 
 	// Verify initial state
 	t.Run("initial_state", func(t *testing.T) {

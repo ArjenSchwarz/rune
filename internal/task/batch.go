@@ -314,7 +314,7 @@ func validateExtendedFields(tl *TaskList, op Operation) error {
 		return ErrInvalidStream
 	}
 
-	// Validate blocked-by references
+	// Validate blocked-by references, auto-assigning stable IDs as needed
 	if len(op.BlockedBy) > 0 {
 		for _, hid := range op.BlockedBy {
 			task := tl.FindTask(hid)
@@ -322,7 +322,13 @@ func validateExtendedFields(tl *TaskList, op Operation) error {
 				return fmt.Errorf("blocked-by task %s not found", hid)
 			}
 			if task.StableID == "" {
-				return ErrNoStableID
+				existingIDs := tl.collectStableIDs()
+				idGen := NewStableIDGenerator(existingIDs)
+				newID, err := idGen.Generate()
+				if err != nil {
+					return fmt.Errorf("generating stable ID for task %s: %w", hid, err)
+				}
+				task.StableID = newID
 			}
 		}
 	}

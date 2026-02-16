@@ -110,7 +110,7 @@ func TestAddTaskWithOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("AddTask blocked-by validation - target must have stable ID", func(t *testing.T) {
+	t.Run("AddTask blocked-by auto-assigns stable ID to target", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
 		// Create a legacy task (without stable ID) by directly adding to Tasks slice
@@ -122,19 +122,27 @@ func TestAddTaskWithOptions(t *testing.T) {
 		}
 		tl.Tasks = append(tl.Tasks, legacyTask)
 
-		// Try to add a task blocked by the legacy task
-		_, err := tl.AddTaskWithOptions("", "New task", AddOptions{
-			BlockedBy: []string{"1"}, // ID of the legacy task
+		// Add a task blocked by the legacy task — should auto-assign a stable ID
+		newID, err := tl.AddTaskWithOptions("", "New task", AddOptions{
+			BlockedBy: []string{"1"},
 		})
-
-		// Should fail because target doesn't have a stable ID
-		if err == nil {
-			t.Error("expected error when blocking on legacy task, got nil")
+		if err != nil {
+			t.Fatalf("expected success, got error: %v", err)
 		}
 
-		// Error should mention stable ID
-		if err != nil && err != ErrNoStableID {
-			t.Logf("Got expected error type: %v", err)
+		// The legacy task should now have a stable ID
+		target := tl.FindTask("1")
+		if target.StableID == "" {
+			t.Error("expected legacy task to get a stable ID, but it's still empty")
+		}
+
+		// The new task should reference the auto-assigned stable ID
+		newTask := tl.FindTask(newID)
+		if newTask == nil {
+			t.Fatal("new task not found")
+		}
+		if len(newTask.BlockedBy) != 1 || newTask.BlockedBy[0] != target.StableID {
+			t.Errorf("expected blocked-by [%s], got %v", target.StableID, newTask.BlockedBy)
 		}
 	})
 
@@ -597,7 +605,7 @@ func TestResolveToStableIDs(t *testing.T) {
 		}
 	})
 
-	t.Run("resolve fails for legacy task without stable ID", func(t *testing.T) {
+	t.Run("resolve auto-assigns stable ID to legacy task", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
 		// Create legacy task directly
@@ -607,12 +615,21 @@ func TestResolveToStableIDs(t *testing.T) {
 			Status: Pending,
 		})
 
-		_, err := tl.resolveToStableIDs([]string{"1"})
-		if err == nil {
-			t.Error("expected error for legacy task, got nil")
+		stableIDs, err := tl.resolveToStableIDs([]string{"1"})
+		if err != nil {
+			t.Fatalf("expected success, got error: %v", err)
 		}
-		if err != ErrNoStableID {
-			t.Errorf("expected ErrNoStableID, got %v", err)
+		if len(stableIDs) != 1 {
+			t.Fatalf("expected 1 stable ID, got %d", len(stableIDs))
+		}
+		if stableIDs[0] == "" {
+			t.Error("expected non-empty stable ID")
+		}
+
+		// The task should now have the stable ID persisted
+		task := tl.FindTask("1")
+		if task.StableID != stableIDs[0] {
+			t.Errorf("expected task stable ID %q, got %q", stableIDs[0], task.StableID)
 		}
 	})
 }

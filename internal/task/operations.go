@@ -1136,7 +1136,8 @@ func (tl *TaskList) collectStableIDs() []string {
 }
 
 // resolveToStableIDs converts hierarchical IDs to stable IDs.
-// Returns an error if any task doesn't exist or doesn't have a stable ID.
+// If a task doesn't have a stable ID, one is auto-assigned.
+// Returns an error if any task doesn't exist.
 func (tl *TaskList) resolveToStableIDs(hierarchicalIDs []string) ([]string, error) {
 	stableIDs := make([]string, 0, len(hierarchicalIDs))
 
@@ -1146,7 +1147,13 @@ func (tl *TaskList) resolveToStableIDs(hierarchicalIDs []string) ([]string, erro
 			return nil, fmt.Errorf("task %s not found", hid)
 		}
 		if task.StableID == "" {
-			return nil, ErrNoStableID
+			existingIDs := tl.collectStableIDs()
+			idGen := NewStableIDGenerator(existingIDs)
+			newID, err := idGen.Generate()
+			if err != nil {
+				return nil, fmt.Errorf("generating stable ID for task %s: %w", hid, err)
+			}
+			task.StableID = newID
 		}
 		stableIDs = append(stableIDs, task.StableID)
 	}

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Dependencies**: Auto-assign stable IDs to dependency targets instead of failing with `ErrNoStableID` when a `blocked_by` reference targets a task without extended fields
 - **Batch Command**: `--input -` now correctly reads JSON from stdin instead of treating `"-"` as literal JSON, enabling piped input with a positional target file (`echo '...' | rune batch tasks.md --input -`)
 - **Renumber Command**: Document that stable IDs, blocked-by dependencies, streams, and owners are preserved during renumbering
 - **Renumber Test Coverage**: Add test verifying stable IDs and dependency metadata survive renumbering
