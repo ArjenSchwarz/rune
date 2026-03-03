@@ -71,7 +71,10 @@ func getCurrentBranchImpl() (string, error) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD")
-	cmd.WaitDelay = 500 * time.Millisecond // Close pipes promptly after process kill
+	// WaitDelay closes pipes after the process is killed, preventing hangs when
+	// child processes (e.g., shell spawning sleep) inherit the pipes. This adds
+	// to the total wait time: effective max = gitCommandTimeout + WaitDelay.
+	cmd.WaitDelay = 500 * time.Millisecond
 	var out, errOut bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errOut

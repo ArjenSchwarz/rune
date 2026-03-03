@@ -261,7 +261,9 @@ sleep 10
 		t.Fatalf("Failed to create mock git script: %v", err)
 	}
 
-	// Put mock git first in PATH
+	// Put mock git first in PATH.
+	// NOTE: Both os.Setenv and gitCommandTimeout mutation are process-global state.
+	// This test must NOT use t.Parallel() — doing so would trigger the race detector.
 	originalPath := os.Getenv("PATH")
 	os.Setenv("PATH", tempDir+":"+originalPath)
 	defer os.Setenv("PATH", originalPath)
@@ -281,10 +283,11 @@ sleep 10
 	if !strings.Contains(err.Error(), "timed out") {
 		t.Errorf("Expected timeout error, got: %v", err)
 	}
-	// The function should return well before the mock git's 10-second sleep.
-	// Allow generous margin (2 seconds) but it should be ~200ms in practice.
-	if elapsed > 2*time.Second {
-		t.Errorf("Timeout not enforced: took %v (expected ~200ms)", elapsed)
+	// The function should return within timeout + WaitDelay (200ms + 500ms = 700ms).
+	// Add 500ms margin for process overhead, well below the mock's 10-second sleep.
+	maxExpected := gitCommandTimeout + 500*time.Millisecond + 500*time.Millisecond
+	if elapsed > maxExpected {
+		t.Errorf("Timeout not enforced: took %v (expected under %v)", elapsed, maxExpected)
 	}
 }
 
