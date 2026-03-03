@@ -219,6 +219,7 @@ func runNextWithClaim(filename string) error {
 		readyTasks := getReadyTasks(taskList.Tasks, index)
 		if len(readyTasks) > 0 {
 			// If --one flag is set, find the deepest incomplete task
+			// but only claim it if it is actually ready (not blocked)
 			if oneFlag {
 				// Find the next incomplete task with full context
 				nextTask := task.FindNextIncompleteTask(taskList.Tasks)
@@ -227,7 +228,7 @@ func runNextWithClaim(filename string) error {
 					task.FilterToFirstIncompletePath(nextTask)
 					// Find the deepest task in the filtered path
 					deepestTask := findDeepestTask(nextTask)
-					if deepestTask != nil {
+					if deepestTask != nil && isTaskReady(deepestTask, index) {
 						taskIDsToClaim = append(taskIDsToClaim, deepestTask.ID)
 					}
 				}
@@ -316,6 +317,12 @@ func filterIncompleteChildren(children []task.Task) []task.Task {
 		}
 	}
 	return incomplete
+}
+
+// isTaskReady checks whether a task is ready to be claimed:
+// pending status, not blocked by incomplete dependencies, and no owner assigned.
+func isTaskReady(t *task.Task, index *task.DependencyIndex) bool {
+	return t.Status == task.Pending && !index.IsBlocked(t) && t.Owner == ""
 }
 
 // findDeepestTask finds the deepest (leaf) task in a TaskWithContext
