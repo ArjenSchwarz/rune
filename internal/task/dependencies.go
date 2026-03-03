@@ -85,9 +85,9 @@ func (idx *DependencyIndex) IsReady(task *Task) bool {
 	for _, blockerID := range task.BlockedBy {
 		blocker := idx.GetTask(blockerID)
 		if blocker == nil {
-			// If blocker doesn't exist, we consider the task as not ready
+			// If blocker doesn't exist, the task is not ready
 			// (conservative approach for invalid references)
-			continue
+			return false
 		}
 		if blocker.Status != Completed {
 			return false

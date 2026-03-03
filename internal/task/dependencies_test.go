@@ -302,6 +302,8 @@ func TestDependencyIndex_IsReady(t *testing.T) {
 		{ID: "6", Title: "Blocked by pending", StableID: "abc0006", BlockedBy: []string{"abc0003"}},
 		{ID: "7", Title: "Blocked by multiple all completed", StableID: "abc0007", BlockedBy: []string{"abc0001"}},
 		{ID: "8", Title: "Blocked by multiple mixed", StableID: "abc0008", BlockedBy: []string{"abc0001", "abc0003"}},
+		{ID: "9", Title: "Blocked by nonexistent", StableID: "abc0009", BlockedBy: []string{"xyz9999"}},
+		{ID: "10", Title: "Blocked by missing and completed", StableID: "abc0010", BlockedBy: []string{"abc0001", "xyz9999"}},
 	}
 	idx := BuildDependencyIndex(tasks)
 
@@ -333,6 +335,14 @@ func TestDependencyIndex_IsReady(t *testing.T) {
 			stableID:  "abc0008",
 			wantReady: false,
 		},
+		"blocked_by_missing_blocker": {
+			stableID:  "abc0009",
+			wantReady: false,
+		},
+		"blocked_by_missing_and_completed": {
+			stableID:  "abc0010",
+			wantReady: false,
+		},
 	}
 
 	for name, tc := range tests {
@@ -356,6 +366,7 @@ func TestDependencyIndex_IsBlocked(t *testing.T) {
 		{ID: "3", Title: "Blocked by completed", StableID: "abc0003", BlockedBy: []string{"abc0001"}},
 		{ID: "4", Title: "Blocked by pending", StableID: "abc0004", BlockedBy: []string{"abc0002"}},
 		{ID: "5", Title: "No blockers", StableID: "abc0005"},
+		{ID: "6", Title: "Blocked by nonexistent", StableID: "abc0006", BlockedBy: []string{"xyz9999"}},
 	}
 	idx := BuildDependencyIndex(tasks)
 
@@ -373,6 +384,10 @@ func TestDependencyIndex_IsBlocked(t *testing.T) {
 		},
 		"blocked_by_pending": {
 			stableID:    "abc0004",
+			wantBlocked: true,
+		},
+		"blocked_by_nonexistent": {
+			stableID:    "abc0006",
 			wantBlocked: true,
 		},
 	}
