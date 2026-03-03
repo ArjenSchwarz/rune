@@ -1793,3 +1793,161 @@ func TestNextCommandOneWithClaim(t *testing.T) {
 		t.Errorf("did not expect task 1.2 to be claimed, got: %s", fileStr)
 	}
 }
+
+// TestNextCommandOneWithClaimSkipsBlockedTasks verifies that --one --claim
+// does not select a blocked task. When the deepest task along the --one path
+// is blocked by an incomplete dependency, it must not be claimed.
+// Regression test for T-288.
+func TestNextCommandOneWithClaimSkipsBlockedTasks(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-one-claim-blocked-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	// Task 1.1.1 is blocked by task 2 (which is pending/incomplete).
+	// The --one path would naturally traverse: 1 → 1.1 → 1.1.1
+	// But 1.1.1 is blocked, so it must NOT be claimed.
+	content := `# Project Tasks
+
+- [ ] 1. Parent task <!-- id:abc1234 -->
+  - [ ] 1.1. First child <!-- id:def5678 -->
+    - [ ] 1.1.1. Blocked grandchild <!-- id:ghi9012 -->
+      - Blocked-by: xyz9999 (Unrelated task)
+    - [ ] 1.1.2. Second grandchild <!-- id:jkl3456 -->
+  - [ ] 1.2. Second child <!-- id:mno7890 -->
+- [ ] 2. Unrelated task <!-- id:xyz9999 -->
+`
+
+	testFile := "test-one-claim-blocked.md"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Reset flags
+	oneFlag = false
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", testFile, "--one", "--claim", "test-agent", "--format", "json"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	cmdOutput := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The blocked task 1.1.1 must NOT be claimed
+	if strings.Contains(cmdOutput, `"id": "1.1.1"`) {
+		t.Errorf("blocked task 1.1.1 should not be claimed, got: %s", cmdOutput)
+	}
+
+	// The command should report no claimable tasks on this path
+	if !strings.Contains(cmdOutput, `"claimed": []`) {
+		t.Errorf("expected empty claimed list, got: %s", cmdOutput)
+	}
+
+	// Verify the file was NOT updated to claim 1.1.1
+	fileContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to read file after claim: %v", err)
+	}
+	fileStr := string(fileContent)
+
+	if strings.Contains(fileStr, "[-] 1.1.1") {
+		t.Errorf("blocked task 1.1.1 should not be in-progress in file, got: %s", fileStr)
+	}
+}
+
+// TestNextCommandOneWithClaimSelectsReadyLeaf verifies that when the deepest
+// task in the --one path is ready (not blocked), it gets claimed normally.
+func TestNextCommandOneWithClaimSelectsReadyLeaf(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-one-claim-ready-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	// Task 1.1.1 is blocked by task 2 which is completed, so it IS ready.
+	content := `# Project Tasks
+
+- [ ] 1. Parent task <!-- id:abc1234 -->
+  - [ ] 1.1. First child <!-- id:def5678 -->
+    - [ ] 1.1.1. Unblocked grandchild <!-- id:ghi9012 -->
+      - Blocked-by: xyz9999 (Completed blocker)
+    - [ ] 1.1.2. Second grandchild <!-- id:jkl3456 -->
+- [x] 2. Completed blocker <!-- id:xyz9999 -->
+`
+
+	testFile := "test-one-claim-ready.md"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Reset flags
+	oneFlag = false
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", testFile, "--one", "--claim", "test-agent", "--format", "json"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	cmdOutput := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Task 1.1.1 should be claimed since its blocker is completed
+	if !strings.Contains(cmdOutput, `"id": "1.1.1"`) {
+		t.Errorf("expected task 1.1.1 to be claimed, got: %s", cmdOutput)
+	}
+	if !strings.Contains(cmdOutput, `"owner": "test-agent"`) {
+		t.Errorf("expected owner to be test-agent, got: %s", cmdOutput)
+	}
+	if !strings.Contains(cmdOutput, `"status": "In Progress"`) {
+		t.Errorf("expected status to be In Progress, got: %s", cmdOutput)
+	}
+
+	// Verify file was updated
+	fileContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to read file after claim: %v", err)
+	}
+	fileStr := string(fileContent)
+
+	if !strings.Contains(fileStr, "[-] 1.1.1") {
+		t.Errorf("expected task 1.1.1 to be in-progress in file, got: %s", fileStr)
+	}
+}
