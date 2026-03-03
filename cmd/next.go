@@ -203,7 +203,7 @@ func runNextWithClaim(filename string) error {
 		// Filter to only ready tasks (pending, no owner, not blocked)
 		for i := range phaseResult.Tasks {
 			t := &phaseResult.Tasks[i]
-			if t.Status == task.Pending && t.Owner == "" && !index.IsBlocked(t) {
+			if isTaskReady(t, index) {
 				taskIDsToClaim = append(taskIDsToClaim, t.ID)
 			}
 		}
@@ -290,11 +290,7 @@ func getReadyTasks(tasks []task.Task, index *task.DependencyIndex) []task.Task {
 	findReady = func(taskList []task.Task) {
 		for i := range taskList {
 			t := &taskList[i]
-			// Check if task is ready:
-			// - Pending status
-			// - Not blocked (all dependencies completed)
-			// - No owner
-			if t.Status == task.Pending && !index.IsBlocked(t) && t.Owner == "" {
+			if isTaskReady(t, index) {
 				ready = append(ready, *t)
 			}
 			// Check children

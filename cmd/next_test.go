@@ -1858,6 +1858,11 @@ func TestNextCommandOneWithClaimSkipsBlockedTasks(t *testing.T) {
 		t.Errorf("blocked task 1.1.1 should not be claimed, got: %s", cmdOutput)
 	}
 
+	// The command should report no claimable tasks on this path
+	if !strings.Contains(cmdOutput, `"claimed": []`) {
+		t.Errorf("expected empty claimed list, got: %s", cmdOutput)
+	}
+
 	// Verify the file was NOT updated to claim 1.1.1
 	fileContent, err := os.ReadFile(testFile)
 	if err != nil {
