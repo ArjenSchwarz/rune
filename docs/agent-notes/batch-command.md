@@ -25,6 +25,15 @@ The `--input` flag accepts `-` as a stdin marker. When `--input -` is passed, th
 
 The block-based approach matters because users may intentionally interleave removes with adds/updates to achieve specific sequencing (e.g., remove a task, add a replacement, remove another task).
 
+## Validation and Atomicity
+
+`validateOperation` must validate ALL field content upfront (details, references, title, requirements, extended fields) so that `applyOperation` never fails on content validation. This is important because:
+
+1. `ExecuteBatch` uses a test-copy-first approach that protects the original list, but individual apply functions should still be correct
+2. `applyUpdateOperation` and `applyOperationWithPhases` must apply status AFTER other field updates to avoid partial mutation if validation fails
+3. When adding new validatable fields to `Operation`, update `validateOperation` to include content validation for both add and update cases
+
+The `validateDetailsAndReferences` helper in batch.go centralises detail/reference content validation for use in `validateOperation`.
 ## Testing Gotcha: Cobra Flag State
 
 Cobra flag values and `Changed` bits persist across `Execute()` calls in the same process. This matters in tests where multiple tests share `rootCmd`. The `resetBatchFlags()` helper in `batch_test.go` resets `batchInput` and the flag's `Changed` bit. Call it at the start of any batch test that does NOT use `--input` to avoid false positives from stale state.
