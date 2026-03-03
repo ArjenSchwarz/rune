@@ -402,6 +402,32 @@ references:
 				"./README.md",
 			},
 		},
+		"CRLF_with_front_matter_and_references": {
+			content:   "---\r\nreferences:\r\n  - ./docs/architecture.md\r\n  - ./specs/api.yaml\r\nmetadata:\r\n  project: backend-api\r\n---\r\n# Project Tasks\r\n\r\n- [ ] 1. Setup environment\r\n- [x] 2. Implement auth",
+			wantTitle: "Project Tasks",
+			wantTasks: 2,
+			wantReferences: []string{
+				"./docs/architecture.md",
+				"./specs/api.yaml",
+			},
+			wantMetadata: map[string]string{
+				"project": "backend-api",
+			},
+		},
+		"CRLF_without_front_matter": {
+			content:        "# Regular Tasks\r\n\r\n- [ ] 1. Task one\r\n- [x] 2. Task two",
+			wantTitle:      "Regular Tasks",
+			wantTasks:      2,
+			wantReferences: nil,
+			wantMetadata:   nil,
+		},
+		"CRLF_empty_front_matter": {
+			content:        "---\r\n---\r\n# Tasks\r\n\r\n- [ ] 1. First task",
+			wantTitle:      "Tasks",
+			wantTasks:      1,
+			wantReferences: nil,
+			wantMetadata:   nil,
+		},
 	}
 
 	for name, tc := range tests {

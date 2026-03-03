@@ -16,6 +16,9 @@ type FrontMatter struct {
 // ParseFrontMatter extracts YAML front matter from markdown content
 // Returns the parsed front matter, remaining content, and any error
 func ParseFrontMatter(content string) (*FrontMatter, string, error) {
+	// Normalize CRLF to LF so delimiter matching works with Windows-style line endings
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+
 	// Check if content starts with front matter delimiter
 	if !strings.HasPrefix(content, "---\n") {
 		// No front matter present - return empty front matter and original content

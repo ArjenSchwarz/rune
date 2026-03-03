@@ -144,6 +144,40 @@ references:
 
 - [ ] 1. Task one`,
 		},
+		"CRLF front matter with references": {
+			input: "---\r\nreferences:\r\n  - ./docs/setup.md\r\n  - ./specs/api.yaml\r\n---\r\n# Test Tasks\r\n\r\n- [ ] 1. Test task",
+			expectedFM: &FrontMatter{
+				References: []string{
+					"./docs/setup.md",
+					"./specs/api.yaml",
+				},
+				Metadata: nil,
+			},
+			expectedContent: "# Test Tasks\n\n- [ ] 1. Test task",
+		},
+		"CRLF empty front matter": {
+			input: "---\r\n---\r\n# Tasks\r\n\r\n- [ ] 1. Task one",
+			expectedFM: &FrontMatter{
+				References: nil,
+				Metadata:   nil,
+			},
+			expectedContent: "# Tasks\n\n- [ ] 1. Task one",
+		},
+		"CRLF unclosed front matter": {
+			input:         "---\r\nreferences:\r\n  - ./docs/test.md\r\n# No closing delimiter",
+			expectedError: "unclosed front matter block",
+		},
+		"CRLF front matter with metadata": {
+			input: "---\r\nmetadata:\r\n  project: test-project\r\n  created: \"2024-01-30\"\r\n---\r\n# Tasks\r\n\r\n- [ ] 1. Task one",
+			expectedFM: &FrontMatter{
+				References: nil,
+				Metadata: map[string]string{
+					"project": "test-project",
+					"created": "2024-01-30",
+				},
+			},
+			expectedContent: "# Tasks\n\n- [ ] 1. Task one",
+		},
 	}
 
 	for name, tc := range tests {
