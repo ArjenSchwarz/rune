@@ -98,14 +98,25 @@ func AnalyzeStreams(tasks []Task, index *DependencyIndex) *StreamsResult {
 }
 
 // FilterByStream returns tasks belonging to the specified stream.
+// It recurses through children to find nested tasks whose effective stream matches.
 // Uses GetEffectiveStream to handle default stream (1) for tasks without explicit stream.
 func FilterByStream(tasks []Task, stream int) []Task {
 	var result []Task
-	for _, task := range tasks {
-		if GetEffectiveStream(&task) == stream {
-			result = append(result, task)
+
+	var collect func([]Task)
+	collect = func(taskList []Task) {
+		for _, t := range taskList {
+			if GetEffectiveStream(&t) == stream {
+				result = append(result, t)
+			}
+			if len(t.Children) > 0 {
+				collect(t.Children)
+			}
 		}
 	}
+
+	collect(tasks)
+
 	if result == nil {
 		return []Task{}
 	}
