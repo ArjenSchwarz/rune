@@ -367,6 +367,7 @@ func TestDependencyIndex_IsBlocked(t *testing.T) {
 		{ID: "4", Title: "Blocked by pending", StableID: "abc0004", BlockedBy: []string{"abc0002"}},
 		{ID: "5", Title: "No blockers", StableID: "abc0005"},
 		{ID: "6", Title: "Blocked by nonexistent", StableID: "abc0006", BlockedBy: []string{"xyz9999"}},
+		{ID: "7", Title: "Blocked by missing and completed", StableID: "abc0007", BlockedBy: []string{"abc0001", "xyz9999"}},
 	}
 	idx := BuildDependencyIndex(tasks)
 
@@ -388,6 +389,10 @@ func TestDependencyIndex_IsBlocked(t *testing.T) {
 		},
 		"blocked_by_nonexistent": {
 			stableID:    "abc0006",
+			wantBlocked: true,
+		},
+		"blocked_by_missing_and_completed": {
+			stableID:    "abc0007",
 			wantBlocked: true,
 		},
 	}
