@@ -90,6 +90,118 @@ func TestFilterByStream(t *testing.T) {
 	}
 }
 
+func TestFilterByStream_NestedTasks(t *testing.T) {
+	// Regression test for T-170: FilterByStream should recurse into children
+	// and return nested tasks whose effective stream matches the filter.
+	tasks := []Task{
+		{
+			ID:     "1",
+			Title:  "Parent in stream 1",
+			Stream: 1,
+			Children: []Task{
+				{ID: "1.1", Title: "Child in stream 1", Stream: 1},
+				{ID: "1.2", Title: "Child in stream 2", Stream: 2},
+			},
+		},
+		{ID: "2", Title: "Top-level stream 2", Stream: 2},
+		{
+			ID:     "3",
+			Title:  "Parent in stream 2",
+			Stream: 2,
+			Children: []Task{
+				{ID: "3.1", Title: "Child in stream 2", Stream: 2},
+				{ID: "3.2", Title: "Child in stream 3", Stream: 3},
+				{
+					ID:     "3.3",
+					Title:  "Child default stream",
+					Stream: 0, // defaults to 1
+					Children: []Task{
+						{ID: "3.3.1", Title: "Grandchild stream 2", Stream: 2},
+					},
+				},
+			},
+		},
+	}
+
+	tests := map[string]struct {
+		stream  int
+		wantIDs []string
+	}{
+		"stream_1_includes_nested_children": {
+			stream:  1,
+			wantIDs: []string{"1", "1.1", "3.3"},
+		},
+		"stream_2_includes_nested_children": {
+			stream:  2,
+			wantIDs: []string{"1.2", "2", "3", "3.1", "3.3.1"},
+		},
+		"stream_3_finds_deeply_nested": {
+			stream:  3,
+			wantIDs: []string{"3.2"},
+		},
+		"non_existent_stream": {
+			stream:  99,
+			wantIDs: []string{},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := FilterByStream(tasks, tc.stream)
+			if len(got) != len(tc.wantIDs) {
+				gotIDs := make([]string, len(got))
+				for i, task := range got {
+					gotIDs[i] = task.ID
+				}
+				t.Fatalf("FilterByStream(stream=%d) returned %d tasks %v, want %d %v",
+					tc.stream, len(got), gotIDs, len(tc.wantIDs), tc.wantIDs)
+			}
+			for i, wantID := range tc.wantIDs {
+				if got[i].ID != wantID {
+					t.Errorf("FilterByStream(stream=%d)[%d].ID = %q, want %q",
+						tc.stream, i, got[i].ID, wantID)
+				}
+			}
+		})
+	}
+}
+
+func TestFilterByStream_DeduplicatesFlattenedInput(t *testing.T) {
+	// When input contains both a parent and its child as separate entries
+	// (e.g., from getReadyTasks which flattens the hierarchy but preserves Children),
+	// FilterByStream should not return duplicates.
+	tasks := []Task{
+		{
+			ID:     "1",
+			Title:  "Parent stream 2",
+			Stream: 2,
+			Children: []Task{
+				{ID: "1.1", Title: "Child stream 2", Stream: 2},
+			},
+		},
+		// Child also appears as a direct entry (simulating getReadyTasks output)
+		{ID: "1.1", Title: "Child stream 2", Stream: 2},
+		{ID: "2", Title: "Another stream 2", Stream: 2},
+	}
+
+	got := FilterByStream(tasks, 2)
+
+	wantIDs := []string{"1", "1.1", "2"}
+	if len(got) != len(wantIDs) {
+		gotIDs := make([]string, len(got))
+		for i, task := range got {
+			gotIDs[i] = task.ID
+		}
+		t.Fatalf("FilterByStream returned %d tasks %v, want %d %v (no duplicates)",
+			len(got), gotIDs, len(wantIDs), wantIDs)
+	}
+	for i, wantID := range wantIDs {
+		if got[i].ID != wantID {
+			t.Errorf("FilterByStream[%d].ID = %q, want %q", i, got[i].ID, wantID)
+		}
+	}
+}
+
 func TestAnalyzeStreams_SingleStream(t *testing.T) {
 	// All tasks in default stream (1)
 	tasks := []Task{

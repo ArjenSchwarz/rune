@@ -781,6 +781,226 @@ func TestFindNextPhaseTasksForStream(t *testing.T) {
 	}
 }
 
+func TestHasReadyTaskInStream_NestedTasks(t *testing.T) {
+	// Regression test for T-170: hasReadyTaskInStream should find ready tasks
+	// nested inside parent tasks with a different stream.
+	tests := map[string]struct {
+		tasks     []Task
+		stream    int
+		wantReady bool
+	}{
+		"ready_nested_task_in_different_stream_parent": {
+			tasks: []Task{
+				{
+					ID:       "1",
+					Title:    "Parent stream 1",
+					Status:   Pending,
+					Stream:   1,
+					StableID: "abc0001",
+					Children: []Task{
+						{ID: "1.1", Title: "Child stream 2", Status: Pending, Stream: 2, StableID: "abc0011"},
+					},
+				},
+			},
+			stream:    2,
+			wantReady: true,
+		},
+		"no_ready_nested_tasks_all_owned": {
+			tasks: []Task{
+				{
+					ID:       "1",
+					Title:    "Parent stream 1",
+					Status:   Pending,
+					Stream:   1,
+					StableID: "abc0001",
+					Children: []Task{
+						{ID: "1.1", Title: "Child stream 2", Status: Pending, Stream: 2, StableID: "abc0011", Owner: "agent-1"},
+					},
+				},
+			},
+			stream:    2,
+			wantReady: false,
+		},
+		"deeply_nested_ready_task": {
+			tasks: []Task{
+				{
+					ID:       "1",
+					Title:    "Parent stream 1",
+					Status:   Pending,
+					Stream:   1,
+					StableID: "abc0001",
+					Children: []Task{
+						{
+							ID:       "1.1",
+							Title:    "Child stream 1",
+							Status:   Pending,
+							Stream:   1,
+							StableID: "abc0011",
+							Children: []Task{
+								{ID: "1.1.1", Title: "Grandchild stream 2", Status: Pending, Stream: 2, StableID: "abc0111"},
+							},
+						},
+					},
+				},
+			},
+			stream:    2,
+			wantReady: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			index := BuildDependencyIndex(tc.tasks)
+			got := hasReadyTaskInStream(tc.tasks, tc.stream, index)
+			if got != tc.wantReady {
+				t.Errorf("hasReadyTaskInStream() = %v, want %v", got, tc.wantReady)
+			}
+		})
+	}
+}
+
+func TestFindNextPhaseTasksForStream_NestedTasks(t *testing.T) {
+	// Regression test for T-170: FindNextPhaseTasksForStream should find
+	// nested tasks whose effective stream matches, even when their parent
+	// is in a different stream.
+	tests := map[string]struct {
+		content     string
+		stream      int
+		wantNil     bool
+		wantPhase   string
+		wantTaskIDs []string
+	}{
+		"nested_subtask_in_target_stream": {
+			content: `## Phase A
+- [ ] 1. Parent task
+  - Stream: 1
+  - [ ] 1.1. Child in stream 2
+    - Stream: 2
+`,
+			stream:      2,
+			wantPhase:   "Phase A",
+			wantTaskIDs: []string{"1.1"},
+		},
+		"skip_phase_without_ready_nested_tasks": {
+			content: `## Phase A
+- [ ] 1. Parent task
+  - Stream: 1
+
+## Phase B
+- [ ] 2. Parent task B
+  - Stream: 1
+  - [ ] 2.1. Child in stream 2
+    - Stream: 2
+`,
+			stream:      2,
+			wantPhase:   "Phase B",
+			wantTaskIDs: []string{"2.1"},
+		},
+		"deeply_nested_stream_task": {
+			content: `## Phase A
+- [ ] 1. Top-level stream 1
+  - Stream: 1
+  - [ ] 1.1. Child stream 1
+    - Stream: 1
+    - [ ] 1.1.1. Grandchild stream 3
+      - Stream: 3
+`,
+			stream:      3,
+			wantPhase:   "Phase A",
+			wantTaskIDs: []string{"1.1.1"},
+		},
+		"mix_of_top_level_and_nested_stream_tasks": {
+			content: `## Phase A
+- [ ] 1. Top-level stream 2
+  - Stream: 2
+- [ ] 2. Parent stream 1
+  - Stream: 1
+  - [ ] 2.1. Nested stream 2
+    - Stream: 2
+`,
+			stream:      2,
+			wantPhase:   "Phase A",
+			wantTaskIDs: []string{"1", "2.1"},
+		},
+		"nested_completed_stream_task_excluded": {
+			content: `## Phase A
+- [ ] 1. Parent stream 1
+  - Stream: 1
+  - [x] 1.1. Completed child stream 2
+    - Stream: 2
+  - [ ] 1.2. Pending child stream 2
+    - Stream: 2
+`,
+			stream:      2,
+			wantPhase:   "Phase A",
+			wantTaskIDs: []string{"1.2"},
+		},
+		"all_nested_stream_tasks_owned_returns_nil": {
+			content: `## Phase A
+- [ ] 1. Parent stream 1
+  - Stream: 1
+  - [ ] 1.1. Child stream 2
+    - Stream: 2
+    - Owner: agent-1
+`,
+			stream:  2,
+			wantNil: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tmpfile, err := os.CreateTemp("", "test-*.md")
+			if err != nil {
+				t.Fatalf("failed to create temp file: %v", err)
+			}
+			defer os.Remove(tmpfile.Name())
+
+			if _, err := tmpfile.Write([]byte(tc.content)); err != nil {
+				t.Fatalf("failed to write temp file: %v", err)
+			}
+			if err := tmpfile.Close(); err != nil {
+				t.Fatalf("failed to close temp file: %v", err)
+			}
+
+			result, err := FindNextPhaseTasksForStream(tmpfile.Name(), tc.stream)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tc.wantNil {
+				if result != nil {
+					t.Errorf("expected nil result, got phase %q with %d tasks", result.PhaseName, len(result.Tasks))
+				}
+				return
+			}
+
+			if result == nil {
+				t.Fatalf("expected result, got nil")
+			}
+
+			if result.PhaseName != tc.wantPhase {
+				t.Errorf("phase name: got %q, want %q", result.PhaseName, tc.wantPhase)
+			}
+
+			gotIDs := make([]string, len(result.Tasks))
+			for i, task := range result.Tasks {
+				gotIDs[i] = task.ID
+			}
+
+			if len(result.Tasks) != len(tc.wantTaskIDs) {
+				t.Fatalf("task count: got %d %v, want %d %v", len(result.Tasks), gotIDs, len(tc.wantTaskIDs), tc.wantTaskIDs)
+			}
+
+			for i, wantID := range tc.wantTaskIDs {
+				if gotIDs[i] != wantID {
+					t.Errorf("task ID at index %d: got %q, want %q", i, gotIDs[i], wantID)
+				}
+			}
+		})
+	}
+}
+
 func TestFilterToFirstIncompletePath(t *testing.T) {
 	tests := map[string]struct {
 		children []Task
