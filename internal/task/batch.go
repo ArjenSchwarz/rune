@@ -31,10 +31,11 @@ func validateTaskIDFormat(id string) bool {
 }
 
 // sortOperationsForExecution sorts operations to ensure correct execution order:
-// 1. Position insertions are sorted in reverse order (highest position first) so position references remain valid
-// 2. Remove operations are sorted in reverse order (highest ID first) so users can specify original task IDs
-// The sorted operations maintain their relative order: position insertions first, then all other operations
-// (with removes sorted in reverse among themselves but in their original position relative to non-removes)
+//  1. Position insertions are sorted in reverse order (highest position first) so position references remain valid
+//  2. Remove operations are sorted in reverse order (highest ID first) within contiguous blocks so users can
+//     specify original task IDs. Removes are never reordered across non-remove operations.
+//
+// The sorted operations maintain their relative order: position insertions first, then all other operations.
 func sortOperationsForExecution(ops []Operation) []Operation {
 	// Separate position insertions from other operations
 	var positionInsertions []Operation
@@ -53,28 +54,26 @@ func sortOperationsForExecution(ops []Operation) []Operation {
 		return comparePositions(positionInsertions[i].Position, positionInsertions[j].Position) > 0
 	})
 
-	// Sort remove operations in reverse order (higher IDs first) while preserving their relative
-	// position to non-remove operations. This allows users to specify original task IDs when
-	// doing multiple removes - removing highest first preserves lower IDs.
-	// We achieve this by collecting removes, sorting them, and reinserting at their block position.
-	var removes []Operation
-	removeIndices := []int{}
-
-	for i, op := range otherOps {
-		if strings.ToLower(op.Type) == removeOperation {
-			removes = append(removes, op)
-			removeIndices = append(removeIndices, i)
+	// Sort remove operations in reverse order (higher IDs first) within contiguous blocks only.
+	// This allows users to specify original task IDs when doing multiple removes - removing
+	// highest first preserves lower IDs. Sorting is restricted to contiguous blocks so that
+	// removes never cross non-remove operations, which would change execution semantics.
+	i := 0
+	for i < len(otherOps) {
+		if strings.ToLower(otherOps[i].Type) != removeOperation {
+			i++
+			continue
 		}
-	}
-
-	// Sort removes in reverse order
-	sort.Slice(removes, func(i, j int) bool {
-		return comparePositions(removes[i].ID, removes[j].ID) > 0
-	})
-
-	// Replace removes back at their original indices (in sorted order)
-	for i, idx := range removeIndices {
-		otherOps[idx] = removes[i]
+		// Found start of a contiguous remove block
+		blockStart := i
+		for i < len(otherOps) && strings.ToLower(otherOps[i].Type) == removeOperation {
+			i++
+		}
+		// Sort the block [blockStart, i) in reverse ID order
+		block := otherOps[blockStart:i]
+		sort.Slice(block, func(a, b int) bool {
+			return comparePositions(block[a].ID, block[b].ID) > 0
+		})
 	}
 
 	// Combine: position insertions first (in reverse order), then other operations
