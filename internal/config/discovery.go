@@ -60,16 +60,21 @@ func DiscoverFileFromBranch(template string) (string, error) {
 // This allows for easy mocking in tests
 var getCurrentBranch = getCurrentBranchImpl
 
+// gitCommandTimeout controls how long to wait for git commands before timing out.
+// Exposed as a variable to allow tests to use shorter durations.
+var gitCommandTimeout = 5 * time.Second
+
 // getCurrentBranchImpl gets the current git branch name
 func getCurrentBranchImpl() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	// Create context with timeout to prevent hanging on slow/unresponsive git
+	ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.WaitDelay = 500 * time.Millisecond // Close pipes promptly after process kill
 	var out, errOut bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &errOut
-
-	// Set timeout to prevent hanging
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 	cmd.Stdin = nil // Ensure no stdin
 
 	if err := cmd.Run(); err != nil {

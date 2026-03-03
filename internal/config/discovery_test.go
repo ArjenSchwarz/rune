@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDiscoverFileFromBranch(t *testing.T) {
@@ -242,6 +243,48 @@ func TestGetCurrentBranch(t *testing.T) {
 				t.Errorf("Expected '%s', got '%s'", tc.expectedText, result)
 			}
 		})
+	}
+}
+
+func TestGetCurrentBranchTimeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping timeout test in short mode")
+	}
+
+	// Create a mock git that sleeps for 10 seconds (longer than our test timeout)
+	tempDir := t.TempDir()
+	mockGitPath := filepath.Join(tempDir, "git")
+	scriptContent := `#!/bin/sh
+sleep 10
+`
+	if err := os.WriteFile(mockGitPath, []byte(scriptContent), 0755); err != nil {
+		t.Fatalf("Failed to create mock git script: %v", err)
+	}
+
+	// Put mock git first in PATH
+	originalPath := os.Getenv("PATH")
+	os.Setenv("PATH", tempDir+":"+originalPath)
+	defer os.Setenv("PATH", originalPath)
+
+	// Use a short timeout so the test completes quickly
+	originalTimeout := gitCommandTimeout
+	gitCommandTimeout = 200 * time.Millisecond
+	defer func() { gitCommandTimeout = originalTimeout }()
+
+	start := time.Now()
+	_, err := getCurrentBranchImpl()
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("Expected timeout error but got none")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Errorf("Expected timeout error, got: %v", err)
+	}
+	// The function should return well before the mock git's 10-second sleep.
+	// Allow generous margin (2 seconds) but it should be ~200ms in practice.
+	if elapsed > 2*time.Second {
+		t.Errorf("Timeout not enforced: took %v (expected ~200ms)", elapsed)
 	}
 }
 
