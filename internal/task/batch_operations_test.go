@@ -1055,6 +1055,141 @@ func TestExecuteBatch_AddPhaseOperation(t *testing.T) {
 	}
 }
 
+// TestSortOperationsForExecution_RemoveBlockBoundaries verifies that remove operations
+// are sorted in reverse order only within contiguous blocks, without crossing non-remove
+// operations. This is a regression test for T-200.
+func TestSortOperationsForExecution_RemoveBlockBoundaries(t *testing.T) {
+	tests := map[string]struct {
+		input    []Operation
+		expected []string // expected order of op descriptions: "type:id" or "type:title"
+	}{
+		"contiguous removes sorted reverse": {
+			input: []Operation{
+				{Type: "remove", ID: "1"},
+				{Type: "remove", ID: "3"},
+				{Type: "remove", ID: "2"},
+			},
+			expected: []string{"remove:3", "remove:2", "remove:1"},
+		},
+		"removes do not cross add operation": {
+			// remove(1), add("foo"), remove(2) must NOT become remove(2), add, remove(1)
+			input: []Operation{
+				{Type: "remove", ID: "1"},
+				{Type: "add", Title: "foo"},
+				{Type: "remove", ID: "2"},
+			},
+			expected: []string{"remove:1", "add:foo", "remove:2"},
+		},
+		"removes do not cross update operation": {
+			input: []Operation{
+				{Type: "remove", ID: "1"},
+				{Type: "remove", ID: "3"},
+				{Type: "update", ID: "5", Title: "updated"},
+				{Type: "remove", ID: "4"},
+				{Type: "remove", ID: "2"},
+			},
+			// First block [remove(1), remove(3)] sorted reverse => [remove(3), remove(1)]
+			// Then update stays in place
+			// Second block [remove(4), remove(2)] sorted reverse => [remove(4), remove(2)]
+			expected: []string{"remove:3", "remove:1", "update:5", "remove:4", "remove:2"},
+		},
+		"single remove unchanged": {
+			input: []Operation{
+				{Type: "add", Title: "foo"},
+				{Type: "remove", ID: "1"},
+				{Type: "add", Title: "bar"},
+			},
+			expected: []string{"add:foo", "remove:1", "add:bar"},
+		},
+		"no removes at all": {
+			input: []Operation{
+				{Type: "add", Title: "foo"},
+				{Type: "update", ID: "1"},
+			},
+			expected: []string{"add:foo", "update:1"},
+		},
+		"all removes in one block": {
+			input: []Operation{
+				{Type: "add", Title: "foo"},
+				{Type: "remove", ID: "1"},
+				{Type: "remove", ID: "5"},
+				{Type: "remove", ID: "3"},
+			},
+			expected: []string{"add:foo", "remove:5", "remove:3", "remove:1"},
+		},
+	}
+
+	describeOp := func(op Operation) string {
+		if op.Type == "remove" {
+			return "remove:" + op.ID
+		}
+		if op.Type == "update" {
+			return "update:" + op.ID
+		}
+		return "add:" + op.Title
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := sortOperationsForExecution(tc.input)
+			if len(result) != len(tc.expected) {
+				t.Fatalf("expected %d ops, got %d", len(tc.expected), len(result))
+			}
+			for i, op := range result {
+				got := describeOp(op)
+				if got != tc.expected[i] {
+					t.Errorf("index %d: expected %s, got %s", i, tc.expected[i], got)
+				}
+			}
+		})
+	}
+}
+
+// TestExecuteBatch_RemoveAddRemovePreservesSemantics is an end-to-end test verifying that
+// a batch with [remove, add, remove] executes in the correct order, not crossing the add.
+// Regression test for T-200.
+func TestExecuteBatch_RemoveAddRemovePreservesSemantics(t *testing.T) {
+	tl := NewTaskList("Test Tasks")
+	tl.AddTask("", "Task A", "")
+	tl.AddTask("", "Task B", "")
+	tl.AddTask("", "Task C", "")
+
+	// Remove task 1 first, then add a new task (which will fill in after the remove),
+	// then remove task 3. The add should happen between the two removes.
+	ops := []Operation{
+		{Type: "remove", ID: "1"},
+		{Type: "add", Title: "New Task"},
+		{Type: "remove", ID: "3"},
+	}
+
+	response, err := tl.ExecuteBatch(ops, false)
+	if err != nil {
+		t.Fatalf("ExecuteBatch failed: %v", err)
+	}
+	if !response.Success {
+		t.Fatalf("Expected success, got errors: %v", response.Errors)
+	}
+
+	// After remove(1), add("New Task"), remove(3):
+	// - remove(1) removes "Task A" => ["Task B", "Task C"] renumbered to [1, 2]
+	// - add("New Task") adds task => ["Task B", "Task C", "New Task"] renumbered to [1, 2, 3]
+	// - remove(3) removes "New Task" or task at ID 3 => ["Task B", "Task C"]
+	//
+	// The key assertion: the operations must execute in the user-specified order.
+	// With the bug, removes get reordered across the add, which changes semantics.
+	if response.Applied != 3 {
+		t.Errorf("Expected 3 applied operations, got %d", response.Applied)
+	}
+
+	// Verify that exactly 2 tasks remain (Task B and Task C)
+	if len(tl.Tasks) != 2 {
+		t.Errorf("Expected 2 tasks remaining, got %d", len(tl.Tasks))
+		for _, task := range tl.Tasks {
+			t.Logf("  Task %s: %s", task.ID, task.Title)
+		}
+	}
+}
+
 // TestExecuteBatch_AddPhaseOperationDryRun tests dry-run mode for add-phase operations
 func TestExecuteBatch_AddPhaseOperationDryRun(t *testing.T) {
 	content := `# Test Tasks
