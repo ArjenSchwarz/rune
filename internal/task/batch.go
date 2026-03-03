@@ -249,6 +249,10 @@ func validateOperation(tl *TaskList, op Operation) error {
 				}
 			}
 		}
+		// Validate details and references content upfront
+		if err := validateDetailsAndReferences(op); err != nil {
+			return err
+		}
 		// Validate new fields for add operations
 		if err := validateExtendedFields(tl, op); err != nil {
 			return err
@@ -280,6 +284,12 @@ func validateOperation(tl *TaskList, op Operation) error {
 					return fmt.Errorf("invalid requirement ID format: %s", reqID)
 				}
 			}
+		}
+		// Validate details and references content upfront to prevent
+		// partial status application when UpdateTask/UpdateTaskWithOptions
+		// later rejects invalid content
+		if err := validateDetailsAndReferences(op); err != nil {
+			return err
 		}
 		// Validate new fields for update operations
 		if err := validateExtendedFields(tl, op); err != nil {
@@ -313,6 +323,23 @@ func validateOperation(tl *TaskList, op Operation) error {
 		}
 	default:
 		return fmt.Errorf("unknown operation type: %s", op.Type)
+	}
+	return nil
+}
+
+// validateDetailsAndReferences validates detail and reference content upfront
+// so that applyOperation never fails on content validation after partially
+// applying other fields (e.g., status).
+func validateDetailsAndReferences(op Operation) error {
+	if op.Details != nil {
+		if err := validateDetails(op.Details); err != nil {
+			return err
+		}
+	}
+	if op.References != nil {
+		if err := validateReferences(op.References); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -436,7 +463,9 @@ func applyAddOperation(tl *TaskList, op Operation) error {
 	return nil
 }
 
-// applyUpdateOperation handles update operations with extended fields
+// applyUpdateOperation handles update operations with extended fields.
+// Status is applied AFTER other fields to avoid partial mutation if
+// UpdateTask/UpdateTaskWithOptions rejects invalid content.
 func applyUpdateOperation(tl *TaskList, op Operation) error {
 	// Check if any extended fields are used
 	hasExtendedFields := op.Stream != nil || op.BlockedBy != nil || op.Owner != nil || op.Release
@@ -468,23 +497,27 @@ func applyUpdateOperation(tl *TaskList, op Operation) error {
 			opts.Owner = op.Owner
 		}
 
-		// Handle status update separately if provided
-		if hasStatusField(op) {
-			if err := tl.UpdateStatus(op.ID, *op.Status); err != nil {
-				return err
-			}
-		}
-
-		return tl.UpdateTaskWithOptions(op.ID, opts)
-	}
-
-	// Standard update operation without extended fields
-	if hasStatusField(op) {
-		if err := tl.UpdateStatus(op.ID, *op.Status); err != nil {
+		// Apply other fields first; status is deferred until these succeed
+		if err := tl.UpdateTaskWithOptions(op.ID, opts); err != nil {
 			return err
 		}
+
+		// Apply status after other fields have been validated and applied
+		if hasStatusField(op) {
+			return tl.UpdateStatus(op.ID, *op.Status)
+		}
+		return nil
 	}
-	return tl.UpdateTask(op.ID, op.Title, op.Details, op.References, op.Requirements)
+
+	// Standard update operation without extended fields:
+	// Apply title/details/references/requirements first, then status
+	if err := tl.UpdateTask(op.ID, op.Title, op.Details, op.References, op.Requirements); err != nil {
+		return err
+	}
+	if hasStatusField(op) {
+		return tl.UpdateStatus(op.ID, *op.Status)
+	}
+	return nil
 }
 
 // applyOperationWithAutoComplete executes a single operation and tracks auto-completed tasks
@@ -720,24 +753,8 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 		adjustPhaseMarkersForRemoval(op.ID, phaseMarkers)
 		return tl.RemoveTask(op.ID)
 	case updateOperation:
-		// Handle status update only when status field is provided
-		if hasStatusField(op) {
-			if err := tl.UpdateStatus(op.ID, *op.Status); err != nil {
-				return err
-			}
-
-			// Check for auto-completion on update operations that mark tasks as completed
-			if *op.Status == Completed {
-				completed, err := tl.AutoCompleteParents(op.ID)
-				if err == nil {
-					// Track auto-completed tasks (avoid duplicates)
-					for _, taskID := range completed {
-						autoCompleted[taskID] = true
-					}
-				}
-			}
-		}
-		// Check for extended fields
+		// Apply field updates BEFORE status to avoid partial mutation if
+		// UpdateTask/UpdateTaskWithOptions rejects invalid content.
 		hasExtendedFields := op.Stream != nil || op.BlockedBy != nil || op.Owner != nil || op.Release
 		if hasExtendedFields {
 			opts := UpdateOptions{
@@ -764,10 +781,34 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 			if op.Owner != nil {
 				opts.Owner = op.Owner
 			}
-			return tl.UpdateTaskWithOptions(op.ID, opts)
+			if err := tl.UpdateTaskWithOptions(op.ID, opts); err != nil {
+				return err
+			}
+		} else {
+			// Handle other field updates (title, details, references, requirements) if provided
+			if err := tl.UpdateTask(op.ID, op.Title, op.Details, op.References, op.Requirements); err != nil {
+				return err
+			}
 		}
-		// Handle other field updates (title, details, references, requirements) if provided
-		return tl.UpdateTask(op.ID, op.Title, op.Details, op.References, op.Requirements)
+
+		// Apply status after other fields have been validated and applied
+		if hasStatusField(op) {
+			if err := tl.UpdateStatus(op.ID, *op.Status); err != nil {
+				return err
+			}
+
+			// Check for auto-completion on update operations that mark tasks as completed
+			if *op.Status == Completed {
+				completed, err := tl.AutoCompleteParents(op.ID)
+				if err == nil {
+					// Track auto-completed tasks (avoid duplicates)
+					for _, taskID := range completed {
+						autoCompleted[taskID] = true
+					}
+				}
+			}
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown operation type: %s", op.Type)
 	}

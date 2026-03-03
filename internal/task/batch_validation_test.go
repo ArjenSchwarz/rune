@@ -187,6 +187,283 @@ func TestExecuteBatch_AutoCompleteErrorHandling(t *testing.T) {
 	}
 }
 
+// TestExecuteBatch_UpdateStatusNotAppliedBeforeInvalidDetails verifies that a batch
+// update with status + invalid details fails atomically. The bug was that status was
+// applied via UpdateStatus before UpdateTask/UpdateTaskWithOptions validated details,
+// so a failure on details would leave the status partially applied.
+func TestExecuteBatch_UpdateStatusNotAppliedBeforeInvalidDetails(t *testing.T) {
+	tests := map[string]struct {
+		ops  []Operation
+		desc string
+	}{
+		"status + overlong detail": {
+			ops: []Operation{
+				{
+					Type:    "update",
+					ID:      "1",
+					Status:  StatusPtr(Completed),
+					Details: []string{string(make([]byte, MaxDetailLength+1))},
+				},
+			},
+			desc: "detail exceeding max length",
+		},
+		"status + overlong reference": {
+			ops: []Operation{
+				{
+					Type:       "update",
+					ID:         "1",
+					Status:     StatusPtr(Completed),
+					References: []string{string(make([]byte, 501))},
+				},
+			},
+			desc: "reference exceeding max length",
+		},
+		"status + detail with control chars": {
+			ops: []Operation{
+				{
+					Type:    "update",
+					ID:      "1",
+					Status:  StatusPtr(InProgress),
+					Details: []string{"has \x00 null byte"},
+				},
+			},
+			desc: "detail containing null byte",
+		},
+		"status + reference with control chars": {
+			ops: []Operation{
+				{
+					Type:       "update",
+					ID:         "1",
+					Status:     StatusPtr(InProgress),
+					References: []string{"has \x00 null byte"},
+				},
+			},
+			desc: "reference containing null byte",
+		},
+		"status + valid detail + overlong reference": {
+			ops: []Operation{
+				{
+					Type:       "update",
+					ID:         "1",
+					Status:     StatusPtr(Completed),
+					Details:    []string{"valid detail"},
+					References: []string{string(make([]byte, 501))},
+				},
+			},
+			desc: "valid detail but overlong reference",
+		},
+		"status + extended fields + overlong detail": {
+			ops: []Operation{
+				{
+					Type:    "update",
+					ID:      "1",
+					Status:  StatusPtr(Completed),
+					Details: []string{string(make([]byte, MaxDetailLength+1))},
+					Owner:   strPtr("agent-1"),
+				},
+			},
+			desc: "overlong detail with extended fields (owner)",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tl := NewTaskList("Test Tasks")
+			tl.AddTask("", "Existing task", "")
+
+			originalStatus := tl.Tasks[0].Status
+
+			response, err := tl.ExecuteBatch(tc.ops, false)
+			if err != nil {
+				t.Fatalf("ExecuteBatch returned unexpected error: %v", err)
+			}
+
+			// Should fail validation
+			if response.Success {
+				t.Errorf("Expected batch to fail due to %s", tc.desc)
+			}
+
+			// Original task status must NOT have changed (atomicity)
+			task := tl.FindTask("1")
+			if task.Status != originalStatus {
+				t.Errorf("Status was partially applied before failure on %s: expected %v, got %v",
+					tc.desc, originalStatus, task.Status)
+			}
+
+			// No operations should be applied
+			if response.Applied != 0 {
+				t.Errorf("Expected 0 applied operations, got %d", response.Applied)
+			}
+		})
+	}
+}
+
+// strPtr returns a pointer to the given string value for use in Operation structs
+func strPtr(s string) *string {
+	return &s
+}
+
+// TestValidateOperation_RejectsInvalidDetailsAndReferences verifies that validateOperation
+// catches invalid detail/reference content upfront for update operations, rather than
+// deferring validation to UpdateTask/UpdateTaskWithOptions where status may already be applied.
+func TestValidateOperation_RejectsInvalidDetailsAndReferences(t *testing.T) {
+	tl := NewTaskList("Test")
+	tl.AddTask("", "Task 1", "")
+
+	tests := map[string]struct {
+		op      Operation
+		wantErr bool
+	}{
+		"update with overlong detail": {
+			op: Operation{
+				Type:    "update",
+				ID:      "1",
+				Details: []string{string(make([]byte, MaxDetailLength+1))},
+			},
+			wantErr: true,
+		},
+		"update with overlong reference": {
+			op: Operation{
+				Type:       "update",
+				ID:         "1",
+				References: []string{string(make([]byte, 501))},
+			},
+			wantErr: true,
+		},
+		"update with null byte in detail": {
+			op: Operation{
+				Type:    "update",
+				ID:      "1",
+				Details: []string{"has \x00 null"},
+			},
+			wantErr: true,
+		},
+		"update with null byte in reference": {
+			op: Operation{
+				Type:       "update",
+				ID:         "1",
+				References: []string{"has \x00 null"},
+			},
+			wantErr: true,
+		},
+		"update with valid detail": {
+			op: Operation{
+				Type:    "update",
+				ID:      "1",
+				Details: []string{"valid detail"},
+			},
+			wantErr: false,
+		},
+		"update with valid reference": {
+			op: Operation{
+				Type:       "update",
+				ID:         "1",
+				References: []string{"valid-ref.md"},
+			},
+			wantErr: false,
+		},
+		"add with overlong detail": {
+			op: Operation{
+				Type:    "add",
+				Title:   "New task",
+				Details: []string{string(make([]byte, MaxDetailLength+1))},
+			},
+			wantErr: true,
+		},
+		"add with overlong reference": {
+			op: Operation{
+				Type:       "add",
+				Title:      "New task",
+				References: []string{string(make([]byte, 501))},
+			},
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateOperation(tl, tc.op)
+			if tc.wantErr && err == nil {
+				t.Error("Expected validation error, got nil")
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("Expected no error, got: %v", err)
+			}
+		})
+	}
+}
+
+// TestApplyUpdateOperation_NoPartialStatusApply verifies that applyUpdateOperation
+// does not apply a status change if other fields (details, references) are invalid.
+// This is a defense-in-depth check -- even if validateOperation is strengthened,
+// the apply function itself should not partially mutate the task.
+func TestApplyUpdateOperation_NoPartialStatusApply(t *testing.T) {
+	tests := map[string]struct {
+		op   Operation
+		desc string
+	}{
+		"status + overlong detail without extended fields": {
+			op: Operation{
+				Type:    "update",
+				ID:      "1",
+				Status:  StatusPtr(Completed),
+				Details: []string{string(make([]byte, MaxDetailLength+1))},
+			},
+			desc: "overlong detail on standard path",
+		},
+		"status + overlong reference without extended fields": {
+			op: Operation{
+				Type:       "update",
+				ID:         "1",
+				Status:     StatusPtr(Completed),
+				References: []string{string(make([]byte, 501))},
+			},
+			desc: "overlong reference on standard path",
+		},
+		"status + overlong detail with extended fields": {
+			op: Operation{
+				Type:    "update",
+				ID:      "1",
+				Status:  StatusPtr(Completed),
+				Details: []string{string(make([]byte, MaxDetailLength+1))},
+				Owner:   strPtr("agent-1"),
+			},
+			desc: "overlong detail on extended path",
+		},
+		"status + overlong reference with extended fields": {
+			op: Operation{
+				Type:       "update",
+				ID:         "1",
+				Status:     StatusPtr(Completed),
+				References: []string{string(make([]byte, 501))},
+				Owner:      strPtr("agent-1"),
+			},
+			desc: "overlong reference on extended path",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tl := NewTaskList("Test Tasks")
+			tl.AddTask("", "Existing task", "")
+
+			originalStatus := tl.Tasks[0].Status
+
+			err := applyUpdateOperation(tl, tc.op)
+			if err == nil {
+				t.Fatalf("Expected error for %s, got nil", tc.desc)
+			}
+
+			// Status must NOT have been partially applied
+			task := tl.FindTask("1")
+			if task.Status != originalStatus {
+				t.Errorf("Status was partially applied before failure on %s: expected %v, got %v",
+					tc.desc, originalStatus, task.Status)
+			}
+		})
+	}
+}
+
 func TestValidateOperation_EdgeCases(t *testing.T) {
 	tl := NewTaskList("Test")
 	tl.AddTask("", "Task 1", "")
