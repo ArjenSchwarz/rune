@@ -935,6 +935,17 @@ func TestFindNextPhaseTasksForStream_NestedTasks(t *testing.T) {
 			wantPhase:   "Phase A",
 			wantTaskIDs: []string{"1.2"},
 		},
+		"all_nested_stream_tasks_owned_returns_nil": {
+			content: `## Phase A
+- [ ] 1. Parent stream 1
+  - Stream: 1
+  - [ ] 1.1. Child stream 2
+    - Stream: 2
+    - Owner: agent-1
+`,
+			stream:  2,
+			wantNil: true,
+		},
 	}
 
 	for name, tc := range tests {

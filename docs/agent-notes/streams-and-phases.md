@@ -19,5 +19,5 @@
 ## Gotchas
 
 - `FilterByStream` returns a flat list of matching tasks from all nesting levels. Callers that expect hierarchical output should be aware.
+- `FilterByStream` deduplicates by task ID. This is needed because `getReadyTasks` in `cmd/next.go` flattens the hierarchy but preserves `Children` on each task struct. Without deduplication, a child task could appear twice: once from recursing into its parent's `Children`, and once as a direct entry in the flat list.
 - `GetEffectiveStream` returns 1 for tasks with `Stream <= 0`. This means untagged tasks default to stream 1.
-- `getReadyTasks` in `cmd/next.go` already flattens the hierarchy, so `FilterByStream` recursion is a no-op when used on its output.
