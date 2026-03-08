@@ -1951,3 +1951,153 @@ func TestNextCommandOneWithClaimSelectsReadyLeaf(t *testing.T) {
 		t.Errorf("expected task 1.1.1 to be in-progress in file, got: %s", fileStr)
 	}
 }
+
+// TestFilterIncompleteChildrenWithGrandchildren is a regression test for T-358:
+// filterIncompleteChildren in cmd/next.go only checked child.Status != Completed,
+// ignoring grandchildren. A completed child with pending grandchildren was excluded.
+func TestFilterIncompleteChildrenWithGrandchildren(t *testing.T) {
+	children := []task.Task{
+		{
+			ID:     "1.1",
+			Title:  "Child 1",
+			Status: task.Completed,
+			Children: []task.Task{
+				{ID: "1.1.1", Title: "Grandchild pending", Status: task.Pending},
+			},
+		},
+		{ID: "1.2", Title: "Child 2", Status: task.Completed},
+	}
+
+	result := filterIncompleteChildren(children)
+
+	// Child 1.1 should be included because it has an incomplete grandchild
+	if len(result) != 1 {
+		t.Fatalf("expected 1 incomplete child, got %d", len(result))
+	}
+	if result[0].ID != "1.1" {
+		t.Errorf("expected child 1.1, got %s", result[0].ID)
+	}
+}
+
+// TestFindDeepestTaskWithCompletedIntermediate is a regression test for T-358:
+// findDeepestTask used filterIncompleteChildren which only checked status,
+// so a completed intermediate with a pending grandchild would cause the
+// traversal to stop prematurely.
+func TestFindDeepestTaskWithCompletedIntermediate(t *testing.T) {
+	taskCtx := &task.TaskWithContext{
+		Task: &task.Task{
+			ID:     "1",
+			Title:  "Parent",
+			Status: task.Pending,
+			Children: []task.Task{
+				{
+					ID:     "1.1",
+					Title:  "Child completed",
+					Status: task.Completed,
+					Children: []task.Task{
+						{ID: "1.1.1", Title: "Grandchild pending", Status: task.Pending},
+					},
+				},
+			},
+		},
+		IncompleteChildren: filterIncompleteChildren([]task.Task{
+			{
+				ID:     "1.1",
+				Title:  "Child completed",
+				Status: task.Completed,
+				Children: []task.Task{
+					{ID: "1.1.1", Title: "Grandchild pending", Status: task.Pending},
+				},
+			},
+		}),
+	}
+
+	deepest := findDeepestTask(taskCtx)
+	if deepest == nil {
+		t.Fatal("expected a deepest task, got nil")
+	}
+	// The deepest incomplete task should be 1.1.1, not 1
+	if deepest.ID != "1.1.1" {
+		t.Errorf("expected deepest task to be 1.1.1, got %s", deepest.ID)
+	}
+}
+
+// TestAddIncompleteChildrenToDataWithGrandchildren is a regression test for T-358:
+// addIncompleteChildrenToData skipped completed children even when they had
+// incomplete grandchildren, so those grandchildren were never displayed.
+func TestAddIncompleteChildrenToDataWithGrandchildren(t *testing.T) {
+	parent := &task.Task{
+		ID:     "1",
+		Title:  "Parent",
+		Status: task.Pending,
+		Children: []task.Task{
+			{
+				ID:     "1.1",
+				Title:  "Completed child",
+				Status: task.Completed,
+				Children: []task.Task{
+					{ID: "1.1.1", Title: "Pending grandchild", Status: task.Pending},
+				},
+			},
+		},
+	}
+
+	var taskData []map[string]any
+	addIncompleteChildrenToData(parent, &taskData)
+
+	// Should include both the completed child (because it has incomplete work)
+	// and the pending grandchild
+	if len(taskData) < 1 {
+		t.Fatalf("expected at least 1 entry in taskData, got %d", len(taskData))
+	}
+
+	// Verify 1.1.1 is present
+	found := false
+	for _, record := range taskData {
+		if record["ID"] == "1.1.1" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		ids := make([]string, len(taskData))
+		for i, r := range taskData {
+			ids[i] = fmt.Sprintf("%v", r["ID"])
+		}
+		t.Errorf("expected grandchild 1.1.1 in output data, got IDs: %v", ids)
+	}
+}
+
+// TestRenderTaskMarkdownWithGrandchildren is a regression test for T-358:
+// renderTaskMarkdown skipped completed children when iterating, so incomplete
+// grandchildren under a completed child were never rendered in the output.
+func TestRenderTaskMarkdownWithGrandchildren(t *testing.T) {
+	// The parent has a completed child that itself has a pending grandchild.
+	// renderTaskMarkdown filters children by Status != Completed, so the
+	// completed child (and its pending grandchild) would be skipped.
+	parent := &task.Task{
+		ID:     "1",
+		Title:  "Parent",
+		Status: task.Pending,
+		Children: []task.Task{
+			{
+				ID:     "1.1",
+				Title:  "Completed child",
+				Status: task.Completed,
+				Children: []task.Task{
+					{ID: "1.1.1", Title: "Pending grandchild", Status: task.Pending},
+				},
+			},
+		},
+	}
+
+	result := renderTaskMarkdown(parent, "")
+
+	// The output should include the pending grandchild via the completed child
+	if !strings.Contains(result, "1.1.1") {
+		t.Errorf("expected grandchild 1.1.1 in markdown output, got: %s", result)
+	}
+	if !strings.Contains(result, "Pending grandchild") {
+		t.Errorf("expected 'Pending grandchild' in markdown output, got: %s", result)
+	}
+}
