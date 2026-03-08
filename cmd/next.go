@@ -424,13 +424,13 @@ func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.Fr
 
 	// Add main task
 	result.WriteString("# Next Task\n\n")
-	result.WriteString(fmt.Sprintf("- %s %s. %s\n",
-		formatStatusMarkdown(nextTask.Status), nextTask.ID, nextTask.Title))
+	fmt.Fprintf(&result, "- %s %s. %s\n",
+		formatStatusMarkdown(nextTask.Status), nextTask.ID, nextTask.Title)
 
 	// Add task details if present
 	if len(nextTask.Details) > 0 {
 		for _, detail := range nextTask.Details {
-			result.WriteString(fmt.Sprintf("  %s\n", detail))
+			fmt.Fprintf(&result, "  %s\n", detail)
 		}
 	}
 
@@ -443,7 +443,7 @@ func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.Fr
 	if len(nextTask.References) > 0 {
 		result.WriteString("\n## Task References\n\n")
 		for _, ref := range nextTask.References {
-			result.WriteString(fmt.Sprintf("- %s\n", ref))
+			fmt.Fprintf(&result, "- %s\n", ref)
 		}
 	}
 
@@ -451,7 +451,7 @@ func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.Fr
 	if frontMatter != nil && len(frontMatter.References) > 0 {
 		result.WriteString("\n## References\n\n")
 		for _, ref := range frontMatter.References {
-			result.WriteString(fmt.Sprintf("- %s\n", ref))
+			fmt.Fprintf(&result, "- %s\n", ref)
 		}
 	}
 
@@ -545,20 +545,20 @@ func addIncompleteChildrenToData(parentTask *task.Task, taskData *[]map[string]a
 // renderTaskMarkdown recursively renders a task in markdown format
 func renderTaskMarkdown(t *task.Task, indent string) string {
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("%s- %s %s. %s\n",
-		indent, formatStatusMarkdown(t.Status), t.ID, t.Title))
+	fmt.Fprintf(&result, "%s- %s %s. %s\n",
+		indent, formatStatusMarkdown(t.Status), t.ID, t.Title)
 
 	// Add task details if present
 	if len(t.Details) > 0 {
 		for _, detail := range t.Details {
-			result.WriteString(fmt.Sprintf("%s  %s\n", indent, detail))
+			fmt.Fprintf(&result, "%s  %s\n", indent, detail)
 		}
 	}
 
 	// Add task references if present (for individual tasks)
 	if len(t.References) > 0 {
 		refList := strings.Join(t.References, ", ")
-		result.WriteString(fmt.Sprintf("%s  References: %s\n", indent, refList))
+		fmt.Fprintf(&result, "%s  References: %s\n", indent, refList)
 	}
 
 	for _, child := range t.Children {

@@ -47,7 +47,7 @@ func RenderMarkdown(tl *TaskList) []byte {
 
 	// Write title as H1 header
 	if tl.Title != "" {
-		buf.WriteString(fmt.Sprintf("# %s\n\n", tl.Title))
+		fmt.Fprintf(&buf, "# %s\n\n", tl.Title)
 	} else {
 		buf.WriteString("# \n\n")
 	}
@@ -160,7 +160,7 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 
 	// Write title as H1 header
 	if tl.Title != "" {
-		buf.WriteString(fmt.Sprintf("# %s\n\n", tl.Title))
+		fmt.Fprintf(&buf, "# %s\n\n", tl.Title)
 	} else {
 		buf.WriteString("# \n\n")
 	}
@@ -184,7 +184,7 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 
 	// Handle phases that come before any tasks
 	for markerIndex < len(phaseMarkers) && phaseMarkers[markerIndex].AfterTaskID == "" {
-		buf.WriteString(fmt.Sprintf("## %s\n\n", phaseMarkers[markerIndex].Name))
+		fmt.Fprintf(&buf, "## %s\n\n", phaseMarkers[markerIndex].Name)
 		markerIndex++
 	}
 
@@ -203,7 +203,7 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 				if i > 0 {
 					buf.WriteString("\n")
 				}
-				buf.WriteString(fmt.Sprintf("## %s\n\n", phaseMarkers[markerIndex].Name))
+				fmt.Fprintf(&buf, "## %s\n\n", phaseMarkers[markerIndex].Name)
 				markerIndex++
 			} else {
 				break
@@ -225,7 +225,7 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 		for markerIndex < len(phaseMarkers) {
 			if phaseMarkers[markerIndex].AfterTaskID == lastTaskID {
 				buf.WriteString("\n")
-				buf.WriteString(fmt.Sprintf("## %s\n", phaseMarkers[markerIndex].Name))
+				fmt.Fprintf(&buf, "## %s\n", phaseMarkers[markerIndex].Name)
 				markerIndex++
 			} else {
 				break
