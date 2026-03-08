@@ -828,6 +828,277 @@ func generateExpectedID(index int, allTasks []*Task) string {
 	return task.ID
 }
 
+// TestAddTaskToPhaseUpdatesAllLaterMarkers verifies that adding a task to a phase
+// updates AfterTaskID for ALL subsequent phase markers, not just the immediately next one.
+// This is a regression test for T-371.
+func TestAddTaskToPhaseUpdatesAllLaterMarkers(t *testing.T) {
+	tests := map[string]struct {
+		content         string
+		phaseName       string
+		title           string
+		expectedContent string
+		description     string
+	}{
+		"three_phases_add_to_first": {
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Define requirements
+
+## Implementation
+
+- [ ] 2. Write code
+
+## Testing
+
+- [ ] 3. Write tests`,
+			phaseName: "Planning",
+			title:     "New planning task",
+			expectedContent: `# Project
+
+## Planning
+
+- [ ] 1. Define requirements
+
+- [ ] 2. New planning task
+
+## Implementation
+
+- [ ] 3. Write code
+
+## Testing
+
+- [ ] 4. Write tests`,
+			description: "Adding task to first phase should update markers for Implementation AND Testing",
+		},
+		"four_phases_add_to_second": {
+			content: `# Project
+
+## Design
+
+- [ ] 1. Design task
+
+## Planning
+
+- [ ] 2. Plan task
+
+## Implementation
+
+- [ ] 3. Code task
+
+## Testing
+
+- [ ] 4. Test task`,
+			phaseName: "Planning",
+			title:     "Another plan task",
+			expectedContent: `# Project
+
+## Design
+
+- [ ] 1. Design task
+
+## Planning
+
+- [ ] 2. Plan task
+
+- [ ] 3. Another plan task
+
+## Implementation
+
+- [ ] 4. Code task
+
+## Testing
+
+- [ ] 5. Test task`,
+			description: "Adding task to second of four phases should update all later markers",
+		},
+		"three_phases_add_to_middle": {
+			content: `# Project
+
+## Phase A
+
+- [ ] 1. Task A1
+- [ ] 2. Task A2
+
+## Phase B
+
+- [ ] 3. Task B1
+
+## Phase C
+
+- [ ] 4. Task C1
+- [ ] 5. Task C2`,
+			phaseName: "Phase B",
+			title:     "New B task",
+			expectedContent: `# Project
+
+## Phase A
+
+- [ ] 1. Task A1
+
+- [ ] 2. Task A2
+
+## Phase B
+
+- [ ] 3. Task B1
+
+- [ ] 4. New B task
+
+## Phase C
+
+- [ ] 5. Task C1
+
+- [ ] 6. Task C2`,
+			description: "Adding task to middle phase should update Phase C marker",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Write initial content to a file in the current directory
+			// (ValidateFilePath requires files within the working directory)
+			fileName := fmt.Sprintf("test_add_phase_%s.md", name)
+			err := os.WriteFile(fileName, []byte(tc.content), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write test file: %v", err)
+			}
+			defer os.Remove(fileName)
+
+			// Add a task to the specified phase
+			_, err = AddTaskToPhase(fileName, "", tc.title, tc.phaseName)
+			if err != nil {
+				t.Fatalf("AddTaskToPhase() error = %v", err)
+			}
+
+			// Read the result
+			rendered, err := os.ReadFile(fileName)
+			if err != nil {
+				t.Fatalf("Failed to read result file: %v", err)
+			}
+
+			// Compare line by line
+			actualLines := strings.Split(strings.TrimSpace(string(rendered)), "\n")
+			expectedLines := strings.Split(strings.TrimSpace(tc.expectedContent), "\n")
+
+			if len(actualLines) != len(expectedLines) {
+				t.Errorf("%s\nLine count mismatch: got %d lines, want %d lines\nActual:\n%s\n\nExpected:\n%s",
+					tc.description, len(actualLines), len(expectedLines),
+					string(rendered), tc.expectedContent)
+				return
+			}
+
+			for i := range expectedLines {
+				if actualLines[i] != expectedLines[i] {
+					t.Errorf("%s\nLine %d mismatch:\nGot:  %q\nWant: %q",
+						tc.description, i+1, actualLines[i], expectedLines[i])
+				}
+			}
+		})
+	}
+}
+
+// TestAdjustPhaseMarkersForInsertion verifies that phase markers are correctly
+// adjusted after a top-level task insertion. This is a unit test for the
+// adjustPhaseMarkersForInsertion function (regression test for T-371).
+func TestAdjustPhaseMarkersForInsertion(t *testing.T) {
+	tests := map[string]struct {
+		markers        []PhaseMarker
+		insertPosition int // 0-based index where the new task was inserted
+		wantMarkers    []PhaseMarker
+		description    string
+	}{
+		"insert_shifts_all_later_markers": {
+			// Insert at position 2 (0-based), so tasks at positions 2+ (1-based: 3+) shift.
+			// Marker pointing to task 2 is unaffected, marker pointing to task 4 becomes 5.
+			markers: []PhaseMarker{
+				{Name: "Phase A", AfterTaskID: ""},
+				{Name: "Phase B", AfterTaskID: "2"},
+				{Name: "Phase C", AfterTaskID: "4"},
+			},
+			insertPosition: 2,
+			wantMarkers: []PhaseMarker{
+				{Name: "Phase A", AfterTaskID: ""},
+				{Name: "Phase B", AfterTaskID: "2"},
+				{Name: "Phase C", AfterTaskID: "5"},
+			},
+			description: "Markers referencing tasks at or after insert position should increment",
+		},
+		"insert_at_start_shifts_all": {
+			// Insert at position 0 (0-based), so all tasks shift. Tasks 1+ become 2+.
+			markers: []PhaseMarker{
+				{Name: "Phase A", AfterTaskID: "1"},
+				{Name: "Phase B", AfterTaskID: "3"},
+			},
+			insertPosition: 0,
+			wantMarkers: []PhaseMarker{
+				{Name: "Phase A", AfterTaskID: "2"},
+				{Name: "Phase B", AfterTaskID: "4"},
+			},
+			description: "Inserting at start should shift all markers",
+		},
+		"insert_at_end_no_change": {
+			// Insert at position 5 (0-based), no existing markers reference tasks ≥ 6.
+			markers: []PhaseMarker{
+				{Name: "Phase A", AfterTaskID: ""},
+				{Name: "Phase B", AfterTaskID: "2"},
+			},
+			insertPosition: 5,
+			wantMarkers: []PhaseMarker{
+				{Name: "Phase A", AfterTaskID: ""},
+				{Name: "Phase B", AfterTaskID: "2"},
+			},
+			description: "Inserting after all markers should not change any",
+		},
+		"empty_after_task_id_not_affected": {
+			// Insert at position 1 (0-based), tasks at 1-based 2+ shift.
+			markers: []PhaseMarker{
+				{Name: "Phase A", AfterTaskID: ""},
+				{Name: "Phase B", AfterTaskID: ""},
+				{Name: "Phase C", AfterTaskID: "2"},
+			},
+			insertPosition: 1,
+			wantMarkers: []PhaseMarker{
+				{Name: "Phase A", AfterTaskID: ""},
+				{Name: "Phase B", AfterTaskID: ""},
+				{Name: "Phase C", AfterTaskID: "3"},
+			},
+			description: "Markers with empty AfterTaskID should not be modified",
+		},
+		"insert_between_markers_at_same_position": {
+			// Insert at position 1 (0-based). Marker at "1" should stay, marker at "2" should become "3".
+			markers: []PhaseMarker{
+				{Name: "Phase A", AfterTaskID: ""},
+				{Name: "Phase B", AfterTaskID: "1"},
+				{Name: "Phase C", AfterTaskID: "2"},
+			},
+			insertPosition: 1,
+			wantMarkers: []PhaseMarker{
+				{Name: "Phase A", AfterTaskID: ""},
+				{Name: "Phase B", AfterTaskID: "1"},
+				{Name: "Phase C", AfterTaskID: "3"},
+			},
+			description: "Only markers referencing tasks at or after insert position should shift",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			markers := make([]PhaseMarker, len(tc.markers))
+			copy(markers, tc.markers)
+
+			adjustPhaseMarkersForInsertion(tc.insertPosition, &markers)
+
+			for i, got := range markers {
+				if got != tc.wantMarkers[i] {
+					t.Errorf("%s\nmarker[%d]: got {Name: %q, AfterTaskID: %q}, want {Name: %q, AfterTaskID: %q}",
+						tc.description, i, got.Name, got.AfterTaskID, tc.wantMarkers[i].Name, tc.wantMarkers[i].AfterTaskID)
+				}
+			}
+		})
+	}
+}
+
 // TestPhaseRoundTrip verifies that parse -> render -> parse preserves phases
 func TestPhaseRoundTrip(t *testing.T) {
 	testCases := []string{

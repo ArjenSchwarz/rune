@@ -20,6 +20,16 @@
 
 - `HasIncompleteWork(task)` in `internal/task/next.go` -- exported in T-358 so `cmd/next.go` can check if a task or any descendant has incomplete work. Uses `hasIncompleteWorkWithDepth` internally with a max depth of 100.
 
+## Phase Marker Adjustment
+
+When tasks are inserted or removed, phase markers (`PhaseMarker.AfterTaskID`) must be adjusted to reflect new task numbering:
+
+- **Removal**: `adjustPhaseMarkersForRemoval` decrements all markers referencing tasks after the removed task. If a marker references the removed task itself, it shifts to the previous task.
+- **Insertion via `AddTaskToPhase`**: Two-step process:
+  1. The immediate next phase marker is updated to point to the newly inserted task (it becomes the last task in the current phase).
+  2. All markers beyond that are incremented by `adjustPhaseMarkersForInsertion` for tasks at or after the insertion position.
+- Both functions only apply to top-level tasks (IDs without dots), since subtask changes don't affect phase marker numbering.
+
 ## Gotchas
 
 - `FilterByStream` returns a flat list of matching tasks from all nesting levels. Callers that expect hierarchical output should be aware.

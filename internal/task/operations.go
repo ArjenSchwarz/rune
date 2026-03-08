@@ -628,23 +628,28 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 			newTaskID = tl.Tasks[insertPosition].ID
 		}
 
-		// Update phase markers to account for the insertion
-		// IMPORTANT: Since we ALWAYS insert at the END of the phase (insertPosition = phaseEndPos),
-		// the newly inserted task becomes the last task in the current phase. Therefore, the next
-		// phase marker must be updated to point to this newly inserted task's ID.
-		// This maintains the invariant that phase markers always point to the last task in the
-		// preceding phase.
+		// Update phase markers to account for the insertion.
+		// Two things need to happen:
+		// 1. The next phase marker after our target phase must point to the newly
+		//    inserted task (which is now the last task in the current phase).
+		// 2. All phase markers beyond that must have their AfterTaskID incremented
+		//    by one since all subsequent tasks shifted up by one.
 		if phaseFound {
-			// Find the next phase marker after our target phase
 			for i, marker := range phaseMarkers {
 				if marker.Name == phaseName {
-					// Look for the next phase marker
-					if i+1 < len(phaseMarkers) {
-						nextMarker := &phaseMarkers[i+1]
-						// Update the next phase to start after the newly inserted task
-						// (which is now the last task in the current phase)
-						if insertPosition < len(tl.Tasks) {
-							nextMarker.AfterTaskID = tl.Tasks[insertPosition].ID
+					// Update the immediate next marker to point to the newly inserted task
+					if i+1 < len(phaseMarkers) && insertPosition < len(tl.Tasks) {
+						phaseMarkers[i+1].AfterTaskID = tl.Tasks[insertPosition].ID
+					}
+					// Increment AfterTaskID for all markers beyond the next one,
+					// since tasks at the old insertion position and later have shifted.
+					for j := i + 2; j < len(phaseMarkers); j++ {
+						if phaseMarkers[j].AfterTaskID == "" {
+							continue
+						}
+						afterTaskNum := getTaskNumber(phaseMarkers[j].AfterTaskID)
+						if afterTaskNum >= insertPosition+1 {
+							phaseMarkers[j].AfterTaskID = fmt.Sprintf("%d", afterTaskNum+1)
 						}
 					}
 					break
@@ -822,6 +827,24 @@ func adjustPhaseMarkersForRemoval(taskID string, phaseMarkers *[]PhaseMarker) {
 			(*phaseMarkers)[i].AfterTaskID = fmt.Sprintf("%d", afterTaskNum-1)
 		}
 		// If afterTaskNum < removedTaskNum, no adjustment needed
+	}
+}
+
+// adjustPhaseMarkersForInsertion updates phase markers after a top-level task is inserted.
+// insertPosition is the 0-based index where the new task was inserted. All markers whose
+// AfterTaskID references a task at or after this position (1-based: insertPosition+1 or
+// higher) are incremented by one to account for the shift in task numbering.
+func adjustPhaseMarkersForInsertion(insertPosition int, phaseMarkers *[]PhaseMarker) {
+	for i := range *phaseMarkers {
+		if (*phaseMarkers)[i].AfterTaskID == "" {
+			continue
+		}
+		afterTaskNum := getTaskNumber((*phaseMarkers)[i].AfterTaskID)
+		// Tasks at position insertPosition or later (1-based: insertPosition+1) have
+		// shifted up by one due to the insertion.
+		if afterTaskNum >= insertPosition+1 {
+			(*phaseMarkers)[i].AfterTaskID = fmt.Sprintf("%d", afterTaskNum+1)
+		}
 	}
 }
 
