@@ -263,7 +263,7 @@ func outputMarkdown(taskList *task.TaskList) error {
 	if showAll && taskList.FrontMatter != nil && len(taskList.FrontMatter.References) > 0 {
 		buf.WriteString("## Document References\n\n")
 		for _, ref := range taskList.FrontMatter.References {
-			buf.WriteString(fmt.Sprintf("- %s\n", ref))
+			fmt.Fprintf(&buf, "- %s\n", ref)
 		}
 		buf.WriteString("\n")
 	}
@@ -390,7 +390,7 @@ func outputMarkdownWithPhases(taskList *task.TaskList, phaseMarkers []task.Phase
 	if showAll && taskList.FrontMatter != nil && len(taskList.FrontMatter.References) > 0 {
 		buf.WriteString("## Document References\n\n")
 		for _, ref := range taskList.FrontMatter.References {
-			buf.WriteString(fmt.Sprintf("- %s\n", ref))
+			fmt.Fprintf(&buf, "- %s\n", ref)
 		}
 		buf.WriteString("\n")
 	}

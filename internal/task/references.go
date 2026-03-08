@@ -32,19 +32,33 @@ func ParseFrontMatter(content string) (*FrontMatter, string, error) {
 	var actualEndIndex int
 	var remainingContent string
 
-	if strings.HasPrefix(content[searchStart:], "---\n") {
+	rest := content[searchStart:]
+	switch {
+	case strings.HasPrefix(rest, "---\n"):
 		// Closing delimiter right after opening delimiter (empty front matter)
 		actualEndIndex = searchStart
 		remainingContent = content[searchStart+4:]
-	} else {
-		// Look for "\n---\n" pattern
+	case rest == "---":
+		// Closing delimiter at EOF without trailing newline (empty front matter)
+		actualEndIndex = searchStart
+		remainingContent = ""
+	default:
+		// Look for "\n---\n" pattern, or "\n---" at end of content
 		endPattern := "\n---\n"
-		endIndex := strings.Index(content[searchStart:], endPattern)
+		endIndex := strings.Index(rest, endPattern)
 		if endIndex == -1 {
-			return nil, content, fmt.Errorf("unclosed front matter block")
+			// Check if content ends with "\n---" (no trailing newline)
+			if strings.HasSuffix(rest, "\n---") {
+				endIndex = len(rest) - 4 // position of the "\n"
+				actualEndIndex = searchStart + endIndex
+				remainingContent = ""
+			} else {
+				return nil, content, fmt.Errorf("unclosed front matter block")
+			}
+		} else {
+			actualEndIndex = searchStart + endIndex
+			remainingContent = content[actualEndIndex+len(endPattern):]
 		}
-		actualEndIndex = searchStart + endIndex
-		remainingContent = content[actualEndIndex+len(endPattern):]
 	}
 
 	// Extract front matter YAML (between opening and closing delimiters)
