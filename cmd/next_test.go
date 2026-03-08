@@ -2101,3 +2101,161 @@ func TestRenderTaskMarkdownWithGrandchildren(t *testing.T) {
 		t.Errorf("expected 'Pending grandchild' in markdown output, got: %s", result)
 	}
 }
+
+// TestNextStreamExcludesBlockedChildren verifies that --stream does not return
+// blocked child tasks that happen to be in the correct stream.
+// Regression test for T-347.
+func TestNextStreamExcludesBlockedChildren(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-stream-blocked-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	// Task 1 is in stream 1 and is ready.
+	// Task 1.1 is a child of task 1, in stream 2, but BLOCKED by task 2.
+	// With the old code, --stream 2 would find task 1.1 by recursing into
+	// task 1's children, even though 1.1 is blocked.
+	// After fix: --stream 2 should return no ready tasks (1.1 is blocked).
+	content := `# Project Tasks
+
+- [ ] 1. Ready parent in stream 1 <!-- id:abc1234 -->
+  - Stream: 1
+  - [ ] 1.1. Blocked child in stream 2 <!-- id:def5678 -->
+    - Stream: 2
+    - Blocked-by: ghi9012 (Incomplete blocker)
+- [ ] 2. Incomplete blocker <!-- id:ghi9012 -->
+  - Stream: 1
+`
+
+	testFile := "test-stream-blocked.md"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Reset flags
+	oneFlag = false
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", testFile, "--stream", "2", "--format", "json"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	cmdOutput := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Stream 2 should have no ready tasks — the only stream-2 task (1.1) is blocked.
+	// The output should indicate no ready tasks in stream 2.
+	if strings.Contains(cmdOutput, `"id": "1.1"`) {
+		t.Errorf("blocked task 1.1 should NOT be returned by --stream 2, got: %s", cmdOutput)
+	}
+
+	// Should report no ready tasks
+	if !strings.Contains(cmdOutput, `No ready tasks found in stream 2`) {
+		t.Errorf("expected 'No ready tasks found in stream 2' message, got: %s", cmdOutput)
+	}
+}
+
+// TestNextStreamClaimExcludesBlockedChildren verifies that --stream --claim
+// does not claim blocked child tasks that happen to be in the correct stream.
+// Regression test for T-347.
+func TestNextStreamClaimExcludesBlockedChildren(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-stream-claim-blocked-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	// Task 1 is in stream 1 and is ready.
+	// Task 1.1 is a child of task 1, in stream 2, but BLOCKED by task 2.
+	// Task 3 is in stream 2 and is ready.
+	// --stream 2 --claim should only claim task 3, not blocked task 1.1.
+	content := `# Project Tasks
+
+- [ ] 1. Ready parent in stream 1 <!-- id:abc1234 -->
+  - Stream: 1
+  - [ ] 1.1. Blocked child in stream 2 <!-- id:def5678 -->
+    - Stream: 2
+    - Blocked-by: ghi9012 (Incomplete blocker)
+- [ ] 2. Incomplete blocker <!-- id:ghi9012 -->
+  - Stream: 1
+- [ ] 3. Ready task in stream 2 <!-- id:jkl3456 -->
+  - Stream: 2
+`
+
+	testFile := "test-stream-claim-blocked.md"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Reset flags
+	oneFlag = false
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", testFile, "--stream", "2", "--claim", "test-agent", "--format", "json"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	cmdOutput := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Task 3 should be claimed (ready and in stream 2)
+	if !strings.Contains(cmdOutput, `"id": "3"`) {
+		t.Errorf("expected task 3 to be claimed, got: %s", cmdOutput)
+	}
+
+	// Task 1.1 should NOT be claimed (it is blocked)
+	if strings.Contains(cmdOutput, `"id": "1.1"`) {
+		t.Errorf("blocked task 1.1 should NOT be claimed, got: %s", cmdOutput)
+	}
+
+	// Verify file: task 3 should be in-progress, task 1.1 should still be pending
+	fileContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to read file after claim: %v", err)
+	}
+	fileStr := string(fileContent)
+
+	if !strings.Contains(fileStr, "[-] 3.") {
+		t.Errorf("expected task 3 to be in-progress in file, got: %s", fileStr)
+	}
+	if strings.Contains(fileStr, "[-] 1.1.") {
+		t.Errorf("blocked task 1.1 should still be pending in file, got: %s", fileStr)
+	}
+}

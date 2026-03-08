@@ -97,6 +97,23 @@ func AnalyzeStreams(tasks []Task, index *DependencyIndex) *StreamsResult {
 	return result
 }
 
+// FilterByStreamFlat returns tasks from a flat list that belong to the specified stream.
+// Unlike FilterByStream, it does NOT recurse into children. Use this when the input
+// is already a flattened list (e.g., output of getReadyTasks) where recursing into
+// children would incorrectly include non-ready child tasks.
+func FilterByStreamFlat(tasks []Task, stream int) []Task {
+	var result []Task
+	for _, t := range tasks {
+		if GetEffectiveStream(&t) == stream {
+			result = append(result, t)
+		}
+	}
+	if result == nil {
+		return []Task{}
+	}
+	return result
+}
+
 // FilterByStream returns tasks belonging to the specified stream.
 // It recurses through children to find nested tasks whose effective stream matches.
 // Deduplicates by task ID so that tasks appearing both as direct entries and as

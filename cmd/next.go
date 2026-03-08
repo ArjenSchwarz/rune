@@ -152,8 +152,8 @@ func runNextWithStream(filename string) error {
 	// Find ready tasks (pending, unblocked, unclaimed)
 	readyTasks := getReadyTasks(taskList.Tasks, index)
 
-	// Filter by stream
-	streamTasks := task.FilterByStream(readyTasks, streamFlag)
+	// Filter by stream (flat — readyTasks is already flattened by getReadyTasks)
+	streamTasks := task.FilterByStreamFlat(readyTasks, streamFlag)
 
 	if len(streamTasks) == 0 {
 		return outputNextStreamEmpty(streamFlag)
@@ -208,9 +208,9 @@ func runNextWithClaim(filename string) error {
 			}
 		}
 	case streamFlag > 0:
-		// Claim all ready tasks in the specified stream
+		// Claim all ready tasks in the specified stream (flat — readyTasks is already flattened)
 		readyTasks := getReadyTasks(taskList.Tasks, index)
-		filteredTasks := task.FilterByStream(readyTasks, streamFlag)
+		filteredTasks := task.FilterByStreamFlat(readyTasks, streamFlag)
 		for _, t := range filteredTasks {
 			taskIDsToClaim = append(taskIDsToClaim, t.ID)
 		}

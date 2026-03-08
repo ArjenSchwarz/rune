@@ -2,7 +2,8 @@
 
 ## Key Functions
 
-- `FilterByStream(tasks, stream)` in `internal/task/streams.go` -- filters tasks by effective stream. Recurses into children (fixed in T-170).
+- `FilterByStream(tasks, stream)` in `internal/task/streams.go` -- filters tasks by effective stream. Recurses into children (fixed in T-170). Use only with hierarchical input (e.g., phase tasks).
+- `FilterByStreamFlat(tasks, stream)` in `internal/task/streams.go` -- non-recursive stream filter. Use when input is already flattened (e.g., output of `getReadyTasks`). Added in T-347.
 - `AnalyzeStreams(tasks, index)` in `internal/task/streams.go` -- computes stream status (ready/blocked/active). Already recursive via its own `processTasks` closure.
 - `FindNextPhaseTasksForStream(filepath, stream)` in `internal/task/next.go` -- finds stream tasks in first phase with a ready task in that stream. Uses `FilterByStream` and `hasReadyTaskInStream`.
 - `hasReadyTaskInStream(tasks, stream, index)` in `internal/task/next.go` -- checks if any task in the stream is ready. Delegates to `FilterByStream`.
@@ -34,6 +35,7 @@ When tasks are inserted or removed, phase markers (`PhaseMarker.AfterTaskID`) mu
 
 - `FilterByStream` returns a flat list of matching tasks from all nesting levels. Callers that expect hierarchical output should be aware.
 - `FilterByStream` deduplicates by task ID. This is needed because `getReadyTasks` in `cmd/next.go` flattens the hierarchy but preserves `Children` on each task struct. Without deduplication, a child task could appear twice: once from recursing into its parent's `Children`, and once as a direct entry in the flat list.
+- **Do not use `FilterByStream` on `getReadyTasks` output** — the recursion into `.Children` will pick up non-ready (blocked/owned/in-progress) children. Use `FilterByStreamFlat` instead (T-347).
 - `GetEffectiveStream` returns 1 for tasks with `Stream <= 0`. This means untagged tasks default to stream 1.
 - `RenderJSONWithPhases` builds `[]TaskWithPhase` with `*Task` pointers. These must point to `&tl.Tasks[i]` (slice elements), not to range variable copies. Fixed in T-374.
 - `cmd/next.go` has its own `filterIncompleteChildren` which must use `task.HasIncompleteWork` (not a shallow status check). Fixed in T-358 along with `addIncompleteChildrenToData` and `renderTaskMarkdown`.

@@ -202,6 +202,56 @@ func TestFilterByStream_DeduplicatesFlattenedInput(t *testing.T) {
 	}
 }
 
+// TestFilterByStreamFlat_DoesNotRecurse verifies that FilterByStreamFlat
+// only examines the top-level slice without descending into Children.
+// Regression test for T-347.
+func TestFilterByStreamFlat_DoesNotRecurse(t *testing.T) {
+	// Parent is in stream 1. Its child is in stream 2.
+	// FilterByStreamFlat for stream 2 should NOT find the child.
+	tasks := []Task{
+		{
+			ID:     "1",
+			Title:  "Parent stream 1",
+			Stream: 1,
+			Children: []Task{
+				{ID: "1.1", Title: "Child stream 2", Stream: 2},
+			},
+		},
+		{ID: "2", Title: "Top-level stream 2", Stream: 2},
+	}
+
+	got := FilterByStreamFlat(tasks, 2)
+
+	if len(got) != 1 {
+		gotIDs := make([]string, len(got))
+		for i, task := range got {
+			gotIDs[i] = task.ID
+		}
+		t.Fatalf("FilterByStreamFlat(stream=2) returned %d tasks %v, want 1 [2]",
+			len(got), gotIDs)
+	}
+	if got[0].ID != "2" {
+		t.Errorf("FilterByStreamFlat(stream=2)[0].ID = %q, want %q", got[0].ID, "2")
+	}
+}
+
+// TestFilterByStreamFlat_EmptyResult verifies FilterByStreamFlat returns
+// an empty slice (not nil) when no tasks match.
+func TestFilterByStreamFlat_EmptyResult(t *testing.T) {
+	tasks := []Task{
+		{ID: "1", Title: "Stream 1", Stream: 1},
+	}
+
+	got := FilterByStreamFlat(tasks, 5)
+
+	if got == nil {
+		t.Fatal("FilterByStreamFlat should return empty slice, not nil")
+	}
+	if len(got) != 0 {
+		t.Errorf("FilterByStreamFlat(stream=5) returned %d tasks, want 0", len(got))
+	}
+}
+
 func TestAnalyzeStreams_SingleStream(t *testing.T) {
 	// All tasks in default stream (1)
 	tasks := []Task{
