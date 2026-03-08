@@ -390,6 +390,63 @@ func TestTableOutputWithPhases(t *testing.T) {
 	}
 }
 
+// TestRenderJSONWithPhases_PointerReuse verifies that each task in the JSON
+// output retains its own identity. A pointer reuse bug would cause all tasks
+// to share the same underlying data (the last iteration's task).
+func TestRenderJSONWithPhases_PointerReuse(t *testing.T) {
+	tl := &TaskList{
+		Title: "Pointer Reuse Check",
+		Tasks: []Task{
+			{ID: "1", Title: "Alpha", Status: Pending},
+			{ID: "2", Title: "Beta", Status: InProgress},
+			{ID: "3", Title: "Gamma", Status: Completed},
+		},
+	}
+	phaseMarkers := []PhaseMarker{
+		{Name: "Phase A", AfterTaskID: ""},
+		{Name: "Phase B", AfterTaskID: "1"},
+	}
+
+	jsonData := RenderJSONWithPhases(tl, phaseMarkers)
+
+	var result struct {
+		Tasks []struct {
+			ID    string `json:"ID"`
+			Title string `json:"Title"`
+			Phase string `json:"Phase"`
+		} `json:"Tasks"`
+	}
+	if err := json.Unmarshal(jsonData, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	if len(result.Tasks) != 3 {
+		t.Fatalf("Expected 3 tasks, got %d", len(result.Tasks))
+	}
+
+	wantTasks := []struct {
+		id, title, phase string
+	}{
+		{"1", "Alpha", "Phase A"},
+		{"2", "Beta", "Phase B"},
+		{"3", "Gamma", "Phase B"},
+	}
+
+	for i, want := range wantTasks {
+		got := result.Tasks[i]
+		if got.ID != want.id {
+			t.Errorf("Task[%d] ID = %q, want %q", i, got.ID, want.id)
+		}
+		if got.Title != want.title {
+			t.Errorf("Task[%d] Title = %q, want %q (pointer reuse would show %q)",
+				i, got.Title, want.title, result.Tasks[len(result.Tasks)-1].Title)
+		}
+		if got.Phase != want.phase {
+			t.Errorf("Task[%d] Phase = %q, want %q", i, got.Phase, want.phase)
+		}
+	}
+}
+
 func TestJSONOutputWithPhases(t *testing.T) {
 	tests := map[string]struct {
 		taskList     *TaskList
