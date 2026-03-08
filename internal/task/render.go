@@ -313,10 +313,10 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 
 	// Build tasks with phase information
 	tasksWithPhases := make([]TaskWithPhase, 0, len(tl.Tasks))
-	for _, task := range tl.Tasks {
-		phase := GetTaskPhase(tl, phaseMarkers, task.ID)
+	for i := range tl.Tasks {
+		phase := GetTaskPhase(tl, phaseMarkers, tl.Tasks[i].ID)
 		tasksWithPhases = append(tasksWithPhases, TaskWithPhase{
-			Task:  &task,
+			Task:  &tl.Tasks[i],
 			Phase: phase,
 		})
 	}
