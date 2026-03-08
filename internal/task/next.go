@@ -50,6 +50,13 @@ func evaluateTaskForNext(task *Task) *TaskWithContext {
 	return nil
 }
 
+// HasIncompleteWork checks if task or any subtask is incomplete.
+// A task has incomplete work if its own status is not Completed,
+// or if any descendant has incomplete work (recursive).
+func HasIncompleteWork(task *Task) bool {
+	return hasIncompleteWork(task)
+}
+
 // hasIncompleteWork checks if task or any subtask is incomplete
 func hasIncompleteWork(task *Task) bool {
 	return hasIncompleteWorkWithDepth(task, 0, 100)
