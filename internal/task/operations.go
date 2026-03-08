@@ -641,16 +641,10 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 					if i+1 < len(phaseMarkers) && insertPosition < len(tl.Tasks) {
 						phaseMarkers[i+1].AfterTaskID = tl.Tasks[insertPosition].ID
 					}
-					// Increment AfterTaskID for all markers beyond the next one,
-					// since tasks at the old insertion position and later have shifted.
-					for j := i + 2; j < len(phaseMarkers); j++ {
-						if phaseMarkers[j].AfterTaskID == "" {
-							continue
-						}
-						afterTaskNum := getTaskNumber(phaseMarkers[j].AfterTaskID)
-						if afterTaskNum >= insertPosition+1 {
-							phaseMarkers[j].AfterTaskID = fmt.Sprintf("%d", afterTaskNum+1)
-						}
+					// Adjust all markers beyond the next one for the shifted task numbering
+					if i+2 < len(phaseMarkers) {
+						remaining := phaseMarkers[i+2:]
+						adjustPhaseMarkersForInsertion(insertPosition, &remaining)
 					}
 					break
 				}

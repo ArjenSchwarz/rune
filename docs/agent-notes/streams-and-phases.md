@@ -26,8 +26,8 @@ When tasks are inserted or removed, phase markers (`PhaseMarker.AfterTaskID`) mu
 
 - **Removal**: `adjustPhaseMarkersForRemoval` decrements all markers referencing tasks after the removed task. If a marker references the removed task itself, it shifts to the previous task.
 - **Insertion via `AddTaskToPhase`**: Two-step process:
-  1. The immediate next phase marker is updated to point to the newly inserted task (it becomes the last task in the current phase).
-  2. All markers beyond that are incremented by `adjustPhaseMarkersForInsertion` for tasks at or after the insertion position.
+  1. The immediate next phase marker is set to the newly inserted task's ID (it becomes the last task in the current phase).
+  2. All markers beyond that are adjusted via `adjustPhaseMarkersForInsertion`, which increments `AfterTaskID` for tasks at or after the insertion position.
 - Both functions only apply to top-level tasks (IDs without dots), since subtask changes don't affect phase marker numbering.
 
 ## Gotchas

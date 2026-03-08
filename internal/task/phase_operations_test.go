@@ -913,6 +913,39 @@ func TestAddTaskToPhaseUpdatesAllLaterMarkers(t *testing.T) {
 - [ ] 5. Test task`,
 			description: "Adding task to second of four phases should update all later markers",
 		},
+		"three_phases_add_to_last": {
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Plan task
+
+## Implementation
+
+- [ ] 2. Code task
+
+## Testing
+
+- [ ] 3. Test task`,
+			phaseName: "Testing",
+			title:     "Another test task",
+			expectedContent: `# Project
+
+## Planning
+
+- [ ] 1. Plan task
+
+## Implementation
+
+- [ ] 2. Code task
+
+## Testing
+
+- [ ] 3. Test task
+
+- [ ] 4. Another test task`,
+			description: "Adding task to last phase should not affect any earlier markers",
+		},
 		"three_phases_add_to_middle": {
 			content: `# Project
 
