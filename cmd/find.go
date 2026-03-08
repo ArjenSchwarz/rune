@@ -224,8 +224,8 @@ func outputSearchResultsJSON(results []task.Task, pattern string) error {
 func outputSearchResultsMarkdown(results []task.Task, pattern string) error {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("# Search Results for '%s'\n\n", pattern))
-	sb.WriteString(fmt.Sprintf("Found %d matching tasks:\n\n", len(results)))
+	fmt.Fprintf(&sb, "# Search Results for '%s'\n\n", pattern)
+	fmt.Fprintf(&sb, "Found %d matching tasks:\n\n", len(results))
 
 	for _, t := range results {
 		// Write task with checkbox
@@ -237,22 +237,22 @@ func outputSearchResultsMarkdown(results []task.Task, pattern string) error {
 			checkbox = "[-]"
 		}
 
-		sb.WriteString(fmt.Sprintf("- %s %s. %s", checkbox, t.ID, t.Title))
+		fmt.Fprintf(&sb, "- %s %s. %s", checkbox, t.ID, t.Title)
 
 		// Add parent context if available
 		if t.ParentID != "" {
-			sb.WriteString(fmt.Sprintf(" (parent: %s)", t.ParentID))
+			fmt.Fprintf(&sb, " (parent: %s)", t.ParentID)
 		}
 		sb.WriteString("\n")
 
 		// Add details if present
 		for _, detail := range t.Details {
-			sb.WriteString(fmt.Sprintf("  - %s\n", detail))
+			fmt.Fprintf(&sb, "  - %s\n", detail)
 		}
 
 		// Add references if present
 		if len(t.References) > 0 {
-			sb.WriteString(fmt.Sprintf("  - References: %s\n", strings.Join(t.References, ", ")))
+			fmt.Fprintf(&sb, "  - References: %s\n", strings.Join(t.References, ", "))
 		}
 
 		sb.WriteString("\n")
