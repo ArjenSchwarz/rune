@@ -178,6 +178,34 @@ references:
 			},
 			expectedContent: "# Tasks\n\n- [ ] 1. Task one",
 		},
+		"closing delimiter without trailing newline": {
+			input: "---\nreferences:\n  - ./docs/setup.md\n---",
+			expectedFM: &FrontMatter{
+				References: []string{
+					"./docs/setup.md",
+				},
+				Metadata: nil,
+			},
+			expectedContent: "",
+		},
+		"empty front matter without trailing newline": {
+			input: "---\n---",
+			expectedFM: &FrontMatter{
+				References: nil,
+				Metadata:   nil,
+			},
+			expectedContent: "",
+		},
+		"closing delimiter without trailing newline and CRLF": {
+			input: "---\r\nreferences:\r\n  - ./docs/setup.md\r\n---",
+			expectedFM: &FrontMatter{
+				References: []string{
+					"./docs/setup.md",
+				},
+				Metadata: nil,
+			},
+			expectedContent: "",
+		},
 	}
 
 	for name, tc := range tests {
