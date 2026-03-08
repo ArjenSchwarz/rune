@@ -304,11 +304,12 @@ func getReadyTasks(tasks []task.Task, index *task.DependencyIndex) []task.Task {
 	return ready
 }
 
-// filterIncompleteChildren returns children that have incomplete work
+// filterIncompleteChildren returns children that have incomplete work,
+// including completed children with incomplete descendants.
 func filterIncompleteChildren(children []task.Task) []task.Task {
 	var incomplete []task.Task
 	for _, child := range children {
-		if child.Status != task.Completed {
+		if task.HasIncompleteWork(&child) {
 			incomplete = append(incomplete, child)
 		}
 	}
@@ -524,10 +525,11 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 
 // Helper functions
 
-// addIncompleteChildrenToData recursively adds incomplete children to table data
+// addIncompleteChildrenToData recursively adds children with incomplete work to table data.
+// This includes completed children that have incomplete descendants.
 func addIncompleteChildrenToData(parentTask *task.Task, taskData *[]map[string]any) {
 	for _, child := range parentTask.Children {
-		if child.Status != task.Completed {
+		if task.HasIncompleteWork(&child) {
 			childRecord := map[string]any{
 				"ID":     child.ID,
 				"Title":  child.Title,
@@ -562,7 +564,7 @@ func renderTaskMarkdown(t *task.Task, indent string) string {
 	}
 
 	for _, child := range t.Children {
-		if child.Status != task.Completed {
+		if task.HasIncompleteWork(&child) {
 			result.WriteString(renderTaskMarkdown(&child, indent+"  "))
 		}
 	}
