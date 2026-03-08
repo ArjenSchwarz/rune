@@ -1,7 +1,7 @@
 # Bugfix Report: ParseFrontMatter Rejects Closing Delimiter Without Trailing Newline
 
 **Date:** 2026-03-09
-**Status:** Investigating
+**Status:** Fixed
 
 ## Description of the Issue
 
@@ -38,7 +38,14 @@ The function never considers the case where `\n---` appears at the very end of t
 
 ## Resolution for the Issue
 
-<!-- To be filled after fix is implemented -->
+**Changes made:**
+- `internal/task/references.go:35-61` -- Refactored the closing delimiter matching from an if-else chain to a switch statement with three cases: (1) `"---\n"` prefix for normal empty front matter, (2) exact match `"---"` for empty front matter at EOF, (3) default case that searches for `"\n---\n"` and falls back to checking `strings.HasSuffix(rest, "\n---")` for closing delimiter at EOF without trailing newline.
+
+**Approach rationale:** Adding two additional checks for the EOF case (one for empty front matter `rest == "---"`, one for `strings.HasSuffix(rest, "\n---")`) is the minimal change that handles both variants of the missing-trailing-newline case. The existing logic structure is preserved.
+
+**Alternatives considered:**
+- Appending a trailing newline to content at the start of the function -- rejected because it would change the remaining content returned to callers (adding a newline that wasn't in the original input)
+- Using a single regex for all delimiter patterns -- rejected because the current string-based approach is simpler and faster
 
 ## Regression Test
 
@@ -59,9 +66,9 @@ The function never considers the case where `\n---` appears at the very end of t
 ## Verification
 
 **Automated:**
-- [ ] Regression test passes
-- [ ] Full test suite passes
-- [ ] Linters/validators pass
+- [x] Regression test passes
+- [x] Full test suite passes
+- [x] Linters/validators pass
 
 ## Prevention
 
