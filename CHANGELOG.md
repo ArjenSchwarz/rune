@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Find Command**: `--parent ""` now correctly filters to top-level tasks; previously the empty string was indistinguishable from the flag's default, causing the filter to be skipped
 - **JSON Output**: Fix pointer reuse in `RenderJSONWithPhases` where loop variable address was captured instead of slice element address, preventing potential task data corruption in JSON output
 - **Front Matter**: `ParseFrontMatter` now handles CRLF (`\r\n`) line endings, fixing front matter parsing for files authored on Windows
 - **Dependencies**: Auto-assign stable IDs to updated tasks when `blocked_by` is set, ensuring they appear in the dependency index for cycle detection and `GetDependents` queries
