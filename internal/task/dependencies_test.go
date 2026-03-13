@@ -95,6 +95,19 @@ func TestBuildDependencyIndex(t *testing.T) {
 			wantByStableID: map[string]string{"abc0002": "2"},
 			wantDependents: map[string][]string{},
 		},
+		"dependent_without_stable_id": {
+			// T-422: a task without StableID but with BlockedBy should still
+			// be registered as a dependent so that RemoveTaskWithDependents
+			// can find it.
+			tasks: []Task{
+				{ID: "1", Title: "Blocker", StableID: "abc0001"},
+				{ID: "2", Title: "Dependent (no stable ID)", BlockedBy: []string{"abc0001"}},
+			},
+			wantByStableID: map[string]string{"abc0001": "1"},
+			// The dependent should appear in the dependents map even without a StableID.
+			// We use hierarchical ID "2" as the identifier since there's no StableID.
+			wantDependents: map[string][]string{"abc0001": {"2"}},
+		},
 	}
 
 	for name, tc := range tests {
