@@ -7,7 +7,7 @@ const maxDependencyDepth = 1000
 type DependencyIndex struct {
 	byStableID     map[string]*Task    // StableID -> Task lookup
 	byHierarchical map[string]*Task    // Hierarchical ID -> Task lookup
-	dependents     map[string][]string // StableID -> list of stable IDs that depend on it
+	dependents     map[string][]string // StableID -> list of IDs (StableID if set, else hierarchical ID) that depend on it
 }
 
 // BuildDependencyIndex creates an index from a task list
@@ -75,7 +75,8 @@ func (idx *DependencyIndex) GetTaskByHierarchicalID(id string) *Task {
 	return idx.byHierarchical[id]
 }
 
-// GetDependents returns the stable IDs of tasks that depend on the given stable ID
+// GetDependents returns the IDs of tasks that depend on the given stable ID.
+// Returned IDs are StableIDs when available, otherwise hierarchical IDs.
 func (idx *DependencyIndex) GetDependents(stableID string) []string {
 	deps := idx.dependents[stableID]
 	if deps == nil {

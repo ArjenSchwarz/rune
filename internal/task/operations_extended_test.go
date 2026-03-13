@@ -562,8 +562,10 @@ func TestRemoveTaskWithDependents(t *testing.T) {
 		blockerStableID := blockerTask.StableID
 
 		// Create task B without a stable ID but with BlockedBy referencing A.
-		// This simulates a task parsed from markdown that has a blocked_by
-		// front matter field but was never assigned its own stable ID.
+		// Direct mutation of tl.Tasks is intentional here: it simulates a task
+		// parsed from markdown that has a blocked_by field but was never
+		// assigned its own stable ID. AddTaskWithOptions always assigns a
+		// StableID, so direct append is the only way to reproduce this state.
 		tl.Tasks = append(tl.Tasks, Task{
 			ID:        "2",
 			Title:     "Dependent B (no stable ID)",

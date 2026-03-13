@@ -1097,19 +1097,13 @@ func (tl *TaskList) RemoveTaskWithDependents(taskID string) ([]string, error) {
 	var warnings []string
 
 	// If task has a stable ID, clean up all blocked-by references to it.
-	// Always call removeFromBlockedByLists rather than gating on GetDependents,
-	// because the dependency index may not track all dependents (e.g., tasks
-	// without their own StableID). The tree walk is cheap regardless.
+	// The tree walk is cheap and catches all dependents regardless of whether
+	// they have their own StableID.
 	if task.StableID != "" {
-		index := BuildDependencyIndex(tl.Tasks)
-		dependents := index.GetDependents(task.StableID)
-
-		// Remove from all blocked-by lists unconditionally
-		tl.removeFromBlockedByLists(task.StableID)
-
-		if len(dependents) > 0 {
+		count := tl.removeFromBlockedByLists(task.StableID)
+		if count > 0 {
 			warnings = append(warnings,
-				fmt.Sprintf("removed dependency references from %d task(s)", len(dependents)))
+				fmt.Sprintf("removed dependency references from %d task(s)", count))
 		}
 	}
 
@@ -1123,8 +1117,10 @@ func (tl *TaskList) RemoveTaskWithDependents(taskID string) ([]string, error) {
 	return nil, fmt.Errorf("task %s not found", taskID)
 }
 
-// removeFromBlockedByLists removes a stable ID from all BlockedBy lists
-func (tl *TaskList) removeFromBlockedByLists(stableID string) {
+// removeFromBlockedByLists removes a stable ID from all BlockedBy lists.
+// Returns the number of tasks that had the reference removed.
+func (tl *TaskList) removeFromBlockedByLists(stableID string) int {
+	count := 0
 	var removeRecursive func(tasks []Task)
 	removeRecursive = func(tasks []Task) {
 		for i := range tasks {
@@ -1136,6 +1132,9 @@ func (tl *TaskList) removeFromBlockedByLists(stableID string) {
 					newBlockedBy = append(newBlockedBy, blockerID)
 				}
 			}
+			if len(newBlockedBy) < len(task.BlockedBy) {
+				count++
+			}
 			task.BlockedBy = newBlockedBy
 
 			// Process children
@@ -1146,6 +1145,7 @@ func (tl *TaskList) removeFromBlockedByLists(stableID string) {
 	}
 
 	removeRecursive(tl.Tasks)
+	return count
 }
 
 // collectStableIDs collects all stable IDs from the task list
