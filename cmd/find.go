@@ -103,8 +103,9 @@ func runFind(cmd *cobra.Command, args []string) error {
 	results := taskList.Find(findPattern, opts)
 
 	// Apply additional filtering if specified
-	if statusFilter != "" || maxDepth > 0 || parentIDFilter != "" {
-		results = applyAdditionalFilters(results, statusFilter, maxDepth, parentIDFilter)
+	parentFilterSet := cmd.Flags().Changed("parent")
+	if statusFilter != "" || maxDepth > 0 || parentFilterSet {
+		results = applyAdditionalFilters(results, statusFilter, maxDepth, parentIDFilter, parentFilterSet)
 	}
 
 	if len(results) == 0 {
@@ -126,7 +127,7 @@ func runFind(cmd *cobra.Command, args []string) error {
 	}
 }
 
-func applyAdditionalFilters(results []task.Task, statusFilter string, maxDepth int, parentIDFilter string) []task.Task {
+func applyAdditionalFilters(results []task.Task, statusFilter string, maxDepth int, parentIDFilter string, parentFilterSet bool) []task.Task {
 	var filtered []task.Task
 
 	for _, t := range results {
@@ -142,8 +143,9 @@ func applyAdditionalFilters(results []task.Task, statusFilter string, maxDepth i
 			include = false
 		}
 
-		// Apply parent ID filter
-		if parentIDFilter != "" && t.ParentID != parentIDFilter {
+		// Apply parent ID filter — only when explicitly set via --parent flag.
+		// An empty parentIDFilter means "top-level tasks" (ParentID == "").
+		if parentFilterSet && t.ParentID != parentIDFilter {
 			include = false
 		}
 

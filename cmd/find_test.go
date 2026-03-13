@@ -181,8 +181,9 @@ func TestFindCommand(t *testing.T) {
 			results := parsedList.Find(tc.pattern, opts)
 
 			// Apply additional filters if specified
-			if tc.statusFilter != "" || tc.maxDepth > 0 || tc.parentIDFilter != "" {
-				results = applyAdditionalFilters(results, tc.statusFilter, tc.maxDepth, tc.parentIDFilter)
+			parentFilterSet := tc.parentIDFilter != ""
+			if tc.statusFilter != "" || tc.maxDepth > 0 || parentFilterSet {
+				results = applyAdditionalFilters(results, tc.statusFilter, tc.maxDepth, tc.parentIDFilter, parentFilterSet)
 			}
 
 			// Check result count
@@ -327,7 +328,7 @@ func TestFindCommandAdvancedFeatures(t *testing.T) {
 		results := parsedList.Find("task", opts) // Should match all tasks
 
 		// Apply max depth filter of 2
-		filteredResults := applyAdditionalFilters(results, "", 2, "")
+		filteredResults := applyAdditionalFilters(results, "", 2, "", false)
 
 		// Should include tasks 1 (level 1) and 1.1 (level 2), exclude deeper tasks
 		if len(filteredResults) != 2 { // Tasks 1, 1.1 should be included (levels 1, 2)
@@ -353,7 +354,7 @@ func TestFindCommandAdvancedFeatures(t *testing.T) {
 		results := parsedList.Find("task", opts) // Should match all tasks
 
 		// Filter for completed tasks only
-		completedResults := applyAdditionalFilters(results, "completed", 0, "")
+		completedResults := applyAdditionalFilters(results, "completed", 0, "", false)
 
 		if len(completedResults) != 1 {
 			t.Errorf("expected 1 completed task, got %d", len(completedResults))
@@ -375,7 +376,7 @@ func TestFindCommandAdvancedFeatures(t *testing.T) {
 		results := parsedList.Find("task", opts) // Should match all tasks
 
 		// Filter for children of task 1.1
-		childrenResults := applyAdditionalFilters(results, "", 0, "1.1")
+		childrenResults := applyAdditionalFilters(results, "", 0, "1.1", true)
 
 		if len(childrenResults) != 1 {
 			t.Errorf("expected 1 child of task 1.1, got %d", len(childrenResults))
@@ -385,6 +386,103 @@ func TestFindCommandAdvancedFeatures(t *testing.T) {
 			t.Errorf("expected parent ID to be '1.1', got '%s'", childrenResults[0].ParentID)
 		}
 	})
+}
+
+func TestFindParentEmptyFilterTopLevel(t *testing.T) {
+	// Regression test for T-414: --parent "" should filter to top-level tasks only.
+	// The bug was that parentIDFilter == "" was treated as "no filter" rather than
+	// "filter for tasks whose ParentID is empty (i.e., top-level tasks)".
+	tempDir, err := os.MkdirTemp("", "rune-find-parent-empty-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	// Create a task file with both top-level and nested tasks
+	tl := task.NewTaskList("Parent Filter Test")
+	tl.AddTask("", "Top level one", "")
+	tl.AddTask("", "Top level two", "")
+	tl.AddTask("1", "Child of one", "")
+	tl.AddTask("2", "Child of two", "")
+	tl.AddTask("1.1", "Grandchild task", "")
+
+	testFile := "parent-filter-test.md"
+	if err := tl.WriteFile(testFile); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	parsedList, err := task.ParseFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to parse test file: %v", err)
+	}
+
+	// Search for a broad pattern that matches all tasks
+	opts := task.QueryOptions{CaseSensitive: false}
+	results := parsedList.Find("t", opts) // matches "Top", "task", "two", "Child"
+
+	// Verify we have results at multiple levels before filtering
+	if len(results) < 3 {
+		t.Fatalf("expected at least 3 results before filtering, got %d", len(results))
+	}
+
+	// Apply parent filter with empty string — should return only top-level tasks
+	// The parentFilterSet=true parameter signals the filter was explicitly set
+	filtered := applyAdditionalFilters(results, "", 0, "", true)
+
+	// Only top-level tasks (ParentID == "") should remain
+	for _, r := range filtered {
+		if r.ParentID != "" {
+			t.Errorf("expected only top-level tasks, but got task %s with ParentID %q", r.ID, r.ParentID)
+		}
+	}
+
+	if len(filtered) != 2 {
+		t.Errorf("expected 2 top-level tasks, got %d", len(filtered))
+		for _, r := range filtered {
+			t.Logf("  got: ID=%s Title=%q ParentID=%q", r.ID, r.Title, r.ParentID)
+		}
+	}
+}
+
+func TestFindParentFilterNotSet(t *testing.T) {
+	// Complementary test: when parentFilterSet is false, no parent filtering happens
+	tempDir, err := os.MkdirTemp("", "rune-find-parent-notset-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	tl := task.NewTaskList("No Parent Filter Test")
+	tl.AddTask("", "Top level task", "")
+	tl.AddTask("1", "Child task", "")
+
+	testFile := "no-parent-filter-test.md"
+	if err := tl.WriteFile(testFile); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	parsedList, err := task.ParseFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to parse test file: %v", err)
+	}
+
+	opts := task.QueryOptions{CaseSensitive: false}
+	results := parsedList.Find("task", opts)
+
+	// With parentFilterSet=false, all tasks should be returned regardless of parentIDFilter value
+	filtered := applyAdditionalFilters(results, "", 0, "", false)
+
+	if len(filtered) != 2 {
+		t.Errorf("expected 2 tasks (no parent filtering), got %d", len(filtered))
+	}
 }
 
 func TestFindCommandEdgeCases(t *testing.T) {
