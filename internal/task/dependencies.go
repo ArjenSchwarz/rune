@@ -32,10 +32,19 @@ func BuildDependencyIndex(tasks []Task) *DependencyIndex {
 			// Index by stable ID (only if present)
 			if task.StableID != "" {
 				idx.byStableID[task.StableID] = task
+			}
 
-				// Build dependents map
+			// Build dependents map — register even if the task has no StableID,
+			// using its hierarchical ID as the identifier. This ensures
+			// GetDependents returns all tasks that reference a given blocker,
+			// not just those that happen to have their own StableID assigned.
+			if len(task.BlockedBy) > 0 {
+				depID := task.StableID
+				if depID == "" {
+					depID = task.ID
+				}
 				for _, blockerID := range task.BlockedBy {
-					idx.dependents[blockerID] = append(idx.dependents[blockerID], task.StableID)
+					idx.dependents[blockerID] = append(idx.dependents[blockerID], depID)
 				}
 			}
 

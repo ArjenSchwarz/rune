@@ -1096,14 +1096,18 @@ func (tl *TaskList) RemoveTaskWithDependents(taskID string) ([]string, error) {
 
 	var warnings []string
 
-	// If task has a stable ID, check for dependents
+	// If task has a stable ID, clean up all blocked-by references to it.
+	// Always call removeFromBlockedByLists rather than gating on GetDependents,
+	// because the dependency index may not track all dependents (e.g., tasks
+	// without their own StableID). The tree walk is cheap regardless.
 	if task.StableID != "" {
 		index := BuildDependencyIndex(tl.Tasks)
 		dependents := index.GetDependents(task.StableID)
 
+		// Remove from all blocked-by lists unconditionally
+		tl.removeFromBlockedByLists(task.StableID)
+
 		if len(dependents) > 0 {
-			// Remove from all blocked-by lists
-			tl.removeFromBlockedByLists(task.StableID)
 			warnings = append(warnings,
 				fmt.Sprintf("removed dependency references from %d task(s)", len(dependents)))
 		}
