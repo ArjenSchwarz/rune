@@ -124,15 +124,22 @@ func parseContent(content string) (*TaskList, error) {
 		lines[i] = strings.TrimRight(lines[i], "\r")
 	}
 
-	// Extract title if present
+	// Extract title if present — only consider the first non-empty line.
+	// A title is only valid at the top of the file, before any tasks.
 	for i, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "# ") {
-			taskList.Title = strings.TrimSpace(strings.TrimPrefix(line, "#"))
-			// Remove title line and continue parsing from next line
-			lines = append(lines[:i], lines[i+1:]...)
-			break
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
 		}
+		if strings.HasPrefix(trimmed, "# ") {
+			title := strings.TrimSpace(strings.TrimPrefix(trimmed, "#"))
+			if title != "" {
+				taskList.Title = title
+			}
+			// Remove the heading line from the line array
+			lines = append(lines[:i], lines[i+1:]...)
+		}
+		break
 	}
 
 	// Parse tasks starting from root level
