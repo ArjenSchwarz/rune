@@ -58,6 +58,7 @@ func TestFindCommand(t *testing.T) {
 		caseSensitive    bool
 		searchDetails    bool
 		searchRefs       bool
+		includeParent    bool
 		statusFilter     string
 		maxDepth         int
 		parentIDFilter   string
@@ -130,6 +131,21 @@ func TestFindCommand(t *testing.T) {
 			expectedMatches: 1,
 			shouldContain:   []string{"2.2"}, // pending task under parent 2 with "test" in title
 		},
+		"include_parent_for_child_match": {
+			// T-413: --include-parent should include the parent task when a child matches.
+			pattern:          "schema",            // matches task 1.1 "Create database schema"
+			includeParent:    true,
+			expectedMatches:  2,                   // task 1 (parent) + task 1.1 (match)
+			shouldContain:    []string{"1", "1.1"},
+			shouldNotContain: []string{"2", "3"},
+		},
+		"include_parent_top_level_no_extra": {
+			// T-413: top-level match with --include-parent should not add spurious results.
+			pattern:         "documentation",
+			includeParent:   true,
+			expectedMatches: 1,
+			shouldContain:   []string{"3"},
+		},
 		"no_matches": {
 			pattern:         "nonexistent",
 			expectedMatches: 0,
@@ -158,7 +174,7 @@ func TestFindCommand(t *testing.T) {
 				CaseSensitive: tc.caseSensitive,
 				SearchDetails: tc.searchDetails,
 				SearchRefs:    tc.searchRefs,
-				IncludeParent: false, // We'll test this separately
+				IncludeParent: tc.includeParent,
 			}
 
 			// Perform the search
