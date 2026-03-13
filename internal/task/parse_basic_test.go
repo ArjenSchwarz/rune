@@ -61,6 +61,41 @@ func TestParseMarkdown(t *testing.T) {
 			wantErr:     true,
 			errContains: "exceeds maximum size",
 		},
+		"hash_in_detail_not_treated_as_title": {
+			content: `- [ ] 1. Task
+  - # Note`,
+			wantTitle: "",
+			wantTasks: 1,
+		},
+		"title_before_tasks_with_hash_detail": {
+			content: `# Real Title
+
+- [ ] 1. Task
+  - # Note inside detail`,
+			wantTitle: "Real Title",
+			wantTasks: 1,
+		},
+		"hash_in_later_line_not_treated_as_title": {
+			content: `- [ ] 1. First task
+- [ ] 2. Second task
+
+# Not a title`,
+			wantTitle: "",
+			wantTasks: 2,
+		},
+		"no_title_tasks_only": {
+			content: `- [ ] 1. First task
+- [ ] 2. Second task`,
+			wantTitle: "",
+			wantTasks: 2,
+		},
+		"title_with_blank_line_before_tasks": {
+			content: `# My Title
+
+- [ ] 1. Task`,
+			wantTitle: "My Title",
+			wantTasks: 1,
+		},
 	}
 
 	for name, tc := range tests {
@@ -250,6 +285,20 @@ func TestParseDetailsAndReferences(t *testing.T) {
 			taskID:         "1.1",
 			wantDetails:    []string{"Child detail"},
 			wantReferences: []string{"child.md"},
+		},
+		"hash_in_detail_preserved": {
+			content: `- [ ] 1. Task
+  - # Note`,
+			taskID:      "1",
+			wantDetails: []string{"# Note"},
+		},
+		"hash_in_detail_with_title": {
+			content: `# My Title
+- [ ] 1. Task
+  - # Important heading
+  - Regular detail`,
+			taskID:      "1",
+			wantDetails: []string{"# Important heading", "Regular detail"},
 		},
 	}
 
