@@ -627,3 +627,192 @@ func TestListJSONOutputIncludesNewFields(t *testing.T) {
 		t.Errorf("JSON output should NOT include stableID field")
 	}
 }
+
+// TestFilterTasksRecursiveExcludesNonMatchingParents verifies that
+// filterTasksRecursive drops parents that don't match filters, even when
+// their children do match. This aligns JSON output with table output (T-436).
+func TestFilterTasksRecursiveExcludesNonMatchingParents(t *testing.T) {
+	tests := map[string]struct {
+		setupTasks       func(*task.TaskList)
+		opts             listFilterOptions
+		expectedTaskIDs  []string // IDs that should appear in filtered output
+		excludedTaskIDs  []string // IDs that must NOT appear
+		description      string
+	}{
+		"status filter excludes non-matching parent with matching child": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTask("", "Parent task", "")       // task 1, pending
+				tl.AddTask("1", "Child task", "")        // task 1.1, pending
+				tl.UpdateStatus("1.1", task.Completed)   // child is completed
+				tl.AddTask("", "Other task", "")         // task 2, pending
+				tl.UpdateStatus("2", task.Completed)     // also completed
+			},
+			opts: listFilterOptions{
+				statusFilter: "completed",
+			},
+			expectedTaskIDs: []string{"1.1", "2"},
+			excludedTaskIDs: []string{"1"},
+			description:     "Parent task 1 is pending, should not appear even though child 1.1 is completed",
+		},
+		"stream filter excludes non-matching parent with matching child": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTaskWithOptions("", "Stream 1 parent", task.AddOptions{Stream: 1})
+				tl.AddTaskWithOptions("1", "Stream 2 child", task.AddOptions{Stream: 2})
+				tl.AddTaskWithOptions("", "Stream 2 task", task.AddOptions{Stream: 2})
+			},
+			opts: listFilterOptions{
+				streamFilter: 2,
+			},
+			expectedTaskIDs: []string{"1.1", "2"},
+			excludedTaskIDs: []string{"1"},
+			description:     "Parent task 1 is stream 1, should not appear even though child 1.1 is stream 2",
+		},
+		"owner filter excludes non-matching parent with matching child": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTaskWithOptions("", "Alice's parent", task.AddOptions{Owner: "alice"})
+				tl.AddTaskWithOptions("1", "Bob's child", task.AddOptions{Owner: "bob"})
+				tl.AddTaskWithOptions("", "Bob's task", task.AddOptions{Owner: "bob"})
+			},
+			opts: listFilterOptions{
+				ownerFilter: "bob",
+				ownerSet:    true,
+			},
+			expectedTaskIDs: []string{"1.1", "2"},
+			excludedTaskIDs: []string{"1"},
+			description:     "Parent task 1 is owned by alice, should not appear even though child 1.1 is owned by bob",
+		},
+		"matching parent with matching child includes both": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTask("", "Parent task", "")
+				tl.AddTask("1", "Child task", "")
+				tl.UpdateStatus("1", task.Completed)
+				tl.UpdateStatus("1.1", task.Completed)
+			},
+			opts: listFilterOptions{
+				statusFilter: "completed",
+			},
+			expectedTaskIDs: []string{"1", "1.1"},
+			excludedTaskIDs: []string{},
+			description:     "Both parent and child are completed, both should appear",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tl := task.NewTaskList("Filter Test")
+			tc.setupTasks(tl)
+
+			filtered := filterTasksRecursive(tl.Tasks, tc.opts)
+
+			// Collect all task IDs from the filtered result (recursively)
+			gotIDs := collectTaskIDs(filtered)
+
+			// Check expected tasks are present
+			for _, expectedID := range tc.expectedTaskIDs {
+				if !gotIDs[expectedID] {
+					t.Errorf("%s: expected task %s to be in filtered output, but it was not. Got IDs: %v",
+						tc.description, expectedID, gotIDs)
+				}
+			}
+
+			// Check excluded tasks are absent
+			for _, excludedID := range tc.excludedTaskIDs {
+				if gotIDs[excludedID] {
+					t.Errorf("%s: task %s should NOT be in filtered output, but it was. Got IDs: %v",
+						tc.description, excludedID, gotIDs)
+				}
+			}
+		})
+	}
+}
+
+// collectTaskIDs recursively collects all task IDs from a task tree into a set.
+func collectTaskIDs(tasks []task.Task) map[string]bool {
+	ids := make(map[string]bool)
+	for _, t := range tasks {
+		ids[t.ID] = true
+		for k, v := range collectTaskIDs(t.Children) {
+			ids[k] = v
+		}
+	}
+	return ids
+}
+
+// TestFilterTasksRecursiveMatchesTableOutput verifies that the JSON filter path
+// and the table filter path produce the same set of task IDs for various filter
+// combinations. This is the core assertion for T-436.
+func TestFilterTasksRecursiveMatchesTableOutput(t *testing.T) {
+	tests := map[string]struct {
+		setupTasks func(*task.TaskList)
+		opts       listFilterOptions
+	}{
+		"status filter pending": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTask("", "Parent", "")
+				tl.AddTask("1", "Child completed", "")
+				tl.UpdateStatus("1.1", task.Completed)
+				tl.AddTask("", "Other pending", "")
+			},
+			opts: listFilterOptions{statusFilter: "pending"},
+		},
+		"status filter completed with nested tasks": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTask("", "Pending parent", "")
+				tl.AddTask("1", "Completed child", "")
+				tl.UpdateStatus("1.1", task.Completed)
+				tl.AddTask("", "Completed root", "")
+				tl.UpdateStatus("2", task.Completed)
+			},
+			opts: listFilterOptions{statusFilter: "completed"},
+		},
+		"stream filter with mixed hierarchy": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTaskWithOptions("", "Stream 1 parent", task.AddOptions{Stream: 1})
+				tl.AddTaskWithOptions("1", "Stream 2 child", task.AddOptions{Stream: 2})
+				tl.AddTaskWithOptions("", "Stream 2 root", task.AddOptions{Stream: 2})
+			},
+			opts: listFilterOptions{streamFilter: 2},
+		},
+		"owner filter with mixed hierarchy": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTaskWithOptions("", "Alice parent", task.AddOptions{Owner: "alice"})
+				tl.AddTaskWithOptions("1", "Bob child", task.AddOptions{Owner: "bob"})
+				tl.AddTaskWithOptions("", "Bob root", task.AddOptions{Owner: "bob"})
+			},
+			opts: listFilterOptions{ownerFilter: "bob", ownerSet: true},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tl := task.NewTaskList("Consistency Test")
+			tc.setupTasks(tl)
+
+			depIndex := task.BuildDependencyIndex(tl.Tasks)
+			hasStreams := detectNonDefaultStreams(tl.Tasks)
+
+			// Table path: flattenTasksWithFilters
+			tableData := flattenTasksWithFilters(tl, nil, depIndex, hasStreams, tc.opts)
+			tableIDs := make(map[string]bool)
+			for _, record := range tableData {
+				tableIDs[record["ID"].(string)] = true
+			}
+
+			// JSON path: filterTasksRecursive
+			jsonFiltered := filterTasksRecursive(tl.Tasks, tc.opts)
+			jsonIDs := collectTaskIDs(jsonFiltered)
+
+			// They must produce the same set of task IDs
+			for id := range tableIDs {
+				if !jsonIDs[id] {
+					t.Errorf("task %s appears in table output but not JSON output", id)
+				}
+			}
+			for id := range jsonIDs {
+				if !tableIDs[id] {
+					t.Errorf("task %s appears in JSON output but not table output", id)
+				}
+			}
+		})
+	}
+}
