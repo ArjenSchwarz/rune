@@ -39,3 +39,4 @@ When tasks are inserted or removed, phase markers (`PhaseMarker.AfterTaskID`) mu
 - `GetEffectiveStream` returns 1 for tasks with `Stream <= 0`. This means untagged tasks default to stream 1.
 - `RenderJSONWithPhases` builds `[]TaskWithPhase` with `*Task` pointers. These must point to `&tl.Tasks[i]` (slice elements), not to range variable copies. Fixed in T-374.
 - `cmd/next.go` has its own `filterIncompleteChildren` which must use `task.HasIncompleteWork` (not a shallow status check). Fixed in T-358 along with `addIncompleteChildrenToData` and `renderTaskMarkdown`.
+- `filterTasksRecursive` in `cmd/list.go` (JSON filter path) must NOT include non-matching parents when children match. Non-matching parents are skipped and their matching children are promoted to the parent level. This aligns with `flattenTasksWithFilters` (table filter path). Fixed in T-436.

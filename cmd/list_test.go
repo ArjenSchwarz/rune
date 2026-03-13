@@ -633,19 +633,19 @@ func TestListJSONOutputIncludesNewFields(t *testing.T) {
 // their children do match. This aligns JSON output with table output (T-436).
 func TestFilterTasksRecursiveExcludesNonMatchingParents(t *testing.T) {
 	tests := map[string]struct {
-		setupTasks       func(*task.TaskList)
-		opts             listFilterOptions
-		expectedTaskIDs  []string // IDs that should appear in filtered output
-		excludedTaskIDs  []string // IDs that must NOT appear
-		description      string
+		setupTasks      func(*task.TaskList)
+		opts            listFilterOptions
+		expectedTaskIDs []string // IDs that should appear in filtered output
+		excludedTaskIDs []string // IDs that must NOT appear
+		description     string
 	}{
 		"status filter excludes non-matching parent with matching child": {
 			setupTasks: func(tl *task.TaskList) {
-				tl.AddTask("", "Parent task", "")       // task 1, pending
-				tl.AddTask("1", "Child task", "")        // task 1.1, pending
-				tl.UpdateStatus("1.1", task.Completed)   // child is completed
-				tl.AddTask("", "Other task", "")         // task 2, pending
-				tl.UpdateStatus("2", task.Completed)     // also completed
+				tl.AddTask("", "Parent task", "")      // task 1, pending
+				tl.AddTask("1", "Child task", "")      // task 1.1, pending
+				tl.UpdateStatus("1.1", task.Completed) // child is completed
+				tl.AddTask("", "Other task", "")       // task 2, pending
+				tl.UpdateStatus("2", task.Completed)   // also completed
 			},
 			opts: listFilterOptions{
 				statusFilter: "completed",

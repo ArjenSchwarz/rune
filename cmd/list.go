@@ -661,7 +661,10 @@ func outputJSONWithFilters(taskList *task.TaskList, phaseMarkers []task.PhaseMar
 	return nil
 }
 
-// filterTasksRecursive filters tasks recursively
+// filterTasksRecursive filters tasks recursively, matching the same semantics
+// as flattenTasksWithFilters (table output). A task is included only when it
+// matches the filters. Non-matching parents are skipped; their matching
+// children are promoted to the parent level in the result.
 func filterTasksRecursive(tasks []task.Task, opts listFilterOptions) []task.Task {
 	var result []task.Task
 	for _, t := range tasks {
@@ -672,11 +675,9 @@ func filterTasksRecursive(tasks []task.Task, opts listFilterOptions) []task.Task
 			taskCopy := t
 			taskCopy.Children = filteredChildren
 			result = append(result, taskCopy)
-		} else if len(filteredChildren) > 0 {
-			// Include parent if any children match
-			taskCopy := t
-			taskCopy.Children = filteredChildren
-			result = append(result, taskCopy)
+		} else {
+			// Parent doesn't match — promote any matching children
+			result = append(result, filteredChildren...)
 		}
 	}
 	return result
