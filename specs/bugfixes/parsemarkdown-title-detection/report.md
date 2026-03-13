@@ -2,7 +2,7 @@
 
 **Ticket:** T-448
 **Date:** 2026-03-13
-**Status:** In Progress
+**Status:** Fixed
 
 ## Problem Statement
 
@@ -49,7 +49,7 @@ Change the title detection to only consider lines before the first task line. Sp
 Added to `internal/task/parse_basic_test.go`:
 - `hash_in_detail_not_treated_as_title` - Detail line with `# Note` is not treated as title
 - `title_before_tasks_with_hash_detail` - Real title is detected when `# ` also appears in details
-- `hash_in_later_line_not_treated_as_title` - A `# ` line after tasks is NOT treated as title (FAILING)
+- `hash_after_tasks_causes_error` - A `# ` line after tasks is rejected as unexpected content
 - `no_title_tasks_only` - File with only tasks has no title
 - `title_with_blank_line_before_tasks` - Title followed by blank line and tasks works correctly
 - `hash_in_detail_preserved` - Detail line with `# ` content is preserved in task details
@@ -57,4 +57,12 @@ Added to `internal/task/parse_basic_test.go`:
 
 ## Resolution
 
-(To be filled after fix is implemented)
+Changed the title detection loop in `parseContent()` to only consider the first non-empty line in the document. The loop now skips blank lines, checks if the first non-blank line is an H1 heading (`# `), and breaks unconditionally after the first non-blank line regardless of whether it was a title.
+
+**File changed:** `internal/task/parse.go` (lines 127-140)
+
+Before: The loop iterated through all lines and selected the first `# ` match anywhere in the file.
+
+After: The loop skips blank lines and breaks after the first non-blank line. If that first non-blank line is an H1, it's used as the title. Otherwise, no title is set and the line is left in place for task parsing.
+
+A `# ` heading appearing after tasks is now correctly rejected as unexpected content by the task parser, rather than being silently consumed as the document title.

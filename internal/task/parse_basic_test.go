@@ -75,13 +75,13 @@ func TestParseMarkdown(t *testing.T) {
 			wantTitle: "Real Title",
 			wantTasks: 1,
 		},
-		"hash_in_later_line_not_treated_as_title": {
+		"hash_after_tasks_causes_error": {
 			content: `- [ ] 1. First task
 - [ ] 2. Second task
 
 # Not a title`,
-			wantTitle: "",
-			wantTasks: 2,
+			wantErr:     true,
+			errContains: "unexpected content",
 		},
 		"no_title_tasks_only": {
 			content: `- [ ] 1. First task
