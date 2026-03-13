@@ -547,6 +547,51 @@ func TestRemoveTaskWithDependents(t *testing.T) {
 		}
 	})
 
+	t.Run("RemoveTask cleans up dependents without stable IDs", func(t *testing.T) {
+		// T-422 regression: if a task without StableID has BlockedBy references,
+		// BuildDependencyIndex does not register it as a dependent.
+		// RemoveTaskWithDependents must still clean up those BlockedBy references.
+		tl := &TaskList{Title: "Test Tasks"}
+
+		// Create task A with a stable ID (the blocker)
+		blockerId, err := tl.AddTaskWithOptions("", "Blocker A", AddOptions{})
+		if err != nil {
+			t.Fatalf("AddTaskWithOptions failed: %v", err)
+		}
+		blockerTask := tl.FindTask(blockerId)
+		blockerStableID := blockerTask.StableID
+
+		// Create task B without a stable ID but with BlockedBy referencing A.
+		// Direct mutation of tl.Tasks is intentional here: it simulates a task
+		// parsed from markdown that has a blocked_by field but was never
+		// assigned its own stable ID. AddTaskWithOptions always assigns a
+		// StableID, so direct append is the only way to reproduce this state.
+		tl.Tasks = append(tl.Tasks, Task{
+			ID:        "2",
+			Title:     "Dependent B (no stable ID)",
+			Status:    Pending,
+			BlockedBy: []string{blockerStableID},
+			// StableID intentionally left empty
+		})
+
+		// Remove the blocker
+		_, err = tl.RemoveTaskWithDependents(blockerId)
+		if err != nil {
+			t.Fatalf("RemoveTaskWithDependents failed: %v", err)
+		}
+
+		// After removal, the remaining task (now at ID "1") should have its
+		// BlockedBy list cleaned up — the reference to the removed blocker
+		// should be gone.
+		remaining := tl.FindTask("1")
+		if remaining == nil {
+			t.Fatal("expected remaining task at ID 1")
+		}
+		if len(remaining.BlockedBy) != 0 {
+			t.Errorf("expected BlockedBy to be cleaned up, got %v", remaining.BlockedBy)
+		}
+	})
+
 	t.Run("RemoveTask without dependents no warning", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 

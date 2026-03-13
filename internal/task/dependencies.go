@@ -7,7 +7,7 @@ const maxDependencyDepth = 1000
 type DependencyIndex struct {
 	byStableID     map[string]*Task    // StableID -> Task lookup
 	byHierarchical map[string]*Task    // Hierarchical ID -> Task lookup
-	dependents     map[string][]string // StableID -> list of stable IDs that depend on it
+	dependents     map[string][]string // StableID -> list of IDs (StableID if set, else hierarchical ID) that depend on it
 }
 
 // BuildDependencyIndex creates an index from a task list
@@ -32,10 +32,19 @@ func BuildDependencyIndex(tasks []Task) *DependencyIndex {
 			// Index by stable ID (only if present)
 			if task.StableID != "" {
 				idx.byStableID[task.StableID] = task
+			}
 
-				// Build dependents map
+			// Build dependents map — register even if the task has no StableID,
+			// using its hierarchical ID as the identifier. This ensures
+			// GetDependents returns all tasks that reference a given blocker,
+			// not just those that happen to have their own StableID assigned.
+			if len(task.BlockedBy) > 0 {
+				depID := task.StableID
+				if depID == "" {
+					depID = task.ID
+				}
 				for _, blockerID := range task.BlockedBy {
-					idx.dependents[blockerID] = append(idx.dependents[blockerID], task.StableID)
+					idx.dependents[blockerID] = append(idx.dependents[blockerID], depID)
 				}
 			}
 
@@ -66,7 +75,8 @@ func (idx *DependencyIndex) GetTaskByHierarchicalID(id string) *Task {
 	return idx.byHierarchical[id]
 }
 
-// GetDependents returns the stable IDs of tasks that depend on the given stable ID
+// GetDependents returns the IDs of tasks that depend on the given stable ID.
+// Returned IDs are StableIDs when available, otherwise hierarchical IDs.
 func (idx *DependencyIndex) GetDependents(stableID string) []string {
 	deps := idx.dependents[stableID]
 	if deps == nil {
