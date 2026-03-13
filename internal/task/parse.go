@@ -132,8 +132,11 @@ func parseContent(content string) (*TaskList, error) {
 			continue
 		}
 		if strings.HasPrefix(trimmed, "# ") {
-			taskList.Title = strings.TrimSpace(strings.TrimPrefix(trimmed, "#"))
-			// Remove title line and continue parsing from next line
+			title := strings.TrimSpace(strings.TrimPrefix(trimmed, "#"))
+			if title != "" {
+				taskList.Title = title
+			}
+			// Remove the heading line from the line array
 			lines = append(lines[:i], lines[i+1:]...)
 		}
 		break

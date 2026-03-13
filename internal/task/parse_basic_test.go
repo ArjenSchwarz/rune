@@ -96,6 +96,20 @@ func TestParseMarkdown(t *testing.T) {
 			wantTitle: "My Title",
 			wantTasks: 1,
 		},
+		"hash_between_tasks_causes_error": {
+			content: `- [ ] 1. First task
+
+# Heading
+
+- [ ] 2. Second task`,
+			wantErr:     true,
+			errContains: "unexpected content",
+		},
+		"bare_hash_space_not_consumed_as_title": {
+			content:     "# \n\n- [ ] 1. Task",
+			wantErr:     true,
+			errContains: "unexpected content",
+		},
 	}
 
 	for name, tc := range tests {
