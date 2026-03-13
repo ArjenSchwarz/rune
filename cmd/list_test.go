@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"maps"
 	"os"
 	"strings"
 	"testing"
@@ -681,6 +682,22 @@ func TestFilterTasksRecursiveExcludesNonMatchingParents(t *testing.T) {
 			excludedTaskIDs: []string{"1"},
 			description:     "Parent task 1 is owned by alice, should not appear even though child 1.1 is owned by bob",
 		},
+		"deep nesting promotes grandchild through non-matching ancestors": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTask("", "Grandparent", "")        // task 1, pending
+				tl.AddTask("1", "Parent", "")            // task 1.1, pending
+				tl.AddTask("1.1", "Grandchild", "")      // task 1.1.1, pending
+				tl.UpdateStatus("1.1.1", task.Completed) // only grandchild is completed
+				tl.AddTask("", "Other completed", "")    // task 2, pending
+				tl.UpdateStatus("2", task.Completed)     // also completed
+			},
+			opts: listFilterOptions{
+				statusFilter: "completed",
+			},
+			expectedTaskIDs: []string{"1.1.1", "2"},
+			excludedTaskIDs: []string{"1", "1.1"},
+			description:     "Grandchild 1.1.1 should be promoted through two non-matching ancestors",
+		},
 		"matching parent with matching child includes both": {
 			setupTasks: func(tl *task.TaskList) {
 				tl.AddTask("", "Parent task", "")
@@ -731,9 +748,7 @@ func collectTaskIDs(tasks []task.Task) map[string]bool {
 	ids := make(map[string]bool)
 	for _, t := range tasks {
 		ids[t.ID] = true
-		for k, v := range collectTaskIDs(t.Children) {
-			ids[k] = v
-		}
+		maps.Copy(ids, collectTaskIDs(t.Children))
 	}
 	return ids
 }
@@ -780,6 +795,17 @@ func TestFilterTasksRecursiveMatchesTableOutput(t *testing.T) {
 				tl.AddTaskWithOptions("", "Bob root", task.AddOptions{Owner: "bob"})
 			},
 			opts: listFilterOptions{ownerFilter: "bob", ownerSet: true},
+		},
+		"deep nesting with grandchild promotion": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTask("", "Grandparent", "")
+				tl.AddTask("1", "Parent", "")
+				tl.AddTask("1.1", "Grandchild", "")
+				tl.UpdateStatus("1.1.1", task.Completed)
+				tl.AddTask("", "Root completed", "")
+				tl.UpdateStatus("2", task.Completed)
+			},
+			opts: listFilterOptions{statusFilter: "completed"},
 		},
 	}
 
