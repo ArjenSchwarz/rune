@@ -133,9 +133,9 @@ func TestFindCommand(t *testing.T) {
 		},
 		"include_parent_for_child_match": {
 			// T-413: --include-parent should include the parent task when a child matches.
-			pattern:          "schema",            // matches task 1.1 "Create database schema"
+			pattern:          "schema", // matches task 1.1 "Create database schema"
 			includeParent:    true,
-			expectedMatches:  2,                   // task 1 (parent) + task 1.1 (match)
+			expectedMatches:  2, // task 1 (parent) + task 1.1 (match)
 			shouldContain:    []string{"1", "1.1"},
 			shouldNotContain: []string{"2", "3"},
 		},
