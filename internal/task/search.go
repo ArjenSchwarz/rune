@@ -33,7 +33,39 @@ func (tl *TaskList) Find(pattern string, opts QueryOptions) []Task {
 	// Search through all tasks recursively
 	tl.findInTasks(tl.Tasks, searchPattern, opts, &results)
 
+	// When IncludeParent is set, add the parent of each matched child that
+	// is not already in the results. Parents are inserted directly before
+	// their first child to maintain tree order.
+	if opts.IncludeParent {
+		results = tl.insertParents(results)
+	}
+
 	return results
+}
+
+// insertParents adds parent tasks for every result that has a ParentID, as
+// long as the parent is not already present. Parents are placed immediately
+// before the first child that references them.
+func (tl *TaskList) insertParents(results []Task) []Task {
+	// Build a set of IDs already in the results.
+	present := make(map[string]bool, len(results))
+	for _, t := range results {
+		present[t.ID] = true
+	}
+
+	// Walk results front-to-back; when we encounter a task whose parent is
+	// missing, look it up and splice it in.
+	var out []Task
+	for _, t := range results {
+		if t.ParentID != "" && !present[t.ParentID] {
+			if parent := tl.FindTask(t.ParentID); parent != nil {
+				out = append(out, *parent)
+				present[t.ParentID] = true
+			}
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 // findInTasks recursively searches tasks and adds matches to results

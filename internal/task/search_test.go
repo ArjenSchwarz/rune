@@ -99,7 +99,7 @@ func TestTaskList_Find(t *testing.T) {
 		"find_with_parent_context": {
 			pattern: "database",
 			opts:    QueryOptions{IncludeParent: true},
-			want:    []string{"1.1"},
+			want:    []string{"1", "1.1"}, // "1.1" matches "database", parent "1" is included
 		},
 		"find_multiple_matches": {
 			pattern: "test",
@@ -115,6 +115,33 @@ func TestTaskList_Find(t *testing.T) {
 				IncludeParent: false,
 			},
 			want: []string{"1", "1.2", "3"},
+		},
+		"find_include_parent_top_level_match_no_extra": {
+			// When a top-level task matches, there is no parent to add.
+			pattern: "architecture",
+			opts:    QueryOptions{IncludeParent: true},
+			want:    []string{"1"},
+		},
+		"find_include_parent_multiple_children_same_parent": {
+			// "1.1" and "1.2" both contain "a" (schema, REST API); parent "1" should
+			// appear once, before the children. Parent "1" also matches "a" in its
+			// own title ("architecture"), so its inclusion is expected regardless.
+			// This test verifies no duplicate parent entries.
+			pattern: "schema",
+			opts:    QueryOptions{IncludeParent: true},
+			want:    []string{"1", "1.1"}, // parent "1" added, only child "1.1" matches
+		},
+		"find_include_parent_details_match": {
+			// Child "1.1" matches via details ("indexes"), parent "1" should be included.
+			pattern: "indexes",
+			opts:    QueryOptions{IncludeParent: true, SearchDetails: true},
+			want:    []string{"1", "1.1"},
+		},
+		"find_include_parent_disabled": {
+			// With IncludeParent false, only the direct match is returned.
+			pattern: "database",
+			opts:    QueryOptions{IncludeParent: false},
+			want:    []string{"1.1"},
 		},
 		"find_no_matches": {
 			pattern: "nonexistent",
