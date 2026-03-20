@@ -125,6 +125,15 @@ func TestDiscoverFileFromBranch(t *testing.T) {
 				}
 			}
 
+			// Mock getRepoRoot to return the temp directory
+			originalGetRepoRoot := getRepoRoot
+			defer func() {
+				getRepoRoot = originalGetRepoRoot
+			}()
+			getRepoRoot = func() (string, error) {
+				return tempDir, nil
+			}
+
 			// Mock the git command by temporarily replacing getCurrentBranch
 			originalGetCurrentBranch := getCurrentBranch
 			defer func() {
@@ -380,6 +389,61 @@ exit 1
 
 	return func() {
 		os.Setenv("PATH", originalPath)
+	}
+}
+
+// TestDiscoverFileFromBranchSubdirectory verifies that discovery works when
+// the working directory is a subdirectory of the repo root. This is a
+// regression test for T-482: fileExists uses os.Stat on relative paths,
+// which fails when CWD is not the repo root.
+func TestDiscoverFileFromBranchSubdirectory(t *testing.T) {
+	// Create a temp directory simulating a repo root
+	tempDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer func() {
+		os.Chdir(originalDir)
+	}()
+
+	// Create task file at the "repo root"
+	taskDir := filepath.Join(tempDir, "specs", "my-feature")
+	if err := os.MkdirAll(taskDir, 0755); err != nil {
+		t.Fatalf("Failed to create task directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, "tasks.md"), []byte("# Tasks"), 0644); err != nil {
+		t.Fatalf("Failed to create task file: %v", err)
+	}
+
+	// Create a subdirectory to chdir into
+	subDir := filepath.Join(tempDir, "src", "pkg")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("Failed to create subdirectory: %v", err)
+	}
+
+	// Initialize a git repo so rev-parse --show-toplevel works
+	runCommand(t, "git", "-C", tempDir, "init")
+
+	// Change into the subdirectory (simulating running rune from a subdir)
+	os.Chdir(subDir)
+
+	// Mock the git branch
+	originalGetCurrentBranch := getCurrentBranch
+	defer func() {
+		getCurrentBranch = originalGetCurrentBranch
+	}()
+	getCurrentBranch = func() (string, error) {
+		return "feature/my-feature", nil
+	}
+
+	// This should find specs/my-feature/tasks.md relative to the repo root,
+	// not relative to the CWD (src/pkg/)
+	result, err := DiscoverFileFromBranch("specs/{branch}/tasks.md")
+	if err != nil {
+		t.Fatalf("Expected discovery to succeed from subdirectory, got error: %v", err)
+	}
+
+	// The result should be the path relative to repo root
+	if result != "specs/my-feature/tasks.md" {
+		t.Errorf("Expected path specs/my-feature/tasks.md, got %s", result)
 	}
 }
 

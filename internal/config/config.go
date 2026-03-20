@@ -41,11 +41,17 @@ func LoadConfig() (*Config, error) {
 
 // loadConfigUncached loads configuration without caching
 func loadConfigUncached() (*Config, error) {
-	// Check for config in order of precedence
-	paths := []string{
-		"./.rune.yml",
-		expandHome("~/.config/rune/config.yml"),
+	// Build config search paths in precedence order.
+	// The repo-root .rune.yml is checked first so the tool works from
+	// any subdirectory of the repository.
+	paths := []string{}
+
+	if root, err := getRepoRoot(); err == nil {
+		paths = append(paths, filepath.Join(root, ".rune.yml"))
 	}
+	// CWD-relative path as fallback (covers non-git usage)
+	paths = append(paths, "./.rune.yml")
+	paths = append(paths, expandHome("~/.config/rune/config.yml"))
 
 	for _, path := range paths {
 		if cfg, err := loadConfigFile(path); err == nil {
