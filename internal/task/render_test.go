@@ -1756,21 +1756,37 @@ func TestRenderJSON_EffectiveStream(t *testing.T) {
 	}
 
 	// Task 1: no explicit stream — should emit effective stream 1
-	task1 := tasks[0].(map[string]any)
+	task1, ok := tasks[0].(map[string]any)
+	if !ok {
+		t.Fatal("Task 1 is not a map")
+	}
 	stream1, ok := task1["stream"]
 	if !ok {
 		t.Error("Task 1 (no explicit stream) should have 'stream' field in JSON, but it was omitted")
-	} else if int(stream1.(float64)) != 1 {
-		t.Errorf("Task 1 effective stream should be 1, got %v", stream1)
+	} else {
+		stream1f, ok := stream1.(float64)
+		if !ok {
+			t.Errorf("Task 1 stream should be a number, got %T", stream1)
+		} else if int(stream1f) != 1 {
+			t.Errorf("Task 1 effective stream should be 1, got %v", stream1f)
+		}
 	}
 
 	// Task 2: explicit stream 3 — should emit 3
-	task2 := tasks[1].(map[string]any)
+	task2, ok := tasks[1].(map[string]any)
+	if !ok {
+		t.Fatal("Task 2 is not a map")
+	}
 	stream2, ok := task2["stream"]
 	if !ok {
 		t.Error("Task 2 should have 'stream' field in JSON")
-	} else if int(stream2.(float64)) != 3 {
-		t.Errorf("Task 2 stream should be 3, got %v", stream2)
+	} else {
+		stream2f, ok := stream2.(float64)
+		if !ok {
+			t.Errorf("Task 2 stream should be a number, got %T", stream2)
+		} else if int(stream2f) != 3 {
+			t.Errorf("Task 2 stream should be 3, got %v", stream2f)
+		}
 	}
 }
 
@@ -1891,17 +1907,28 @@ func TestRenderJSONWithPhases_EffectiveStreamAndBlockedBy(t *testing.T) {
 		t.Fatalf("Failed to unmarshal JSON: %v", err)
 	}
 
-	tasks := parsed["Tasks"].([]any)
+	tasks, ok := parsed["Tasks"].([]any)
+	if !ok || len(tasks) < 2 {
+		t.Fatal("Expected at least 2 tasks in JSON output")
+	}
 
 	// Task 2: check effective stream and blockedBy translation
-	task2 := tasks[1].(map[string]any)
+	task2, ok := tasks[1].(map[string]any)
+	if !ok {
+		t.Fatal("Task 2 is not a map")
+	}
 
 	// Stream should be 1 (effective default)
 	stream, ok := task2["stream"]
 	if !ok {
 		t.Error("Task 2 should have 'stream' field in JSON")
-	} else if int(stream.(float64)) != 1 {
-		t.Errorf("Task 2 effective stream should be 1, got %v", stream)
+	} else {
+		streamf, ok := stream.(float64)
+		if !ok {
+			t.Errorf("Task 2 stream should be a number, got %T", stream)
+		} else if int(streamf) != 1 {
+			t.Errorf("Task 2 effective stream should be 1, got %v", streamf)
+		}
 	}
 
 	// BlockedBy should be hierarchical ID "1", not stable ID "blk001"
@@ -1909,12 +1936,19 @@ func TestRenderJSONWithPhases_EffectiveStreamAndBlockedBy(t *testing.T) {
 	if !ok {
 		t.Fatal("Task 2 should have blockedBy field")
 	}
-	blockedByArr := blockedBy.([]any)
+	blockedByArr, ok := blockedBy.([]any)
+	if !ok {
+		t.Fatal("blockedBy should be an array")
+	}
 	if len(blockedByArr) != 1 {
 		t.Fatalf("blockedBy should have 1 element, got %d", len(blockedByArr))
 	}
-	if blockedByArr[0].(string) != "1" {
-		t.Errorf("blockedBy[0] should be '1', got %q", blockedByArr[0])
+	got, ok := blockedByArr[0].(string)
+	if !ok {
+		t.Fatal("blockedBy[0] should be a string")
+	}
+	if got != "1" {
+		t.Errorf("blockedBy[0] should be '1', got %q", got)
 	}
 }
 
