@@ -11,11 +11,14 @@
 
 ## CRLF Handling
 
-CRLF normalization happens at two levels:
+CRLF normalization happens at three levels:
 1. `ParseFrontMatter` normalizes `\r\n` to `\n` at the start, before any delimiter matching
-2. `parseContent` trims `\r` from individual lines after splitting on `\n` (line 124 of parse.go)
+2. `splitLines` (in parse.go) splits on `\n` and trims trailing `\r` from each line. Used by `parseContent`, `ParseFileWithPhases`, and all phase-related functions in `phase.go`, `next.go`, and `operations.go`. **Always use `splitLines` instead of `strings.Split(content, "\n")` when processing markdown content in the task package.**
+3. `ExtractPhaseMarkers` trims `\r` from each line internally as a defensive measure for external callers (like `cmd/has_phases.go`) that pass pre-split lines
 
 `ParseFileWithPhases` uses `stripFrontMatterLines` to remove front matter before extracting phase markers. This function finds the first two `---` lines and returns everything after the closing delimiter, ignoring any later `---` lines (horizontal rules). Fixed in T-458 — the previous inline loop continued scanning all lines and re-entered "front matter" state on any subsequent `---`.
+
+**Gotcha:** Go's RE2 regex `$` matches end-of-text, and `.+` will match `\r`. So patterns like `^## (.+)$` appear to work on CRLF lines, but the captured group includes `\r`. Patterns using specific character classes at the end (like `(\d+)$` in `streamPattern`) will fail outright on untrimmed CRLF lines because `\d` does not match `\r`. Always normalize before matching.
 
 ## Front Matter Delimiter Matching
 

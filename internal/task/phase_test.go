@@ -1009,6 +1009,184 @@ func TestGetNextPhaseTasks(t *testing.T) {
 	}
 }
 
+// TestExtractPhaseMarkersCRLF verifies that ExtractPhaseMarkers works correctly
+// with CRLF line endings. This is a regression test for T-488.
+func TestExtractPhaseMarkersCRLF(t *testing.T) {
+	tests := map[string]struct {
+		content     string
+		wantMarkers []PhaseMarker
+	}{
+		"crlf_single_phase": {
+			content: "# Project Tasks\r\n\r\n## Planning\r\n\r\n- [ ] 1. Define requirements\r\n- [ ] 2. Create design\r\n",
+			wantMarkers: []PhaseMarker{
+				{Name: "Planning", AfterTaskID: ""},
+			},
+		},
+		"crlf_multiple_phases": {
+			content: "# Project Tasks\r\n\r\n## Planning\r\n\r\n- [ ] 1. Define requirements\r\n\r\n## Implementation\r\n\r\n- [ ] 2. Write code\r\n- [ ] 3. Write tests\r\n\r\n## Testing\r\n\r\n- [ ] 4. Run tests\r\n",
+			wantMarkers: []PhaseMarker{
+				{Name: "Planning", AfterTaskID: ""},
+				{Name: "Implementation", AfterTaskID: "1"},
+				{Name: "Testing", AfterTaskID: "3"},
+			},
+		},
+		"crlf_phase_after_task": {
+			content: "# Project Tasks\r\n\r\n- [ ] 1. Initial task\r\n\r\n## Development\r\n\r\n- [ ] 2. Dev task\r\n",
+			wantMarkers: []PhaseMarker{
+				{Name: "Development", AfterTaskID: "1"},
+			},
+		},
+		"crlf_phase_with_subtasks": {
+			content: "# Project\r\n\r\n## Phase One\r\n\r\n- [ ] 1. Parent task\r\n  - [ ] 1.1. Subtask\r\n\r\n## Phase Two\r\n\r\n- [ ] 2. Next parent\r\n",
+			wantMarkers: []PhaseMarker{
+				{Name: "Phase One", AfterTaskID: ""},
+				{Name: "Phase Two", AfterTaskID: "1"},
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			lines := strings.Split(tc.content, "\n")
+			markers := ExtractPhaseMarkers(lines)
+
+			if !reflect.DeepEqual(markers, tc.wantMarkers) {
+				t.Errorf("ExtractPhaseMarkers() with CRLF got %d markers, want %d", len(markers), len(tc.wantMarkers))
+				for i, m := range markers {
+					if i < len(tc.wantMarkers) {
+						if m != tc.wantMarkers[i] {
+							t.Errorf("  marker[%d]: got {Name: %q, AfterTaskID: %q}, want {Name: %q, AfterTaskID: %q}",
+								i, m.Name, m.AfterTaskID, tc.wantMarkers[i].Name, tc.wantMarkers[i].AfterTaskID)
+						}
+					} else {
+						t.Errorf("  extra marker[%d]: {Name: %q, AfterTaskID: %q}", i, m.Name, m.AfterTaskID)
+					}
+				}
+				for i := len(markers); i < len(tc.wantMarkers); i++ {
+					t.Errorf("  missing marker[%d]: {Name: %q, AfterTaskID: %q}",
+						i, tc.wantMarkers[i].Name, tc.wantMarkers[i].AfterTaskID)
+				}
+			}
+
+			// Verify no phase names contain \r
+			for i, m := range markers {
+				if strings.Contains(m.Name, "\r") {
+					t.Errorf("marker[%d] phase name contains \\r: %q", i, m.Name)
+				}
+			}
+		})
+	}
+}
+
+// TestGetTaskPhaseCRLF verifies that getTaskPhase works correctly with CRLF
+// line endings. This is a regression test for T-488.
+func TestGetTaskPhaseCRLF(t *testing.T) {
+	tests := map[string]struct {
+		content   string
+		taskID    string
+		wantPhase string
+	}{
+		"crlf_task_in_phase": {
+			content:   "# Project\r\n\r\n## Planning\r\n\r\n- [ ] 1. Define requirements\r\n\r\n## Implementation\r\n\r\n- [ ] 2. Write code\r\n",
+			taskID:    "1",
+			wantPhase: "Planning",
+		},
+		"crlf_task_in_second_phase": {
+			content:   "# Project\r\n\r\n## Planning\r\n\r\n- [ ] 1. Define requirements\r\n\r\n## Implementation\r\n\r\n- [ ] 2. Write code\r\n",
+			taskID:    "2",
+			wantPhase: "Implementation",
+		},
+		"crlf_subtask_inherits_phase": {
+			content:   "# Project\r\n\r\n## Development\r\n\r\n- [ ] 1. Parent task\r\n  - [ ] 1.1. Subtask\r\n",
+			taskID:    "1.1",
+			wantPhase: "Development",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			gotPhase := getTaskPhase(tc.taskID, []byte(tc.content))
+
+			if gotPhase != tc.wantPhase {
+				t.Errorf("getTaskPhase(%q) with CRLF = %q, want %q",
+					tc.taskID, gotPhase, tc.wantPhase)
+			}
+		})
+	}
+}
+
+// TestBuildTaskPhaseMapCRLF verifies that buildTaskPhaseMap works correctly with
+// CRLF line endings. This is a regression test for T-488.
+func TestBuildTaskPhaseMapCRLF(t *testing.T) {
+	content := "# Project\r\n\r\n## Planning\r\n\r\n- [ ] 1. Define requirements\r\n\r\n## Implementation\r\n\r\n- [ ] 2. Write code\r\n- [ ] 3. Write tests\r\n"
+	lines := strings.Split(content, "\n")
+
+	phaseMap := buildTaskPhaseMap(lines)
+
+	expected := map[string]string{
+		"1": "Planning",
+		"2": "Implementation",
+		"3": "Implementation",
+	}
+
+	for taskID, wantPhase := range expected {
+		if gotPhase, exists := phaseMap[taskID]; !exists {
+			t.Errorf("buildTaskPhaseMap() with CRLF: task %q not found in map", taskID)
+		} else if gotPhase != wantPhase {
+			t.Errorf("buildTaskPhaseMap() with CRLF: task %q phase = %q, want %q",
+				taskID, gotPhase, wantPhase)
+		}
+	}
+}
+
+// TestGetNextPhaseTasksCRLF verifies that getNextPhaseTasks works correctly with
+// CRLF line endings. This is a regression test for T-488.
+func TestGetNextPhaseTasksCRLF(t *testing.T) {
+	tests := map[string]struct {
+		content       string
+		wantPhaseName string
+		wantTaskCount int
+	}{
+		"crlf_first_phase_pending": {
+			content:       "# Project\r\n\r\n## Planning\r\n\r\n- [ ] 1. Define requirements\r\n- [ ] 2. Create design\r\n\r\n## Implementation\r\n\r\n- [ ] 3. Write code\r\n",
+			wantPhaseName: "Planning",
+			wantTaskCount: 2,
+		},
+		"crlf_skip_completed_phase": {
+			content:       "# Project\r\n\r\n## Planning\r\n\r\n- [x] 1. Done\r\n\r\n## Implementation\r\n\r\n- [ ] 2. Write code\r\n",
+			wantPhaseName: "Implementation",
+			wantTaskCount: 1,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tasks, phaseName := getNextPhaseTasks([]byte(tc.content))
+
+			if phaseName != tc.wantPhaseName {
+				t.Errorf("getNextPhaseTasks() with CRLF phase = %q, want %q",
+					phaseName, tc.wantPhaseName)
+			}
+
+			if len(tasks) != tc.wantTaskCount {
+				t.Errorf("getNextPhaseTasks() with CRLF returned %d tasks, want %d",
+					len(tasks), tc.wantTaskCount)
+			}
+		})
+	}
+}
+
+// TestHasPhasesCRLF verifies that hasPhases works correctly with CRLF line
+// endings. This is a regression test for T-488.
+func TestHasPhasesCRLF(t *testing.T) {
+	content := "# Project\r\n\r\n## Planning\r\n\r\n- [ ] 1. Task\r\n"
+	lines := strings.Split(content, "\n")
+
+	if !hasPhases(lines) {
+		t.Error("hasPhases() with CRLF returned false, want true")
+	}
+}
+
 func TestFindPhasePosition(t *testing.T) {
 	tests := map[string]struct {
 		content       string

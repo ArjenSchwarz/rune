@@ -34,7 +34,7 @@ func getTaskPhase(taskID string, content []byte) string {
 		parentID = before
 	}
 
-	lines := strings.Split(string(content), "\n")
+	lines := splitLines(string(content))
 	currentPhase := ""
 
 	for _, line := range lines {
@@ -94,7 +94,7 @@ func getNextPhaseTasks(content []byte) ([]Task, string) {
 		return nil, ""
 	}
 
-	lines := strings.Split(string(content), "\n")
+	lines := splitLines(string(content))
 	markers := ExtractPhaseMarkers(lines)
 
 	// If no phases exist, return empty
@@ -143,7 +143,7 @@ func getNextPhaseTasks(content []byte) ([]Task, string) {
 // When duplicate phase names exist, returns the first occurrence.
 // Phase names are case-sensitive.
 func findPhasePosition(phaseName string, content []byte) (found bool, afterTaskID string) {
-	lines := strings.Split(string(content), "\n")
+	lines := splitLines(string(content))
 	markers := ExtractPhaseMarkers(lines)
 
 	for _, marker := range markers {
