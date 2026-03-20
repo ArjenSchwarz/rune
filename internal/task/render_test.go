@@ -1589,9 +1589,7 @@ func TestRenderJSONExcludesStableIDs(t *testing.T) {
 }
 
 func TestRenderJSONBlockedByUsesHierarchicalIDs(t *testing.T) {
-	// Task 16: Test JSON BlockedBy uses hierarchical IDs
-	// Note: This test requires MarshalTasksJSON to be implemented
-	// For now, test that the basic JSON rendering includes blockedBy field
+	// Test JSON BlockedBy uses hierarchical IDs (translated from stable IDs)
 
 	tl := &TaskList{
 		Title: "JSON BlockedBy Test",
@@ -1633,13 +1631,12 @@ func TestRenderJSONBlockedByUsesHierarchicalIDs(t *testing.T) {
 		t.Fatal("Expected at least 2 tasks")
 	}
 
-	// Check second task has blockedBy field
+	// Check second task has blockedBy field with hierarchical IDs
 	task2, ok := tasks[1].(map[string]any)
 	if !ok {
 		t.Fatal("Task 2 not found or wrong type")
 	}
 
-	// blockedBy should be present (as stable IDs for now until MarshalTasksJSON is implemented)
 	blockedBy, ok := task2["blockedBy"]
 	if !ok {
 		t.Error("Task 2 should have blockedBy field")
@@ -1654,6 +1651,11 @@ func TestRenderJSONBlockedByUsesHierarchicalIDs(t *testing.T) {
 
 	if len(blockedByArr) != 1 {
 		t.Errorf("blockedBy should have 1 element, got %d", len(blockedByArr))
+	}
+
+	// blockedBy should contain hierarchical ID "1", not stable ID "abc1234"
+	if blockedByArr[0].(string) != "1" {
+		t.Errorf("blockedBy[0] should be hierarchical ID '1', got %q", blockedByArr[0])
 	}
 }
 
