@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -247,6 +248,58 @@ discovery:
 	}
 	if cfg.Discovery.Template != "local/{branch}.md" {
 		t.Errorf("Discovery.Template = %q, want %q", cfg.Discovery.Template, "local/{branch}.md")
+	}
+}
+
+// TestLoadConfigFromSubdirectory verifies that config loading finds .rune.yml
+// at the repo root when the CWD is a subdirectory. This is a regression test
+// for T-482: loadConfigUncached uses relative path "./.rune.yml" which fails
+// when CWD is not the repo root.
+func TestLoadConfigFromSubdirectory(t *testing.T) {
+	resetConfigCache()
+
+	// Create a temp directory simulating a repo root
+	tempDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer func() {
+		os.Chdir(originalDir)
+		resetConfigCache()
+	}()
+
+	// Create .rune.yml at the "repo root" with a distinctive template
+	// that differs from the default, so we can prove it was actually loaded
+	content := `
+discovery:
+  enabled: true
+  template: "custom/{branch}/tasks.md"
+`
+	if err := os.WriteFile(filepath.Join(tempDir, ".rune.yml"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a subdirectory and chdir into it
+	subDir := filepath.Join(tempDir, "src", "pkg")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Initialize a git repo so rev-parse --show-toplevel works
+	cmd := exec.Command("git", "-C", tempDir, "init")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to init git repo: %v", err)
+	}
+
+	os.Chdir(subDir)
+
+	cfg, err := loadConfigUncached()
+	if err != nil {
+		t.Fatalf("Expected config to load from subdirectory, got error: %v", err)
+	}
+	if !cfg.Discovery.Enabled {
+		t.Error("Expected Discovery.Enabled to be true")
+	}
+	if cfg.Discovery.Template != "custom/{branch}/tasks.md" {
+		t.Errorf("Expected template 'custom/{branch}/tasks.md' (from .rune.yml), got %q (likely default config — file not found from subdirectory)", cfg.Discovery.Template)
 	}
 }
 
