@@ -17,6 +17,14 @@ When `IncludeParent` is true, a post-processing step (`insertParents`) runs afte
 
 The `cmd/find.go` layer applies additional filters (`applyAdditionalFilters`) after `Find` returns. These filters (status, max-depth, parent ID) are separate from `QueryOptions` and operate on the flat results slice. This means `--include-parent` parents can be filtered out by `--status` or `--max-depth` if they don't match — this is by design since the parent is included for context, not as a forced result.
 
+## How Filter Works
+
+`TaskList.Filter(filter)` performs a recursive depth-first walk, evaluating each task against the `QueryFilter` criteria (status, max depth, parent ID, title pattern). Results are returned as a flat slice of task copies.
+
+**Important**: Result tasks have their `Children` field set to nil. The recursive walk evaluates children independently, so the `Children` field on result tasks must not carry the original children — otherwise non-matching descendants leak into the results. This was a bug fixed in T-515.
+
+The `cmd/list.go` layer has its own recursive filtering (`filterTasksRecursive` for JSON, `flattenTasksWithFilters` for table) that operates on the original tree with full children. Those functions handle child filtering themselves and don't use `TaskList.Filter`.
+
 ## FindTask vs Find
 
 `FindTask(taskID)` does an exact ID lookup (returns `*Task` pointer into the tree). `Find(pattern, opts)` does a substring search (returns copies). They serve different purposes and both traverse the tree recursively.

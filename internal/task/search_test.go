@@ -312,6 +312,61 @@ func TestTaskList_Filter(t *testing.T) {
 	}
 }
 
+func TestTaskList_Filter_ExcludesNonMatchingChildren(t *testing.T) {
+	tl := &TaskList{
+		Title:    "Test Project",
+		Modified: time.Now(),
+		Tasks: []Task{
+			{
+				ID:     "1",
+				Title:  "Parent task",
+				Status: Completed,
+				Children: []Task{
+					{
+						ID:       "1.1",
+						Title:    "Completed child",
+						Status:   Completed,
+						ParentID: "1",
+						Children: []Task{
+							{
+								ID:       "1.1.1",
+								Title:    "Pending grandchild",
+								Status:   Pending,
+								ParentID: "1.1",
+							},
+						},
+					},
+					{
+						ID:       "1.2",
+						Title:    "Pending child",
+						Status:   Pending,
+						ParentID: "1",
+					},
+				},
+			},
+		},
+	}
+
+	completedStatus := Completed
+	results := tl.Filter(QueryFilter{Status: &completedStatus})
+
+	// Should return tasks 1 and 1.1 only
+	gotIDs := extractTaskIDs(results)
+	wantIDs := []string{"1", "1.1"}
+	if !reflect.DeepEqual(gotIDs, wantIDs) {
+		t.Fatalf("Filter() returned IDs = %v, want %v", gotIDs, wantIDs)
+	}
+
+	// Each result task must have an empty Children slice — non-matching
+	// children must not leak through.
+	for _, task := range results {
+		if len(task.Children) != 0 {
+			childIDs := extractTaskIDs(task.Children)
+			t.Errorf("Filter() result task %s has Children %v, want empty", task.ID, childIDs)
+		}
+	}
+}
+
 func TestTaskList_FindTask(t *testing.T) {
 	tl := &TaskList{
 		Title: "Test",
