@@ -929,6 +929,63 @@ func TestGetNextPhaseTasks(t *testing.T) {
 			wantTaskCount: 1,
 			description:   "Should handle duplicate phase names and find pending in second occurrence",
 		},
+		"completed_parent_with_pending_subtask": {
+			content: `# Project
+
+## Phase One
+
+- [x] 1. Parent
+  - [ ] 1.1. Child
+
+## Phase Two
+
+- [ ] 2. Task in phase two`,
+			wantPhaseName: "Phase One",
+			wantTaskCount: 1,
+			validateFunc: func(t *testing.T, tasks []Task, phaseName string) {
+				if len(tasks) != 1 {
+					t.Errorf("Expected 1 task, got %d", len(tasks))
+					return
+				}
+				if tasks[0].ID != "1" {
+					t.Errorf("Expected parent task ID %q, got %q", "1", tasks[0].ID)
+				}
+				if len(tasks[0].Children) != 1 {
+					t.Errorf("Expected 1 child, got %d", len(tasks[0].Children))
+				}
+			},
+			description: "Should detect pending subtask under completed parent and not skip phase",
+		},
+		"completed_parent_with_in_progress_subtask": {
+			content: `# Project
+
+## Phase One
+
+- [x] 1. Parent
+  - [-] 1.1. In progress child
+
+## Phase Two
+
+- [ ] 2. Task in phase two`,
+			wantPhaseName: "Phase One",
+			wantTaskCount: 1,
+			description:   "Should detect in-progress subtask under completed parent",
+		},
+		"all_subtasks_completed": {
+			content: `# Project
+
+## Phase One
+
+- [x] 1. Parent
+  - [x] 1.1. Completed child
+
+## Phase Two
+
+- [ ] 2. Task in phase two`,
+			wantPhaseName: "Phase Two",
+			wantTaskCount: 1,
+			description:   "Should skip phase when parent and all subtasks are completed",
+		},
 	}
 
 	for name, tc := range tests {
