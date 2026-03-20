@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"maps"
 	"os"
 	"strings"
@@ -751,6 +752,129 @@ func collectTaskIDs(tasks []task.Task) map[string]bool {
 		maps.Copy(ids, collectTaskIDs(t.Children))
 	}
 	return ids
+}
+
+// TestFilteredJSONOutputPreservesPhaseBoundaries verifies that filtered JSON
+// output retains correct phase labels even when the boundary task (the task
+// referenced by PhaseMarker.AfterTaskID) is filtered out. Regression test
+// for T-537.
+func TestFilteredJSONOutputPreservesPhaseBoundaries(t *testing.T) {
+	tests := map[string]struct {
+		tasks       []task.Task
+		phases      []task.PhaseMarker
+		opts        listFilterOptions
+		wantPhases  map[string]string // taskID -> expected phase
+		description string
+	}{
+		"boundary task filtered out by status": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Design docs", Status: task.Completed},
+				{ID: "2", Title: "Prototype", Status: task.Completed},
+				{ID: "3", Title: "Implement", Status: task.InProgress},
+				{ID: "4", Title: "Deploy", Status: task.Pending},
+			},
+			phases: []task.PhaseMarker{
+				{Name: "Design", AfterTaskID: ""},
+				{Name: "Build", AfterTaskID: "2"},
+			},
+			opts: listFilterOptions{statusFilter: "pending"},
+			wantPhases: map[string]string{
+				"4": "Build",
+			},
+			description: "Task 2 is the Build boundary but is completed; filtered to pending only",
+		},
+		"boundary task filtered out by stream": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Planning", Status: task.Pending, Stream: 1},
+				{ID: "2", Title: "Boundary task", Status: task.Pending, Stream: 1},
+				{ID: "3", Title: "Stream 2 work", Status: task.Pending, Stream: 2},
+				{ID: "4", Title: "More stream 2", Status: task.Pending, Stream: 2},
+			},
+			phases: []task.PhaseMarker{
+				{Name: "Phase A", AfterTaskID: ""},
+				{Name: "Phase B", AfterTaskID: "2"},
+			},
+			opts: listFilterOptions{streamFilter: 2},
+			wantPhases: map[string]string{
+				"3": "Phase B",
+				"4": "Phase B",
+			},
+			description: "Task 2 is the Phase B boundary but is stream 1; filtering to stream 2",
+		},
+		"boundary task filtered out by owner": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Alice task", Status: task.Pending, Owner: "alice"},
+				{ID: "2", Title: "Alice boundary", Status: task.Pending, Owner: "alice"},
+				{ID: "3", Title: "Bob's work", Status: task.Pending, Owner: "bob"},
+			},
+			phases: []task.PhaseMarker{
+				{Name: "Setup", AfterTaskID: ""},
+				{Name: "Execution", AfterTaskID: "2"},
+			},
+			opts: listFilterOptions{ownerFilter: "bob", ownerSet: true},
+			wantPhases: map[string]string{
+				"3": "Execution",
+			},
+			description: "Task 2 is the Execution boundary but owned by alice; filtering to bob",
+		},
+		"all boundary tasks present (no filtering issue)": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Task one", Status: task.Pending},
+				{ID: "2", Title: "Task two", Status: task.Pending},
+				{ID: "3", Title: "Task three", Status: task.Pending},
+			},
+			phases: []task.PhaseMarker{
+				{Name: "Alpha", AfterTaskID: ""},
+				{Name: "Beta", AfterTaskID: "1"},
+			},
+			opts: listFilterOptions{}, // no filters
+			wantPhases: map[string]string{
+				"1": "Alpha",
+				"2": "Beta",
+				"3": "Beta",
+			},
+			description: "No filters applied — baseline correctness check",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			originalTL := &task.TaskList{
+				Title: "Phase Boundary Test",
+				Tasks: tc.tasks,
+			}
+
+			// Filter tasks the same way outputJSONWithFilters does
+			filteredTasks := filterTasksRecursive(originalTL.Tasks, tc.opts)
+			filteredList := &task.TaskList{
+				Title: originalTL.Title,
+				Tasks: filteredTasks,
+			}
+
+			jsonData := task.RenderJSONWithPhases(filteredList, tc.phases, originalTL)
+
+			var result struct {
+				Tasks []struct {
+					ID    string `json:"ID"`
+					Phase string `json:"Phase"`
+				} `json:"Tasks"`
+			}
+			if err := json.Unmarshal(jsonData, &result); err != nil {
+				t.Fatalf("Failed to unmarshal JSON: %v", err)
+			}
+
+			for _, got := range result.Tasks {
+				wantPhase, ok := tc.wantPhases[got.ID]
+				if !ok {
+					continue // task not in our expectations
+				}
+				if got.Phase != wantPhase {
+					t.Errorf("%s: task %s Phase = %q, want %q",
+						tc.description, got.ID, got.Phase, wantPhase)
+				}
+			}
+		})
+	}
 }
 
 // TestFilterTasksRecursiveMatchesTableOutput verifies that the JSON filter path

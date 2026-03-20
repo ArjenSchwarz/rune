@@ -378,7 +378,7 @@ func outputTableWithPhases(taskList *task.TaskList, taskData []map[string]any, p
 }
 
 func outputJSONWithPhases(taskList *task.TaskList, phaseMarkers []task.PhaseMarker) error {
-	jsonOutput := task.RenderJSONWithPhases(taskList, phaseMarkers)
+	jsonOutput := task.RenderJSONWithPhases(taskList, phaseMarkers, nil)
 	fmt.Print(string(jsonOutput))
 	return nil
 }
@@ -656,7 +656,7 @@ func outputJSONWithFilters(taskList *task.TaskList, phaseMarkers []task.PhaseMar
 		RequirementsFile: taskList.RequirementsFile,
 	}
 
-	jsonOutput := task.RenderJSONWithPhases(filteredList, phaseMarkers)
+	jsonOutput := task.RenderJSONWithPhases(filteredList, phaseMarkers, taskList)
 	fmt.Print(string(jsonOutput))
 	return nil
 }
