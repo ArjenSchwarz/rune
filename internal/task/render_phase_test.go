@@ -407,7 +407,7 @@ func TestRenderJSONWithPhases_PointerReuse(t *testing.T) {
 		{Name: "Phase B", AfterTaskID: "1"},
 	}
 
-	jsonData := RenderJSONWithPhases(tl, phaseMarkers)
+	jsonData := RenderJSONWithPhases(tl, phaseMarkers, nil)
 
 	var result struct {
 		Tasks []struct {
@@ -443,6 +443,76 @@ func TestRenderJSONWithPhases_PointerReuse(t *testing.T) {
 		}
 		if got.Phase != want.phase {
 			t.Errorf("Task[%d] Phase = %q, want %q", i, got.Phase, want.phase)
+		}
+	}
+}
+
+// TestRenderJSONWithPhases_FilteredBoundaryTask verifies that phase labels
+// remain correct when the task list has been filtered and boundary tasks
+// (referenced in PhaseMarker.AfterTaskID) are no longer present.
+// This is the regression test for T-537.
+func TestRenderJSONWithPhases_FilteredBoundaryTask(t *testing.T) {
+	// Original (unfiltered) task list with 4 tasks in 2 phases.
+	// Phase "Design" starts at the beginning (AfterTaskID="").
+	// Phase "Build" starts after task 2 (AfterTaskID="2").
+	originalTL := &TaskList{
+		Title: "Phase Boundary Test",
+		Tasks: []Task{
+			{ID: "1", Title: "Research", Status: Completed},
+			{ID: "2", Title: "Prototype", Status: Completed},
+			{ID: "3", Title: "Implement", Status: InProgress},
+			{ID: "4", Title: "Deploy", Status: Pending},
+		},
+	}
+	phaseMarkers := []PhaseMarker{
+		{Name: "Design", AfterTaskID: ""},
+		{Name: "Build", AfterTaskID: "2"},
+	}
+
+	// Filtered list: only pending and in-progress tasks remain.
+	// Task 2 (the boundary task for "Build") is filtered out.
+	filteredTL := &TaskList{
+		Title: "Phase Boundary Test",
+		Tasks: []Task{
+			{ID: "3", Title: "Implement", Status: InProgress},
+			{ID: "4", Title: "Deploy", Status: Pending},
+		},
+	}
+
+	jsonData := RenderJSONWithPhases(filteredTL, phaseMarkers, originalTL)
+
+	var result struct {
+		Tasks []struct {
+			ID    string `json:"ID"`
+			Phase string `json:"Phase"`
+		} `json:"Tasks"`
+	}
+	if err := json.Unmarshal(jsonData, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	if len(result.Tasks) != 2 {
+		t.Fatalf("Expected 2 tasks, got %d", len(result.Tasks))
+	}
+
+	// Both tasks 3 and 4 are in the "Build" phase.
+	// Without the fix, they would be labeled "Design" because the boundary
+	// task (2) is not in the filtered list.
+	wantPhases := []struct {
+		id, phase string
+	}{
+		{"3", "Build"},
+		{"4", "Build"},
+	}
+
+	for i, want := range wantPhases {
+		got := result.Tasks[i]
+		if got.ID != want.id {
+			t.Errorf("Task[%d] ID = %q, want %q", i, got.ID, want.id)
+		}
+		if got.Phase != want.phase {
+			t.Errorf("Task[%d] Phase = %q, want %q (boundary task filtered out — T-537 regression)",
+				i, got.Phase, want.phase)
 		}
 	}
 }
@@ -502,7 +572,7 @@ func TestJSONOutputWithPhases(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Convert to JSON and check phase field presence
-			jsonData := RenderJSONWithPhases(tc.taskList, tc.phaseMarkers)
+			jsonData := RenderJSONWithPhases(tc.taskList, tc.phaseMarkers, nil)
 
 			var data map[string]any
 			if err := json.Unmarshal(jsonData, &data); err != nil {

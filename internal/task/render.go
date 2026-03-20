@@ -290,8 +290,11 @@ func GetTaskPhase(tl *TaskList, phaseMarkers []PhaseMarker, taskID string) strin
 	return currentPhase
 }
 
-// RenderJSONWithPhases converts a TaskList to JSON format with phase information
-func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
+// RenderJSONWithPhases converts a TaskList to JSON format with phase information.
+// The optional phaseSource parameter, when non-nil, is used for resolving phase
+// boundaries instead of tl. This is needed when tl has been filtered and boundary
+// tasks (referenced by PhaseMarker.AfterTaskID) may no longer be present.
+func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource *TaskList) []byte {
 	// Calculate statistics
 	stats := tl.CalculateStats()
 
@@ -311,10 +314,18 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 		return data
 	}
 
+	// Use phaseSource for phase resolution if provided, otherwise use tl.
+	// This ensures phase boundaries are resolved against the original unfiltered
+	// task list even when tl has been filtered (T-537).
+	phaseResolutionList := tl
+	if phaseSource != nil {
+		phaseResolutionList = phaseSource
+	}
+
 	// Build tasks with phase information
 	tasksWithPhases := make([]TaskWithPhase, 0, len(tl.Tasks))
 	for i := range tl.Tasks {
-		phase := GetTaskPhase(tl, phaseMarkers, tl.Tasks[i].ID)
+		phase := GetTaskPhase(phaseResolutionList, phaseMarkers, tl.Tasks[i].ID)
 		tasksWithPhases = append(tasksWithPhases, TaskWithPhase{
 			Task:  &tl.Tasks[i],
 			Phase: phase,
