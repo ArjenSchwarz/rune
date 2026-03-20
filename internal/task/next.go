@@ -169,7 +169,7 @@ func FindNextPhaseTasks(filepath string) (*PhaseTasksResult, error) {
 	}
 
 	// Also parse the raw content to extract phase information
-	lines := strings.Split(string(content), "\n")
+	lines := splitLines(string(content))
 	lines = skipFrontMatter(string(content), lines)
 
 	// If no phases exist, return all pending tasks
@@ -334,7 +334,7 @@ func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult
 	index := BuildDependencyIndex(taskList.Tasks)
 
 	// Parse raw content to extract phase information
-	lines := strings.Split(string(content), "\n")
+	lines := splitLines(string(content))
 	lines = skipFrontMatter(string(content), lines)
 
 	// Check if document has phases

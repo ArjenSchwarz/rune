@@ -2,6 +2,7 @@ package task
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -1212,5 +1213,107 @@ func TestFilterToFirstIncompletePathIntegration(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestFindNextPhaseTasksCRLF verifies that FindNextPhaseTasks works correctly
+// with CRLF line endings. This is a regression test for T-488.
+func TestFindNextPhaseTasksCRLF(t *testing.T) {
+	tests := map[string]struct {
+		content       string
+		wantPhaseName string
+		wantTaskCount int
+	}{
+		"crlf_returns_first_pending_phase": {
+			content:       "# Project\r\n\r\n## Planning\r\n\r\n- [ ] 1. Define requirements\r\n- [ ] 2. Create design\r\n\r\n## Implementation\r\n\r\n- [ ] 3. Write code\r\n",
+			wantPhaseName: "Planning",
+			wantTaskCount: 2,
+		},
+		"crlf_skips_completed_phase": {
+			content:       "# Project\r\n\r\n## Planning\r\n\r\n- [x] 1. Done\r\n\r\n## Implementation\r\n\r\n- [ ] 2. Write code\r\n- [ ] 3. Write tests\r\n",
+			wantPhaseName: "Implementation",
+			wantTaskCount: 2,
+		},
+		"crlf_no_phases_returns_all_pending": {
+			content:       "# Project\r\n\r\n- [ ] 1. Task one\r\n- [ ] 2. Task two\r\n",
+			wantPhaseName: "",
+			wantTaskCount: 2,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Write CRLF content to a temp file
+			tmpFile, err := os.CreateTemp("", "crlf-phase-*.md")
+			if err != nil {
+				t.Fatalf("Failed to create temp file: %v", err)
+			}
+			defer os.Remove(tmpFile.Name())
+
+			if _, err := tmpFile.WriteString(tc.content); err != nil {
+				t.Fatalf("Failed to write content: %v", err)
+			}
+			tmpFile.Close()
+
+			result, err := FindNextPhaseTasks(tmpFile.Name())
+			if err != nil {
+				t.Fatalf("FindNextPhaseTasks() error = %v", err)
+			}
+
+			if tc.wantTaskCount == 0 {
+				if result != nil {
+					t.Errorf("FindNextPhaseTasks() with CRLF = non-nil, want nil")
+				}
+				return
+			}
+
+			if result == nil {
+				t.Fatalf("FindNextPhaseTasks() with CRLF = nil, want phase %q with %d tasks",
+					tc.wantPhaseName, tc.wantTaskCount)
+			}
+
+			if result.PhaseName != tc.wantPhaseName {
+				t.Errorf("FindNextPhaseTasks() with CRLF phase = %q, want %q",
+					result.PhaseName, tc.wantPhaseName)
+			}
+
+			if len(result.Tasks) != tc.wantTaskCount {
+				t.Errorf("FindNextPhaseTasks() with CRLF returned %d tasks, want %d",
+					len(result.Tasks), tc.wantTaskCount)
+			}
+		})
+	}
+}
+
+// TestExtractPhasesWithTaskRangesCRLF verifies that extractPhasesWithTaskRanges
+// works correctly with CRLF line endings. This is a regression test for T-488.
+func TestExtractPhasesWithTaskRangesCRLF(t *testing.T) {
+	content := "# Project\r\n\r\n## Planning\r\n\r\n- [ ] 1. Define requirements\r\n\r\n## Implementation\r\n\r\n- [ ] 2. Write code\r\n- [ ] 3. Write tests\r\n"
+
+	// Parse tasks with ParseMarkdown (which handles CRLF internally)
+	taskList, err := ParseMarkdown([]byte(content))
+	if err != nil {
+		t.Fatalf("ParseMarkdown() error = %v", err)
+	}
+
+	lines := strings.Split(content, "\n")
+	phases := extractPhasesWithTaskRanges(lines, taskList.Tasks)
+
+	if len(phases) != 2 {
+		t.Fatalf("extractPhasesWithTaskRanges() with CRLF got %d phases, want 2", len(phases))
+	}
+
+	if phases[0].Name != "Planning" {
+		t.Errorf("phase[0].Name = %q, want %q", phases[0].Name, "Planning")
+	}
+	if len(phases[0].Tasks) != 1 {
+		t.Errorf("phase[0] has %d tasks, want 1", len(phases[0].Tasks))
+	}
+
+	if phases[1].Name != "Implementation" {
+		t.Errorf("phase[1].Name = %q, want %q", phases[1].Name, "Implementation")
+	}
+	if len(phases[1].Tasks) != 2 {
+		t.Errorf("phase[1] has %d tasks, want 2", len(phases[1].Tasks))
 	}
 }

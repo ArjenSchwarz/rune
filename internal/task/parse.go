@@ -75,7 +75,7 @@ func ParseFileWithPhases(filepath string) (*TaskList, []PhaseMarker, error) {
 	taskList.FilePath = filepath
 
 	// Extract phase markers from the content, stripping front matter first
-	lines := stripFrontMatterLines(strings.Split(string(content), "\n"))
+	lines := stripFrontMatterLines(splitLines(string(content)))
 
 	phaseMarkers := ExtractPhaseMarkers(lines)
 
@@ -117,13 +117,8 @@ func parseContent(content string) (*TaskList, error) {
 	}
 	taskList.FrontMatter = frontMatter
 
-	// Now parse the remaining content
-	lines := strings.Split(remainingContent, "\n")
-
-	// Clean up lines - handle different line endings
-	for i := range lines {
-		lines[i] = strings.TrimRight(lines[i], "\r")
-	}
+	// Now parse the remaining content, normalizing CRLF line endings
+	lines := splitLines(remainingContent)
 
 	// Extract title if present — only consider the first non-empty line.
 	// A title is only valid at the top of the file, before any tasks.
@@ -499,6 +494,17 @@ func parseRequirements(reqs string) ([]string, string) {
 	return requirements, reqFile
 }
 
+// splitLines splits content on newline boundaries and trims trailing carriage
+// returns from each line. This normalizes both LF and CRLF line endings so
+// that regex patterns using $ anchors work consistently.
+func splitLines(content string) []string {
+	lines := strings.Split(content, "\n")
+	for i := range lines {
+		lines[i] = strings.TrimRight(lines[i], "\r")
+	}
+	return lines
+}
+
 func countIndent(line string) int {
 	count := 0
 	for _, ch := range line {
@@ -515,12 +521,14 @@ func countIndent(line string) int {
 	return count
 }
 
-// ExtractPhaseMarkers scans lines for H2 headers and returns phase markers with their positions
+// ExtractPhaseMarkers scans lines for H2 headers and returns phase markers with their positions.
+// Lines may contain trailing \r from CRLF files; these are stripped before matching.
 func ExtractPhaseMarkers(lines []string) []PhaseMarker {
 	markers := []PhaseMarker{}
 	var lastTaskID string
 
 	for _, line := range lines {
+		line = strings.TrimRight(line, "\r")
 		// Phase headers must start at the beginning of the line (no indentation)
 		// Check if line is a phase header (H2) - use original line, not trimmed
 		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
