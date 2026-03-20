@@ -643,7 +643,9 @@ func outputTableWithFilters(taskList *task.TaskList, taskData []map[string]any, 
 	return out.Render(context.Background(), doc)
 }
 
-// outputJSONWithFilters renders JSON with filtered tasks and new fields
+// outputJSONWithFilters renders JSON with filtered tasks and new fields.
+// Phase lookup uses the original (unfiltered) taskList so that phase boundaries
+// are resolved correctly even when filters remove boundary tasks (T-473).
 func outputJSONWithFilters(taskList *task.TaskList, phaseMarkers []task.PhaseMarker, depIndex *task.DependencyIndex, opts listFilterOptions) error {
 	// Apply filters to the task list for JSON output
 	filteredTasks := filterTasksRecursive(taskList.Tasks, opts)
