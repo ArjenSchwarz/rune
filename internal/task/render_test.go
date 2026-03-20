@@ -1589,9 +1589,7 @@ func TestRenderJSONExcludesStableIDs(t *testing.T) {
 }
 
 func TestRenderJSONBlockedByUsesHierarchicalIDs(t *testing.T) {
-	// Task 16: Test JSON BlockedBy uses hierarchical IDs
-	// Note: This test requires MarshalTasksJSON to be implemented
-	// For now, test that the basic JSON rendering includes blockedBy field
+	// Test JSON BlockedBy uses hierarchical IDs (translated from stable IDs)
 
 	tl := &TaskList{
 		Title: "JSON BlockedBy Test",
@@ -1633,13 +1631,12 @@ func TestRenderJSONBlockedByUsesHierarchicalIDs(t *testing.T) {
 		t.Fatal("Expected at least 2 tasks")
 	}
 
-	// Check second task has blockedBy field
+	// Check second task has blockedBy field with hierarchical IDs
 	task2, ok := tasks[1].(map[string]any)
 	if !ok {
 		t.Fatal("Task 2 not found or wrong type")
 	}
 
-	// blockedBy should be present (as stable IDs for now until MarshalTasksJSON is implemented)
 	blockedBy, ok := task2["blockedBy"]
 	if !ok {
 		t.Error("Task 2 should have blockedBy field")
@@ -1654,6 +1651,11 @@ func TestRenderJSONBlockedByUsesHierarchicalIDs(t *testing.T) {
 
 	if len(blockedByArr) != 1 {
 		t.Errorf("blockedBy should have 1 element, got %d", len(blockedByArr))
+	}
+
+	// blockedBy should contain hierarchical ID "1", not stable ID "abc1234"
+	if blockedByArr[0].(string) != "1" {
+		t.Errorf("blockedBy[0] should be hierarchical ID '1', got %q", blockedByArr[0])
 	}
 }
 
@@ -1714,5 +1716,325 @@ func TestRenderMarkdownMetadataOrder(t *testing.T) {
 	if !(detailIdx < blockedByIdx && blockedByIdx < streamIdx && streamIdx < ownerIdx && ownerIdx < reqIdx && reqIdx < refIdx) {
 		t.Errorf("Metadata not in correct order. Got indices: details=%d, blocked-by=%d, stream=%d, owner=%d, requirements=%d, references=%d\nOutput:\n%s",
 			detailIdx, blockedByIdx, streamIdx, ownerIdx, reqIdx, refIdx, got)
+	}
+}
+
+func TestRenderJSON_EffectiveStream(t *testing.T) {
+	// T-505: JSON output should emit effective stream (1 when not explicitly set),
+	// not omit the field when Stream is 0.
+	tl := &TaskList{
+		Title: "Stream Test",
+		Tasks: []Task{
+			{
+				ID:     "1",
+				Title:  "Task without explicit stream",
+				Status: Pending,
+				// Stream is 0 (not explicitly set) — JSON should emit stream: 1
+			},
+			{
+				ID:     "2",
+				Title:  "Task with explicit stream",
+				Status: Pending,
+				Stream: 3,
+			},
+		},
+	}
+
+	jsonBytes, err := RenderJSON(tl)
+	if err != nil {
+		t.Fatalf("RenderJSON() error: %v", err)
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal(jsonBytes, &parsed); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	tasks, ok := parsed["Tasks"].([]any)
+	if !ok || len(tasks) < 2 {
+		t.Fatal("Expected at least 2 tasks in JSON output")
+	}
+
+	// Task 1: no explicit stream — should emit effective stream 1
+	task1, ok := tasks[0].(map[string]any)
+	if !ok {
+		t.Fatal("Task 1 is not a map")
+	}
+	stream1, ok := task1["stream"]
+	if !ok {
+		t.Error("Task 1 (no explicit stream) should have 'stream' field in JSON, but it was omitted")
+	} else {
+		stream1f, ok := stream1.(float64)
+		if !ok {
+			t.Errorf("Task 1 stream should be a number, got %T", stream1)
+		} else if int(stream1f) != 1 {
+			t.Errorf("Task 1 effective stream should be 1, got %v", stream1f)
+		}
+	}
+
+	// Task 2: explicit stream 3 — should emit 3
+	task2, ok := tasks[1].(map[string]any)
+	if !ok {
+		t.Fatal("Task 2 is not a map")
+	}
+	stream2, ok := task2["stream"]
+	if !ok {
+		t.Error("Task 2 should have 'stream' field in JSON")
+	} else {
+		stream2f, ok := stream2.(float64)
+		if !ok {
+			t.Errorf("Task 2 stream should be a number, got %T", stream2)
+		} else if int(stream2f) != 3 {
+			t.Errorf("Task 2 stream should be 3, got %v", stream2f)
+		}
+	}
+}
+
+func TestRenderJSON_BlockedByTranslatesToHierarchicalIDs(t *testing.T) {
+	// T-505: JSON output should translate BlockedBy stable IDs to hierarchical IDs.
+	tl := &TaskList{
+		Title: "BlockedBy Translation Test",
+		Tasks: []Task{
+			{
+				ID:       "1",
+				Title:    "Blocker task",
+				Status:   Completed,
+				StableID: "abc1234",
+			},
+			{
+				ID:       "2",
+				Title:    "Another blocker",
+				Status:   Completed,
+				StableID: "def5678",
+			},
+			{
+				ID:        "3",
+				Title:     "Blocked task",
+				Status:    Pending,
+				StableID:  "ghi9012",
+				BlockedBy: []string{"abc1234", "def5678"}, // Stable IDs
+			},
+		},
+	}
+
+	jsonBytes, err := RenderJSON(tl)
+	if err != nil {
+		t.Fatalf("RenderJSON() error: %v", err)
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal(jsonBytes, &parsed); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	tasks, ok := parsed["Tasks"].([]any)
+	if !ok || len(tasks) < 3 {
+		t.Fatal("Expected at least 3 tasks in JSON output")
+	}
+
+	task3, ok := tasks[2].(map[string]any)
+	if !ok {
+		t.Fatal("Task 3 is not a map")
+	}
+
+	blockedBy, ok := task3["blockedBy"]
+	if !ok {
+		t.Fatal("Task 3 should have blockedBy field")
+	}
+
+	blockedByArr, ok := blockedBy.([]any)
+	if !ok {
+		t.Fatal("blockedBy should be an array")
+	}
+	if len(blockedByArr) != 2 {
+		t.Fatalf("blockedBy should have 2 elements, got %d", len(blockedByArr))
+	}
+
+	// Should contain hierarchical IDs ("1", "2"), NOT stable IDs ("abc1234", "def5678")
+	got0, ok := blockedByArr[0].(string)
+	if !ok {
+		t.Fatal("blockedBy[0] should be a string")
+	}
+	got1, ok := blockedByArr[1].(string)
+	if !ok {
+		t.Fatal("blockedBy[1] should be a string")
+	}
+
+	if got0 != "1" {
+		t.Errorf("blockedBy[0] should be hierarchical ID '1', got %q", got0)
+	}
+	if got1 != "2" {
+		t.Errorf("blockedBy[1] should be hierarchical ID '2', got %q", got1)
+	}
+
+	// Verify stable IDs are NOT in the blockedBy values
+	jsonStr := string(jsonBytes)
+	if strings.Contains(jsonStr, `"abc1234"`) || strings.Contains(jsonStr, `"def5678"`) {
+		t.Error("JSON blockedBy should not contain stable IDs, should contain hierarchical IDs")
+	}
+}
+
+func TestRenderJSONWithPhases_EffectiveStreamAndBlockedBy(t *testing.T) {
+	// T-505: RenderJSONWithPhases should also emit effective stream and translate BlockedBy.
+	tl := &TaskList{
+		Title: "Phase Stream Test",
+		Tasks: []Task{
+			{
+				ID:       "1",
+				Title:    "Blocker in phase 1",
+				Status:   Completed,
+				StableID: "blk001",
+			},
+			{
+				ID:        "2",
+				Title:     "Blocked in phase 1",
+				Status:    Pending,
+				StableID:  "tsk002",
+				BlockedBy: []string{"blk001"},
+				// No explicit stream — should emit 1
+			},
+		},
+	}
+
+	phaseMarkers := []PhaseMarker{
+		{Name: "Phase 1", AfterTaskID: ""},
+	}
+
+	jsonBytes := RenderJSONWithPhases(tl, phaseMarkers, nil)
+
+	var parsed map[string]any
+	if err := json.Unmarshal(jsonBytes, &parsed); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	tasks, ok := parsed["Tasks"].([]any)
+	if !ok || len(tasks) < 2 {
+		t.Fatal("Expected at least 2 tasks in JSON output")
+	}
+
+	// Task 2: check effective stream and blockedBy translation
+	task2, ok := tasks[1].(map[string]any)
+	if !ok {
+		t.Fatal("Task 2 is not a map")
+	}
+
+	// Stream should be 1 (effective default)
+	stream, ok := task2["stream"]
+	if !ok {
+		t.Error("Task 2 should have 'stream' field in JSON")
+	} else {
+		streamf, ok := stream.(float64)
+		if !ok {
+			t.Errorf("Task 2 stream should be a number, got %T", stream)
+		} else if int(streamf) != 1 {
+			t.Errorf("Task 2 effective stream should be 1, got %v", streamf)
+		}
+	}
+
+	// BlockedBy should be hierarchical ID "1", not stable ID "blk001"
+	blockedBy, ok := task2["blockedBy"]
+	if !ok {
+		t.Fatal("Task 2 should have blockedBy field")
+	}
+	blockedByArr, ok := blockedBy.([]any)
+	if !ok {
+		t.Fatal("blockedBy should be an array")
+	}
+	if len(blockedByArr) != 1 {
+		t.Fatalf("blockedBy should have 1 element, got %d", len(blockedByArr))
+	}
+	got, ok := blockedByArr[0].(string)
+	if !ok {
+		t.Fatal("blockedBy[0] should be a string")
+	}
+	if got != "1" {
+		t.Errorf("blockedBy[0] should be '1', got %q", got)
+	}
+}
+
+func TestRenderJSON_ChildrenEffectiveStreamAndBlockedBy(t *testing.T) {
+	// T-505: Child tasks should also get effective stream and translated BlockedBy.
+	tl := &TaskList{
+		Title: "Children Test",
+		Tasks: []Task{
+			{
+				ID:       "1",
+				Title:    "Parent task",
+				Status:   InProgress,
+				StableID: "par001",
+				Stream:   2,
+				Children: []Task{
+					{
+						ID:        "1.1",
+						Title:     "Child without stream",
+						Status:    Pending,
+						ParentID:  "1",
+						StableID:  "ch001",
+						BlockedBy: []string{"par001"},
+						// No explicit stream — should emit 1
+					},
+				},
+			},
+		},
+	}
+
+	jsonBytes, err := RenderJSON(tl)
+	if err != nil {
+		t.Fatalf("RenderJSON() error: %v", err)
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal(jsonBytes, &parsed); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	tasks, ok := parsed["Tasks"].([]any)
+	if !ok || len(tasks) < 1 {
+		t.Fatal("Expected at least 1 task in JSON output")
+	}
+
+	parent, ok := tasks[0].(map[string]any)
+	if !ok {
+		t.Fatal("Parent task is not a map")
+	}
+
+	// Parent should have stream 2
+	parentStream, ok := parent["stream"].(float64)
+	if !ok {
+		t.Fatal("Parent stream should be a number")
+	}
+	if int(parentStream) != 2 {
+		t.Errorf("Parent stream should be 2, got %v", parentStream)
+	}
+
+	children, ok := parent["Children"].([]any)
+	if !ok || len(children) < 1 {
+		t.Fatal("Expected at least 1 child in parent task")
+	}
+
+	child, ok := children[0].(map[string]any)
+	if !ok {
+		t.Fatal("Child task is not a map")
+	}
+
+	// Child should have effective stream 1
+	childStream, ok := child["stream"]
+	if !ok {
+		t.Error("Child should have 'stream' field in JSON")
+	} else if int(childStream.(float64)) != 1 {
+		t.Errorf("Child effective stream should be 1, got %v", childStream)
+	}
+
+	// Child blockedBy should be hierarchical ID "1", not stable ID "par001"
+	blockedBy, ok := child["blockedBy"].([]any)
+	if !ok || len(blockedBy) < 1 {
+		t.Fatal("Child should have blockedBy array with at least 1 element")
+	}
+	blockedByVal, ok := blockedBy[0].(string)
+	if !ok {
+		t.Fatal("blockedBy[0] should be a string")
+	}
+	if blockedByVal != "1" {
+		t.Errorf("Child blockedBy[0] should be '1', got %q", blockedByVal)
 	}
 }

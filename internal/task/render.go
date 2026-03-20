@@ -6,12 +6,67 @@ import (
 	"strings"
 )
 
+// jsonTask is a JSON-specific task representation that emits effective stream
+// values (never omitted) and translates BlockedBy stable IDs to hierarchical IDs.
+// When adding new fields to Task, update this struct and toJSONTask accordingly.
+type jsonTask struct {
+	ID           string     `json:"ID"`
+	Title        string     `json:"Title"`
+	Status       Status     `json:"Status"`
+	Details      []string   `json:"Details"`
+	References   []string   `json:"References"`
+	Requirements []string   `json:"requirements,omitempty"`
+	Children     []jsonTask `json:"Children"`
+	ParentID     string     `json:"ParentID"`
+	BlockedBy    []string   `json:"blockedBy,omitempty"`
+	Stream       int        `json:"stream"`
+	Owner        string     `json:"owner,omitempty"`
+}
+
+// toJSONTasks converts a slice of Tasks to jsonTask representations,
+// using the dependency index to translate BlockedBy stable IDs to hierarchical IDs
+// and GetEffectiveStream to emit the effective stream value.
+func toJSONTasks(tasks []Task, index *DependencyIndex) []jsonTask {
+	result := make([]jsonTask, len(tasks))
+	for i := range tasks {
+		result[i] = toJSONTask(&tasks[i], index)
+	}
+	return result
+}
+
+// toJSONTask converts a single Task to its JSON representation.
+func toJSONTask(t *Task, index *DependencyIndex) jsonTask {
+	jt := jsonTask{
+		ID:           t.ID,
+		Title:        t.Title,
+		Status:       t.Status,
+		Details:      t.Details,
+		References:   t.References,
+		Requirements: t.Requirements,
+		ParentID:     t.ParentID,
+		Stream:       GetEffectiveStream(t),
+		Owner:        t.Owner,
+	}
+
+	// Translate BlockedBy stable IDs to hierarchical IDs
+	if len(t.BlockedBy) > 0 && index != nil {
+		jt.BlockedBy = index.TranslateToHierarchical(t.BlockedBy)
+	}
+
+	// Recursively convert children
+	if len(t.Children) > 0 {
+		jt.Children = toJSONTasks(t.Children, index)
+	}
+
+	return jt
+}
+
 // TaskListJSON represents a TaskList with statistics for JSON output
 type TaskListJSON struct {
 	Success          bool         `json:"success"`
 	Count            int          `json:"count"`
 	Title            string       `json:"Title"`
-	Tasks            []Task       `json:"Tasks"`
+	Tasks            []jsonTask   `json:"Tasks"`
 	Stats            Stats        `json:"Stats"`
 	FrontMatter      *FrontMatter `json:"FrontMatter,omitempty"`
 	RequirementsFile string       `json:"requirements_file,omitempty"`
@@ -19,16 +74,22 @@ type TaskListJSON struct {
 
 // TaskListJSONWithPhases represents a TaskList with phases and statistics for JSON output
 type TaskListJSONWithPhases struct {
-	Success      bool            `json:"success"`
-	Count        int             `json:"count"`
-	Title        string          `json:"Title"`
-	Tasks        []TaskWithPhase `json:"Tasks"`
-	Stats        Stats           `json:"Stats"`
-	FrontMatter  *FrontMatter    `json:"FrontMatter,omitempty"`
-	PhaseMarkers []PhaseMarker   `json:"PhaseMarkers,omitempty"`
+	Success      bool                `json:"success"`
+	Count        int                 `json:"count"`
+	Title        string              `json:"Title"`
+	Tasks        []jsonTaskWithPhase `json:"Tasks"`
+	Stats        Stats               `json:"Stats"`
+	FrontMatter  *FrontMatter        `json:"FrontMatter,omitempty"`
+	PhaseMarkers []PhaseMarker       `json:"PhaseMarkers,omitempty"`
 }
 
-// TaskWithPhase represents a task with its phase information
+// jsonTaskWithPhase represents a JSON task with its phase information
+type jsonTaskWithPhase struct {
+	jsonTask
+	Phase string `json:"Phase,omitempty"`
+}
+
+// TaskWithPhase represents a task with its phase information (used for non-JSON rendering)
 type TaskWithPhase struct {
 	*Task
 	Phase string `json:"Phase,omitempty"`
@@ -298,6 +359,9 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource 
 	// Calculate statistics
 	stats := tl.CalculateStats()
 
+	// Build dependency index for BlockedBy translation
+	index := BuildDependencyIndex(tl.Tasks)
+
 	// Only include phase information if phases exist
 	if len(phaseMarkers) == 0 {
 		// No phases, use regular JSON rendering with stats
@@ -305,7 +369,7 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource 
 			Success:          true,
 			Count:            len(tl.Tasks),
 			Title:            tl.Title,
-			Tasks:            tl.Tasks,
+			Tasks:            toJSONTasks(tl.Tasks, index),
 			Stats:            stats,
 			FrontMatter:      tl.FrontMatter,
 			RequirementsFile: tl.RequirementsFile,
@@ -323,12 +387,12 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource 
 	}
 
 	// Build tasks with phase information
-	tasksWithPhases := make([]TaskWithPhase, 0, len(tl.Tasks))
+	tasksWithPhases := make([]jsonTaskWithPhase, 0, len(tl.Tasks))
 	for i := range tl.Tasks {
 		phase := GetTaskPhase(phaseResolutionList, phaseMarkers, tl.Tasks[i].ID)
-		tasksWithPhases = append(tasksWithPhases, TaskWithPhase{
-			Task:  &tl.Tasks[i],
-			Phase: phase,
+		tasksWithPhases = append(tasksWithPhases, jsonTaskWithPhase{
+			jsonTask: toJSONTask(&tl.Tasks[i], index),
+			Phase:    phase,
 		})
 	}
 
@@ -349,11 +413,15 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource 
 // RenderJSON converts a TaskList to indented JSON format
 func RenderJSON(tl *TaskList) ([]byte, error) {
 	stats := tl.CalculateStats()
+
+	// Build dependency index for BlockedBy translation
+	index := BuildDependencyIndex(tl.Tasks)
+
 	result := TaskListJSON{
 		Success:          true,
 		Count:            len(tl.Tasks),
 		Title:            tl.Title,
-		Tasks:            tl.Tasks,
+		Tasks:            toJSONTasks(tl.Tasks, index),
 		Stats:            stats,
 		FrontMatter:      tl.FrontMatter,
 		RequirementsFile: tl.RequirementsFile,
