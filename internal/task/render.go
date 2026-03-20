@@ -8,6 +8,7 @@ import (
 
 // jsonTask is a JSON-specific task representation that emits effective stream
 // values (never omitted) and translates BlockedBy stable IDs to hierarchical IDs.
+// When adding new fields to Task, update this struct and toJSONTask accordingly.
 type jsonTask struct {
 	ID           string     `json:"ID"`
 	Title        string     `json:"Title"`
