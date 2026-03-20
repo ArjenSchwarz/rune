@@ -75,10 +75,7 @@ func ParseFileWithPhases(filepath string) (*TaskList, []PhaseMarker, error) {
 	taskList.FilePath = filepath
 
 	// Extract phase markers from the content, stripping front matter first
-	lines := strings.Split(string(content), "\n")
-	if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
-		lines = stripFrontMatterLines(lines, string(content))
-	}
+	lines := stripFrontMatterLines(strings.Split(string(content), "\n"))
 
 	phaseMarkers := ExtractPhaseMarkers(lines)
 
@@ -89,14 +86,14 @@ func ParseFileWithPhases(filepath string) (*TaskList, []PhaseMarker, error) {
 // file's line array. Front matter is delimited by exactly two "---" lines at
 // the start of the file. Only the initial pair of delimiters is consumed;
 // any later "---" lines (horizontal rules) are preserved.
-func stripFrontMatterLines(lines []string, content string) []string {
-	if !strings.HasPrefix(strings.TrimSpace(content), "---") {
+func stripFrontMatterLines(lines []string) []string {
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != frontMatterDelimiter {
 		return lines
 	}
 
 	frontMatterCount := 0
 	for i, line := range lines {
-		if strings.TrimSpace(line) == "---" {
+		if strings.TrimSpace(line) == frontMatterDelimiter {
 			frontMatterCount++
 			if frontMatterCount == 2 {
 				// Return everything after the closing delimiter
@@ -105,7 +102,8 @@ func stripFrontMatterLines(lines []string, content string) []string {
 		}
 	}
 
-	// If we never found a closing delimiter, return lines unchanged
+	// Malformed front matter: no closing delimiter found.
+	// Return lines unchanged so ExtractPhaseMarkers sees the full content.
 	return lines
 }
 

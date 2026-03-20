@@ -126,6 +126,7 @@ metadata:
 				{Name: "Phase 1", AfterTaskID: ""},
 				{Name: "Phase 2", AfterTaskID: "1"},
 			},
+			// wantTasks counts top-level tasks only; subtasks are in task.Children
 			wantTasks:   2,
 			description: "Complex front matter should not interfere with phase extraction",
 		},
@@ -169,29 +170,23 @@ metadata:
 	}
 }
 
-// TestFrontMatterStrippingForPhaseExtraction directly tests the front-matter
-// stripping logic that ParseFileWithPhases uses before calling
+// TestFrontMatterStrippingForPhaseExtraction directly tests the
+// stripFrontMatterLines function that ParseFileWithPhases uses before calling
 // ExtractPhaseMarkers. This tests the stripping in isolation from
 // ParseMarkdown, so we can verify it handles "---" lines correctly even
 // when they appear after front matter (the T-458 bug scenario).
 func TestFrontMatterStrippingForPhaseExtraction(t *testing.T) {
 	tests := map[string]struct {
-		// rawLines is the full file content split into lines, as
-		// ParseFileWithPhases would see before stripping front matter
-		rawContent string
-		// startsWithFrontMatter controls whether the front-matter stripping
-		// code path is entered
-		startsWithFrontMatter bool
-		wantPhases            []PhaseMarker
-		description           string
+		rawContent  string
+		wantPhases  []PhaseMarker
+		description string
 	}{
 		"front_matter_then_hr_then_phase": {
 			// This is the exact T-458 scenario: front matter at top,
 			// then a horizontal rule, then a phase header after it.
 			// The old code would treat the 3rd --- as re-entering front
 			// matter, dropping Phase 2 from extraction.
-			rawContent:            "---\nreferences:\n  - ./spec.md\n---\n\n## Phase 1\n\n- [ ] 1. First\n\n---\n\n## Phase 2\n\n- [ ] 2. Second",
-			startsWithFrontMatter: true,
+			rawContent: "---\nreferences:\n  - ./spec.md\n---\n\n## Phase 1\n\n- [ ] 1. First\n\n---\n\n## Phase 2\n\n- [ ] 2. Second",
 			wantPhases: []PhaseMarker{
 				{Name: "Phase 1", AfterTaskID: ""},
 				{Name: "Phase 2", AfterTaskID: "1"},
@@ -199,8 +194,7 @@ func TestFrontMatterStrippingForPhaseExtraction(t *testing.T) {
 			description: "Horizontal rule after front matter must not suppress later phase markers",
 		},
 		"front_matter_then_multiple_hrs": {
-			rawContent:            "---\nmetadata:\n  v: 1\n---\n\n## P1\n\n- [ ] 1. T1\n\n---\n\n## P2\n\n- [ ] 2. T2\n\n---\n\n## P3\n\n- [ ] 3. T3",
-			startsWithFrontMatter: true,
+			rawContent: "---\nmetadata:\n  v: 1\n---\n\n## P1\n\n- [ ] 1. T1\n\n---\n\n## P2\n\n- [ ] 2. T2\n\n---\n\n## P3\n\n- [ ] 3. T3",
 			wantPhases: []PhaseMarker{
 				{Name: "P1", AfterTaskID: ""},
 				{Name: "P2", AfterTaskID: "1"},
@@ -209,8 +203,7 @@ func TestFrontMatterStrippingForPhaseExtraction(t *testing.T) {
 			description: "Multiple horizontal rules after front matter must not suppress phase markers",
 		},
 		"front_matter_only_no_hr": {
-			rawContent:            "---\nreferences:\n  - ./spec.md\n---\n\n## Phase 1\n\n- [ ] 1. First\n\n## Phase 2\n\n- [ ] 2. Second",
-			startsWithFrontMatter: true,
+			rawContent: "---\nreferences:\n  - ./spec.md\n---\n\n## Phase 1\n\n- [ ] 1. First\n\n## Phase 2\n\n- [ ] 2. Second",
 			wantPhases: []PhaseMarker{
 				{Name: "Phase 1", AfterTaskID: ""},
 				{Name: "Phase 2", AfterTaskID: "1"},
@@ -218,8 +211,7 @@ func TestFrontMatterStrippingForPhaseExtraction(t *testing.T) {
 			description: "Front matter without horizontal rules should work correctly (baseline)",
 		},
 		"no_front_matter_with_hr": {
-			rawContent:            "# Tasks\n\n## Phase 1\n\n- [ ] 1. First\n\n---\n\n## Phase 2\n\n- [ ] 2. Second",
-			startsWithFrontMatter: false,
+			rawContent: "# Tasks\n\n## Phase 1\n\n- [ ] 1. First\n\n---\n\n## Phase 2\n\n- [ ] 2. Second",
 			wantPhases: []PhaseMarker{
 				{Name: "Phase 1", AfterTaskID: ""},
 				{Name: "Phase 2", AfterTaskID: "1"},
@@ -230,13 +222,7 @@ func TestFrontMatterStrippingForPhaseExtraction(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			// Reproduce the front-matter stripping logic from ParseFileWithPhases
-			lines := strings.Split(tc.rawContent, "\n")
-
-			if tc.startsWithFrontMatter {
-				lines = stripFrontMatterLines(lines, tc.rawContent)
-			}
-
+			lines := stripFrontMatterLines(strings.Split(tc.rawContent, "\n"))
 			markers := ExtractPhaseMarkers(lines)
 
 			if !reflect.DeepEqual(markers, tc.wantPhases) {
