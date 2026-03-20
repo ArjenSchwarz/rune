@@ -125,6 +125,15 @@ func TestDiscoverFileFromBranch(t *testing.T) {
 				}
 			}
 
+			// Mock getRepoRoot to return the temp directory
+			originalGetRepoRoot := getRepoRoot
+			defer func() {
+				getRepoRoot = originalGetRepoRoot
+			}()
+			getRepoRoot = func() (string, error) {
+				return tempDir, nil
+			}
+
 			// Mock the git command by temporarily replacing getCurrentBranch
 			originalGetCurrentBranch := getCurrentBranch
 			defer func() {

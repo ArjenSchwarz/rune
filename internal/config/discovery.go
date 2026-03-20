@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -30,6 +31,12 @@ func DiscoverFileFromBranch(template string) (string, error) {
 		return "", fmt.Errorf("special git state detected: %s (please specify file explicitly)", branch)
 	}
 
+	// Resolve the repo root so file checks work from any subdirectory
+	repoRoot, err := getRepoRoot()
+	if err != nil {
+		return "", fmt.Errorf("finding repo root: %w", err)
+	}
+
 	// Strip everything before and including first slash (branch prefix)
 	// e.g., "feature/my-feature" -> "my-feature"
 	// e.g., "feature/sub/deep" -> "sub/deep"
@@ -47,7 +54,7 @@ func DiscoverFileFromBranch(template string) (string, error) {
 	}
 
 	for _, path := range candidates {
-		if fileExists(path) {
+		if fileExists(filepath.Join(repoRoot, path)) {
 			return path, nil
 		}
 	}
@@ -59,6 +66,10 @@ func DiscoverFileFromBranch(template string) (string, error) {
 // getCurrentBranch is a variable that points to the function for getting current git branch
 // This allows for easy mocking in tests
 var getCurrentBranch = getCurrentBranchImpl
+
+// getRepoRoot is a variable that points to the function for getting the repo root.
+// This allows for easy mocking in tests.
+var getRepoRoot = getRepoRootImpl
 
 // gitCommandTimeout controls how long to wait for git commands before timing out.
 // Exposed as a variable to allow tests to use shorter durations.
@@ -99,6 +110,34 @@ func getCurrentBranchImpl() (string, error) {
 	}
 
 	return branch, nil
+}
+
+// getRepoRootImpl returns the root directory of the current git repository
+// by running "git rev-parse --show-toplevel".
+func getRepoRootImpl() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel")
+	cmd.WaitDelay = 500 * time.Millisecond
+	var out, errOut bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errOut
+	cmd.Stdin = nil
+
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", fmt.Errorf("git command timed out")
+		}
+		return "", fmt.Errorf("git command failed: %w (stderr: %s)", err, errOut.String())
+	}
+
+	root := strings.TrimSpace(out.String())
+	if root == "" {
+		return "", fmt.Errorf("git repo root is empty")
+	}
+
+	return root, nil
 }
 
 // isSpecialGitState checks if the git repository is in a special state

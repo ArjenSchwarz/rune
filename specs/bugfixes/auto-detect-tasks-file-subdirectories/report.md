@@ -1,7 +1,7 @@
 # Bugfix Report: Auto-detect tasks file fails from subdirectories
 
 **Date:** 2026-03-20
-**Status:** In Progress
+**Status:** Fixed
 
 ## Description of the Issue
 
@@ -37,7 +37,17 @@ Two functions use relative paths that resolve against the current working direct
 
 ## Resolution for the Issue
 
-*To be filled in after fix is implemented.*
+**Changes made:**
+- `internal/config/discovery.go` - Added `getRepoRoot` / `getRepoRootImpl` function that calls `git rev-parse --show-toplevel` to determine the repo root. Made it a package-level function variable (like `getCurrentBranch`) for testability. Modified `DiscoverFileFromBranch` to resolve candidate paths against the repo root using `filepath.Join(repoRoot, path)`.
+- `internal/config/config.go` - Modified `loadConfigUncached` to prepend the repo-root-relative `.rune.yml` path to the search list, so it is checked before the CWD-relative path. The CWD-relative path is kept as a fallback for non-git usage.
+- `internal/config/discovery_test.go` - Updated existing `TestDiscoverFileFromBranch` tests to mock `getRepoRoot` (returning the temp dir), so they continue to work in non-git temp directories. Added new `TestDiscoverFileFromBranchSubdirectory` regression test.
+- `internal/config/config_test.go` - Added `TestLoadConfigFromSubdirectory` regression test.
+
+**Approach rationale:** Using `git rev-parse --show-toplevel` is the standard way to find the repo root from any subdirectory. The function variable pattern is already established in the codebase (`getCurrentBranch`) and provides clean testability.
+
+**Alternatives considered:**
+- Walking up the directory tree looking for `.git` — more complex, duplicates what git already does, and would not handle git worktrees correctly.
+- Changing CWD to the repo root at startup — too invasive, would affect all path handling globally.
 
 ## Regression Test
 
@@ -57,15 +67,17 @@ Two functions use relative paths that resolve against the current working direct
 
 | File | Change |
 |------|--------|
-| `internal/config/discovery.go` | Resolve paths against git repo root |
-| `internal/config/config.go` | Resolve `.rune.yml` path against git repo root |
+| `internal/config/discovery.go` | Add `getRepoRoot` function; resolve candidate paths against repo root |
+| `internal/config/config.go` | Prepend repo-root `.rune.yml` path to search list |
+| `internal/config/discovery_test.go` | Add subdirectory regression test; mock `getRepoRoot` in existing tests |
+| `internal/config/config_test.go` | Add subdirectory config loading regression test |
 
 ## Verification
 
 **Automated:**
-- [ ] Regression test passes
-- [ ] Full test suite passes
-- [ ] Linters/validators pass
+- [x] Regression test passes
+- [x] Full test suite passes
+- [x] Linters/validators pass
 
 ## Prevention
 
