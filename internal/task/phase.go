@@ -123,8 +123,9 @@ func getNextPhaseTasks(content []byte) ([]Task, string) {
 	for _, marker := range markers {
 		var pendingTasks []Task
 		for _, task := range taskList.Tasks {
-			// Check if task belongs to this phase and is not completed
-			if taskPhaseMap[task.ID] == marker.Name && task.Status != Completed {
+			// Check if task belongs to this phase and has incomplete work
+			// (either the task itself is not completed, or any descendant is incomplete)
+			if taskPhaseMap[task.ID] == marker.Name && hasIncompleteWork(&task) {
 				pendingTasks = append(pendingTasks, task)
 			}
 		}
