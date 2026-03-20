@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Phase Parsing**: `ParseFileWithPhases` front-matter stripping no longer treats horizontal rules (`---`) after front matter as additional front-matter delimiters, which would cause phase markers after the rule to be silently dropped
 - **Find Command**: `--parent ""` now correctly filters to top-level tasks; previously the empty string was indistinguishable from the flag's default, causing the filter to be skipped
 - **List Command**: `list --json` with `--filter`, `--stream`, or `--owner` now excludes non-matching parent tasks, aligning JSON output with table output
 - **JSON Output**: Fix pointer reuse in `RenderJSONWithPhases` where loop variable address was captured instead of slice element address, preventing potential task data corruption in JSON output

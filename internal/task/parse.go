@@ -74,36 +74,39 @@ func ParseFileWithPhases(filepath string) (*TaskList, []PhaseMarker, error) {
 	}
 	taskList.FilePath = filepath
 
-	// Extract phase markers from the content
+	// Extract phase markers from the content, stripping front matter first
 	lines := strings.Split(string(content), "\n")
-	// Skip front matter if present
 	if strings.HasPrefix(strings.TrimSpace(string(content)), "---") {
-		inFrontMatter := false
-		frontMatterCount := 0
-		newLines := []string{}
-		for _, line := range lines {
-			if strings.TrimSpace(line) == "---" {
-				frontMatterCount++
-				if frontMatterCount == 2 {
-					inFrontMatter = false
-					continue
-				} else {
-					inFrontMatter = true
-					continue
-				}
-			}
-			if !inFrontMatter && frontMatterCount > 0 {
-				newLines = append(newLines, line)
-			}
-		}
-		if frontMatterCount >= 2 {
-			lines = newLines
-		}
+		lines = stripFrontMatterLines(lines, string(content))
 	}
 
 	phaseMarkers := ExtractPhaseMarkers(lines)
 
 	return taskList, phaseMarkers, nil
+}
+
+// stripFrontMatterLines removes front matter lines from the beginning of a
+// file's line array. Front matter is delimited by exactly two "---" lines at
+// the start of the file. Only the initial pair of delimiters is consumed;
+// any later "---" lines (horizontal rules) are preserved.
+func stripFrontMatterLines(lines []string, content string) []string {
+	if !strings.HasPrefix(strings.TrimSpace(content), "---") {
+		return lines
+	}
+
+	frontMatterCount := 0
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "---" {
+			frontMatterCount++
+			if frontMatterCount == 2 {
+				// Return everything after the closing delimiter
+				return lines[i+1:]
+			}
+		}
+	}
+
+	// If we never found a closing delimiter, return lines unchanged
+	return lines
 }
 
 func parseContent(content string) (*TaskList, error) {

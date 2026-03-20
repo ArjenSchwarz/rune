@@ -7,6 +7,7 @@
 - `internal/task/references_test.go` - Unit tests for `ParseFrontMatter` and `SerializeWithFrontMatter`
 - `internal/task/parse_frontmatter_test.go` - Integration tests for front matter through `ParseMarkdown`
 - `internal/task/parse_basic_test.go` - Basic parsing tests
+- `internal/task/parse_phases_frontmatter_test.go` - Tests for front-matter stripping in `ParseFileWithPhases` and `stripFrontMatterLines`
 
 ## CRLF Handling
 
@@ -14,7 +15,7 @@ CRLF normalization happens at two levels:
 1. `ParseFrontMatter` normalizes `\r\n` to `\n` at the start, before any delimiter matching
 2. `parseContent` trims `\r` from individual lines after splitting on `\n` (line 124 of parse.go)
 
-`ParseFileWithPhases` has its own front matter skipping logic (separate from `ParseFrontMatter`) that uses `strings.TrimSpace` for `---` delimiter checks, which naturally handles `\r`. But it relies on `ParseMarkdown` -> `parseContent` -> `ParseFrontMatter` for the actual parsing.
+`ParseFileWithPhases` uses `stripFrontMatterLines` to remove front matter before extracting phase markers. This function finds the first two `---` lines and returns everything after the closing delimiter, ignoring any later `---` lines (horizontal rules). Fixed in T-458 — the previous inline loop continued scanning all lines and re-entered "front matter" state on any subsequent `---`.
 
 ## Front Matter Delimiter Matching
 
