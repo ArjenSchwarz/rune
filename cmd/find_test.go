@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -558,4 +559,163 @@ func TestFindCommandEdgeCases(t *testing.T) {
 			t.Errorf("expected 1 result for '*asterisks*', got %d", len(results))
 		}
 	})
+}
+
+// TestApplyAdditionalFiltersClearsStaleParentID verifies that
+// applyAdditionalFilters updates ParentID on tasks whose parent was filtered
+// out, so JSON consumers never see dangling references. Regression test for T-549.
+func TestApplyAdditionalFiltersClearsStaleParentID(t *testing.T) {
+	tests := map[string]struct {
+		tasks            []task.Task
+		statusFilter     string
+		maxDepth         int
+		parentIDFilter   string
+		parentFilterSet  bool
+		expectedParentID map[string]string // taskID → expected ParentID
+		description      string
+	}{
+		"status filter removes parent leaving child with stale ParentID": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Pending parent", Status: task.Pending, ParentID: ""},
+				{ID: "1.1", Title: "Completed child", Status: task.Completed, ParentID: "1"},
+			},
+			statusFilter:     "completed",
+			expectedParentID: map[string]string{"1.1": ""},
+			description:      "Child whose parent was filtered out should have ParentID cleared",
+		},
+		"grandchild walks up to surviving grandparent": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Grandparent", Status: task.Completed, ParentID: ""},
+				{ID: "1.1", Title: "Filtered parent", Status: task.Pending, ParentID: "1"},
+				{ID: "1.1.1", Title: "Grandchild", Status: task.Completed, ParentID: "1.1"},
+			},
+			statusFilter: "completed",
+			expectedParentID: map[string]string{
+				"1":     "",  // root, unchanged
+				"1.1.1": "1", // should walk up to surviving grandparent
+			},
+			description: "Grandchild should walk up to nearest surviving ancestor",
+		},
+		"both parent and child survive keeps original ParentID": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Parent", Status: task.Completed, ParentID: ""},
+				{ID: "1.1", Title: "Child", Status: task.Completed, ParentID: "1"},
+			},
+			statusFilter: "completed",
+			expectedParentID: map[string]string{
+				"1":   "",
+				"1.1": "1",
+			},
+			description: "When parent survives, child ParentID should be unchanged",
+		},
+		"depth filter removes deep task leaving stale ParentID": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Root", Status: task.Pending, ParentID: ""},
+				{ID: "1.1", Title: "Level 2", Status: task.Pending, ParentID: "1"},
+			},
+			maxDepth: 1,
+			expectedParentID: map[string]string{
+				"1": "", // only root survives
+			},
+			description: "Depth filter should not leave stale references",
+		},
+		"parentFilterSet stops walk at specified parent context": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Context parent", Status: task.Pending, ParentID: ""},
+				{ID: "1.1", Title: "Filtered middle", Status: task.Pending, ParentID: "1"},
+				{ID: "1.1.1", Title: "Surviving child", Status: task.Completed, ParentID: "1.1"},
+			},
+			statusFilter:    "completed",
+			parentIDFilter:  "1",
+			parentFilterSet: true,
+			expectedParentID: map[string]string{
+				"1.1.1": "1", // walk stops at parentIDFilter, not promoted to ""
+			},
+			description: "With --parent set, walk should stop at the specified parent value",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			filtered := applyAdditionalFilters(tc.tasks, tc.statusFilter, tc.maxDepth, tc.parentIDFilter, tc.parentFilterSet)
+
+			for _, ft := range filtered {
+				if expected, ok := tc.expectedParentID[ft.ID]; ok {
+					if ft.ParentID != expected {
+						t.Errorf("%s: task %s has ParentID=%q, want %q",
+							tc.description, ft.ID, ft.ParentID, expected)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestFindFilteredJSONOutputNoStaleParentIDs verifies that the full find JSON
+// pipeline (Find → applyAdditionalFilters → RenderJSON) never emits a ParentID
+// that references a task absent from the output. Regression test for T-549.
+func TestFindFilteredJSONOutputNoStaleParentIDs(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-find-json-stale-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	tl := task.NewTaskList("Find Stale ParentID Test")
+	tl.AddTask("", "Pending parent", "")   // task 1
+	tl.AddTask("1", "Completed child", "") // task 1.1
+	tl.UpdateStatus("1.1", task.Completed)
+	tl.AddTask("", "Completed root", "") // task 2
+	tl.UpdateStatus("2", task.Completed)
+
+	testFile := "find-json-stale-test.md"
+	if err := tl.WriteFile(testFile); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	parsedList, err := task.ParseFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to parse test file: %v", err)
+	}
+
+	// Broad search to match all tasks, then filter by status
+	opts := task.QueryOptions{CaseSensitive: false}
+	results := parsedList.Find("e", opts) // matches "Pending", "Completed"
+
+	filtered := applyAdditionalFilters(results, "completed", 0, "", false)
+
+	// Render to JSON via the same path as the find command
+	jsonData, err := task.RenderJSON(&task.TaskList{
+		Title: "Find Stale ParentID Test",
+		Tasks: filtered,
+	})
+	if err != nil {
+		t.Fatalf("failed to render JSON: %v", err)
+	}
+
+	var result struct {
+		Tasks []struct {
+			ID       string `json:"ID"`
+			ParentID string `json:"ParentID"`
+		} `json:"Tasks"`
+	}
+	if err := json.Unmarshal(jsonData, &result); err != nil {
+		t.Fatalf("failed to unmarshal JSON: %v", err)
+	}
+
+	idSet := make(map[string]bool)
+	for _, tsk := range result.Tasks {
+		idSet[tsk.ID] = true
+	}
+
+	for _, tsk := range result.Tasks {
+		if tsk.ParentID != "" && !idSet[tsk.ParentID] {
+			t.Errorf("task %s has ParentID=%q which does not exist in filtered output (available IDs: %v)",
+				tsk.ID, tsk.ParentID, idSet)
+		}
+	}
 }

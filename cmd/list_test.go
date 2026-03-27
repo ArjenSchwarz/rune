@@ -1143,3 +1143,165 @@ func findTitleByID(tasks []task.Task, id string) string {
 	}
 	return ""
 }
+
+// TestFilterTasksRecursiveClearsStaleParentID verifies that when
+// filterTasksRecursive promotes a child (because its parent was excluded by
+// filters), the child's ParentID is updated so it no longer references the
+// now-absent parent. Regression test for T-549.
+func TestFilterTasksRecursiveClearsStaleParentID(t *testing.T) {
+	tests := map[string]struct {
+		setupTasks       func(*task.TaskList)
+		opts             listFilterOptions
+		expectedParentID map[string]string // taskID → expected ParentID
+		description      string
+	}{
+		"promoted child gets parent's ParentID cleared": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTask("", "Parent task", "")      // task 1, pending
+				tl.AddTask("1", "Child task", "")      // task 1.1, pending
+				tl.UpdateStatus("1.1", task.Completed) // child is completed
+			},
+			opts: listFilterOptions{statusFilter: "completed"},
+			expectedParentID: map[string]string{
+				"1.1": "", // promoted to root, ParentID must be empty
+			},
+			description: "Child promoted to root should have empty ParentID",
+		},
+		"grandchild promoted through two excluded ancestors": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTask("", "Grandparent", "")        // task 1, pending
+				tl.AddTask("1", "Parent", "")            // task 1.1, pending
+				tl.AddTask("1.1", "Grandchild", "")      // task 1.1.1, pending
+				tl.UpdateStatus("1.1.1", task.Completed) // only grandchild completed
+			},
+			opts: listFilterOptions{statusFilter: "completed"},
+			expectedParentID: map[string]string{
+				"1.1.1": "", // promoted through two levels to root
+			},
+			description: "Grandchild promoted through two levels should have empty ParentID",
+		},
+		"child promoted to surviving grandparent": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTaskWithOptions("", "Grandparent", task.AddOptions{Stream: 2})
+				tl.AddTaskWithOptions("1", "Parent", task.AddOptions{Stream: 1})       // excluded
+				tl.AddTaskWithOptions("1.1", "Grandchild", task.AddOptions{Stream: 2}) // kept
+			},
+			opts: listFilterOptions{streamFilter: 2},
+			expectedParentID: map[string]string{
+				"1.1.1": "1", // promoted past parent, should point to grandparent
+			},
+			description: "Child promoted past excluded parent should point to surviving grandparent",
+		},
+		"matching parent and child keep original ParentID": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTask("", "Parent", "")
+				tl.AddTask("1", "Child", "")
+				tl.UpdateStatus("1", task.Completed)
+				tl.UpdateStatus("1.1", task.Completed)
+			},
+			opts: listFilterOptions{statusFilter: "completed"},
+			expectedParentID: map[string]string{
+				"1":   "",  // root task
+				"1.1": "1", // parent is present, keep original
+			},
+			description: "When both parent and child match, ParentID should be unchanged",
+		},
+		"multiple children promoted from same excluded parent": {
+			setupTasks: func(tl *task.TaskList) {
+				tl.AddTask("", "Parent task", "") // task 1, pending
+				tl.AddTask("1", "Child A", "")    // task 1.1
+				tl.AddTask("1", "Child B", "")    // task 1.2
+				tl.UpdateStatus("1.1", task.Completed)
+				tl.UpdateStatus("1.2", task.Completed)
+			},
+			opts: listFilterOptions{statusFilter: "completed"},
+			expectedParentID: map[string]string{
+				"1.1": "", // both promoted to root
+				"1.2": "",
+			},
+			description: "Multiple children promoted from same parent should both have empty ParentID",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tl := task.NewTaskList("ParentID Test")
+			tc.setupTasks(tl)
+
+			filtered := filterTasksRecursive(tl.Tasks, tc.opts)
+
+			// Build a map of taskID → ParentID from the filtered result
+			gotParentIDs := collectParentIDs(filtered)
+
+			for taskID, expectedPID := range tc.expectedParentID {
+				gotPID, exists := gotParentIDs[taskID]
+				if !exists {
+					t.Errorf("%s: task %s not found in filtered output", tc.description, taskID)
+					continue
+				}
+				if gotPID != expectedPID {
+					t.Errorf("%s: task %s has ParentID=%q, want %q",
+						tc.description, taskID, gotPID, expectedPID)
+				}
+			}
+		})
+	}
+}
+
+// TestFilteredJSONOutputNoStaleParentIDs verifies that the full JSON rendering
+// pipeline (filterTasksRecursive → RenderJSON) never emits a ParentID that
+// references a task absent from the output. Regression test for T-549.
+func TestFilteredJSONOutputNoStaleParentIDs(t *testing.T) {
+	tl := task.NewTaskList("Stale ParentID Test")
+	tl.AddTask("", "Pending parent", "")   // task 1
+	tl.AddTask("1", "Completed child", "") // task 1.1
+	tl.UpdateStatus("1.1", task.Completed)
+	tl.AddTask("", "Completed root", "") // task 2
+	tl.UpdateStatus("2", task.Completed)
+
+	opts := listFilterOptions{statusFilter: "completed"}
+	filteredTasks := filterTasksRecursive(tl.Tasks, opts)
+
+	filteredList := &task.TaskList{
+		Title: tl.Title,
+		Tasks: filteredTasks,
+	}
+
+	jsonData := task.RenderJSONWithPhases(filteredList, nil, tl)
+
+	var result struct {
+		Tasks []struct {
+			ID       string `json:"ID"`
+			ParentID string `json:"ParentID"`
+		} `json:"Tasks"`
+	}
+	if err := json.Unmarshal(jsonData, &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	// Build a set of all task IDs in the output
+	idSet := make(map[string]bool)
+	for _, tsk := range result.Tasks {
+		idSet[tsk.ID] = true
+	}
+
+	// Every non-empty ParentID must reference a task that exists in the output
+	for _, tsk := range result.Tasks {
+		if tsk.ParentID != "" && !idSet[tsk.ParentID] {
+			t.Errorf("task %s has ParentID=%q which does not exist in filtered output (available IDs: %v)",
+				tsk.ID, tsk.ParentID, idSet)
+		}
+	}
+}
+
+// collectParentIDs recursively collects taskID → ParentID from a task tree.
+func collectParentIDs(tasks []task.Task) map[string]string {
+	result := make(map[string]string)
+	for _, t := range tasks {
+		result[t.ID] = t.ParentID
+		for k, v := range collectParentIDs(t.Children) {
+			result[k] = v
+		}
+	}
+	return result
+}
