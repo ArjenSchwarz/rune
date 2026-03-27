@@ -535,6 +535,19 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 		return "", err
 	}
 
+	// Subtasks inherit their parent's phase — skip all phase mutation logic
+	if parentID != "" {
+		newTaskID, err := tl.AddTask(parentID, title, "")
+		if err != nil {
+			return "", fmt.Errorf("failed to add subtask to '%s': %w", filepath, err)
+		}
+		if err := WriteFileWithPhases(tl, phaseMarkers, filepath); err != nil {
+			return "", fmt.Errorf("failed to write file '%s' with phases: %w", filepath, err)
+		}
+		tl.Modified = time.Now()
+		return newTaskID, nil
+	}
+
 	var newTaskID string
 	var insertPosition int
 
@@ -596,58 +609,49 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 		insertPosition = phaseEndPos
 	}
 
-	// Handle parentID if specified
-	if parentID != "" {
-		// For subtasks, use existing AddTask logic
-		newTaskID, err = tl.AddTask(parentID, title, "")
-		if err != nil {
-			return "", fmt.Errorf("failed to add subtask to '%s': %w", filepath, err)
-		}
+	// Insert task at the calculated position
+	newTaskID = fmt.Sprintf("%d", insertPosition+1)
+	newTask := Task{
+		ID:     "temp", // Will be renumbered
+		Title:  title,
+		Status: Pending,
+	}
+
+	// Insert at position
+	if insertPosition >= len(tl.Tasks) {
+		tl.Tasks = append(tl.Tasks, newTask)
 	} else {
-		// Insert task at the calculated position
-		newTaskID = fmt.Sprintf("%d", insertPosition+1)
-		newTask := Task{
-			ID:     "temp", // Will be renumbered
-			Title:  title,
-			Status: Pending,
-		}
+		tl.Tasks = append(tl.Tasks[:insertPosition],
+			append([]Task{newTask}, tl.Tasks[insertPosition:]...)...)
+	}
 
-		// Insert at position
-		if insertPosition >= len(tl.Tasks) {
-			tl.Tasks = append(tl.Tasks, newTask)
-		} else {
-			tl.Tasks = append(tl.Tasks[:insertPosition],
-				append([]Task{newTask}, tl.Tasks[insertPosition:]...)...)
-		}
+	// Renumber all tasks
+	tl.RenumberTasks()
 
-		// Renumber all tasks
-		tl.RenumberTasks()
+	// Get the actual new task ID after renumbering
+	if insertPosition < len(tl.Tasks) {
+		newTaskID = tl.Tasks[insertPosition].ID
+	}
 
-		// Get the actual new task ID after renumbering
-		if insertPosition < len(tl.Tasks) {
-			newTaskID = tl.Tasks[insertPosition].ID
-		}
-
-		// Update phase markers to account for the insertion.
-		// Two things need to happen:
-		// 1. The next phase marker after our target phase must point to the newly
-		//    inserted task (which is now the last task in the current phase).
-		// 2. All phase markers beyond that must have their AfterTaskID incremented
-		//    by one since all subsequent tasks shifted up by one.
-		if phaseFound {
-			for i, marker := range phaseMarkers {
-				if marker.Name == phaseName {
-					// Update the immediate next marker to point to the newly inserted task
-					if i+1 < len(phaseMarkers) && insertPosition < len(tl.Tasks) {
-						phaseMarkers[i+1].AfterTaskID = tl.Tasks[insertPosition].ID
-					}
-					// Adjust all markers beyond the next one for the shifted task numbering
-					if i+2 < len(phaseMarkers) {
-						remaining := phaseMarkers[i+2:]
-						adjustPhaseMarkersForInsertion(insertPosition, &remaining)
-					}
-					break
+	// Update phase markers to account for the insertion.
+	// Two things need to happen:
+	// 1. The next phase marker after our target phase must point to the newly
+	//    inserted task (which is now the last task in the current phase).
+	// 2. All phase markers beyond that must have their AfterTaskID incremented
+	//    by one since all subsequent tasks shifted up by one.
+	if phaseFound {
+		for i, marker := range phaseMarkers {
+			if marker.Name == phaseName {
+				// Update the immediate next marker to point to the newly inserted task
+				if i+1 < len(phaseMarkers) && insertPosition < len(tl.Tasks) {
+					phaseMarkers[i+1].AfterTaskID = tl.Tasks[insertPosition].ID
 				}
+				// Adjust all markers beyond the next one for the shifted task numbering
+				if i+2 < len(phaseMarkers) {
+					remaining := phaseMarkers[i+2:]
+					adjustPhaseMarkersForInsertion(insertPosition, &remaining)
+				}
+				break
 			}
 		}
 	}

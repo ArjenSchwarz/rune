@@ -1243,7 +1243,9 @@ func TestAddTaskToPhaseSubtaskNoPhantomPhase(t *testing.T) {
 
 - [ ] 1. Define requirements
   - [ ] 1.1. Sub-requirement
-- [ ] 2. Create design`,
+
+- [ ] 2. Create design
+`,
 		},
 		"subtask_existing_phase_no_extra_marker": {
 			description: "Adding a subtask with an existing phase should not duplicate phase markers",
@@ -1268,7 +1270,8 @@ func TestAddTaskToPhaseSubtaskNoPhantomPhase(t *testing.T) {
 
 ## Implementation
 
-- [ ] 2. Write code`,
+- [ ] 2. Write code
+`,
 		},
 		"subtask_no_phases_nonexistent_phase": {
 			description: "Adding a subtask with a phase to a file with no phases should not create a phantom phase",
@@ -1282,8 +1285,10 @@ func TestAddTaskToPhaseSubtaskNoPhantomPhase(t *testing.T) {
 			expectedContent: `# Project
 
 - [ ] 1. First task
+
 - [ ] 2. Second task
-  - [ ] 2.1. Child of second`,
+  - [ ] 2.1. Child of second
+`,
 		},
 	}
 

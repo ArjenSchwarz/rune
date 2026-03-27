@@ -62,9 +62,9 @@ When `AddTaskToPhase` is called with a `parentID` (adding a subtask), the functi
 ## Verification
 
 **Automated:**
-- [ ] Regression test passes
-- [ ] Full test suite passes
-- [ ] Linters/validators pass
+- [x] Regression test passes
+- [x] Full test suite passes
+- [x] Linters/validators pass
 
 **Manual verification:**
 - Tested that `AddTaskToPhase` with `parentID` no longer creates phantom phases
