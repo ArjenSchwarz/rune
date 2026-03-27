@@ -14,7 +14,7 @@ type ProgressResponse struct {
 	Message       string `json:"message"`
 	TaskID        string `json:"task_id"`
 	Title         string `json:"title"`
-	DryRun        bool   `json:"dry_run,omitempty"`
+	DryRun        bool   `json:"dry_run"`
 	CurrentStatus string `json:"current_status,omitempty"`
 }
 

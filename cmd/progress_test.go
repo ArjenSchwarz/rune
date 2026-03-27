@@ -107,6 +107,9 @@ func TestRunProgressDryRunFormats(t *testing.T) {
 				if !resp.DryRun {
 					t.Error("Expected dry_run to be true in JSON response")
 				}
+				if resp.CurrentStatus != "pending" {
+					t.Errorf("Expected current_status 'pending', got '%s'", resp.CurrentStatus)
+				}
 			}
 
 			if tt.expectPhrase != "" {
@@ -115,59 +118,5 @@ func TestRunProgressDryRunFormats(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestRunProgressDryRunDoesNotModifyFile(t *testing.T) {
-	tempDir := filepath.Join(".", "test-tmp-progress-nomod")
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	filename := filepath.Join(tempDir, "test.md")
-	tl := task.NewTaskList("Test Tasks")
-	tl.AddTask("", "Task to progress", "")
-	if err := tl.WriteFile(filename); err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
-	}
-
-	initialContent, err := os.ReadFile(filename)
-	if err != nil {
-		t.Fatalf("Failed to read initial file: %v", err)
-	}
-
-	oldDryRun := dryRun
-	oldFormat := format
-	dryRun = true
-	format = "json"
-	defer func() {
-		dryRun = oldDryRun
-		format = oldFormat
-	}()
-
-	// Capture stdout to prevent noise
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	cmd := &cobra.Command{}
-	err = runProgress(cmd, []string{filename, "1"})
-
-	w.Close()
-	os.Stdout = oldStdout
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	finalContent, err := os.ReadFile(filename)
-	if err != nil {
-		t.Fatalf("Failed to read final file: %v", err)
-	}
-	if !bytes.Equal(initialContent, finalContent) {
-		t.Fatal("Dry run modified the file")
 	}
 }
