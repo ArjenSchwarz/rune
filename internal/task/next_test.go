@@ -1317,3 +1317,73 @@ func TestExtractPhasesWithTaskRangesCRLF(t *testing.T) {
 		t.Errorf("phase[1] has %d tasks, want 2", len(phases[1].Tasks))
 	}
 }
+
+// TestExtractPhasesWithTaskRangesIndentedLines verifies that indented lines
+// are not misclassified as phase headers or top-level task references.
+// Regression test for T-594.
+func TestExtractPhasesWithTaskRangesIndentedLines(t *testing.T) {
+	tests := map[string]struct {
+		content        string
+		wantPhases     int
+		wantPhaseNames []string
+		wantTaskCounts []int // number of tasks per phase
+	}{
+		"indented_task_line_not_treated_as_top_level": {
+			content:        "# Project\n\n## Phase A\n\n- [ ] 1. Task One\n  - [ ] 1.1. Subtask\n- [ ] 2. Task Two\n\n## Phase B\n\n- [ ] 3. Task Three\n",
+			wantPhases:     2,
+			wantPhaseNames: []string{"Phase A", "Phase B"},
+			wantTaskCounts: []int{2, 1},
+		},
+		"indented_phase_header_not_treated_as_phase": {
+			content:        "# Project\n\n## Real Phase\n\n- [ ] 1. Task One\n  ## Not a phase\n- [ ] 2. Task Two\n",
+			wantPhases:     1,
+			wantPhaseNames: []string{"Real Phase"},
+			wantTaskCounts: []int{2},
+		},
+		"subtask_not_counted_as_top_level_after_trim": {
+			content:        "# Project\n\n## Phase A\n\n- [ ] 1. Task One\n  - [ ] 1.1. Subtask One\n  - [ ] 1.2. Subtask Two\n- [ ] 2. Task Two\n\n## Phase B\n\n- [ ] 3. Task Three\n  - [ ] 3.1. Subtask of Three\n",
+			wantPhases:     2,
+			wantPhaseNames: []string{"Phase A", "Phase B"},
+			wantTaskCounts: []int{2, 1},
+		},
+		"continuation_lines_with_description": {
+			content:        "# Project\n\n## Planning\n\n- [ ] 1. Define requirements\n  This task involves gathering input\n  - [ ] 1.1. Review docs\n- [ ] 2. Write spec\n\n## Implementation\n\n- [ ] 3. Build feature\n",
+			wantPhases:     2,
+			wantPhaseNames: []string{"Planning", "Implementation"},
+			wantTaskCounts: []int{2, 1},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			taskList, err := ParseMarkdown([]byte(tc.content))
+			if err != nil {
+				t.Fatalf("ParseMarkdown() error = %v", err)
+			}
+
+			lines := strings.Split(tc.content, "\n")
+			phases := extractPhasesWithTaskRanges(lines, taskList.Tasks)
+
+			if len(phases) != tc.wantPhases {
+				t.Fatalf("got %d phases, want %d; phases: %+v", len(phases), tc.wantPhases, phases)
+			}
+
+			for i, wantName := range tc.wantPhaseNames {
+				if phases[i].Name != wantName {
+					t.Errorf("phase[%d].Name = %q, want %q", i, phases[i].Name, wantName)
+				}
+			}
+
+			for i, wantCount := range tc.wantTaskCounts {
+				if len(phases[i].Tasks) != wantCount {
+					taskIDs := make([]string, len(phases[i].Tasks))
+					for j, task := range phases[i].Tasks {
+						taskIDs[j] = task.ID
+					}
+					t.Errorf("phase[%d] (%s) has %d tasks %v, want %d",
+						i, phases[i].Name, len(phases[i].Tasks), taskIDs, wantCount)
+				}
+			}
+		})
+	}
+}

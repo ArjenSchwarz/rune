@@ -220,7 +220,7 @@ func extractPhasesWithTaskRanges(lines []string, allTasks []Task) []PhaseWithTas
 	taskMap := createTaskMap(allTasks)
 
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
+		line = strings.TrimRight(line, "\r")
 
 		// Check for phase header
 		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
