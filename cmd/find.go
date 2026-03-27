@@ -128,6 +128,15 @@ func runFind(cmd *cobra.Command, args []string) error {
 }
 
 func applyAdditionalFilters(results []task.Task, statusFilter string, maxDepth int, parentIDFilter string, parentFilterSet bool) []task.Task {
+	// Build a set of all IDs present in the unfiltered input so we can
+	// distinguish "parent was never part of the search results" (fine — the
+	// ParentID is just hierarchy context) from "parent was here but got
+	// filtered out" (stale reference that must be fixed per T-549).
+	inputIDs := make(map[string]bool, len(results))
+	for _, t := range results {
+		inputIDs[t.ID] = true
+	}
+
 	var filtered []task.Task
 
 	for _, t := range results {
@@ -152,6 +161,30 @@ func applyAdditionalFilters(results []task.Task, statusFilter string, maxDepth i
 		if include {
 			filtered = append(filtered, t)
 		}
+	}
+
+	// Fix stale ParentIDs: walk each task's ParentID up the hierarchy until
+	// we find a surviving ancestor, an ancestor that was never in the input
+	// (hierarchy context — not stale), or reach root (T-549).
+	outputIDs := make(map[string]bool, len(filtered))
+	for _, t := range filtered {
+		outputIDs[t.ID] = true
+	}
+	for i := range filtered {
+		pid := filtered[i].ParentID
+		for pid != "" && inputIDs[pid] && !outputIDs[pid] {
+			// When --parent was set, its value is intentional context,
+			// not a stale reference — stop walking.
+			if parentFilterSet && pid == parentIDFilter {
+				break
+			}
+			if dot := strings.LastIndex(pid, "."); dot >= 0 {
+				pid = pid[:dot]
+			} else {
+				pid = ""
+			}
+		}
+		filtered[i].ParentID = pid
 	}
 
 	return filtered

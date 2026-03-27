@@ -559,3 +559,79 @@ func TestFindCommandEdgeCases(t *testing.T) {
 		}
 	})
 }
+
+// TestApplyAdditionalFiltersClearsStaleParentID verifies that
+// applyAdditionalFilters updates ParentID on tasks whose parent was filtered
+// out, so JSON consumers never see dangling references. Regression test for T-549.
+func TestApplyAdditionalFiltersClearsStaleParentID(t *testing.T) {
+	tests := map[string]struct {
+		tasks            []task.Task
+		statusFilter     string
+		maxDepth         int
+		parentIDFilter   string
+		parentFilterSet  bool
+		expectedParentID map[string]string // taskID → expected ParentID
+		description      string
+	}{
+		"status filter removes parent leaving child with stale ParentID": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Pending parent", Status: task.Pending, ParentID: ""},
+				{ID: "1.1", Title: "Completed child", Status: task.Completed, ParentID: "1"},
+			},
+			statusFilter:     "completed",
+			expectedParentID: map[string]string{"1.1": ""},
+			description:      "Child whose parent was filtered out should have ParentID cleared",
+		},
+		"grandchild walks up to surviving grandparent": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Grandparent", Status: task.Completed, ParentID: ""},
+				{ID: "1.1", Title: "Filtered parent", Status: task.Pending, ParentID: "1"},
+				{ID: "1.1.1", Title: "Grandchild", Status: task.Completed, ParentID: "1.1"},
+			},
+			statusFilter: "completed",
+			expectedParentID: map[string]string{
+				"1":     "",  // root, unchanged
+				"1.1.1": "1", // should walk up to surviving grandparent
+			},
+			description: "Grandchild should walk up to nearest surviving ancestor",
+		},
+		"both parent and child survive keeps original ParentID": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Parent", Status: task.Completed, ParentID: ""},
+				{ID: "1.1", Title: "Child", Status: task.Completed, ParentID: "1"},
+			},
+			statusFilter: "completed",
+			expectedParentID: map[string]string{
+				"1":   "",
+				"1.1": "1",
+			},
+			description: "When parent survives, child ParentID should be unchanged",
+		},
+		"depth filter removes deep task leaving stale ParentID": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Root", Status: task.Pending, ParentID: ""},
+				{ID: "1.1", Title: "Level 2", Status: task.Pending, ParentID: "1"},
+			},
+			maxDepth: 1,
+			expectedParentID: map[string]string{
+				"1": "", // only root survives
+			},
+			description: "Depth filter should not leave stale references",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			filtered := applyAdditionalFilters(tc.tasks, tc.statusFilter, tc.maxDepth, tc.parentIDFilter, tc.parentFilterSet)
+
+			for _, ft := range filtered {
+				if expected, ok := tc.expectedParentID[ft.ID]; ok {
+					if ft.ParentID != expected {
+						t.Errorf("%s: task %s has ParentID=%q, want %q",
+							tc.description, ft.ID, ft.ParentID, expected)
+					}
+				}
+			}
+		})
+	}
+}

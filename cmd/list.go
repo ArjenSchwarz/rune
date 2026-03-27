@@ -715,7 +715,13 @@ func filterTasksRecursive(tasks []task.Task, opts listFilterOptions) []task.Task
 			taskCopy.Children = filteredChildren
 			result = append(result, taskCopy)
 		} else {
-			// Parent doesn't match — promote any matching children
+			// Parent doesn't match — promote matching children and fix their
+			// ParentID so it points to this task's parent instead of this
+			// (now-absent) task. Without this, JSON consumers see dangling
+			// ParentID references (T-549).
+			for i := range filteredChildren {
+				filteredChildren[i].ParentID = t.ParentID
+			}
 			result = append(result, filteredChildren...)
 		}
 	}
