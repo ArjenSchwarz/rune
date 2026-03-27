@@ -1387,3 +1387,292 @@ func TestExtractPhasesWithTaskRangesIndentedLines(t *testing.T) {
 		})
 	}
 }
+
+// TestExtractPhasesWithTaskRanges_NonSequentialIDs verifies that
+// extractPhasesWithTaskRanges correctly associates tasks with phases when
+// markdown task IDs are non-sequential (e.g., due to manual editing or deletions).
+// Regression test for T-604.
+func TestExtractPhasesWithTaskRanges_NonSequentialIDs(t *testing.T) {
+	tests := map[string]struct {
+		content        string
+		wantPhaseCount int
+		wantPhases     []struct {
+			name      string
+			taskCount int
+			taskIDs   []string
+		}
+	}{
+		"non-sequential IDs across two phases": {
+			content: `## Phase A
+- [ ] 10. First task
+- [ ] 20. Second task
+
+## Phase B
+- [ ] 30. Third task
+`,
+			wantPhaseCount: 2,
+			wantPhases: []struct {
+				name      string
+				taskCount int
+				taskIDs   []string
+			}{
+				{name: "Phase A", taskCount: 2, taskIDs: []string{"1", "2"}},
+				{name: "Phase B", taskCount: 1, taskIDs: []string{"3"}},
+			},
+		},
+		"large gap in IDs": {
+			content: `## Phase A
+- [ ] 100. Setup
+- [ ] 200. Configure
+
+## Phase B
+- [ ] 500. Deploy
+`,
+			wantPhaseCount: 2,
+			wantPhases: []struct {
+				name      string
+				taskCount int
+				taskIDs   []string
+			}{
+				{name: "Phase A", taskCount: 2, taskIDs: []string{"1", "2"}},
+				{name: "Phase B", taskCount: 1, taskIDs: []string{"3"}},
+			},
+		},
+		"single non-sequential ID in one phase": {
+			content: `## Phase A
+- [ ] 5. Only task
+`,
+			wantPhaseCount: 1,
+			wantPhases: []struct {
+				name      string
+				taskCount int
+				taskIDs   []string
+			}{
+				{name: "Phase A", taskCount: 1, taskIDs: []string{"1"}},
+			},
+		},
+		"tasks before first phase with non-sequential IDs": {
+			content: `- [ ] 10. Orphan task
+
+## Phase A
+- [ ] 20. Phase task
+`,
+			wantPhaseCount: 1,
+			wantPhases: []struct {
+				name      string
+				taskCount int
+				taskIDs   []string
+			}{
+				{name: "Phase A", taskCount: 1, taskIDs: []string{"2"}},
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			taskList, err := ParseMarkdown([]byte(tc.content))
+			if err != nil {
+				t.Fatalf("ParseMarkdown() error = %v", err)
+			}
+
+			lines := splitLines(tc.content)
+			phases := extractPhasesWithTaskRanges(lines, taskList.Tasks)
+
+			if len(phases) != tc.wantPhaseCount {
+				t.Fatalf("got %d phases, want %d", len(phases), tc.wantPhaseCount)
+			}
+
+			for i, wantPhase := range tc.wantPhases {
+				if phases[i].Name != wantPhase.name {
+					t.Errorf("phase[%d].Name = %q, want %q", i, phases[i].Name, wantPhase.name)
+				}
+				if len(phases[i].Tasks) != wantPhase.taskCount {
+					t.Errorf("phase[%d] has %d tasks, want %d", i, len(phases[i].Tasks), wantPhase.taskCount)
+				}
+				for j, wantID := range wantPhase.taskIDs {
+					if j < len(phases[i].Tasks) && phases[i].Tasks[j].ID != wantID {
+						t.Errorf("phase[%d].Tasks[%d].ID = %q, want %q", i, j, phases[i].Tasks[j].ID, wantID)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestFindNextPhaseTasks_NonSequentialIDs verifies that FindNextPhaseTasks
+// correctly returns pending tasks when markdown IDs are non-sequential.
+// Regression test for T-604.
+func TestFindNextPhaseTasks_NonSequentialIDs(t *testing.T) {
+	tests := map[string]struct {
+		content       string
+		wantNil       bool
+		wantPhase     string
+		wantTaskCount int
+	}{
+		"non-sequential IDs returns first pending phase": {
+			content: `## Phase A
+- [ ] 10. First task
+- [ ] 20. Second task
+
+## Phase B
+- [ ] 30. Third task
+`,
+			wantPhase:     "Phase A",
+			wantTaskCount: 2,
+		},
+		"completed non-sequential phase skipped": {
+			content: `## Phase A
+- [x] 10. Done task
+
+## Phase B
+- [ ] 20. Pending task
+`,
+			wantPhase:     "Phase B",
+			wantTaskCount: 1,
+		},
+		"all non-sequential phases complete": {
+			content: `## Phase A
+- [x] 10. Done
+
+## Phase B
+- [x] 20. Also done
+`,
+			wantNil: true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tmpFile, err := os.CreateTemp("", "nonseq-phase-*.md")
+			if err != nil {
+				t.Fatalf("Failed to create temp file: %v", err)
+			}
+			defer os.Remove(tmpFile.Name())
+
+			if _, err := tmpFile.WriteString(tc.content); err != nil {
+				t.Fatalf("Failed to write content: %v", err)
+			}
+			tmpFile.Close()
+
+			result, err := FindNextPhaseTasks(tmpFile.Name())
+			if err != nil {
+				t.Fatalf("FindNextPhaseTasks() error = %v", err)
+			}
+
+			if tc.wantNil {
+				if result != nil {
+					t.Errorf("FindNextPhaseTasks() = non-nil, want nil")
+				}
+				return
+			}
+
+			if result == nil {
+				t.Fatalf("FindNextPhaseTasks() = nil, want phase %q with %d tasks",
+					tc.wantPhase, tc.wantTaskCount)
+			}
+
+			if result.PhaseName != tc.wantPhase {
+				t.Errorf("FindNextPhaseTasks() phase = %q, want %q",
+					result.PhaseName, tc.wantPhase)
+			}
+
+			if len(result.Tasks) != tc.wantTaskCount {
+				t.Errorf("FindNextPhaseTasks() returned %d tasks, want %d",
+					len(result.Tasks), tc.wantTaskCount)
+			}
+		})
+	}
+}
+
+// TestFindNextPhaseTasksForStream_NonSequentialIDs verifies that
+// FindNextPhaseTasksForStream correctly handles non-sequential markdown IDs.
+// Regression test for T-604.
+func TestFindNextPhaseTasksForStream_NonSequentialIDs(t *testing.T) {
+	tests := map[string]struct {
+		content     string
+		stream      int
+		wantNil     bool
+		wantPhase   string
+		wantTaskIDs []string
+	}{
+		"non-sequential IDs with streams": {
+			content: `## Phase A
+- [ ] 10. Task in stream 1
+  - Stream: 1
+- [ ] 20. Task in stream 2
+  - Stream: 2
+
+## Phase B
+- [ ] 30. Another stream 2 task
+  - Stream: 2
+`,
+			stream:      2,
+			wantPhase:   "Phase A",
+			wantTaskIDs: []string{"2"},
+		},
+		"non-sequential skip to second phase": {
+			content: `## Phase A
+- [ ] 10. Task in stream 1
+  - Stream: 1
+
+## Phase B
+- [ ] 20. Stream 2 task
+  - Stream: 2
+`,
+			stream:      2,
+			wantPhase:   "Phase B",
+			wantTaskIDs: []string{"2"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tmpFile, err := os.CreateTemp("", "nonseq-stream-*.md")
+			if err != nil {
+				t.Fatalf("Failed to create temp file: %v", err)
+			}
+			defer os.Remove(tmpFile.Name())
+
+			if _, err := tmpFile.WriteString(tc.content); err != nil {
+				t.Fatalf("Failed to write content: %v", err)
+			}
+			tmpFile.Close()
+
+			result, err := FindNextPhaseTasksForStream(tmpFile.Name(), tc.stream)
+			if err != nil {
+				t.Fatalf("FindNextPhaseTasksForStream() error = %v", err)
+			}
+
+			if tc.wantNil {
+				if result != nil {
+					t.Errorf("got non-nil, want nil")
+				}
+				return
+			}
+
+			if result == nil {
+				t.Fatalf("got nil, want phase %q", tc.wantPhase)
+			}
+
+			if result.PhaseName != tc.wantPhase {
+				t.Errorf("phase = %q, want %q", result.PhaseName, tc.wantPhase)
+			}
+
+			var gotIDs []string
+			for _, task := range result.Tasks {
+				gotIDs = append(gotIDs, task.ID)
+			}
+
+			if len(gotIDs) != len(tc.wantTaskIDs) {
+				t.Fatalf("got %d tasks %v, want %d tasks %v",
+					len(gotIDs), gotIDs, len(tc.wantTaskIDs), tc.wantTaskIDs)
+			}
+
+			for i, wantID := range tc.wantTaskIDs {
+				if gotIDs[i] != wantID {
+					t.Errorf("task[%d].ID = %q, want %q", i, gotIDs[i], wantID)
+				}
+			}
+		})
+	}
+}

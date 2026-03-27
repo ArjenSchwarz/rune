@@ -213,11 +213,14 @@ func hasPhases(lines []string) bool {
 	return slices.ContainsFunc(lines, phaseHeaderPattern.MatchString)
 }
 
-// extractPhasesWithTaskRanges parses the document and associates tasks with their phases
+// extractPhasesWithTaskRanges parses the document and associates tasks with their phases.
+// It uses a positional counter to map raw markdown task lines to parsed tasks,
+// because the parser assigns sequential IDs regardless of what IDs appear in the markdown.
 func extractPhasesWithTaskRanges(lines []string, allTasks []Task) []PhaseWithTasks {
 	var phases []PhaseWithTasks
 	var currentPhase *PhaseWithTasks
 	taskMap := createTaskMap(allTasks)
+	topLevelTaskCount := 0
 
 	for _, line := range lines {
 		line = strings.TrimRight(line, "\r")
@@ -234,14 +237,17 @@ func extractPhasesWithTaskRanges(lines []string, allTasks []Task) []PhaseWithTas
 				Name:  strings.TrimSpace(matches[1]),
 				Tasks: []Task{},
 			}
-		} else if currentPhase != nil && taskLinePattern.MatchString(line) {
-			// Extract task ID from the line
+		} else if taskLinePattern.MatchString(line) {
 			if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
-				taskID := taskMatches[3]
-				// Only add top-level tasks to phases
-				if !strings.Contains(taskID, ".") {
-					if task, exists := taskMap[taskID]; exists {
-						currentPhase.Tasks = append(currentPhase.Tasks, task)
+				rawID := taskMatches[3]
+				// Count all top-level tasks by position for correct mapping
+				if !strings.Contains(rawID, ".") {
+					topLevelTaskCount++
+					if currentPhase != nil {
+						sequentialID := fmt.Sprintf("%d", topLevelTaskCount)
+						if task, exists := taskMap[sequentialID]; exists {
+							currentPhase.Tasks = append(currentPhase.Tasks, task)
+						}
 					}
 				}
 			}

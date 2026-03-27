@@ -23,6 +23,7 @@ func addPhase(name string) string {
 // most recent phase header that precedes it in the document.
 // For subtasks (IDs with dots), it finds the parent task's phase.
 // Returns empty string if the task is not within any phase or doesn't exist.
+// Uses positional counting to map raw markdown IDs to parsed sequential IDs.
 func getTaskPhase(taskID string, content []byte) string {
 	if taskID == "" {
 		return ""
@@ -36,33 +37,7 @@ func getTaskPhase(taskID string, content []byte) string {
 
 	lines := splitLines(string(content))
 	currentPhase := ""
-
-	for _, line := range lines {
-		// Check if this is a phase header
-		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
-			currentPhase = strings.TrimSpace(matches[1])
-			continue
-		}
-
-		// Check if this line contains the task we're looking for
-		if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
-			lineTaskID := taskMatches[3]
-			// Only check top-level task IDs (no dots)
-			if !strings.Contains(lineTaskID, ".") && lineTaskID == parentID {
-				return currentPhase
-			}
-		}
-	}
-
-	return ""
-}
-
-// buildTaskPhaseMap creates a map from task IDs to phase names in a single pass
-// through the document lines. This is more efficient than calling getTaskPhase
-// for each task individually.
-func buildTaskPhaseMap(lines []string) map[string]string {
-	taskPhaseMap := make(map[string]string)
-	currentPhase := ""
+	topLevelTaskCount := 0
 
 	for _, line := range lines {
 		// Check if this is a phase header
@@ -73,10 +48,45 @@ func buildTaskPhaseMap(lines []string) map[string]string {
 
 		// Check if this line contains a top-level task
 		if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
-			taskID := taskMatches[3]
-			// Only track top-level task IDs (tasks create phase associations for their children)
-			if !strings.Contains(taskID, ".") && currentPhase != "" {
-				taskPhaseMap[taskID] = currentPhase
+			rawID := taskMatches[3]
+			if !strings.Contains(rawID, ".") {
+				topLevelTaskCount++
+				sequentialID := fmt.Sprintf("%d", topLevelTaskCount)
+				if sequentialID == parentID {
+					return currentPhase
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+// buildTaskPhaseMap creates a map from sequential parsed task IDs to phase names
+// in a single pass through the document lines. This is more efficient than calling
+// getTaskPhase for each task individually.
+// Uses positional counting to map raw markdown IDs to parsed sequential IDs.
+func buildTaskPhaseMap(lines []string) map[string]string {
+	taskPhaseMap := make(map[string]string)
+	currentPhase := ""
+	topLevelTaskCount := 0
+
+	for _, line := range lines {
+		// Check if this is a phase header
+		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
+			currentPhase = strings.TrimSpace(matches[1])
+			continue
+		}
+
+		// Check if this line contains a top-level task
+		if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
+			rawID := taskMatches[3]
+			if !strings.Contains(rawID, ".") {
+				topLevelTaskCount++
+				if currentPhase != "" {
+					sequentialID := fmt.Sprintf("%d", topLevelTaskCount)
+					taskPhaseMap[sequentialID] = currentPhase
+				}
 			}
 		}
 	}
