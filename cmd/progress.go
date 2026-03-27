@@ -10,10 +10,12 @@ import (
 
 // ProgressResponse is the JSON response for the progress command
 type ProgressResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	TaskID  string `json:"task_id"`
-	Title   string `json:"title"`
+	Success       bool   `json:"success"`
+	Message       string `json:"message"`
+	TaskID        string `json:"task_id"`
+	Title         string `json:"title"`
+	DryRun        bool   `json:"dry_run"`
+	CurrentStatus string `json:"current_status,omitempty"`
 }
 
 var progressCmd = &cobra.Command{
@@ -81,14 +83,29 @@ func runProgress(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("task %s not found", taskID)
 	}
 
-	// Dry run mode - just show what would be set to in-progress
+	// Dry run mode - show what would be set to in-progress using format-aware output
 	if dryRun {
-		fmt.Printf("Would mark task as in-progress in file: %s\n", filename)
-		fmt.Printf("Task ID: %s\n", taskID)
-		fmt.Printf("Current status: %s\n", statusToString(targetTask.Status))
-		fmt.Printf("New status: in-progress\n")
-		fmt.Printf("Title: %s\n", targetTask.Title)
-		return nil
+		switch format {
+		case formatJSON:
+			return outputJSON(ProgressResponse{
+				Success:       true,
+				Message:       fmt.Sprintf("Would mark task %s as in-progress", taskID),
+				TaskID:        taskID,
+				Title:         targetTask.Title,
+				DryRun:        true,
+				CurrentStatus: statusToString(targetTask.Status),
+			})
+		case formatMarkdown:
+			fmt.Printf("**Dry run:** Would mark %s - %s as in-progress (currently %s)\n", taskID, targetTask.Title, statusToString(targetTask.Status))
+			return nil
+		default: // table
+			fmt.Printf("Would mark task as in-progress in file: %s\n", filename)
+			fmt.Printf("Task ID: %s\n", taskID)
+			fmt.Printf("Current status: %s\n", statusToString(targetTask.Status))
+			fmt.Printf("New status: in-progress\n")
+			fmt.Printf("Title: %s\n", targetTask.Title)
+			return nil
+		}
 	}
 
 	// Update the task status
