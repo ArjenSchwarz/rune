@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Configuration**: `.rune.yml` now rejects unknown fields (`KnownFields` enforcement). Config files with extra or misspelled keys that were previously silently ignored will now produce an error. Remove any unsupported fields from your `.rune.yml` to resolve.
+
 ### Fixed
 
 - **Phase Parsing**: `ParseFileWithPhases` front-matter stripping no longer treats horizontal rules (`---`) after front matter as additional front-matter delimiters, which would cause phase markers after the rule to be silently dropped
