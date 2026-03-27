@@ -116,7 +116,7 @@ func runList(cmd *cobra.Command, args []string) error {
 	case formatJSON:
 		return outputJSONWithFilters(taskList, phaseMarkers, depIndex, filterOpts)
 	case formatMarkdown:
-		return outputMarkdownWithPhases(taskList, phaseMarkers)
+		return outputMarkdownWithFilteredPhases(taskList, phaseMarkers, filterOpts)
 	default:
 		return outputTableWithFilters(taskList, taskData, phaseMarkers, hasNonDefaultStreams, depIndex)
 	}
@@ -401,6 +401,46 @@ func outputMarkdownWithPhases(taskList *task.TaskList, phaseMarkers []task.Phase
 
 	fmt.Print(buf.String())
 	return nil
+}
+
+// outputMarkdownWithFilteredPhases applies filters before rendering markdown.
+// Phase lookup uses the original (unfiltered) taskList so that phase boundaries
+// are resolved correctly even when filters remove boundary tasks.
+func outputMarkdownWithFilteredPhases(taskList *task.TaskList, phaseMarkers []task.PhaseMarker, opts listFilterOptions) error {
+	md := outputMarkdownWithFilters(taskList, phaseMarkers, opts)
+	fmt.Print(md)
+	return nil
+}
+
+// outputMarkdownWithFilters applies filters and returns the markdown string.
+// Extracted to keep the rendering logic testable without capturing stdout.
+func outputMarkdownWithFilters(taskList *task.TaskList, phaseMarkers []task.PhaseMarker, opts listFilterOptions) string {
+	filteredTasks := filterTasksRecursive(taskList.Tasks, opts)
+
+	filteredList := &task.TaskList{
+		Title:            taskList.Title,
+		Tasks:            filteredTasks,
+		FrontMatter:      taskList.FrontMatter,
+		RequirementsFile: taskList.RequirementsFile,
+	}
+
+	var buf strings.Builder
+
+	// Add front matter references if present and --all flag is used
+	if showAll && filteredList.FrontMatter != nil && len(filteredList.FrontMatter.References) > 0 {
+		buf.WriteString("## Document References\n\n")
+		for _, ref := range filteredList.FrontMatter.References {
+			fmt.Fprintf(&buf, "- %s\n", ref)
+		}
+		buf.WriteString("\n")
+	}
+
+	// Render tasks with phases — pass original taskList as phase source
+	// so phase boundaries resolve correctly even if boundary tasks are filtered out
+	markdownOutput := task.RenderMarkdownWithPhases(filteredList, phaseMarkers)
+	buf.Write(markdownOutput)
+
+	return buf.String()
 }
 
 // ListEmptyResponse is the JSON response structure when no tasks are found.
