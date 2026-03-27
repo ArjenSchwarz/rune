@@ -544,7 +544,6 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 		if err := WriteFileWithPhases(tl, phaseMarkers, filepath); err != nil {
 			return "", fmt.Errorf("failed to write file '%s' with phases: %w", filepath, err)
 		}
-		tl.Modified = time.Now()
 		return newTaskID, nil
 	}
 
