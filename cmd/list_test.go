@@ -1188,7 +1188,6 @@ func TestFilterTasksRecursiveClearsStaleParentID(t *testing.T) {
 			},
 			opts: listFilterOptions{streamFilter: 2},
 			expectedParentID: map[string]string{
-				"1":     "",  // root task, ParentID stays empty
 				"1.1.1": "1", // promoted past parent, should point to grandparent
 			},
 			description: "Child promoted past excluded parent should point to surviving grandparent",

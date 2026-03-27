@@ -184,6 +184,10 @@ func applyAdditionalFilters(results []task.Task, statusFilter string, maxDepth i
 				pid = ""
 			}
 		}
+		// Note: when the walk stops because !inputIDs[pid], the task retains
+		// a ParentID referencing a task absent from the output. This is
+		// hierarchy context (the parent was never in the search results),
+		// not a stale reference. JSON consumers should tolerate this case.
 		filtered[i].ParentID = pid
 	}
 

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -618,6 +619,20 @@ func TestApplyAdditionalFiltersClearsStaleParentID(t *testing.T) {
 			},
 			description: "Depth filter should not leave stale references",
 		},
+		"parentFilterSet stops walk at specified parent context": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Context parent", Status: task.Pending, ParentID: ""},
+				{ID: "1.1", Title: "Filtered middle", Status: task.Pending, ParentID: "1"},
+				{ID: "1.1.1", Title: "Surviving child", Status: task.Completed, ParentID: "1.1"},
+			},
+			statusFilter:    "completed",
+			parentIDFilter:  "1",
+			parentFilterSet: true,
+			expectedParentID: map[string]string{
+				"1.1.1": "1", // walk stops at parentIDFilter, not promoted to ""
+			},
+			description: "With --parent set, walk should stop at the specified parent value",
+		},
 	}
 
 	for name, tc := range tests {
@@ -633,5 +648,74 @@ func TestApplyAdditionalFiltersClearsStaleParentID(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestFindFilteredJSONOutputNoStaleParentIDs verifies that the full find JSON
+// pipeline (Find → applyAdditionalFilters → RenderJSON) never emits a ParentID
+// that references a task absent from the output. Regression test for T-549.
+func TestFindFilteredJSONOutputNoStaleParentIDs(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-find-json-stale-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	tl := task.NewTaskList("Find Stale ParentID Test")
+	tl.AddTask("", "Pending parent", "")   // task 1
+	tl.AddTask("1", "Completed child", "") // task 1.1
+	tl.UpdateStatus("1.1", task.Completed)
+	tl.AddTask("", "Completed root", "") // task 2
+	tl.UpdateStatus("2", task.Completed)
+
+	testFile := "find-json-stale-test.md"
+	if err := tl.WriteFile(testFile); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	parsedList, err := task.ParseFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to parse test file: %v", err)
+	}
+
+	// Broad search to match all tasks, then filter by status
+	opts := task.QueryOptions{CaseSensitive: false}
+	results := parsedList.Find("e", opts) // matches "Pending", "Completed"
+
+	filtered := applyAdditionalFilters(results, "completed", 0, "", false)
+
+	// Render to JSON via the same path as the find command
+	jsonData, err := task.RenderJSON(&task.TaskList{
+		Title: "Find Stale ParentID Test",
+		Tasks: filtered,
+	})
+	if err != nil {
+		t.Fatalf("failed to render JSON: %v", err)
+	}
+
+	var result struct {
+		Tasks []struct {
+			ID       string `json:"ID"`
+			ParentID string `json:"ParentID"`
+		} `json:"Tasks"`
+	}
+	if err := json.Unmarshal(jsonData, &result); err != nil {
+		t.Fatalf("failed to unmarshal JSON: %v", err)
+	}
+
+	idSet := make(map[string]bool)
+	for _, tsk := range result.Tasks {
+		idSet[tsk.ID] = true
+	}
+
+	for _, tsk := range result.Tasks {
+		if tsk.ParentID != "" && !idSet[tsk.ParentID] {
+			t.Errorf("task %s has ParentID=%q which does not exist in filtered output (available IDs: %v)",
+				tsk.ID, tsk.ParentID, idSet)
+		}
 	}
 }
