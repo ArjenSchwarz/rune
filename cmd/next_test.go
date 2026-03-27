@@ -2281,12 +2281,13 @@ func TestNextCommandOneWithClaimFallsBackToReadyTask(t *testing.T) {
 	defer os.Chdir(oldDir)
 
 	// Repro shape from T-615:
-	// - Task A (1.1) appears first in DFS order but is blocked by task 2
-	// - Task B (1.2) is pending, unblocked, and unowned (ready)
-	// - `rune next --claim agent --one` should claim task B
+	// - Task 1 is already in-progress (not ready)
+	// - Task 1.1 appears first in DFS order but is blocked by task 2
+	// - Task 1.2 is pending, unblocked, and unowned (ready)
+	// - `rune next --claim agent --one` should claim task 1.2 (first ready task)
 	content := `# Project Tasks
 
-- [ ] 1. Parent task <!-- id:par0001 -->
+- [-] 1. Parent task <!-- id:par0001 -->
   - [ ] 1.1. Blocked first child <!-- id:chi0001 -->
     - Blocked-by: blk0001 (Incomplete blocker)
   - [ ] 1.2. Ready second child <!-- id:chi0002 -->
@@ -2328,6 +2329,11 @@ func TestNextCommandOneWithClaimFallsBackToReadyTask(t *testing.T) {
 		t.Errorf("blocked task 1.1 should not be claimed, got: %s", cmdOutput)
 	}
 
+	// Should claim task 1.2 specifically (first ready task in DFS order)
+	if !strings.Contains(cmdOutput, `"id": "1.2"`) {
+		t.Errorf("expected task 1.2 to be claimed as fallback, got: %s", cmdOutput)
+	}
+
 	// Should claim exactly one task (fallback to first ready task)
 	if strings.Contains(cmdOutput, `"claimed": []`) {
 		t.Errorf("T-615 regression: expected a ready task to be claimed via fallback, got empty claimed list: %s", cmdOutput)
@@ -2341,7 +2347,7 @@ func TestNextCommandOneWithClaimFallsBackToReadyTask(t *testing.T) {
 		t.Errorf("expected owner to be test-agent, got: %s", cmdOutput)
 	}
 
-	// Verify file was updated (some task was claimed)
+	// Verify file was updated — task 1.2 should be claimed
 	fileContent, err := os.ReadFile(testFile)
 	if err != nil {
 		t.Fatalf("failed to read file after claim: %v", err)
@@ -2351,5 +2357,9 @@ func TestNextCommandOneWithClaimFallsBackToReadyTask(t *testing.T) {
 	// Blocked task 1.1 should NOT be claimed
 	if strings.Contains(fileStr, "[-] 1.1.") {
 		t.Errorf("blocked task 1.1 should not be in-progress in file, got: %s", fileStr)
+	}
+	// Task 1.2 should be in-progress
+	if !strings.Contains(fileStr, "[-] 1.2.") {
+		t.Errorf("expected task 1.2 to be in-progress in file, got: %s", fileStr)
 	}
 }
