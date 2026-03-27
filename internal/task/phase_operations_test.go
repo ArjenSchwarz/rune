@@ -1211,3 +1211,124 @@ func TestPhaseRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+// TestAddTaskToPhaseSubtaskNoPhantomPhase verifies that adding a subtask via
+// AddTaskToPhase does not create an empty phase marker when the specified phase
+// does not exist. Subtasks should be added under their parent without mutating
+// phase markers.
+// Regression test for T-569.
+func TestAddTaskToPhaseSubtaskNoPhantomPhase(t *testing.T) {
+	tests := map[string]struct {
+		content         string
+		parentID        string
+		title           string
+		phaseName       string
+		expectedContent string
+		description     string
+	}{
+		"subtask_nonexistent_phase_no_phantom": {
+			description: "Adding a subtask with a non-existent phase should not create a phantom phase marker",
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Define requirements
+- [ ] 2. Create design`,
+			parentID:  "1",
+			title:     "Sub-requirement",
+			phaseName: "Phase X",
+			expectedContent: `# Project
+
+## Planning
+
+- [ ] 1. Define requirements
+  - [ ] 1.1. Sub-requirement
+
+- [ ] 2. Create design
+`,
+		},
+		"subtask_existing_phase_no_extra_marker": {
+			description: "Adding a subtask with an existing phase should not duplicate phase markers",
+			content: `# Project
+
+## Planning
+
+- [ ] 1. Define requirements
+
+## Implementation
+
+- [ ] 2. Write code`,
+			parentID:  "1",
+			title:     "Sub-requirement",
+			phaseName: "Planning",
+			expectedContent: `# Project
+
+## Planning
+
+- [ ] 1. Define requirements
+  - [ ] 1.1. Sub-requirement
+
+## Implementation
+
+- [ ] 2. Write code
+`,
+		},
+		"subtask_no_phases_nonexistent_phase": {
+			description: "Adding a subtask with a phase to a file with no phases should not create a phantom phase",
+			content: `# Project
+
+- [ ] 1. First task
+- [ ] 2. Second task`,
+			parentID:  "2",
+			title:     "Child of second",
+			phaseName: "Phase X",
+			expectedContent: `# Project
+
+- [ ] 1. First task
+
+- [ ] 2. Second task
+  - [ ] 2.1. Child of second
+`,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			fileName := fmt.Sprintf("test_subtask_phase_%s.md", name)
+			err := os.WriteFile(fileName, []byte(tc.content), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write test file: %v", err)
+			}
+			defer os.Remove(fileName)
+
+			_, err = AddTaskToPhase(fileName, tc.parentID, tc.title, tc.phaseName)
+			if err != nil {
+				t.Fatalf("AddTaskToPhase() error = %v", err)
+			}
+
+			rendered, err := os.ReadFile(fileName)
+			if err != nil {
+				t.Fatalf("Failed to read result file: %v", err)
+			}
+
+			expectedLines := strings.Split(tc.expectedContent, "\n")
+			actualLines := strings.Split(string(rendered), "\n")
+
+			if len(expectedLines) != len(actualLines) {
+				t.Errorf("Line count mismatch: expected %d, got %d\nExpected:\n%s\nGot:\n%s",
+					len(expectedLines), len(actualLines), tc.expectedContent, string(rendered))
+				return
+			}
+
+			for i := range expectedLines {
+				if i >= len(actualLines) {
+					break
+				}
+				if expectedLines[i] != actualLines[i] {
+					t.Errorf("Line %d mismatch:\n  expected: %q\n  got:      %q",
+						i+1, expectedLines[i], actualLines[i])
+				}
+			}
+		})
+	}
+}
