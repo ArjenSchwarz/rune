@@ -38,7 +38,16 @@ Two defects in `internal/config/config.go`:
 
 ## Resolution for the Issue
 
-_To be filled after fix is implemented._
+**Changes made:**
+- `internal/config/config.go:59-70` — In `loadConfigUncached()`, distinguish "file not found" (continue to next path) from "file exists but is invalid" (return error immediately) using `errors.Is(err, os.ErrNotExist)`
+- `internal/config/config.go:83-93` — Replace `yaml.Unmarshal()` with `yaml.NewDecoder` + `KnownFields(true)` to reject unknown fields; handle empty files via `io.EOF` check
+- `cmd/filename.go:18-19` — Propagate config errors as hard failures instead of logging warnings and falling through
+
+**Approach rationale:** The fix makes the smallest targeted changes: error discrimination in the search loop, strict YAML decoding, and proper error propagation. This preserves the existing fallback-to-defaults behavior when no config file exists while surfacing errors for files that exist but are invalid.
+
+**Alternatives considered:**
+- Adding a `--strict` flag to opt into validation — rejected because silent config errors should never be the default
+- Logging warnings instead of erroring — rejected because the ticket explicitly requests errors, and warnings are easy to miss in CI/agent contexts
 
 ## Regression Test
 
@@ -63,9 +72,9 @@ _To be filled after fix is implemented._
 ## Verification
 
 **Automated:**
-- [ ] Regression test passes
-- [ ] Full test suite passes
-- [ ] Linters/validators pass
+- [x] Regression test passes
+- [x] Full test suite passes
+- [x] Linters/validators pass
 
 **Manual verification:**
 - Create `.rune.yml` with invalid YAML, verify error message

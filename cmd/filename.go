@@ -16,11 +16,9 @@ func resolveFilename(args []string) (string, error) {
 	// Try git discovery if enabled
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		// Log warning but continue with manual file requirement
-		if verbose {
-			fmt.Printf("Warning: failed to load config: %v\n", err)
-		}
-	} else if cfg.Discovery.Enabled {
+		return "", fmt.Errorf("configuration error: %w", err)
+	}
+	if cfg.Discovery.Enabled {
 		if path, err := config.DiscoverFileFromBranch(cfg.Discovery.Template); err == nil {
 			return path, nil
 		} else if verbose {

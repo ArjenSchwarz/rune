@@ -1,7 +1,10 @@
 package config
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,9 +57,16 @@ func loadConfigUncached() (*Config, error) {
 	paths = append(paths, expandHome("~/.config/rune/config.yml"))
 
 	for _, path := range paths {
-		if cfg, err := loadConfigFile(path); err == nil {
+		cfg, err := loadConfigFile(path)
+		if err == nil {
 			return cfg, nil
 		}
+		// File not found is expected — try the next path in the search order.
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		// File exists but is invalid — surface the error immediately.
+		return nil, err
 	}
 
 	// Return default config if no file found
@@ -71,8 +81,15 @@ func loadConfigFile(path string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing config file %s: %w", path, err)
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&cfg); err != nil {
+		// Empty file — treat as zero-value config with defaults applied below
+		if errors.Is(err, io.EOF) {
+			cfg = Config{}
+		} else {
+			return nil, fmt.Errorf("parsing config file %s: %w", path, err)
+		}
 	}
 
 	// Apply defaults for missing values
