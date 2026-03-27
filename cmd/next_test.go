@@ -1795,9 +1795,10 @@ func TestNextCommandOneWithClaim(t *testing.T) {
 }
 
 // TestNextCommandOneWithClaimSkipsBlockedTasks verifies that --one --claim
-// does not select a blocked task. When the deepest task along the --one path
-// is blocked by an incomplete dependency, it must not be claimed.
-// Regression test for T-288.
+// does not claim a blocked task but falls back to the first ready task.
+// When the deepest task along the --one path is blocked, the command should
+// claim the first ready task from the flattened ready list instead.
+// Updated for T-615 (originally T-288).
 func TestNextCommandOneWithClaimSkipsBlockedTasks(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "rune-next-one-claim-blocked-test")
 	if err != nil {
@@ -1812,6 +1813,7 @@ func TestNextCommandOneWithClaimSkipsBlockedTasks(t *testing.T) {
 	// Task 1.1.1 is blocked by task 2 (which is pending/incomplete).
 	// The --one path would naturally traverse: 1 → 1.1 → 1.1.1
 	// But 1.1.1 is blocked, so it must NOT be claimed.
+	// Instead, the first ready task should be claimed (fallback).
 	content := `# Project Tasks
 
 - [ ] 1. Parent task <!-- id:abc1234 -->
@@ -1858,9 +1860,12 @@ func TestNextCommandOneWithClaimSkipsBlockedTasks(t *testing.T) {
 		t.Errorf("blocked task 1.1.1 should not be claimed, got: %s", cmdOutput)
 	}
 
-	// The command should report no claimable tasks on this path
-	if !strings.Contains(cmdOutput, `"claimed": []`) {
-		t.Errorf("expected empty claimed list, got: %s", cmdOutput)
+	// The command should claim a ready task (fallback from blocked --one path)
+	if strings.Contains(cmdOutput, `"claimed": []`) {
+		t.Errorf("expected a task to be claimed via fallback, got empty claimed list: %s", cmdOutput)
+	}
+	if !strings.Contains(cmdOutput, `"count": 1`) {
+		t.Errorf("expected exactly one task claimed, got: %s", cmdOutput)
 	}
 
 	// Verify the file was NOT updated to claim 1.1.1
@@ -2257,5 +2262,94 @@ func TestNextStreamClaimExcludesBlockedChildren(t *testing.T) {
 	}
 	if strings.Contains(fileStr, "[-] 1.1.") {
 		t.Errorf("blocked task 1.1 should still be pending in file, got: %s", fileStr)
+	}
+}
+
+// TestNextCommandOneWithClaimFallsBackToReadyTask is a regression test for T-615:
+// `next --claim --one` can report no claimable task despite ready tasks.
+// When the DFS path leads to a blocked leaf, the command should fall back
+// to claiming the first ready task from the flattened ready list.
+func TestNextCommandOneWithClaimFallsBackToReadyTask(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-one-claim-fallback-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	// Repro shape from T-615:
+	// - Task A (1.1) appears first in DFS order but is blocked by task 2
+	// - Task B (1.2) is pending, unblocked, and unowned (ready)
+	// - `rune next --claim agent --one` should claim task B
+	content := `# Project Tasks
+
+- [ ] 1. Parent task <!-- id:par0001 -->
+  - [ ] 1.1. Blocked first child <!-- id:chi0001 -->
+    - Blocked-by: blk0001 (Incomplete blocker)
+  - [ ] 1.2. Ready second child <!-- id:chi0002 -->
+- [ ] 2. Incomplete blocker <!-- id:blk0001 -->
+`
+
+	testFile := "test-one-claim-fallback.md"
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Reset flags
+	oneFlag = false
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", testFile, "--one", "--claim", "test-agent", "--format", "json"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	cmdOutput := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should NOT claim the blocked task 1.1
+	if strings.Contains(cmdOutput, `"id": "1.1"`) {
+		t.Errorf("blocked task 1.1 should not be claimed, got: %s", cmdOutput)
+	}
+
+	// Should claim exactly one task (fallback to first ready task)
+	if strings.Contains(cmdOutput, `"claimed": []`) {
+		t.Errorf("T-615 regression: expected a ready task to be claimed via fallback, got empty claimed list: %s", cmdOutput)
+	}
+	if !strings.Contains(cmdOutput, `"count": 1`) {
+		t.Errorf("expected exactly one task claimed, got: %s", cmdOutput)
+	}
+
+	// Verify the claimed task has correct owner
+	if !strings.Contains(cmdOutput, `"owner": "test-agent"`) {
+		t.Errorf("expected owner to be test-agent, got: %s", cmdOutput)
+	}
+
+	// Verify file was updated (some task was claimed)
+	fileContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("failed to read file after claim: %v", err)
+	}
+	fileStr := string(fileContent)
+
+	// Blocked task 1.1 should NOT be claimed
+	if strings.Contains(fileStr, "[-] 1.1.") {
+		t.Errorf("blocked task 1.1 should not be in-progress in file, got: %s", fileStr)
 	}
 }
