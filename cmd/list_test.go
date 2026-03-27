@@ -966,3 +966,180 @@ func TestFilterTasksRecursiveMatchesTableOutput(t *testing.T) {
 		})
 	}
 }
+
+// TestMarkdownOutputRespectsFilters verifies that markdown output applies the
+// same filter semantics as table and JSON output (T-579). Before the fix,
+// outputMarkdownWithPhases ignored filterOpts and rendered every task.
+func TestMarkdownOutputRespectsFilters(t *testing.T) {
+	tests := map[string]struct {
+		tasks      []task.Task
+		phases     []task.PhaseMarker
+		opts       listFilterOptions
+		wantTitles []string // titles that MUST appear
+		dropTitles []string // titles that MUST NOT appear
+	}{
+		"status filter excludes completed tasks": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Keep me", Status: task.Pending},
+				{ID: "2", Title: "Remove me", Status: task.Completed},
+			},
+			opts:       listFilterOptions{statusFilter: "pending"},
+			wantTitles: []string{"Keep me"},
+			dropTitles: []string{"Remove me"},
+		},
+		"stream filter excludes other streams": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Stream one", Status: task.Pending, Stream: 1},
+				{ID: "2", Title: "Stream two", Status: task.Pending, Stream: 2},
+			},
+			opts:       listFilterOptions{streamFilter: 2},
+			wantTitles: []string{"Stream two"},
+			dropTitles: []string{"Stream one"},
+		},
+		"owner filter excludes other owners": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Alice task", Status: task.Pending, Owner: "alice"},
+				{ID: "2", Title: "Bob task", Status: task.Pending, Owner: "bob"},
+			},
+			opts:       listFilterOptions{ownerFilter: "bob", ownerSet: true},
+			wantTitles: []string{"Bob task"},
+			dropTitles: []string{"Alice task"},
+		},
+		"no filters shows all tasks": {
+			tasks: []task.Task{
+				{ID: "1", Title: "First", Status: task.Pending},
+				{ID: "2", Title: "Second", Status: task.Completed},
+			},
+			opts:       listFilterOptions{},
+			wantTitles: []string{"First", "Second"},
+			dropTitles: nil,
+		},
+		"status filter with phases preserves phase headers": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Design", Status: task.Completed},
+				{ID: "2", Title: "Build", Status: task.Pending},
+				{ID: "3", Title: "Deploy", Status: task.Pending},
+			},
+			phases: []task.PhaseMarker{
+				{Name: "Planning", AfterTaskID: ""},
+				{Name: "Execution", AfterTaskID: "1"},
+			},
+			opts:       listFilterOptions{statusFilter: "pending"},
+			wantTitles: []string{"Build", "Deploy"},
+			dropTitles: []string{"Design"},
+		},
+		"combined status and stream filters": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Pending S1", Status: task.Pending, Stream: 1},
+				{ID: "2", Title: "Pending S2", Status: task.Pending, Stream: 2},
+				{ID: "3", Title: "Done S2", Status: task.Completed, Stream: 2},
+			},
+			opts:       listFilterOptions{statusFilter: "pending", streamFilter: 2},
+			wantTitles: []string{"Pending S2"},
+			dropTitles: []string{"Pending S1", "Done S2"},
+		},
+		"all tasks filtered out produces valid markdown": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Done one", Status: task.Completed},
+				{ID: "2", Title: "Done two", Status: task.Completed},
+			},
+			opts:       listFilterOptions{statusFilter: "pending"},
+			wantTitles: nil,
+			dropTitles: []string{"Done one", "Done two"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tl := &task.TaskList{
+				Title: "Markdown Filter Test",
+				Tasks: tc.tasks,
+			}
+
+			md := outputMarkdownWithFilters(tl, tc.phases, tc.opts)
+
+			for _, want := range tc.wantTitles {
+				if !strings.Contains(md, want) {
+					t.Errorf("expected markdown to contain %q, got:\n%s", want, md)
+				}
+			}
+			for _, drop := range tc.dropTitles {
+				if strings.Contains(md, drop) {
+					t.Errorf("expected markdown NOT to contain %q, got:\n%s", drop, md)
+				}
+			}
+		})
+	}
+}
+
+// TestMarkdownFilterMatchesJSONFilter verifies that the set of task IDs in
+// filtered markdown output matches the set in filtered JSON output (T-579).
+func TestMarkdownFilterMatchesJSONFilter(t *testing.T) {
+	tests := map[string]struct {
+		tasks  []task.Task
+		phases []task.PhaseMarker
+		opts   listFilterOptions
+	}{
+		"status filter": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Pending task", Status: task.Pending},
+				{ID: "2", Title: "Completed task", Status: task.Completed},
+				{ID: "3", Title: "In-progress task", Status: task.InProgress},
+			},
+			opts: listFilterOptions{statusFilter: "pending"},
+		},
+		"status filter with children": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Parent done", Status: task.Completed, Children: []task.Task{
+					{ID: "1.1", Title: "Child pending", Status: task.Pending},
+				}},
+				{ID: "2", Title: "Parent pending", Status: task.Pending},
+			},
+			opts: listFilterOptions{statusFilter: "pending"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tl := &task.TaskList{Title: "Cross-Format Test", Tasks: tc.tasks}
+
+			// Get filtered JSON task IDs
+			filteredTasks := filterTasksRecursive(tl.Tasks, tc.opts)
+			jsonIDs := collectIDs(filteredTasks)
+
+			// Get markdown output and extract task IDs from rendered lines
+			md := outputMarkdownWithFilters(tl, tc.phases, tc.opts)
+
+			for _, id := range jsonIDs {
+				// Each filtered task's title should appear in markdown
+				title := findTitleByID(tc.tasks, id)
+				if title != "" && !strings.Contains(md, title) {
+					t.Errorf("task %s (%q) in JSON output but missing from markdown", id, title)
+				}
+			}
+		})
+	}
+}
+
+// collectIDs returns all task IDs from a (possibly nested) task slice.
+func collectIDs(tasks []task.Task) []string {
+	var ids []string
+	for _, t := range tasks {
+		ids = append(ids, t.ID)
+		ids = append(ids, collectIDs(t.Children)...)
+	}
+	return ids
+}
+
+// findTitleByID searches tasks (recursively) for a task with the given ID.
+func findTitleByID(tasks []task.Task, id string) string {
+	for _, t := range tasks {
+		if t.ID == id {
+			return t.Title
+		}
+		if title := findTitleByID(t.Children, id); title != "" {
+			return title
+		}
+	}
+	return ""
+}
