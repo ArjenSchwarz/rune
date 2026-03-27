@@ -1548,14 +1548,11 @@ invalid_yaml_syntax: [unclosed_bracket`
 		}
 	})
 
-	// Test 5: Config validation
+	// Test 5: Config validation (only known fields allowed since KnownFields is enforced)
 	t.Run("config_validation", func(t *testing.T) {
 		validConfig := `discovery:
   enabled: true
-  template: "specs/{branch}/tasks.md"
-metadata:
-  project: "test-project"
-  author: "test-author"`
+  template: "specs/{branch}/tasks.md"`
 		if err := os.WriteFile(".rune.yml", []byte(validConfig), 0644); err != nil {
 			t.Fatalf("failed to create valid config: %v", err)
 		}

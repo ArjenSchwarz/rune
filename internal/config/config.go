@@ -62,6 +62,8 @@ func loadConfigUncached() (*Config, error) {
 			return cfg, nil
 		}
 		// File not found is expected — try the next path in the search order.
+		// errors.Is unwraps through the fmt.Errorf("%w") in loadConfigFile,
+		// so os.ErrNotExist is detectable even through the wrapping.
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -127,4 +129,9 @@ func resetConfigCache() {
 	configCache = nil
 	configOnce = sync.Once{}
 	configError = nil
+}
+
+// ResetConfigCache resets the configuration cache. Exported for cross-package testing.
+func ResetConfigCache() {
+	resetConfigCache()
 }

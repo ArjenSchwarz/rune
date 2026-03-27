@@ -260,11 +260,14 @@ func TestLoadConfigFromSubdirectory(t *testing.T) {
 
 	// Create a temp directory simulating a repo root
 	tempDir := t.TempDir()
-	originalDir, _ := os.Getwd()
-	defer func() {
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	t.Cleanup(func() {
 		os.Chdir(originalDir)
 		resetConfigCache()
-	}()
+	})
 
 	// Create .rune.yml at the "repo root" with a distinctive template
 	// that differs from the default, so we can prove it was actually loaded
@@ -308,12 +311,15 @@ discovery:
 // silently falling back to defaults. Regression test for T-556.
 func TestLoadConfigUncachedInvalidYAML(t *testing.T) {
 	resetConfigCache()
-	originalDir, _ := os.Getwd()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
 	tempDir := t.TempDir()
-	defer func() {
+	t.Cleanup(func() {
 		os.Chdir(originalDir)
 		resetConfigCache()
-	}()
+	})
 
 	// Initialize git repo so getRepoRoot works
 	cmd := exec.Command("git", "-C", tempDir, "init")
@@ -345,12 +351,15 @@ func TestLoadConfigUncachedInvalidYAML(t *testing.T) {
 // unknown fields, loadConfigUncached returns an error. Regression test for T-556.
 func TestLoadConfigUncachedUnknownFields(t *testing.T) {
 	resetConfigCache()
-	originalDir, _ := os.Getwd()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
 	tempDir := t.TempDir()
-	defer func() {
+	t.Cleanup(func() {
 		os.Chdir(originalDir)
 		resetConfigCache()
-	}()
+	})
 
 	cmd := exec.Command("git", "-C", tempDir, "init")
 	if err := cmd.Run(); err != nil {
@@ -446,12 +455,15 @@ discovery:
 // .rune.yml exists, defaults are still returned (not broken by T-556 fix).
 func TestLoadConfigUncachedMissingFileStillDefaults(t *testing.T) {
 	resetConfigCache()
-	originalDir, _ := os.Getwd()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
 	tempDir := t.TempDir()
-	defer func() {
+	t.Cleanup(func() {
 		os.Chdir(originalDir)
 		resetConfigCache()
-	}()
+	})
 
 	// Initialize git repo but do NOT create .rune.yml
 	cmd := exec.Command("git", "-C", tempDir, "init")
