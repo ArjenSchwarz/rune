@@ -303,6 +303,176 @@ discovery:
 	}
 }
 
+// TestLoadConfigUncachedInvalidYAML verifies that when .rune.yml exists but
+// contains invalid YAML, loadConfigUncached returns an error instead of
+// silently falling back to defaults. Regression test for T-556.
+func TestLoadConfigUncachedInvalidYAML(t *testing.T) {
+	resetConfigCache()
+	originalDir, _ := os.Getwd()
+	tempDir := t.TempDir()
+	defer func() {
+		os.Chdir(originalDir)
+		resetConfigCache()
+	}()
+
+	// Initialize git repo so getRepoRoot works
+	cmd := exec.Command("git", "-C", tempDir, "init")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to init git repo: %v", err)
+	}
+
+	// Write invalid YAML to .rune.yml
+	invalidYAML := `discovery:
+  enabled: not-a-boolean
+  template: [this is invalid
+`
+	if err := os.WriteFile(filepath.Join(tempDir, ".rune.yml"), []byte(invalidYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	os.Chdir(tempDir)
+
+	cfg, err := loadConfigUncached()
+	if err == nil {
+		t.Fatalf("expected error for invalid YAML, got config: %+v", cfg)
+	}
+	if !contains(err.Error(), "parsing config file") {
+		t.Errorf("error should mention parsing, got: %v", err)
+	}
+}
+
+// TestLoadConfigUncachedUnknownFields verifies that when .rune.yml contains
+// unknown fields, loadConfigUncached returns an error. Regression test for T-556.
+func TestLoadConfigUncachedUnknownFields(t *testing.T) {
+	resetConfigCache()
+	originalDir, _ := os.Getwd()
+	tempDir := t.TempDir()
+	defer func() {
+		os.Chdir(originalDir)
+		resetConfigCache()
+	}()
+
+	cmd := exec.Command("git", "-C", tempDir, "init")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to init git repo: %v", err)
+	}
+
+	// Write YAML with unknown field (typo in field name)
+	unknownFieldYAML := `discovry:
+  enabled: true
+  template: "tasks/{branch}.md"
+`
+	if err := os.WriteFile(filepath.Join(tempDir, ".rune.yml"), []byte(unknownFieldYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	os.Chdir(tempDir)
+
+	cfg, err := loadConfigUncached()
+	if err == nil {
+		t.Fatalf("expected error for unknown field 'discovry', got config: %+v", cfg)
+	}
+	if !contains(err.Error(), "parsing config file") {
+		t.Errorf("error should mention parsing, got: %v", err)
+	}
+}
+
+// TestLoadConfigFileUnknownFields verifies that loadConfigFile rejects
+// YAML with unknown fields. Regression test for T-556.
+func TestLoadConfigFileUnknownFields(t *testing.T) {
+	tests := map[string]struct {
+		content    string
+		wantErr    bool
+		wantErrMsg string
+	}{
+		"unknown top-level field": {
+			content: `unknown_key: true
+discovery:
+  enabled: true
+`,
+			wantErr:    true,
+			wantErrMsg: "parsing config file",
+		},
+		"unknown nested field": {
+			content: `discovery:
+  enabled: true
+  tempalte: "typo/{branch}.md"
+`,
+			wantErr:    true,
+			wantErrMsg: "parsing config file",
+		},
+		"valid fields still work": {
+			content: `discovery:
+  enabled: true
+  template: "tasks/{branch}.md"
+`,
+			wantErr: false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tmpfile, err := os.CreateTemp("", "config-*.yml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(tmpfile.Name())
+
+			if _, err := tmpfile.Write([]byte(tc.content)); err != nil {
+				t.Fatal(err)
+			}
+			if err := tmpfile.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = loadConfigFile(tmpfile.Name())
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				if tc.wantErrMsg != "" && !contains(err.Error(), tc.wantErrMsg) {
+					t.Errorf("error = %v, want error containing %q", err, tc.wantErrMsg)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// TestLoadConfigUncachedMissingFileStillDefaults verifies that when no
+// .rune.yml exists, defaults are still returned (not broken by T-556 fix).
+func TestLoadConfigUncachedMissingFileStillDefaults(t *testing.T) {
+	resetConfigCache()
+	originalDir, _ := os.Getwd()
+	tempDir := t.TempDir()
+	defer func() {
+		os.Chdir(originalDir)
+		resetConfigCache()
+	}()
+
+	// Initialize git repo but do NOT create .rune.yml
+	cmd := exec.Command("git", "-C", tempDir, "init")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to init git repo: %v", err)
+	}
+
+	os.Chdir(tempDir)
+
+	cfg, err := loadConfigUncached()
+	if err != nil {
+		t.Fatalf("expected default config, got error: %v", err)
+	}
+	if !cfg.Discovery.Enabled {
+		t.Error("default config should have Discovery.Enabled = true")
+	}
+	if cfg.Discovery.Template != "specs/{branch}/tasks.md" {
+		t.Errorf("default template = %q, want %q", cfg.Discovery.Template, "specs/{branch}/tasks.md")
+	}
+}
+
 // Helper function to check if string contains substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || (len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
