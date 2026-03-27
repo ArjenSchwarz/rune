@@ -10,7 +10,7 @@ When using `rune list --format markdown` with filter flags (`--status`, `--strea
 
 **Reproduction steps:**
 1. Create a task file with mixed statuses (pending + completed)
-2. Run: `rune list file.md --filter pending --format markdown`
+2. Run: `rune list file.md --status pending --format markdown`
 3. Observe: both pending and completed tasks appear in the output
 4. Expected: only pending tasks should appear (matching table/JSON behaviour)
 

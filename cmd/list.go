@@ -417,12 +417,9 @@ func outputMarkdownWithFilteredPhases(taskList *task.TaskList, phaseMarkers []ta
 func outputMarkdownWithFilters(taskList *task.TaskList, phaseMarkers []task.PhaseMarker, opts listFilterOptions) string {
 	filteredTasks := filterTasksRecursive(taskList.Tasks, opts)
 
-	filteredList := &task.TaskList{
-		Title:            taskList.Title,
-		Tasks:            filteredTasks,
-		FrontMatter:      taskList.FrontMatter,
-		RequirementsFile: taskList.RequirementsFile,
-	}
+	// Shallow-copy the list so new TaskList fields are inherited automatically.
+	filteredList := *taskList
+	filteredList.Tasks = filteredTasks
 
 	var buf strings.Builder
 
@@ -437,7 +434,7 @@ func outputMarkdownWithFilters(taskList *task.TaskList, phaseMarkers []task.Phas
 
 	// Render tasks with phases — pass original taskList as phase source
 	// so phase boundaries resolve correctly even if boundary tasks are filtered out
-	markdownOutput := task.RenderMarkdownWithPhases(filteredList, phaseMarkers)
+	markdownOutput := task.RenderMarkdownWithPhases(&filteredList, phaseMarkers)
 	buf.Write(markdownOutput)
 
 	return buf.String()

@@ -1038,6 +1038,15 @@ func TestMarkdownOutputRespectsFilters(t *testing.T) {
 			wantTitles: []string{"Pending S2"},
 			dropTitles: []string{"Pending S1", "Done S2"},
 		},
+		"all tasks filtered out produces valid markdown": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Done one", Status: task.Completed},
+				{ID: "2", Title: "Done two", Status: task.Completed},
+			},
+			opts:       listFilterOptions{statusFilter: "pending"},
+			wantTitles: nil,
+			dropTitles: []string{"Done one", "Done two"},
+		},
 	}
 
 	for name, tc := range tests {
