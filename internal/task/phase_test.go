@@ -1285,3 +1285,141 @@ func TestFindPhasePosition(t *testing.T) {
 		})
 	}
 }
+
+// TestGetTaskPhase_NonSequentialIDs verifies that getTaskPhase correctly
+// returns the phase for a task when markdown IDs are non-sequential.
+// Regression test for T-604.
+func TestGetTaskPhase_NonSequentialIDs(t *testing.T) {
+	tests := map[string]struct {
+		content   string
+		taskID    string
+		wantPhase string
+	}{
+		"non-sequential ID maps to correct phase": {
+			content: `## Phase A
+- [ ] 10. First task
+- [ ] 20. Second task
+
+## Phase B
+- [ ] 30. Third task
+`,
+			taskID:    "1",
+			wantPhase: "Phase A",
+		},
+		"second phase with non-sequential IDs": {
+			content: `## Phase A
+- [ ] 10. First task
+
+## Phase B
+- [ ] 20. Second task
+`,
+			taskID:    "2",
+			wantPhase: "Phase B",
+		},
+		"subtask inherits parent phase with non-sequential IDs": {
+			content: `## Phase A
+- [ ] 10. Parent task
+  - [ ] 10.1. Child task
+`,
+			taskID:    "1.1",
+			wantPhase: "Phase A",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			gotPhase := getTaskPhase(tc.taskID, []byte(tc.content))
+			if gotPhase != tc.wantPhase {
+				t.Errorf("getTaskPhase(%q) = %q, want %q", tc.taskID, gotPhase, tc.wantPhase)
+			}
+		})
+	}
+}
+
+// TestBuildTaskPhaseMap_NonSequentialIDs verifies that buildTaskPhaseMap
+// uses sequential parsed IDs as keys, not raw markdown IDs.
+// Regression test for T-604.
+func TestBuildTaskPhaseMap_NonSequentialIDs(t *testing.T) {
+	content := `## Phase A
+- [ ] 10. First task
+- [ ] 20. Second task
+
+## Phase B
+- [ ] 30. Third task
+`
+	lines := splitLines(content)
+	phaseMap := buildTaskPhaseMap(lines)
+
+	// Keys should be sequential parsed IDs, not raw markdown IDs
+	expected := map[string]string{
+		"1": "Phase A",
+		"2": "Phase A",
+		"3": "Phase B",
+	}
+
+	for id, wantPhase := range expected {
+		gotPhase, exists := phaseMap[id]
+		if !exists {
+			t.Errorf("buildTaskPhaseMap() missing key %q (should map to %q)", id, wantPhase)
+			continue
+		}
+		if gotPhase != wantPhase {
+			t.Errorf("buildTaskPhaseMap()[%q] = %q, want %q", id, gotPhase, wantPhase)
+		}
+	}
+
+	// Raw markdown IDs should NOT be in the map
+	for _, rawID := range []string{"10", "20", "30"} {
+		if _, exists := phaseMap[rawID]; exists {
+			t.Errorf("buildTaskPhaseMap() should not have raw ID %q as key", rawID)
+		}
+	}
+}
+
+// TestGetNextPhaseTasks_NonSequentialIDs verifies that getNextPhaseTasks
+// correctly returns tasks when markdown IDs are non-sequential.
+// Regression test for T-604.
+func TestGetNextPhaseTasks_NonSequentialIDs(t *testing.T) {
+	tests := map[string]struct {
+		content       string
+		wantPhase     string
+		wantTaskCount int
+	}{
+		"returns pending phase tasks with non-sequential IDs": {
+			content: `## Phase A
+- [ ] 10. First task
+- [ ] 20. Second task
+
+## Phase B
+- [ ] 30. Third task
+`,
+			wantPhase:     "Phase A",
+			wantTaskCount: 2,
+		},
+		"skips completed phase with non-sequential IDs": {
+			content: `## Phase A
+- [x] 10. Done task
+
+## Phase B
+- [ ] 20. Pending task
+`,
+			wantPhase:     "Phase B",
+			wantTaskCount: 1,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tasks, phaseName := getNextPhaseTasks([]byte(tc.content))
+
+			if phaseName != tc.wantPhase {
+				t.Errorf("getNextPhaseTasks() phase = %q, want %q", phaseName, tc.wantPhase)
+			}
+
+			if len(tasks) != tc.wantTaskCount {
+				t.Errorf("getNextPhaseTasks() returned %d tasks, want %d",
+					len(tasks), tc.wantTaskCount)
+			}
+		})
+	}
+}
