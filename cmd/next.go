@@ -218,19 +218,20 @@ func runNextWithClaim(filename string) error {
 		// Claim only the single next ready task
 		readyTasks := getReadyTasks(taskList.Tasks, index)
 		if len(readyTasks) > 0 {
-			// If --one flag is set, find the deepest incomplete task
-			// but only claim it if it is actually ready (not blocked)
 			if oneFlag {
-				// Find the next incomplete task with full context
+				// Try the deepest task along the --one DFS path first;
+				// fall back to the first ready task if the DFS leaf is blocked.
 				nextTask := task.FindNextIncompleteTask(taskList.Tasks)
 				if nextTask != nil {
-					// Apply --one filter to get single path
 					task.FilterToFirstIncompletePath(nextTask)
-					// Find the deepest task in the filtered path
 					deepestTask := findDeepestTask(nextTask)
 					if deepestTask != nil && isTaskReady(deepestTask, index) {
 						taskIDsToClaim = append(taskIDsToClaim, deepestTask.ID)
 					}
+				}
+				// Fallback: DFS leaf was nil or blocked — claim first ready task
+				if len(taskIDsToClaim) == 0 {
+					taskIDsToClaim = append(taskIDsToClaim, readyTasks[0].ID)
 				}
 			} else {
 				taskIDsToClaim = append(taskIDsToClaim, readyTasks[0].ID)
