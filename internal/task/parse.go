@@ -75,18 +75,18 @@ func ParseFileWithPhases(filepath string) (*TaskList, []PhaseMarker, error) {
 	taskList.FilePath = filepath
 
 	// Extract phase markers from the content, stripping front matter first
-	lines := stripFrontMatterLines(splitLines(string(content)))
+	lines := StripFrontMatterLines(splitLines(string(content)))
 
 	phaseMarkers := ExtractPhaseMarkers(lines)
 
 	return taskList, phaseMarkers, nil
 }
 
-// stripFrontMatterLines removes front matter lines from the beginning of a
+// StripFrontMatterLines removes front matter lines from the beginning of a
 // file's line array. Front matter is delimited by exactly two "---" lines at
 // the start of the file. Only the initial pair of delimiters is consumed;
 // any later "---" lines (horizontal rules) are preserved.
-func stripFrontMatterLines(lines []string) []string {
+func StripFrontMatterLines(lines []string) []string {
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != frontMatterDelimiter {
 		return lines
 	}
