@@ -222,7 +222,7 @@ func TestFrontMatterStrippingForPhaseExtraction(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			lines := stripFrontMatterLines(strings.Split(tc.rawContent, "\n"))
+			lines := StripFrontMatterLines(strings.Split(tc.rawContent, "\n"))
 			markers := ExtractPhaseMarkers(lines)
 
 			if !reflect.DeepEqual(markers, tc.wantPhases) {

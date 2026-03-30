@@ -92,6 +92,41 @@ func TestHasPhasesDetection(t *testing.T) {
 			wantCount:     0,
 			wantPhases:    []string{},
 		},
+		"front_matter_with_h2_no_real_phases": {
+			content: `---
+note: |
+  ## not-a-phase
+---
+- [ ] 1. Task`,
+			wantHasPhases: false,
+			wantCount:     0,
+			wantPhases:    []string{},
+		},
+		"front_matter_with_h2_and_real_phases": {
+			content: `---
+note: |
+  ## not-a-phase
+---
+# Tasks
+
+## Real Phase
+- [ ] 1. Task`,
+			wantHasPhases: true,
+			wantCount:     1,
+			wantPhases:    []string{"Real Phase"},
+		},
+		"front_matter_with_multiple_h2_lines": {
+			content: `---
+## heading-in-yaml
+## another-heading
+metadata:
+  key: value
+---
+- [ ] 1. Task`,
+			wantHasPhases: false,
+			wantCount:     0,
+			wantPhases:    []string{},
+		},
 		"file_with_special_characters_in_phase": {
 			content: `## Phase-1: Setup & Config
 - [ ] 1. Task`,
@@ -103,8 +138,8 @@ func TestHasPhasesDetection(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			// Test using ExtractPhaseMarkers directly
-			lines := strings.Split(tc.content, "\n")
+			// Test using StripFrontMatterLines + ExtractPhaseMarkers (matching command behavior)
+			lines := task.StripFrontMatterLines(strings.Split(tc.content, "\n"))
 			markers := task.ExtractPhaseMarkers(lines)
 
 			hasPhases := len(markers) > 0
@@ -179,7 +214,7 @@ func TestHasPhasesCommandOutput(t *testing.T) {
 			}
 
 			// Test the output structure
-			lines := strings.Split(tc.content, "\n")
+			lines := task.StripFrontMatterLines(strings.Split(tc.content, "\n"))
 			markers := task.ExtractPhaseMarkers(lines)
 
 			result := HasPhasesOutput{
@@ -254,7 +289,7 @@ func TestHasPhasesWithMalformedFile(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			lines := strings.Split(tc.content, "\n")
+			lines := task.StripFrontMatterLines(strings.Split(tc.content, "\n"))
 			markers := task.ExtractPhaseMarkers(lines)
 
 			hasPhases := len(markers) > 0
