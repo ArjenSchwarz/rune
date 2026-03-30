@@ -163,19 +163,13 @@ func (tl *TaskList) filterTasks(tasks []Task, filter QueryFilter, currentDepth i
 		}
 
 		if include {
-			// Create a copy of the task to avoid modifying the original.
+			// Copy the full task to preserve all metadata fields.
 			// Children are intentionally excluded: the recursive walk below
 			// evaluates each child independently, so carrying the original
 			// Children slice would leak non-matching descendants into the
 			// result.
-			resultTask := Task{
-				ID:         task.ID,
-				Title:      task.Title,
-				Status:     task.Status,
-				Details:    task.Details,
-				References: task.References,
-				ParentID:   task.ParentID,
-			}
+			resultTask := *task
+			resultTask.Children = nil
 			*results = append(*results, resultTask)
 		}
 

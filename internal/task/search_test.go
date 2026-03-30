@@ -367,6 +367,116 @@ func TestTaskList_Filter_ExcludesNonMatchingChildren(t *testing.T) {
 	}
 }
 
+// TestTaskList_Filter_PreservesExtendedMetadata is a regression test for T-630:
+// Filter must preserve all task metadata fields (StableID, Stream, BlockedBy,
+// Owner, Requirements) — not just the basic ID/Title/Status/Details/References/ParentID.
+func TestTaskList_Filter_PreservesExtendedMetadata(t *testing.T) {
+	tl := &TaskList{
+		Title:    "Metadata Test",
+		Modified: time.Now(),
+		Tasks: []Task{
+			{
+				ID:           "1",
+				Title:        "Task with full metadata",
+				Status:       InProgress,
+				Details:      []string{"some detail"},
+				References:   []string{"ref-1"},
+				Requirements: []string{"req-1", "req-2"},
+				StableID:     "stable-abc",
+				BlockedBy:    []string{"stable-xyz"},
+				Stream:       2,
+				Owner:        "agent-1",
+				Children: []Task{
+					{
+						ID:           "1.1",
+						Title:        "Child with metadata",
+						Status:       Pending,
+						ParentID:     "1",
+						Requirements: []string{"child-req"},
+						StableID:     "stable-child",
+						BlockedBy:    []string{"stable-abc"},
+						Stream:       3,
+						Owner:        "agent-2",
+					},
+				},
+			},
+			{
+				ID:       "2",
+				Title:    "Plain task",
+				Status:   Pending,
+				StableID: "stable-def",
+			},
+		},
+	}
+
+	// Filter all tasks (empty filter returns everything).
+	results := tl.Filter(QueryFilter{})
+
+	// Build a lookup by ID for easier assertions.
+	byID := make(map[string]Task, len(results))
+	for _, r := range results {
+		byID[r.ID] = r
+	}
+
+	// --- Task "1" assertions ---
+	t1, ok := byID["1"]
+	if !ok {
+		t.Fatal("expected task 1 in results")
+	}
+	if !reflect.DeepEqual(t1.Requirements, []string{"req-1", "req-2"}) {
+		t.Errorf("task 1 Requirements = %v, want [req-1 req-2]", t1.Requirements)
+	}
+	if t1.StableID != "stable-abc" {
+		t.Errorf("task 1 StableID = %q, want %q", t1.StableID, "stable-abc")
+	}
+	if !reflect.DeepEqual(t1.BlockedBy, []string{"stable-xyz"}) {
+		t.Errorf("task 1 BlockedBy = %v, want [stable-xyz]", t1.BlockedBy)
+	}
+	if t1.Stream != 2 {
+		t.Errorf("task 1 Stream = %d, want 2", t1.Stream)
+	}
+	if t1.Owner != "agent-1" {
+		t.Errorf("task 1 Owner = %q, want %q", t1.Owner, "agent-1")
+	}
+
+	// --- Task "1.1" assertions ---
+	t11, ok := byID["1.1"]
+	if !ok {
+		t.Fatal("expected task 1.1 in results")
+	}
+	if !reflect.DeepEqual(t11.Requirements, []string{"child-req"}) {
+		t.Errorf("task 1.1 Requirements = %v, want [child-req]", t11.Requirements)
+	}
+	if t11.StableID != "stable-child" {
+		t.Errorf("task 1.1 StableID = %q, want %q", t11.StableID, "stable-child")
+	}
+	if !reflect.DeepEqual(t11.BlockedBy, []string{"stable-abc"}) {
+		t.Errorf("task 1.1 BlockedBy = %v, want [stable-abc]", t11.BlockedBy)
+	}
+	if t11.Stream != 3 {
+		t.Errorf("task 1.1 Stream = %d, want 3", t11.Stream)
+	}
+	if t11.Owner != "agent-2" {
+		t.Errorf("task 1.1 Owner = %q, want %q", t11.Owner, "agent-2")
+	}
+
+	// --- Task "2" assertions (minimal metadata) ---
+	t2, ok := byID["2"]
+	if !ok {
+		t.Fatal("expected task 2 in results")
+	}
+	if t2.StableID != "stable-def" {
+		t.Errorf("task 2 StableID = %q, want %q", t2.StableID, "stable-def")
+	}
+
+	// --- Children must still be excluded ---
+	for _, r := range results {
+		if len(r.Children) != 0 {
+			t.Errorf("task %s should have no Children in filter results, got %d", r.ID, len(r.Children))
+		}
+	}
+}
+
 func TestTaskList_FindTask(t *testing.T) {
 	tl := &TaskList{
 		Title: "Test",
