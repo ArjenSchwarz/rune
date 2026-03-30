@@ -1305,3 +1305,88 @@ func collectParentIDs(tasks []task.Task) map[string]string {
 	}
 	return result
 }
+
+// TestValidateStatusFilter verifies that invalid --filter values are rejected
+// with a clear error instead of being silently treated as match-all (T-638).
+func TestValidateStatusFilter(t *testing.T) {
+	tests := map[string]struct {
+		filter  string
+		wantErr bool
+	}{
+		"empty string is valid":             {filter: "", wantErr: false},
+		"pending is valid":                  {filter: "pending", wantErr: false},
+		"in-progress is valid":              {filter: "in-progress", wantErr: false},
+		"inprogress is valid":               {filter: "inprogress", wantErr: false},
+		"completed is valid":                {filter: "completed", wantErr: false},
+		"typo complete is invalid":          {filter: "complete", wantErr: true},
+		"typo pend is invalid":              {filter: "pend", wantErr: true},
+		"nonsense is invalid":               {filter: "nonsense", wantErr: true},
+		"done is invalid":                   {filter: "done", wantErr: true},
+		"PENDING uppercase is invalid":      {filter: "PENDING", wantErr: true},
+		"in_progress underscore is invalid": {filter: "in_progress", wantErr: true},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateStatusFilter(tc.filter)
+			if tc.wantErr && err == nil {
+				t.Errorf("validateStatusFilter(%q) should have returned an error", tc.filter)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("validateStatusFilter(%q) returned unexpected error: %v", tc.filter, err)
+			}
+		})
+	}
+}
+
+// TestMatchesStatusFilterRejectsUnknown verifies that matchesStatusFilter
+// returns false for unrecognised values (T-638). Before the fix, the default
+// case returned true, silently treating invalid filters as match-all.
+func TestMatchesStatusFilterRejectsUnknown(t *testing.T) {
+	statuses := []task.Status{task.Pending, task.InProgress, task.Completed}
+	invalidFilters := []string{"complete", "nonsense", "done", "PENDING"}
+
+	for _, filter := range invalidFilters {
+		for _, status := range statuses {
+			if matchesStatusFilter(status, filter) {
+				t.Errorf("matchesStatusFilter(%v, %q) = true, want false", status, filter)
+			}
+		}
+	}
+}
+
+// TestListInvalidFilterReturnsError exercises the full runList path with an
+// invalid --filter value to ensure it produces an error (T-638).
+func TestListInvalidFilterReturnsError(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-invalid-filter-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	tl := task.NewTaskList("Filter Validation Test")
+	tl.AddTask("", "Task one", "")
+	testFile := "filter-validation.md"
+	if err := tl.WriteFile(testFile); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Save and restore global flag state
+	oldFilter := listFilter
+	defer func() { listFilter = oldFilter }()
+
+	listFilter = "bogus"
+	cmd := listCmd
+	cmd.SetArgs([]string{testFile})
+	err = cmd.RunE(cmd, []string{testFile})
+	if err == nil {
+		t.Error("expected error for invalid --filter value 'bogus', got nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "invalid status filter") {
+		t.Errorf("error should mention 'invalid status filter', got: %v", err)
+	}
+}

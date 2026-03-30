@@ -67,6 +67,11 @@ func init() {
 }
 
 func runFind(cmd *cobra.Command, args []string) error {
+	// Validate status filter before doing any work
+	if err := validateStatusFilter(statusFilter); err != nil {
+		return err
+	}
+
 	// Resolve filename using git discovery if needed
 	filename, err := resolveFilename(args)
 	if err != nil {

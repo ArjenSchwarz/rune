@@ -58,6 +58,11 @@ func init() {
 }
 
 func runList(cmd *cobra.Command, args []string) error {
+	// Validate status filter before doing any work
+	if err := validateStatusFilter(listFilter); err != nil {
+		return err
+	}
+
 	// Resolve filename using git discovery if needed
 	filename, err := resolveFilename(args)
 	if err != nil {
@@ -160,6 +165,24 @@ func flattenTasks(tasks []task.Task, statusFilter string) []map[string]any {
 	return result
 }
 
+// validStatusFilters lists all accepted values for the --filter / --status flag.
+var validStatusFilters = []string{"pending", "in-progress", "inprogress", "completed"}
+
+// validateStatusFilter returns an error if filter is non-empty and not a
+// recognised status value. Call this early to reject typos instead of silently
+// treating them as match-all.
+func validateStatusFilter(filter string) error {
+	if filter == "" {
+		return nil
+	}
+	for _, v := range validStatusFilters {
+		if filter == v {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid status filter %q: must be one of: pending, in-progress, completed", filter)
+}
+
 func matchesStatusFilter(status task.Status, filter string) bool {
 	switch filter {
 	case "pending":
@@ -169,7 +192,7 @@ func matchesStatusFilter(status task.Status, filter string) bool {
 	case "completed":
 		return status == task.Completed
 	default:
-		return true
+		return false
 	}
 }
 

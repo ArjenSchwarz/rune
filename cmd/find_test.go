@@ -719,3 +719,40 @@ func TestFindFilteredJSONOutputNoStaleParentIDs(t *testing.T) {
 		}
 	}
 }
+
+// TestFindInvalidStatusFilterReturnsError verifies that runFind rejects invalid
+// --status values with a clear error instead of silently matching all (T-638).
+func TestFindInvalidStatusFilterReturnsError(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-find-invalid-status-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	tl := task.NewTaskList("Find Status Validation")
+	tl.AddTask("", "Setup environment", "")
+	tl.AddTask("", "Run tests", "")
+	testFile := "find-status-validation.md"
+	if err := tl.WriteFile(testFile); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	// Save and restore global flag state
+	oldStatus := statusFilter
+	defer func() { statusFilter = oldStatus }()
+
+	statusFilter = "bogus"
+	cmd := findCmd
+	cmd.SetArgs([]string{testFile, "--pattern", "Setup"})
+	err = cmd.RunE(cmd, []string{testFile})
+	if err == nil {
+		t.Error("expected error for invalid --status value 'bogus', got nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "invalid status filter") {
+		t.Errorf("error should mention 'invalid status filter', got: %v", err)
+	}
+}
