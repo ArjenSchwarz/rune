@@ -180,7 +180,7 @@ func validateStatusFilter(filter string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid status filter %q: must be one of: pending, in-progress, completed", filter)
+	return fmt.Errorf("invalid status filter %q: must be one of: %s", filter, strings.Join(validStatusFilters, ", "))
 }
 
 func matchesStatusFilter(status task.Status, filter string) bool {
