@@ -571,6 +571,179 @@ func TestTaskList_FindTask(t *testing.T) {
 	}
 }
 
+// TestTaskList_Find_ChildrenStripped verifies that Find results never carry
+// nested Children, preventing JSON leaks of non-matching descendants and
+// duplicate entries (regression tests for T-629).
+func TestTaskList_Find_ChildrenStripped(t *testing.T) {
+	tests := map[string]struct {
+		tasks   []Task
+		pattern string
+		opts    QueryOptions
+		wantIDs []string
+	}{
+		"excludes_non_matching_children": {
+			tasks: []Task{
+				{
+					ID: "1", Title: "Parent matches search", Status: Pending,
+					Children: []Task{
+						{ID: "1.1", Title: "Non-matching child", Status: Pending, ParentID: "1",
+							Children: []Task{
+								{ID: "1.1.1", Title: "Non-matching grandchild", Status: Pending, ParentID: "1.1"},
+							}},
+					},
+				},
+				{
+					ID: "2", Title: "Another parent matches search", Status: Pending,
+					Children: []Task{
+						{ID: "2.1", Title: "Child also matches search", Status: Pending, ParentID: "2",
+							Children: []Task{
+								{ID: "2.1.1", Title: "Non-matching grandchild under matching child", Status: Pending, ParentID: "2.1"},
+							}},
+					},
+				},
+			},
+			pattern: "matches search",
+			opts:    QueryOptions{},
+			wantIDs: []string{"1", "2", "2.1"},
+		},
+		"no_duplicate_when_child_also_matches": {
+			tasks: []Task{
+				{
+					ID: "1", Title: "Parent matches keyword", Status: Pending,
+					Children: []Task{
+						{ID: "1.1", Title: "Child also matches keyword", Status: Pending, ParentID: "1"},
+					},
+				},
+			},
+			pattern: "matches keyword",
+			opts:    QueryOptions{},
+			wantIDs: []string{"1", "1.1"},
+		},
+		"include_parent_excludes_children": {
+			tasks: []Task{
+				{
+					ID: "1", Title: "Parent task", Status: Pending,
+					Children: []Task{
+						{ID: "1.1", Title: "Child matches target", Status: Pending, ParentID: "1",
+							Children: []Task{
+								{ID: "1.1.1", Title: "Grandchild does not match", Status: Pending, ParentID: "1.1"},
+							}},
+					},
+				},
+			},
+			pattern: "target",
+			opts:    QueryOptions{IncludeParent: true},
+			wantIDs: []string{"1", "1.1"},
+		},
+		"preserves_all_non_children_fields": {
+			tasks: []Task{
+				{
+					ID: "1", Title: "Task matches keyword", Status: InProgress,
+					Details: []string{"Some detail"}, References: []string{"ref.md"},
+					Requirements: []string{"req-1"}, StableID: "stable-1",
+					BlockedBy: []string{"dep-1"}, Stream: 2, Owner: "alice",
+					Children: []Task{
+						{ID: "1.1", Title: "Non-matching child", Status: Pending, ParentID: "1"},
+					},
+				},
+			},
+			pattern: "keyword",
+			opts:    QueryOptions{},
+			wantIDs: []string{"1"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tl := &TaskList{Title: "Test", Modified: time.Now(), Tasks: tc.tasks}
+			results := tl.Find(tc.pattern, tc.opts)
+
+			gotIDs := extractTaskIDs(results)
+			if !reflect.DeepEqual(gotIDs, tc.wantIDs) {
+				t.Fatalf("Find() returned IDs = %v, want %v", gotIDs, tc.wantIDs)
+			}
+
+			for _, task := range results {
+				if len(task.Children) != 0 {
+					childIDs := extractTaskIDs(task.Children)
+					t.Errorf("Find() result task %s has Children %v, want empty", task.ID, childIDs)
+				}
+			}
+		})
+	}
+
+	// Extra field-preservation checks for the "preserves_all_non_children_fields" case.
+	tl := &TaskList{Title: "Test", Modified: time.Now(), Tasks: tests["preserves_all_non_children_fields"].tasks}
+	got := tl.Find("keyword", QueryOptions{})[0]
+	if !reflect.DeepEqual(got.Details, []string{"Some detail"}) {
+		t.Errorf("Find() Details = %v, want [Some detail]", got.Details)
+	}
+	if !reflect.DeepEqual(got.References, []string{"ref.md"}) {
+		t.Errorf("Find() References = %v, want [ref.md]", got.References)
+	}
+	if !reflect.DeepEqual(got.Requirements, []string{"req-1"}) {
+		t.Errorf("Find() Requirements = %v, want [req-1]", got.Requirements)
+	}
+	if got.StableID != "stable-1" {
+		t.Errorf("Find() StableID = %q, want %q", got.StableID, "stable-1")
+	}
+	if !reflect.DeepEqual(got.BlockedBy, []string{"dep-1"}) {
+		t.Errorf("Find() BlockedBy = %v, want [dep-1]", got.BlockedBy)
+	}
+	if got.Stream != 2 {
+		t.Errorf("Find() Stream = %d, want 2", got.Stream)
+	}
+	if got.Owner != "alice" {
+		t.Errorf("Find() Owner = %q, want %q", got.Owner, "alice")
+	}
+}
+
+// TestTaskList_Filter_PreservesAllFields verifies that Filter results retain
+// all task fields (not just the subset from the original struct-literal copy).
+func TestTaskList_Filter_PreservesAllFields(t *testing.T) {
+	tl := &TaskList{
+		Title:    "Test Project",
+		Modified: time.Now(),
+		Tasks: []Task{
+			{
+				ID: "1", Title: "Task one", Status: InProgress,
+				Details: []string{"detail"}, References: []string{"ref.md"},
+				Requirements: []string{"req-1"}, StableID: "stable-1",
+				BlockedBy: []string{"dep-1"}, Stream: 3, Owner: "bob",
+				Children: []Task{
+					{ID: "1.1", Title: "Child", Status: Pending, ParentID: "1"},
+				},
+			},
+		},
+	}
+
+	inProgress := InProgress
+	results := tl.Filter(QueryFilter{Status: &inProgress})
+	if len(results) != 1 {
+		t.Fatalf("Filter() returned %d results, want 1", len(results))
+	}
+
+	got := results[0]
+	if !reflect.DeepEqual(got.Requirements, []string{"req-1"}) {
+		t.Errorf("Filter() Requirements = %v, want [req-1]", got.Requirements)
+	}
+	if got.StableID != "stable-1" {
+		t.Errorf("Filter() StableID = %q, want %q", got.StableID, "stable-1")
+	}
+	if !reflect.DeepEqual(got.BlockedBy, []string{"dep-1"}) {
+		t.Errorf("Filter() BlockedBy = %v, want [dep-1]", got.BlockedBy)
+	}
+	if got.Stream != 3 {
+		t.Errorf("Filter() Stream = %d, want 3", got.Stream)
+	}
+	if got.Owner != "bob" {
+		t.Errorf("Filter() Owner = %q, want %q", got.Owner, "bob")
+	}
+	if len(got.Children) != 0 {
+		t.Errorf("Filter() Children should be empty, got %v", got.Children)
+	}
+}
+
 func TestGetTaskDepth(t *testing.T) {
 	tests := map[string]struct {
 		taskID string
