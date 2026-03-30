@@ -207,6 +207,24 @@ func runNextWithClaim(filename string) error {
 				taskIDsToClaim = append(taskIDsToClaim, t.ID)
 			}
 		}
+	case phaseFlag:
+		// Handle --phase --claim combination (no stream)
+		phaseResult, err := task.FindNextPhaseTasks(filename)
+		if err != nil {
+			return fmt.Errorf("failed to find next phase tasks: %w", err)
+		}
+
+		if phaseResult == nil {
+			return outputClaimEmpty(0)
+		}
+
+		// Filter to only ready tasks (pending, no owner, not blocked)
+		for i := range phaseResult.Tasks {
+			t := &phaseResult.Tasks[i]
+			if isTaskReady(t, index) {
+				taskIDsToClaim = append(taskIDsToClaim, t.ID)
+			}
+		}
 	case streamFlag > 0:
 		// Claim all ready tasks in the specified stream (flat — readyTasks is already flattened)
 		readyTasks := getReadyTasks(taskList.Tasks, index)

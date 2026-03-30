@@ -2363,3 +2363,170 @@ func TestNextCommandOneWithClaimFallsBackToReadyTask(t *testing.T) {
 		t.Errorf("expected task 1.2 to be in-progress in file, got: %s", fileStr)
 	}
 }
+
+// TestNextCommandPhaseClaimClaimsAllReadyTasksInPhase verifies that
+// --phase --claim claims ALL ready tasks from the next phase, not just one.
+// Regression test for T-637.
+func TestNextCommandPhaseClaimClaimsAllReadyTasksInPhase(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-phase-claim-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	// Reset flags
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+	oneFlag = false
+
+	const taskFile = "phase-claim.md"
+	content := `# Project Tasks
+
+## Phase 1
+- [ ] 1. First ready task
+- [ ] 2. Second ready task
+- [ ] 3. Third ready task
+
+## Phase 2
+- [ ] 4. Later phase task
+`
+
+	if err := os.WriteFile(taskFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", taskFile, "--phase", "--claim", "agent-a", "--format", "json"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should claim all 3 ready tasks from Phase 1, not just the first one
+	if !strings.Contains(output, `"count": 3`) {
+		t.Errorf("expected 3 tasks claimed from phase, got: %s", output)
+	}
+	if !strings.Contains(output, `"id": "1"`) {
+		t.Errorf("expected task 1 in output, got: %s", output)
+	}
+	if !strings.Contains(output, `"id": "2"`) {
+		t.Errorf("expected task 2 in output, got: %s", output)
+	}
+	if !strings.Contains(output, `"id": "3"`) {
+		t.Errorf("expected task 3 in output, got: %s", output)
+	}
+	// Task from Phase 2 should NOT be claimed
+	if strings.Contains(output, `"id": "4"`) {
+		t.Errorf("task 4 from Phase 2 should not be claimed, got: %s", output)
+	}
+
+	// Verify file was updated — all Phase 1 tasks should be in-progress with owner
+	fileContent, err := os.ReadFile(taskFile)
+	if err != nil {
+		t.Fatalf("failed to read file after claim: %v", err)
+	}
+	fileStr := string(fileContent)
+
+	if !strings.Contains(fileStr, "[-] 1.") {
+		t.Errorf("expected task 1 to be in-progress in file, got: %s", fileStr)
+	}
+	if !strings.Contains(fileStr, "[-] 2.") {
+		t.Errorf("expected task 2 to be in-progress in file, got: %s", fileStr)
+	}
+	if !strings.Contains(fileStr, "[-] 3.") {
+		t.Errorf("expected task 3 to be in-progress in file, got: %s", fileStr)
+	}
+	// Phase 2 task should remain pending
+	if strings.Contains(fileStr, "[-] 4.") {
+		t.Errorf("task 4 from Phase 2 should remain pending, got: %s", fileStr)
+	}
+}
+
+// TestNextCommandPhaseClaimExcludesBlockedTasks verifies that
+// --phase --claim skips blocked tasks within the phase.
+// Regression test for T-637.
+func TestNextCommandPhaseClaimExcludesBlockedTasks(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-phase-claim-blocked-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	// Reset flags
+	streamFlag = 0
+	claimFlag = ""
+	phaseFlag = false
+	oneFlag = false
+
+	const taskFile = "phase-claim-blocked.md"
+	content := `# Project Tasks
+
+## Phase 1
+- [ ] 1. Ready task A <!-- id:aaa0001 -->
+- [ ] 2. Ready task B <!-- id:bbb0002 -->
+- [ ] 3. Blocked task <!-- id:ccc0003 -->
+  - Blocked-by: aaa0001 (Ready task A)
+
+## Phase 2
+- [ ] 4. Later phase task
+`
+
+	if err := os.WriteFile(taskFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	var buf bytes.Buffer
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	rootCmd.SetArgs([]string{"next", taskFile, "--phase", "--claim", "agent-b", "--format", "json"})
+	err = rootCmd.Execute()
+
+	w.Close()
+	os.Stdout = oldStdout
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	rootCmd.SetArgs([]string{})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should claim only the 2 ready (non-blocked) tasks from Phase 1
+	if !strings.Contains(output, `"count": 2`) {
+		t.Errorf("expected 2 tasks claimed (excluding blocked), got: %s", output)
+	}
+	if !strings.Contains(output, `"id": "1"`) {
+		t.Errorf("expected task 1 in output, got: %s", output)
+	}
+	if !strings.Contains(output, `"id": "2"`) {
+		t.Errorf("expected task 2 in output, got: %s", output)
+	}
+	// Blocked task 3 should NOT be claimed
+	if strings.Contains(output, `"id": "3"`) {
+		t.Errorf("blocked task 3 should not be claimed, got: %s", output)
+	}
+}
