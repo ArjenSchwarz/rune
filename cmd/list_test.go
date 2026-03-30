@@ -1355,7 +1355,7 @@ func TestMatchesStatusFilterRejectsUnknown(t *testing.T) {
 	}
 }
 
-// TestListInvalidFilterReturnsError exercises the full runList path with an
+// TestListInvalidFilterReturnsError exercises the full CLI path with an
 // invalid --filter value to ensure it produces an error (T-638).
 func TestListInvalidFilterReturnsError(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "rune-invalid-filter-test")
@@ -1364,8 +1364,13 @@ func TestListInvalidFilterReturnsError(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	oldDir, _ := os.Getwd()
-	os.Chdir(tempDir)
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
 	defer os.Chdir(oldDir)
 
 	tl := task.NewTaskList("Filter Validation Test")
@@ -1375,14 +1380,9 @@ func TestListInvalidFilterReturnsError(t *testing.T) {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
-	// Save and restore global flag state
-	oldFilter := listFilter
-	defer func() { listFilter = oldFilter }()
-
-	listFilter = "bogus"
-	cmd := listCmd
-	cmd.SetArgs([]string{testFile})
-	err = cmd.RunE(cmd, []string{testFile})
+	rootCmd.SetArgs([]string{"list", testFile, "--filter", "bogus"})
+	err = rootCmd.Execute()
+	rootCmd.SetArgs([]string{})
 	if err == nil {
 		t.Error("expected error for invalid --filter value 'bogus', got nil")
 	}

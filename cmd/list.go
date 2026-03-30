@@ -165,7 +165,11 @@ func flattenTasks(tasks []task.Task, statusFilter string) []map[string]any {
 	return result
 }
 
-// validStatusFilters lists all accepted values for the --filter / --status flag.
+// canonicalStatusValues are the documented status values shown in help and error messages.
+var canonicalStatusValues = []string{"pending", "in-progress", "completed"}
+
+// validStatusFilters lists all accepted values for the --filter / --status flag,
+// including convenience aliases like "inprogress".
 var validStatusFilters = []string{"pending", "in-progress", "inprogress", "completed"}
 
 // validateStatusFilter returns an error if filter is non-empty and not a
@@ -180,7 +184,7 @@ func validateStatusFilter(filter string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid status filter %q: must be one of: %s", filter, strings.Join(validStatusFilters, ", "))
+	return fmt.Errorf("invalid status filter %q: must be one of: %s", filter, strings.Join(canonicalStatusValues, ", "))
 }
 
 func matchesStatusFilter(status task.Status, filter string) bool {

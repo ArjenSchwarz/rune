@@ -729,8 +729,13 @@ func TestFindInvalidStatusFilterReturnsError(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	oldDir, _ := os.Getwd()
-	os.Chdir(tempDir)
+	oldDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
 	defer os.Chdir(oldDir)
 
 	tl := task.NewTaskList("Find Status Validation")
@@ -741,14 +746,9 @@ func TestFindInvalidStatusFilterReturnsError(t *testing.T) {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
-	// Save and restore global flag state
-	oldStatus := statusFilter
-	defer func() { statusFilter = oldStatus }()
-
-	statusFilter = "bogus"
-	cmd := findCmd
-	cmd.SetArgs([]string{testFile, "--pattern", "Setup"})
-	err = cmd.RunE(cmd, []string{testFile})
+	rootCmd.SetArgs([]string{"find", testFile, "--pattern", "Setup", "--status", "bogus"})
+	err = rootCmd.Execute()
+	rootCmd.SetArgs([]string{})
 	if err == nil {
 		t.Error("expected error for invalid --status value 'bogus', got nil")
 	}
