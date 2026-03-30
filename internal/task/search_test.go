@@ -571,6 +571,227 @@ func TestTaskList_FindTask(t *testing.T) {
 	}
 }
 
+func TestTaskList_Find_ExcludesNonMatchingChildren(t *testing.T) {
+	tl := &TaskList{
+		Title:    "Test Project",
+		Modified: time.Now(),
+		Tasks: []Task{
+			{
+				ID:     "1",
+				Title:  "Parent matches search",
+				Status: Pending,
+				Children: []Task{
+					{
+						ID:       "1.1",
+						Title:    "Non-matching child",
+						Status:   Pending,
+						ParentID: "1",
+						Children: []Task{
+							{
+								ID:       "1.1.1",
+								Title:    "Non-matching grandchild",
+								Status:   Pending,
+								ParentID: "1.1",
+							},
+						},
+					},
+				},
+			},
+			{
+				ID:     "2",
+				Title:  "Another parent matches search",
+				Status: Pending,
+				Children: []Task{
+					{
+						ID:       "2.1",
+						Title:    "Child also matches search",
+						Status:   Pending,
+						ParentID: "2",
+						Children: []Task{
+							{
+								ID:       "2.1.1",
+								Title:    "Non-matching grandchild under matching child",
+								Status:   Pending,
+								ParentID: "2.1",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	results := tl.Find("matches search", QueryOptions{})
+
+	// Should match: 1, 2, 2.1
+	gotIDs := extractTaskIDs(results)
+	wantIDs := []string{"1", "2", "2.1"}
+	if !reflect.DeepEqual(gotIDs, wantIDs) {
+		t.Fatalf("Find() returned IDs = %v, want %v", gotIDs, wantIDs)
+	}
+
+	// Each result must have empty Children — non-matching descendants
+	// must not leak through (regression for T-629).
+	for _, task := range results {
+		if len(task.Children) != 0 {
+			childIDs := extractTaskIDs(task.Children)
+			t.Errorf("Find() result task %s has Children %v, want empty (non-matching descendants leaked)", task.ID, childIDs)
+		}
+	}
+}
+
+func TestTaskList_Find_NoDuplicateWhenChildAlsoMatches(t *testing.T) {
+	tl := &TaskList{
+		Title:    "Test Project",
+		Modified: time.Now(),
+		Tasks: []Task{
+			{
+				ID:     "1",
+				Title:  "Parent matches keyword",
+				Status: Pending,
+				Children: []Task{
+					{
+						ID:       "1.1",
+						Title:    "Child also matches keyword",
+						Status:   Pending,
+						ParentID: "1",
+					},
+				},
+			},
+		},
+	}
+
+	results := tl.Find("matches keyword", QueryOptions{})
+
+	gotIDs := extractTaskIDs(results)
+	wantIDs := []string{"1", "1.1"}
+	if !reflect.DeepEqual(gotIDs, wantIDs) {
+		t.Fatalf("Find() returned IDs = %v, want %v", gotIDs, wantIDs)
+	}
+
+	// When both parent and child match, the child must NOT appear as a
+	// nested child under the parent AND again as a flat top-level result.
+	// The result list should be flat with no nested children.
+	for _, task := range results {
+		if len(task.Children) != 0 {
+			childIDs := extractTaskIDs(task.Children)
+			t.Errorf("Find() result task %s has Children %v, want empty (child duplicated as both nested and flat entry)", task.ID, childIDs)
+		}
+	}
+}
+
+func TestTaskList_Find_IncludeParent_ExcludesChildren(t *testing.T) {
+	tl := &TaskList{
+		Title:    "Test Project",
+		Modified: time.Now(),
+		Tasks: []Task{
+			{
+				ID:     "1",
+				Title:  "Parent task",
+				Status: Pending,
+				Children: []Task{
+					{
+						ID:       "1.1",
+						Title:    "Child matches target",
+						Status:   Pending,
+						ParentID: "1",
+						Children: []Task{
+							{
+								ID:       "1.1.1",
+								Title:    "Grandchild does not match",
+								Status:   Pending,
+								ParentID: "1.1",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	results := tl.Find("target", QueryOptions{IncludeParent: true})
+
+	gotIDs := extractTaskIDs(results)
+	wantIDs := []string{"1", "1.1"}
+	if !reflect.DeepEqual(gotIDs, wantIDs) {
+		t.Fatalf("Find() returned IDs = %v, want %v", gotIDs, wantIDs)
+	}
+
+	// Inserted parent tasks must also have empty Children — the parent
+	// inserted by IncludeParent must not carry its original Children.
+	for _, task := range results {
+		if len(task.Children) != 0 {
+			childIDs := extractTaskIDs(task.Children)
+			t.Errorf("Find() result task %s has Children %v, want empty", task.ID, childIDs)
+		}
+	}
+}
+
+func TestTaskList_Find_PreservesAllFields(t *testing.T) {
+	tl := &TaskList{
+		Title:    "Test Project",
+		Modified: time.Now(),
+		Tasks: []Task{
+			{
+				ID:           "1",
+				Title:        "Task matches keyword",
+				Status:       InProgress,
+				Details:      []string{"Some detail"},
+				References:   []string{"ref.md"},
+				Requirements: []string{"req-1"},
+				ParentID:     "",
+				StableID:     "stable-1",
+				BlockedBy:    []string{"dep-1"},
+				Stream:       2,
+				Owner:        "alice",
+				Children: []Task{
+					{
+						ID:       "1.1",
+						Title:    "Non-matching child",
+						Status:   Pending,
+						ParentID: "1",
+					},
+				},
+			},
+		},
+	}
+
+	results := tl.Find("keyword", QueryOptions{})
+	if len(results) != 1 {
+		t.Fatalf("Find() returned %d results, want 1", len(results))
+	}
+
+	got := results[0]
+	if got.ID != "1" || got.Title != "Task matches keyword" || got.Status != InProgress {
+		t.Errorf("Find() basic fields mismatch: %+v", got)
+	}
+	if !reflect.DeepEqual(got.Details, []string{"Some detail"}) {
+		t.Errorf("Find() Details = %v, want [Some detail]", got.Details)
+	}
+	if !reflect.DeepEqual(got.References, []string{"ref.md"}) {
+		t.Errorf("Find() References = %v, want [ref.md]", got.References)
+	}
+	if !reflect.DeepEqual(got.Requirements, []string{"req-1"}) {
+		t.Errorf("Find() Requirements = %v, want [req-1]", got.Requirements)
+	}
+	if got.StableID != "stable-1" {
+		t.Errorf("Find() StableID = %q, want %q", got.StableID, "stable-1")
+	}
+	if !reflect.DeepEqual(got.BlockedBy, []string{"dep-1"}) {
+		t.Errorf("Find() BlockedBy = %v, want [dep-1]", got.BlockedBy)
+	}
+	if got.Stream != 2 {
+		t.Errorf("Find() Stream = %d, want 2", got.Stream)
+	}
+	if got.Owner != "alice" {
+		t.Errorf("Find() Owner = %q, want %q", got.Owner, "alice")
+	}
+	// Children must be empty
+	if len(got.Children) != 0 {
+		t.Errorf("Find() Children = %v, want empty", got.Children)
+	}
+}
+
 func TestGetTaskDepth(t *testing.T) {
 	tests := map[string]struct {
 		taskID string

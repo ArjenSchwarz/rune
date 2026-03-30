@@ -59,7 +59,11 @@ func (tl *TaskList) insertParents(results []Task) []Task {
 	for _, t := range results {
 		if t.ParentID != "" && !present[t.ParentID] {
 			if parent := tl.FindTask(t.ParentID); parent != nil {
-				out = append(out, *parent)
+				// Copy parent without Children to avoid leaking
+				// non-matching descendants into the result set.
+				p := *parent
+				p.Children = nil
+				out = append(out, p)
 				present[t.ParentID] = true
 			}
 		}
@@ -111,7 +115,14 @@ func (tl *TaskList) findInTasks(tasks []Task, pattern string, opts QueryOptions,
 		}
 
 		if found {
-			*results = append(*results, task)
+			// Copy the task without Children. The recursive walk below
+			// evaluates each child independently, so carrying the
+			// original Children slice would leak non-matching
+			// descendants into the result and duplicate children that
+			// match independently.
+			resultTask := task
+			resultTask.Children = nil
+			*results = append(*results, resultTask)
 		}
 
 		// Search in children recursively
