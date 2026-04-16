@@ -15,6 +15,8 @@ type CompleteResponse struct {
 	Message       string   `json:"message"`
 	TaskID        string   `json:"task_id"`
 	Title         string   `json:"title"`
+	DryRun        bool     `json:"dry_run"`
+	CurrentStatus string   `json:"current_status,omitempty"`
 	AutoCompleted []string `json:"auto_completed,omitempty"`
 }
 
@@ -87,12 +89,27 @@ func runComplete(cmd *cobra.Command, args []string) error {
 
 	// Dry run mode - just show what would be completed
 	if dryRun {
-		fmt.Printf("Would mark task as completed in file: %s\n", filename)
-		fmt.Printf("Task ID: %s\n", taskID)
-		fmt.Printf("Current status: %s\n", statusToString(targetTask.Status))
-		fmt.Printf("New status: completed\n")
-		fmt.Printf("Title: %s\n", targetTask.Title)
-		return nil
+		switch format {
+		case formatJSON:
+			return outputJSON(CompleteResponse{
+				Success:       true,
+				Message:       fmt.Sprintf("Would mark task %s as completed", taskID),
+				TaskID:        taskID,
+				Title:         targetTask.Title,
+				DryRun:        true,
+				CurrentStatus: statusToString(targetTask.Status),
+			})
+		case formatMarkdown:
+			fmt.Printf("**Dry run:** Would mark %s - %s as completed (currently %s)\n", taskID, targetTask.Title, statusToString(targetTask.Status))
+			return nil
+		default: // table
+			fmt.Printf("Would mark task as completed in file: %s\n", filename)
+			fmt.Printf("Task ID: %s\n", taskID)
+			fmt.Printf("Current status: %s\n", statusToString(targetTask.Status))
+			fmt.Printf("New status: completed\n")
+			fmt.Printf("Title: %s\n", targetTask.Title)
+			return nil
+		}
 	}
 
 	// Update the task status
