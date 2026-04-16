@@ -9,47 +9,48 @@ import (
 
 func TestLoadConfig(t *testing.T) {
 	tests := map[string]struct {
-		setup       func(t *testing.T) string
-		cleanup     func(string)
+		writeConfig bool
+		content     string
 		wantEnabled bool
 		wantErr     bool
 	}{
 		"loads from current directory .rune.yml": {
-			setup: func(t *testing.T) string {
-				resetConfigCache() // Reset cache before test
-				content := `
+			writeConfig: true,
+			content: `
 discovery:
   enabled: true
   template: "tasks/{branch}.md"
-`
-				err := os.WriteFile(".rune.yml", []byte(content), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return ".rune.yml"
-			},
-			cleanup: func(path string) {
-				os.Remove(path)
-			},
+`,
 			wantEnabled: true,
 		},
 		"returns default config when no file exists": {
-			setup: func(t *testing.T) string {
-				resetConfigCache() // Reset cache before test
-				// Ensure no config files exist
-				os.Remove(".rune.yml")
-				return ""
-			},
-			cleanup:     func(string) {},
+			writeConfig: false,
 			wantEnabled: true,
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			path := tc.setup(t)
-			if tc.cleanup != nil {
-				defer tc.cleanup(path)
+			resetConfigCache()
+			t.Cleanup(func() { resetConfigCache() })
+
+			// Isolate: work in a temp directory with a fake HOME
+			tempDir := t.TempDir()
+			fakeHome := t.TempDir()
+			t.Setenv("HOME", fakeHome)
+
+			// Init a git repo so getRepoRoot (which shells out to git rev-parse) works
+			cmd := exec.Command("git", "-C", tempDir, "init")
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("git init failed: %v", err)
+			}
+
+			t.Chdir(tempDir)
+
+			if tc.writeConfig {
+				if err := os.WriteFile(filepath.Join(tempDir, ".rune.yml"), []byte(tc.content), 0644); err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			cfg, err := LoadConfig()
@@ -165,13 +166,17 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestExpandHome(t *testing.T) {
+	// Use a fake HOME so the test is deterministic and never touches the real home
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+
 	tests := map[string]struct {
 		input string
 		want  string
 	}{
 		"expands tilde": {
 			input: "~/config/file.yml",
-			want:  filepath.Join(os.Getenv("HOME"), "config/file.yml"),
+			want:  filepath.Join(fakeHome, "config/file.yml"),
 		},
 		"no tilde": {
 			input: "/absolute/path/file.yml",
@@ -185,58 +190,53 @@ func TestExpandHome(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			// Set HOME env var for consistent testing
-			home := os.Getenv("HOME")
-			if home == "" {
-				home, _ = os.UserHomeDir()
-			}
-
 			got := expandHome(tc.input)
-
-			// For tilde expansion, check that it starts with home dir
-			if tc.input[:2] == "~/" {
-				if !contains(got, home) {
-					t.Errorf("expandHome(%q) = %q, should contain home dir %q", tc.input, got, home)
-				}
-			} else {
-				if got != tc.want {
-					t.Errorf("expandHome(%q) = %q, want %q", tc.input, got, tc.want)
-				}
+			if got != tc.want {
+				t.Errorf("expandHome(%q) = %q, want %q", tc.input, got, tc.want)
 			}
 		})
 	}
 }
 
 func TestConfigPrecedence(t *testing.T) {
-	resetConfigCache() // Reset cache before test
+	resetConfigCache()
 
-	// Create config in current directory
+	// Isolate: use temp directories so we never touch the real home
+	tempDir := t.TempDir()
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+	t.Cleanup(func() { resetConfigCache() })
+
+	// Init a git repo so getRepoRoot (which shells out to git rev-parse) works
+	cmd := exec.Command("git", "-C", tempDir, "init")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+	t.Chdir(tempDir)
+
+	// Create config in the "repo root" (should take precedence)
 	localContent := `
 discovery:
   enabled: true
   template: "local/{branch}.md"
 `
-	err := os.WriteFile(".rune.yml", []byte(localContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, ".rune.yml"), []byte(localContent), 0644); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(".rune.yml")
 
-	// Also create a home config (which should be ignored)
-	homeDir, _ := os.UserHomeDir()
-	homeConfigDir := filepath.Join(homeDir, ".config", "rune")
-	os.MkdirAll(homeConfigDir, 0755)
-	homeConfigPath := filepath.Join(homeConfigDir, "config.yml")
+	// Create a home config (should be ignored due to lower precedence)
+	homeConfigDir := filepath.Join(fakeHome, ".config", "rune")
+	if err := os.MkdirAll(homeConfigDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 	homeContent := `
 discovery:
   enabled: false
   template: "home/{branch}.md"
 `
-	err = os.WriteFile(homeConfigPath, []byte(homeContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(filepath.Join(homeConfigDir, "config.yml"), []byte(homeContent), 0644); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(homeConfigPath)
 
 	// Load config - should use local file
 	cfg, err := LoadConfig()
@@ -260,14 +260,8 @@ func TestLoadConfigFromSubdirectory(t *testing.T) {
 
 	// Create a temp directory simulating a repo root
 	tempDir := t.TempDir()
-	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	t.Cleanup(func() {
-		os.Chdir(originalDir)
-		resetConfigCache()
-	})
+	t.Setenv("HOME", t.TempDir())
+	t.Cleanup(func() { resetConfigCache() })
 
 	// Create .rune.yml at the "repo root" with a distinctive template
 	// that differs from the default, so we can prove it was actually loaded
@@ -286,13 +280,13 @@ discovery:
 		t.Fatal(err)
 	}
 
-	// Initialize a git repo so rev-parse --show-toplevel works
+	// Initialize a git repo so getRepoRoot (which shells out to git rev-parse) works
 	cmd := exec.Command("git", "-C", tempDir, "init")
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Failed to init git repo: %v", err)
 	}
 
-	os.Chdir(subDir)
+	t.Chdir(subDir)
 
 	cfg, err := loadConfigUncached()
 	if err != nil {
@@ -311,17 +305,11 @@ discovery:
 // silently falling back to defaults. Regression test for T-556.
 func TestLoadConfigUncachedInvalidYAML(t *testing.T) {
 	resetConfigCache()
-	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
 	tempDir := t.TempDir()
-	t.Cleanup(func() {
-		os.Chdir(originalDir)
-		resetConfigCache()
-	})
+	t.Setenv("HOME", t.TempDir())
+	t.Cleanup(func() { resetConfigCache() })
 
-	// Initialize git repo so getRepoRoot works
+	// Initialize git repo so getRepoRoot (which shells out to git rev-parse) works
 	cmd := exec.Command("git", "-C", tempDir, "init")
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Failed to init git repo: %v", err)
@@ -336,7 +324,7 @@ func TestLoadConfigUncachedInvalidYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	os.Chdir(tempDir)
+	t.Chdir(tempDir)
 
 	cfg, err := loadConfigUncached()
 	if err == nil {
@@ -351,16 +339,11 @@ func TestLoadConfigUncachedInvalidYAML(t *testing.T) {
 // unknown fields, loadConfigUncached returns an error. Regression test for T-556.
 func TestLoadConfigUncachedUnknownFields(t *testing.T) {
 	resetConfigCache()
-	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
 	tempDir := t.TempDir()
-	t.Cleanup(func() {
-		os.Chdir(originalDir)
-		resetConfigCache()
-	})
+	t.Setenv("HOME", t.TempDir())
+	t.Cleanup(func() { resetConfigCache() })
 
+	// Initialize git repo so getRepoRoot (which shells out to git rev-parse) works
 	cmd := exec.Command("git", "-C", tempDir, "init")
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Failed to init git repo: %v", err)
@@ -375,7 +358,7 @@ func TestLoadConfigUncachedUnknownFields(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	os.Chdir(tempDir)
+	t.Chdir(tempDir)
 
 	cfg, err := loadConfigUncached()
 	if err == nil {
@@ -455,15 +438,9 @@ discovery:
 // .rune.yml exists, defaults are still returned (not broken by T-556 fix).
 func TestLoadConfigUncachedMissingFileStillDefaults(t *testing.T) {
 	resetConfigCache()
-	originalDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
 	tempDir := t.TempDir()
-	t.Cleanup(func() {
-		os.Chdir(originalDir)
-		resetConfigCache()
-	})
+	t.Setenv("HOME", t.TempDir())
+	t.Cleanup(func() { resetConfigCache() })
 
 	// Initialize git repo but do NOT create .rune.yml
 	cmd := exec.Command("git", "-C", tempDir, "init")
@@ -471,7 +448,7 @@ func TestLoadConfigUncachedMissingFileStillDefaults(t *testing.T) {
 		t.Fatalf("Failed to init git repo: %v", err)
 	}
 
-	os.Chdir(tempDir)
+	t.Chdir(tempDir)
 
 	cfg, err := loadConfigUncached()
 	if err != nil {
