@@ -1545,11 +1545,16 @@ func TestTitleLengthValidation(t *testing.T) {
 // are rejected in titles, details, and references to prevent markdown corruption.
 // Regression test for T-781.
 func TestEmbeddedNewlinesRejected(t *testing.T) {
+	const errSubstring = "control characters"
+
 	t.Run("AddTask rejects title with newline", func(t *testing.T) {
 		tl := &TaskList{Title: "Test"}
 		_, err := tl.AddTask("", "line1\nline2", "")
 		if err == nil {
 			t.Fatal("expected error for title containing \\n, got nil")
+		}
+		if !strings.Contains(err.Error(), errSubstring) {
+			t.Errorf("error %q should mention %q", err, errSubstring)
 		}
 	})
 
@@ -1558,6 +1563,9 @@ func TestEmbeddedNewlinesRejected(t *testing.T) {
 		_, err := tl.AddTask("", "line1\rline2", "")
 		if err == nil {
 			t.Fatal("expected error for title containing \\r, got nil")
+		}
+		if !strings.Contains(err.Error(), errSubstring) {
+			t.Errorf("error %q should mention %q", err, errSubstring)
 		}
 	})
 
@@ -1571,7 +1579,9 @@ func TestEmbeddedNewlinesRejected(t *testing.T) {
 
 	t.Run("UpdateTask rejects title with newline", func(t *testing.T) {
 		tl := &TaskList{Title: "Test"}
-		tl.AddTask("", "Valid task", "")
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
 
 		err := tl.UpdateTask("1", "new\ntitle", nil, nil, nil)
 		if err == nil {
@@ -1581,7 +1591,9 @@ func TestEmbeddedNewlinesRejected(t *testing.T) {
 
 	t.Run("UpdateTask rejects details with newline", func(t *testing.T) {
 		tl := &TaskList{Title: "Test"}
-		tl.AddTask("", "Valid task", "")
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
 
 		err := tl.UpdateTask("1", "", []string{"detail\ninjection"}, nil, nil)
 		if err == nil {
@@ -1589,9 +1601,23 @@ func TestEmbeddedNewlinesRejected(t *testing.T) {
 		}
 	})
 
+	t.Run("UpdateTask rejects details with CRLF", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
+
+		err := tl.UpdateTask("1", "", []string{"detail\r\ninjection"}, nil, nil)
+		if err == nil {
+			t.Fatal("expected error for detail containing \\r\\n, got nil")
+		}
+	})
+
 	t.Run("UpdateTask rejects references with newline", func(t *testing.T) {
 		tl := &TaskList{Title: "Test"}
-		tl.AddTask("", "Valid task", "")
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
 
 		err := tl.UpdateTask("1", "", nil, []string{"ref\ninjection"}, nil)
 		if err == nil {
@@ -1599,9 +1625,23 @@ func TestEmbeddedNewlinesRejected(t *testing.T) {
 		}
 	})
 
+	t.Run("UpdateTask rejects references with carriage return", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
+
+		err := tl.UpdateTask("1", "", nil, []string{"ref\rinjection"}, nil)
+		if err == nil {
+			t.Fatal("expected error for reference containing \\r, got nil")
+		}
+	})
+
 	t.Run("UpdateTask rejects details with carriage return", func(t *testing.T) {
 		tl := &TaskList{Title: "Test"}
-		tl.AddTask("", "Valid task", "")
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
 
 		err := tl.UpdateTask("1", "", []string{"detail\rinjection"}, nil, nil)
 		if err == nil {
