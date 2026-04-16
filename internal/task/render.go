@@ -219,6 +219,10 @@ func formatBlockedByRefs(stableIDs []string, index *DependencyIndex) string {
 // The optional phaseSource parameter, when non-nil, is used for resolving phase
 // boundaries instead of tl. This is needed when tl has been filtered and boundary
 // tasks (referenced by PhaseMarker.AfterTaskID) may no longer be present (T-698).
+//
+// When phaseSource is non-nil and filtering removes all tasks from a phase, the
+// phase header is still emitted (consistent with how empty phases are handled in
+// unfiltered output). This preserves structural context in the markdown.
 func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource *TaskList) []byte {
 	var buf strings.Builder
 
@@ -273,52 +277,44 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSou
 
 	// nextMarker tracks the next marker to emit.
 	nextMarker := 0
+	// endsWithBlankLine tracks whether the buffer ends with "\n\n" to avoid
+	// repeated buf.String() calls inside the loop.
+	endsWithBlankLine := true // title always ends with "\n\n"
 
 	// emitHeaders writes all pending phase headers whose start position <= pos.
 	emitHeaders := func(pos int) {
 		for nextMarker < len(iMarkers) && iMarkers[nextMarker].start <= pos {
-			// Add separator before the header only if the buffer doesn't
-			// already end with a blank line (avoids triple newlines between
-			// consecutive empty phase headers).
-			s := buf.String()
-			if !strings.HasSuffix(s, "\n\n") {
+			if !endsWithBlankLine {
 				buf.WriteString("\n")
 			}
 			fmt.Fprintf(&buf, "## %s\n\n", iMarkers[nextMarker].name)
+			endsWithBlankLine = true
 			nextMarker++
 		}
 	}
 
 	for i := range tl.Tasks {
-		taskPos, ok := positionOf[tl.Tasks[i].ID]
-		if !ok {
-			if i > 0 {
-				buf.WriteString("\n")
-			}
-			renderTask(&buf, &tl.Tasks[i], 0, ctx)
-			continue
-		}
+		taskPos := positionOf[tl.Tasks[i].ID]
 
 		// Emit phase headers that start at or before this task's position.
 		emitHeaders(taskPos)
 
 		// Add spacing between tasks when no header was just emitted.
-		s := buf.String()
-		if i > 0 && !strings.HasSuffix(s, "\n\n") {
+		if i > 0 && !endsWithBlankLine {
 			buf.WriteString("\n")
 		}
 
 		renderTask(&buf, &tl.Tasks[i], 0, ctx)
+		endsWithBlankLine = false
 	}
 
-	// Emit trailing phase markers that come after all rendered tasks,
-	// or all markers when the task list is empty.
+	// Emit remaining phase markers (trailing or all markers when task list is empty).
 	for nextMarker < len(iMarkers) {
-		s := buf.String()
-		if !strings.HasSuffix(s, "\n\n") {
+		if !endsWithBlankLine {
 			buf.WriteString("\n")
 		}
-		fmt.Fprintf(&buf, "## %s\n", iMarkers[nextMarker].name)
+		fmt.Fprintf(&buf, "## %s\n\n", iMarkers[nextMarker].name)
+		endsWithBlankLine = true
 		nextMarker++
 	}
 
