@@ -247,9 +247,7 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 			// This is a detail line at the wrong level
 			return nil, i, fmt.Errorf("line %d: unexpected content at this indentation level", i+1)
 		default:
-			// Skip lines that don't match task pattern but have deeper indentation
-			// These will be caught as unexpected indentation if they're in the wrong place
-			continue
+			return nil, i, fmt.Errorf("line %d: unexpected content at this indentation level", i+1)
 		}
 	}
 
