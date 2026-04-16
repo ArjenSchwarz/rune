@@ -1366,6 +1366,9 @@ func TestBatchAddToEarlierPhaseMisplacesLaterMarkers(t *testing.T) {
 	// Also verify task ordering: A1, A2, B1, C1
 	a1Idx := strings.Index(result, "A1")
 	a2Idx := strings.Index(result, "A2")
+	if a2Idx < 0 {
+		t.Fatalf("A2 task missing from output:\n%s", result)
+	}
 	if a1Idx > a2Idx || a2Idx > b1Idx || b1Idx > c1Idx {
 		t.Errorf("Tasks should be ordered A1, A2, B1, C1, got:\n%s", result)
 	}
