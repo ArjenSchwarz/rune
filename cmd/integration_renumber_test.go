@@ -529,13 +529,9 @@ func testRenumberSymlinkSecurity(t *testing.T, tempDir string) {
 	cmd := exec.Command(runeBinaryPath, "renumber", symlinkPath)
 	output, err := cmd.CombinedOutput()
 
-	// NOTE: There is a known issue where ValidateFilePath does not properly
-	// reject symlinks pointing outside the working directory. This affects
-	// all commands, not just renumber. This should be fixed in ValidateFilePath.
-	// For now, we log a warning instead of failing the test.
+	// ValidateFilePath now resolves symlinks and should reject this
 	if err == nil {
-		t.Logf("WARNING: renumber should have failed for symlink pointing outside working directory (known ValidateFilePath issue)")
-		t.Logf("Renumber output: %s", output)
+		t.Errorf("renumber should have failed for symlink pointing outside working directory, output: %s", output)
 	} else {
 		t.Logf("Renumber correctly rejected symlink: %s", output)
 
