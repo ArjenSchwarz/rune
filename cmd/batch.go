@@ -131,52 +131,39 @@ func runBatch(cmd *cobra.Command, args []string) error {
 		req.DryRun = true
 	}
 
-	// Check if any operations use phases or create new phases
+	// Always parse with phases so the file's own phase markers are detected.
+	// ExecuteBatchWithPhases falls back to regular execution when neither the
+	// file nor any operation involves phases, so this is safe for non-phased files.
+	var phaseMarkers []task.PhaseMarker
+	var response *task.BatchResponse
+	var taskList *task.TaskList
+
+	taskList, phaseMarkers, err = task.ParseFileWithPhases(req.File)
+	if err != nil {
+		return fmt.Errorf("loading task file: %w", err)
+	}
+
+	// Set requirements file path
+	if req.RequirementsFile != "" {
+		taskList.RequirementsFile = req.RequirementsFile
+	} else if taskList.RequirementsFile == "" {
+		taskList.RequirementsFile = task.DefaultRequirementsFile
+	}
+
+	// Check if any operations use phases and validate phase names
 	hasPhaseOps := slices.ContainsFunc(req.Operations, func(op task.Operation) bool {
 		return op.Phase != "" || strings.ToLower(op.Type) == "add-phase"
 	})
 
-	var response *task.BatchResponse
-	var taskList *task.TaskList
-
-	// Use phase-aware execution if needed
-	if hasPhaseOps {
-		// Parse file with phases
-		var phaseMarkers []task.PhaseMarker
-		taskList, phaseMarkers, err = task.ParseFileWithPhases(req.File)
-		if err != nil {
-			return fmt.Errorf("loading task file with phases: %w", err)
-		}
-
-		// Set requirements file path
-		if req.RequirementsFile != "" {
-			taskList.RequirementsFile = req.RequirementsFile
-		} else if taskList.RequirementsFile == "" {
-			taskList.RequirementsFile = task.DefaultRequirementsFile
-		}
-
-		// Execute batch operations with phase support
+	if len(phaseMarkers) > 0 || hasPhaseOps {
+		// Use phase-aware execution to preserve phase boundaries
 		response, err = taskList.ExecuteBatchWithPhases(req.Operations, req.DryRun, phaseMarkers, req.File)
 		if err != nil {
-			return fmt.Errorf("executing batch operations with phases: %w", err)
+			return fmt.Errorf("executing batch operations: %w", err)
 		}
-
 		// File is already saved by ExecuteBatchWithPhases if not a dry run
 	} else {
-		// Load task list without phases
-		taskList, err = task.ParseFile(req.File)
-		if err != nil {
-			return fmt.Errorf("loading task file: %w", err)
-		}
-
-		// Set requirements file path
-		if req.RequirementsFile != "" {
-			taskList.RequirementsFile = req.RequirementsFile
-		} else if taskList.RequirementsFile == "" {
-			taskList.RequirementsFile = task.DefaultRequirementsFile
-		}
-
-		// Execute batch operations
+		// No phases involved — use regular batch execution
 		response, err = taskList.ExecuteBatch(req.Operations, req.DryRun)
 		if err != nil {
 			return fmt.Errorf("executing batch operations: %w", err)
