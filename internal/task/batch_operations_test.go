@@ -1291,3 +1291,82 @@ func TestValidateOperation_AddPhase(t *testing.T) {
 		})
 	}
 }
+
+// TestBatchAddToEarlierPhaseMisplacesLaterMarkers reproduces the bug where
+// batch-adding a top-level task to an earlier phase only updates the immediate
+// next phase marker, leaving later phase markers with stale AfterTaskIDs.
+// This causes later phase headers to render before the wrong tasks.
+func TestBatchAddToEarlierPhaseMisplacesLaterMarkers(t *testing.T) {
+	content := `# Tasks
+
+## A
+
+- [ ] 1. A1
+
+## B
+
+- [ ] 2. B1
+
+## C
+
+- [ ] 3. C1`
+
+	tempFile := "test_batch_add_earlier_phase_later_markers.md"
+	if err := os.WriteFile(tempFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write temp file: %v", err)
+	}
+	defer os.Remove(tempFile)
+
+	tl, phaseMarkers, err := ParseFileWithPhases(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to parse file: %v", err)
+	}
+
+	ops := []Operation{
+		{
+			Type:  "add",
+			Title: "A2",
+			Phase: "A",
+		},
+	}
+
+	response, err := tl.ExecuteBatchWithPhases(ops, false, phaseMarkers, tempFile)
+	if err != nil {
+		t.Fatalf("ExecuteBatchWithPhases failed: %v", err)
+	}
+	if !response.Success {
+		t.Fatalf("Expected success, got errors: %v", response.Errors)
+	}
+
+	// Re-read the written file to verify correct rendering
+	got, err := os.ReadFile(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to read result file: %v", err)
+	}
+
+	result := string(got)
+
+	// Phase B must appear before B1, and phase C must appear before C1.
+	bIdx := strings.Index(result, "## B")
+	cIdx := strings.Index(result, "## C")
+	b1Idx := strings.Index(result, "B1")
+	c1Idx := strings.Index(result, "C1")
+
+	if bIdx < 0 || cIdx < 0 || b1Idx < 0 || c1Idx < 0 {
+		t.Fatalf("Missing expected content in output:\n%s", result)
+	}
+
+	if bIdx > b1Idx {
+		t.Errorf("Phase B header should appear before B1 task, got:\n%s", result)
+	}
+	if cIdx > c1Idx {
+		t.Errorf("Phase C header should appear before C1 task, got:\n%s", result)
+	}
+
+	// Also verify task ordering: A1, A2, B1, C1
+	a1Idx := strings.Index(result, "A1")
+	a2Idx := strings.Index(result, "A2")
+	if a1Idx > a2Idx || a2Idx > b1Idx || b1Idx > c1Idx {
+		t.Errorf("Tasks should be ordered A1, A2, B1, C1, got:\n%s", result)
+	}
+}
