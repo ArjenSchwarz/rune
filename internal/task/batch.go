@@ -232,7 +232,7 @@ func validateOperation(tl *TaskList, op Operation) error {
 			return fmt.Errorf("add operation requires title")
 		}
 		if len(op.Title) > MaxTitleLength {
-			return fmt.Errorf("title exceeds %d characters", MaxTitleLength)
+			return fmt.Errorf("task title exceeds %d characters", MaxTitleLength)
 		}
 		if op.Parent != "" && tl.FindTask(op.Parent) == nil {
 			return fmt.Errorf("parent task %s not found", op.Parent)
@@ -272,7 +272,7 @@ func validateOperation(tl *TaskList, op Operation) error {
 			return fmt.Errorf("task %s not found", op.ID)
 		}
 		if op.Title != "" && len(op.Title) > MaxTitleLength {
-			return fmt.Errorf("title exceeds %d characters", MaxTitleLength)
+			return fmt.Errorf("task title exceeds %d characters", MaxTitleLength)
 		}
 		// Validate status only when status field is provided
 		if hasStatusField(op) && (*op.Status < Pending || *op.Status > Completed) {

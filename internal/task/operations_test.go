@@ -1491,6 +1491,15 @@ func TestTitleLengthValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("UpdateTask accepts title at max length", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		_, _ = tl.AddTask("", "Valid title", "")
+		err := tl.UpdateTask("1", exactTitle, nil, nil, nil)
+		if err != nil {
+			t.Fatalf("expected no error for title at max length, got %v", err)
+		}
+	})
+
 	t.Run("AddTaskWithOptions rejects title exceeding max length", func(t *testing.T) {
 		tl := &TaskList{Title: "Test"}
 		_, err := tl.AddTaskWithOptions("", longTitle, AddOptions{})
@@ -1499,6 +1508,14 @@ func TestTitleLengthValidation(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), wantErr) {
 			t.Errorf("expected error containing %q, got %q", wantErr, err.Error())
+		}
+	})
+
+	t.Run("AddTaskWithOptions accepts title at max length", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		_, err := tl.AddTaskWithOptions("", exactTitle, AddOptions{})
+		if err != nil {
+			t.Fatalf("expected no error for title at max length, got %v", err)
 		}
 	})
 
@@ -1511,6 +1528,15 @@ func TestTitleLengthValidation(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), wantErr) {
 			t.Errorf("expected error containing %q, got %q", wantErr, err.Error())
+		}
+	})
+
+	t.Run("UpdateTaskWithOptions accepts title at max length", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		_, _ = tl.AddTask("", "Valid title", "")
+		err := tl.UpdateTaskWithOptions("1", UpdateOptions{Title: &exactTitle})
+		if err != nil {
+			t.Fatalf("expected no error for title at max length, got %v", err)
 		}
 	})
 }
