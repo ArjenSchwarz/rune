@@ -231,7 +231,7 @@ func TestRenderMarkdownWithPhases(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			got := RenderMarkdownWithPhases(tc.input, tc.phaseMarkers)
+			got := RenderMarkdownWithPhases(tc.input, tc.phaseMarkers, nil)
 			gotStr := string(got)
 
 			if gotStr != tc.wantContent {
@@ -589,5 +589,118 @@ func TestJSONOutputWithPhases(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestRenderMarkdownWithPhases_FilteredBoundaryTask verifies that phase headers
+// are preserved in markdown output when the task list has been filtered and
+// boundary tasks (referenced in PhaseMarker.AfterTaskID) are no longer present.
+// This is the regression test for T-698, analogous to T-537 for JSON.
+func TestRenderMarkdownWithPhases_FilteredBoundaryTask(t *testing.T) {
+	// Original (unfiltered) task list with 4 tasks in 2 phases.
+	// Phase "Design" starts at the beginning (AfterTaskID="").
+	// Phase "Build" starts after task 2 (AfterTaskID="2").
+	originalTL := &TaskList{
+		Title: "Phase Boundary Test",
+		Tasks: []Task{
+			{ID: "1", Title: "Research", Status: Completed},
+			{ID: "2", Title: "Prototype", Status: Completed},
+			{ID: "3", Title: "Implement", Status: InProgress},
+			{ID: "4", Title: "Deploy", Status: Pending},
+		},
+	}
+	phaseMarkers := []PhaseMarker{
+		{Name: "Design", AfterTaskID: ""},
+		{Name: "Build", AfterTaskID: "2"},
+	}
+
+	// Filtered list: only pending and in-progress tasks remain.
+	// Task 2 (the boundary task for "Build") is filtered out.
+	filteredTL := &TaskList{
+		Title: "Phase Boundary Test",
+		Tasks: []Task{
+			{ID: "3", Title: "Implement", Status: InProgress},
+			{ID: "4", Title: "Deploy", Status: Pending},
+		},
+	}
+
+	got := string(RenderMarkdownWithPhases(filteredTL, phaseMarkers, originalTL))
+
+	// The "Build" phase header must appear even though task 2 is filtered out.
+	if !strings.Contains(got, "## Build") {
+		t.Errorf("Expected '## Build' phase header in filtered output, got:\n%s", got)
+	}
+
+	// Tasks 3 and 4 should be present.
+	if !strings.Contains(got, "Implement") {
+		t.Errorf("Expected 'Implement' task in output, got:\n%s", got)
+	}
+	if !strings.Contains(got, "Deploy") {
+		t.Errorf("Expected 'Deploy' task in output, got:\n%s", got)
+	}
+}
+
+// TestRenderMarkdownWithPhases_FilteredBoundaryThreePhases verifies correct
+// behaviour with three phases where multiple boundary tasks are filtered out.
+func TestRenderMarkdownWithPhases_FilteredBoundaryThreePhases(t *testing.T) {
+	originalTL := &TaskList{
+		Title: "Three Phases",
+		Tasks: []Task{
+			{ID: "1", Title: "Plan", Status: Completed},
+			{ID: "2", Title: "Design", Status: Completed},
+			{ID: "3", Title: "Code", Status: InProgress},
+			{ID: "4", Title: "Test", Status: Pending},
+			{ID: "5", Title: "Ship", Status: Pending},
+		},
+	}
+	phaseMarkers := []PhaseMarker{
+		{Name: "Planning", AfterTaskID: ""},
+		{Name: "Development", AfterTaskID: "1"},
+		{Name: "Release", AfterTaskID: "3"},
+	}
+
+	// Filter removes tasks 1 and 3 (both boundary tasks).
+	filteredTL := &TaskList{
+		Title: "Three Phases",
+		Tasks: []Task{
+			{ID: "2", Title: "Design", Status: Completed},
+			{ID: "4", Title: "Test", Status: Pending},
+			{ID: "5", Title: "Ship", Status: Pending},
+		},
+	}
+
+	got := string(RenderMarkdownWithPhases(filteredTL, phaseMarkers, originalTL))
+
+	// All three phase headers should appear.
+	for _, phase := range []string{"## Planning", "## Development", "## Release"} {
+		if !strings.Contains(got, phase) {
+			t.Errorf("Expected %q phase header in filtered output, got:\n%s", phase, got)
+		}
+	}
+
+	// "Design" is in Development, "Test" and "Ship" are in Release.
+	if !strings.Contains(got, "Design") || !strings.Contains(got, "Test") || !strings.Contains(got, "Ship") {
+		t.Errorf("Missing expected tasks in output:\n%s", got)
+	}
+}
+
+// TestRenderMarkdownWithPhases_NilPhaseSource ensures backward compatibility —
+// passing nil phaseSource behaves identically to the old two-argument form.
+func TestRenderMarkdownWithPhases_NilPhaseSource(t *testing.T) {
+	tl := &TaskList{
+		Title: "Simple",
+		Tasks: []Task{
+			{ID: "1", Title: "Alpha", Status: Pending},
+			{ID: "2", Title: "Beta", Status: Pending},
+		},
+	}
+	markers := []PhaseMarker{
+		{Name: "Start", AfterTaskID: ""},
+		{Name: "End", AfterTaskID: "1"},
+	}
+
+	got := string(RenderMarkdownWithPhases(tl, markers, nil))
+	if !strings.Contains(got, "## Start") || !strings.Contains(got, "## End") {
+		t.Errorf("Phase headers missing with nil phaseSource:\n%s", got)
 	}
 }

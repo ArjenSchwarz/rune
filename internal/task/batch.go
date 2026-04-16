@@ -634,7 +634,7 @@ func (tl *TaskList) ExecuteBatchWithPhases(ops []Operation, dryRun bool, phaseMa
 
 	// For dry run, return preview without applying to original
 	if dryRun {
-		response.Preview = string(RenderMarkdownWithPhases(testList, testPhaseMarkers))
+		response.Preview = string(RenderMarkdownWithPhases(testList, testPhaseMarkers, nil))
 		response.Applied = len(sortedOps)
 		return response, nil
 	}
@@ -671,7 +671,7 @@ func (tl *TaskList) ExecuteBatchWithPhases(ops []Operation, dryRun bool, phaseMa
 // deepCopyWithPhases creates a deep copy preserving phase markers
 func (tl *TaskList) deepCopyWithPhases(phaseMarkers []PhaseMarker) (*TaskList, error) {
 	// Render with phases and parse back
-	content := RenderMarkdownWithPhases(tl, phaseMarkers)
+	content := RenderMarkdownWithPhases(tl, phaseMarkers, nil)
 	copyList, err := ParseMarkdown(content)
 	if err != nil {
 		return nil, fmt.Errorf("creating deep copy: %w", err)

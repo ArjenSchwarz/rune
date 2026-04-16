@@ -215,8 +215,11 @@ func formatBlockedByRefs(stableIDs []string, index *DependencyIndex) string {
 	return strings.Join(refs, ", ")
 }
 
-// RenderMarkdownWithPhases converts a TaskList to markdown format with phase headers
-func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
+// RenderMarkdownWithPhases converts a TaskList to markdown format with phase headers.
+// The optional phaseSource parameter, when non-nil, is used for resolving phase
+// boundaries instead of tl. This is needed when tl has been filtered and boundary
+// tasks (referenced by PhaseMarker.AfterTaskID) may no longer be present (T-698).
+func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource *TaskList) []byte {
 	var buf strings.Builder
 
 	// Write title as H1 header
@@ -240,58 +243,83 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker) []byte {
 		DependencyIndex:  index,
 	}
 
-	// Track which phase marker we're at
-	markerIndex := 0
-
-	// Handle phases that come before any tasks
-	for markerIndex < len(phaseMarkers) && phaseMarkers[markerIndex].AfterTaskID == "" {
-		fmt.Fprintf(&buf, "## %s\n\n", phaseMarkers[markerIndex].Name)
-		markerIndex++
+	// Use phaseSource for boundary resolution when the rendered list is filtered.
+	resolutionList := tl
+	if phaseSource != nil {
+		resolutionList = phaseSource
 	}
 
-	// Render each root-level task with phase headers
-	for i, task := range tl.Tasks {
-		// Check if we need to insert phase headers after the previous task
-		for markerIndex < len(phaseMarkers) {
-			prevTaskID := ""
-			if i > 0 {
-				prevTaskID = tl.Tasks[i-1].ID
-			}
+	// Build a position lookup from the resolution list.
+	positionOf := make(map[string]int, len(resolutionList.Tasks))
+	for i, t := range resolutionList.Tasks {
+		positionOf[t.ID] = i
+	}
 
-			// Insert phase headers that come after the previous task
-			if phaseMarkers[markerIndex].AfterTaskID == prevTaskID {
-				// Add blank line before phase header if not first item
-				if i > 0 {
-					buf.WriteString("\n")
-				}
-				fmt.Fprintf(&buf, "## %s\n\n", phaseMarkers[markerIndex].Name)
-				markerIndex++
-			} else {
-				break
+	// Compute each marker's "start position" — the position of the first task
+	// that belongs to this phase. AfterTaskID="" means start=0; AfterTaskID="X"
+	// at index i means start=i+1.
+	type indexedMarker struct {
+		name  string
+		start int
+	}
+	iMarkers := make([]indexedMarker, 0, len(phaseMarkers))
+	for _, pm := range phaseMarkers {
+		if pm.AfterTaskID == "" {
+			iMarkers = append(iMarkers, indexedMarker{name: pm.Name, start: 0})
+		} else if p, ok := positionOf[pm.AfterTaskID]; ok {
+			iMarkers = append(iMarkers, indexedMarker{name: pm.Name, start: p + 1})
+		}
+	}
+
+	// nextMarker tracks the next marker to emit.
+	nextMarker := 0
+
+	// emitHeaders writes all pending phase headers whose start position <= pos.
+	emitHeaders := func(pos int) {
+		for nextMarker < len(iMarkers) && iMarkers[nextMarker].start <= pos {
+			// Add separator before the header only if the buffer doesn't
+			// already end with a blank line (avoids triple newlines between
+			// consecutive empty phase headers).
+			s := buf.String()
+			if !strings.HasSuffix(s, "\n\n") {
+				buf.WriteString("\n")
 			}
+			fmt.Fprintf(&buf, "## %s\n\n", iMarkers[nextMarker].name)
+			nextMarker++
+		}
+	}
+
+	for i := range tl.Tasks {
+		taskPos, ok := positionOf[tl.Tasks[i].ID]
+		if !ok {
+			if i > 0 {
+				buf.WriteString("\n")
+			}
+			renderTask(&buf, &tl.Tasks[i], 0, ctx)
+			continue
 		}
 
-		// Add a blank line before each top-level task except the first
-		// (unless we just added a phase header)
-		if i > 0 && (markerIndex == 0 ||
-			(markerIndex > 0 && phaseMarkers[markerIndex-1].AfterTaskID != tl.Tasks[i-1].ID)) {
+		// Emit phase headers that start at or before this task's position.
+		emitHeaders(taskPos)
+
+		// Add spacing between tasks when no header was just emitted.
+		s := buf.String()
+		if i > 0 && !strings.HasSuffix(s, "\n\n") {
 			buf.WriteString("\n")
 		}
-		renderTask(&buf, &task, 0, ctx)
+
+		renderTask(&buf, &tl.Tasks[i], 0, ctx)
 	}
 
-	// Handle any remaining phase markers that come after all tasks
-	if len(tl.Tasks) > 0 {
-		lastTaskID := tl.Tasks[len(tl.Tasks)-1].ID
-		for markerIndex < len(phaseMarkers) {
-			if phaseMarkers[markerIndex].AfterTaskID == lastTaskID {
-				buf.WriteString("\n")
-				fmt.Fprintf(&buf, "## %s\n", phaseMarkers[markerIndex].Name)
-				markerIndex++
-			} else {
-				break
-			}
+	// Emit trailing phase markers that come after all rendered tasks,
+	// or all markers when the task list is empty.
+	for nextMarker < len(iMarkers) {
+		s := buf.String()
+		if !strings.HasSuffix(s, "\n\n") {
+			buf.WriteString("\n")
 		}
+		fmt.Fprintf(&buf, "## %s\n", iMarkers[nextMarker].name)
+		nextMarker++
 	}
 
 	// Trim any extra newlines at the end but keep one
