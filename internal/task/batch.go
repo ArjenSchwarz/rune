@@ -968,14 +968,14 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 		// Find the next phase marker after our target phase
 		for i, marker := range *phaseMarkers {
 			if marker.Name == op.Phase {
-				// Look for the next phase marker
-				if i+1 < len(*phaseMarkers) {
-					nextMarker := &(*phaseMarkers)[i+1]
-					// Update the next phase to start after the newly inserted task
-					// (which is now the last task in the current phase)
-					if insertPosition < len(tl.Tasks) {
-						nextMarker.AfterTaskID = tl.Tasks[insertPosition].ID
-					}
+				// Update the immediate next marker to point to the newly inserted task
+				if i+1 < len(*phaseMarkers) && insertPosition < len(tl.Tasks) {
+					(*phaseMarkers)[i+1].AfterTaskID = tl.Tasks[insertPosition].ID
+				}
+				// Adjust all markers beyond the next one for the shifted task numbering
+				if i+2 < len(*phaseMarkers) {
+					remaining := (*phaseMarkers)[i+2:]
+					adjustPhaseMarkersForInsertion(insertPosition, &remaining)
 				}
 				break
 			}
