@@ -131,24 +131,25 @@ func skipFrontMatter(content string, lines []string) []string {
 	}
 
 	inFrontMatter := false
-	frontMatterCount := 0
+	frontMatterClosed := false
 	newLines := []string{}
 	for _, line := range lines {
-		if strings.TrimSpace(line) == frontMatterDelimiter {
-			frontMatterCount++
-			if frontMatterCount == 2 {
+		if !frontMatterClosed && strings.TrimSpace(line) == frontMatterDelimiter {
+			if inFrontMatter {
+				// Closing delimiter
 				inFrontMatter = false
-				continue
-			} else {
-				inFrontMatter = true
+				frontMatterClosed = true
 				continue
 			}
+			// Opening delimiter
+			inFrontMatter = true
+			continue
 		}
-		if !inFrontMatter && frontMatterCount > 0 {
+		if !inFrontMatter && frontMatterClosed {
 			newLines = append(newLines, line)
 		}
 	}
-	if frontMatterCount >= 2 {
+	if frontMatterClosed {
 		return newLines
 	}
 	return lines
