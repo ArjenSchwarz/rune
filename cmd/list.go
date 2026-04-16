@@ -423,7 +423,7 @@ func outputMarkdownWithPhases(taskList *task.TaskList, phaseMarkers []task.Phase
 	}
 
 	// Add tasks with phases
-	markdownOutput := task.RenderMarkdownWithPhases(taskList, phaseMarkers)
+	markdownOutput := task.RenderMarkdownWithPhases(taskList, phaseMarkers, nil)
 	buf.Write(markdownOutput)
 
 	fmt.Print(buf.String())
@@ -461,7 +461,7 @@ func outputMarkdownWithFilters(taskList *task.TaskList, phaseMarkers []task.Phas
 
 	// Render tasks with phases — pass original taskList as phase source
 	// so phase boundaries resolve correctly even if boundary tasks are filtered out
-	markdownOutput := task.RenderMarkdownWithPhases(&filteredList, phaseMarkers)
+	markdownOutput := task.RenderMarkdownWithPhases(&filteredList, phaseMarkers, taskList)
 	buf.Write(markdownOutput)
 
 	return buf.String()

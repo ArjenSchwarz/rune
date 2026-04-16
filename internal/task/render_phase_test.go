@@ -231,7 +231,7 @@ func TestRenderMarkdownWithPhases(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			got := RenderMarkdownWithPhases(tc.input, tc.phaseMarkers)
+			got := RenderMarkdownWithPhases(tc.input, tc.phaseMarkers, nil)
 			gotStr := string(got)
 
 			if gotStr != tc.wantContent {
@@ -589,5 +589,196 @@ func TestJSONOutputWithPhases(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestRenderMarkdownWithPhases_FilteredBoundaryTask verifies that phase headers
+// are preserved in markdown output when the task list has been filtered and
+// boundary tasks (referenced in PhaseMarker.AfterTaskID) are no longer present.
+// This is the regression test for T-698, analogous to T-537 for JSON.
+func TestRenderMarkdownWithPhases_FilteredBoundaryTask(t *testing.T) {
+	// Original (unfiltered) task list with 4 tasks in 2 phases.
+	// Phase "Design" starts at the beginning (AfterTaskID="").
+	// Phase "Build" starts after task 2 (AfterTaskID="2").
+	originalTL := &TaskList{
+		Title: "Phase Boundary Test",
+		Tasks: []Task{
+			{ID: "1", Title: "Research", Status: Completed},
+			{ID: "2", Title: "Prototype", Status: Completed},
+			{ID: "3", Title: "Implement", Status: InProgress},
+			{ID: "4", Title: "Deploy", Status: Pending},
+		},
+	}
+	phaseMarkers := []PhaseMarker{
+		{Name: "Design", AfterTaskID: ""},
+		{Name: "Build", AfterTaskID: "2"},
+	}
+
+	// Filtered list: only pending and in-progress tasks remain.
+	// Task 2 (the boundary task for "Build") is filtered out.
+	filteredTL := &TaskList{
+		Title: "Phase Boundary Test",
+		Tasks: []Task{
+			{ID: "3", Title: "Implement", Status: InProgress},
+			{ID: "4", Title: "Deploy", Status: Pending},
+		},
+	}
+
+	got := string(RenderMarkdownWithPhases(filteredTL, phaseMarkers, originalTL))
+
+	// The "Build" phase header must appear even though task 2 is filtered out.
+	if !strings.Contains(got, "## Build") {
+		t.Errorf("Expected '## Build' phase header in filtered output, got:\n%s", got)
+	}
+
+	// The "Design" phase header also appears (empty — all Design tasks filtered out).
+	// This is consistent with how unfiltered rendering handles empty phases.
+	if !strings.Contains(got, "## Design") {
+		t.Errorf("Expected '## Design' phase header (empty) in filtered output, got:\n%s", got)
+	}
+
+	// Phase headers must appear before their tasks (ordering check).
+	designIdx := strings.Index(got, "## Design")
+	buildIdx := strings.Index(got, "## Build")
+	implIdx := strings.Index(got, "Implement")
+	deployIdx := strings.Index(got, "Deploy")
+	if designIdx >= buildIdx {
+		t.Errorf("'## Design' should appear before '## Build', got:\n%s", got)
+	}
+	if buildIdx >= implIdx {
+		t.Errorf("'## Build' header should appear before 'Implement' task, got:\n%s", got)
+	}
+	if implIdx >= deployIdx {
+		t.Errorf("'Implement' should appear before 'Deploy', got:\n%s", got)
+	}
+}
+
+// TestRenderMarkdownWithPhases_FilteredBoundaryThreePhases verifies correct
+// behaviour with three phases where multiple boundary tasks are filtered out.
+func TestRenderMarkdownWithPhases_FilteredBoundaryThreePhases(t *testing.T) {
+	originalTL := &TaskList{
+		Title: "Three Phases",
+		Tasks: []Task{
+			{ID: "1", Title: "Plan", Status: Completed},
+			{ID: "2", Title: "Design", Status: Completed},
+			{ID: "3", Title: "Code", Status: InProgress},
+			{ID: "4", Title: "Test", Status: Pending},
+			{ID: "5", Title: "Ship", Status: Pending},
+		},
+	}
+	phaseMarkers := []PhaseMarker{
+		{Name: "Planning", AfterTaskID: ""},
+		{Name: "Development", AfterTaskID: "1"},
+		{Name: "Release", AfterTaskID: "3"},
+	}
+
+	// Filter removes tasks 1 and 3 (both boundary tasks).
+	filteredTL := &TaskList{
+		Title: "Three Phases",
+		Tasks: []Task{
+			{ID: "2", Title: "Design", Status: Completed},
+			{ID: "4", Title: "Test", Status: Pending},
+			{ID: "5", Title: "Ship", Status: Pending},
+		},
+	}
+
+	got := string(RenderMarkdownWithPhases(filteredTL, phaseMarkers, originalTL))
+
+	// All three phase headers should appear (Planning is empty since task 1 was filtered).
+	for _, phase := range []string{"## Planning", "## Development", "## Release"} {
+		if !strings.Contains(got, phase) {
+			t.Errorf("Expected %q phase header in filtered output, got:\n%s", phase, got)
+		}
+	}
+
+	// Verify ordering: Planning < Development < Design task < Release < Test task.
+	planIdx := strings.Index(got, "## Planning")
+	devIdx := strings.Index(got, "## Development")
+	designIdx := strings.Index(got, "Design")
+	relIdx := strings.Index(got, "## Release")
+	testIdx := strings.Index(got, "Test")
+	if planIdx >= devIdx || devIdx >= designIdx || designIdx >= relIdx || relIdx >= testIdx {
+		t.Errorf("Phase headers and tasks are not in expected order, got:\n%s", got)
+	}
+}
+
+// TestRenderMarkdownWithPhases_FilteredNonAdjacentBlocks verifies that phase
+// resolution works when filtered tasks come from non-adjacent blocks in the
+// original list — the boundary task belongs to a different phase that is fully
+// filtered out.
+func TestRenderMarkdownWithPhases_FilteredNonAdjacentBlocks(t *testing.T) {
+	originalTL := &TaskList{
+		Title: "Non-Adjacent",
+		Tasks: []Task{
+			{ID: "1", Title: "Alpha", Status: Completed},
+			{ID: "2", Title: "Beta", Status: Completed},
+			{ID: "3", Title: "Gamma", Status: Pending},
+			{ID: "4", Title: "Delta", Status: Completed},
+			{ID: "5", Title: "Epsilon", Status: Pending},
+		},
+	}
+	phaseMarkers := []PhaseMarker{
+		{Name: "Phase A", AfterTaskID: ""},
+		{Name: "Phase B", AfterTaskID: "2"},
+		{Name: "Phase C", AfterTaskID: "4"},
+	}
+
+	// Filter keeps only pending tasks: 3 (Phase B) and 5 (Phase C).
+	// Tasks 2 and 4 (boundary tasks for Phase B and C) are filtered out.
+	filteredTL := &TaskList{
+		Title: "Non-Adjacent",
+		Tasks: []Task{
+			{ID: "3", Title: "Gamma", Status: Pending},
+			{ID: "5", Title: "Epsilon", Status: Pending},
+		},
+	}
+
+	got := string(RenderMarkdownWithPhases(filteredTL, phaseMarkers, originalTL))
+
+	// All three phase headers should appear (Phase A is empty).
+	for _, phase := range []string{"## Phase A", "## Phase B", "## Phase C"} {
+		if !strings.Contains(got, phase) {
+			t.Errorf("Expected %q in output, got:\n%s", phase, got)
+		}
+	}
+
+	// Verify ordering: Phase A < Phase B < Gamma < Phase C < Epsilon.
+	aIdx := strings.Index(got, "## Phase A")
+	bIdx := strings.Index(got, "## Phase B")
+	gammaIdx := strings.Index(got, "Gamma")
+	cIdx := strings.Index(got, "## Phase C")
+	epsIdx := strings.Index(got, "Epsilon")
+	if aIdx >= bIdx || bIdx >= gammaIdx || gammaIdx >= cIdx || cIdx >= epsIdx {
+		t.Errorf("Expected order: Phase A < Phase B < Gamma < Phase C < Epsilon, got:\n%s", got)
+	}
+}
+
+// TestRenderMarkdownWithPhases_NilPhaseSource ensures backward compatibility —
+// passing nil phaseSource behaves identically to the old two-argument form.
+func TestRenderMarkdownWithPhases_NilPhaseSource(t *testing.T) {
+	tl := &TaskList{
+		Title: "Simple",
+		Tasks: []Task{
+			{ID: "1", Title: "Alpha", Status: Pending},
+			{ID: "2", Title: "Beta", Status: Pending},
+		},
+	}
+	markers := []PhaseMarker{
+		{Name: "Start", AfterTaskID: ""},
+		{Name: "End", AfterTaskID: "1"},
+	}
+
+	got := string(RenderMarkdownWithPhases(tl, markers, nil))
+	if !strings.Contains(got, "## Start") || !strings.Contains(got, "## End") {
+		t.Errorf("Phase headers missing with nil phaseSource:\n%s", got)
+	}
+
+	// Verify ordering.
+	startIdx := strings.Index(got, "## Start")
+	alphaIdx := strings.Index(got, "Alpha")
+	endIdx := strings.Index(got, "## End")
+	betaIdx := strings.Index(got, "Beta")
+	if startIdx >= alphaIdx || alphaIdx >= endIdx || endIdx >= betaIdx {
+		t.Errorf("Expected order: Start < Alpha < End < Beta, got:\n%s", got)
 	}
 }

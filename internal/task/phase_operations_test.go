@@ -758,7 +758,7 @@ func TestPhasePreservationDuringOperations(t *testing.T) {
 			}
 
 			// Render back to markdown with phases preserved
-			rendered := RenderMarkdownWithPhases(testList, initialMarkers)
+			rendered := RenderMarkdownWithPhases(testList, initialMarkers, nil)
 			renderedLines := strings.Split(string(rendered), "\n")
 			afterMarkers := ExtractPhaseMarkers(renderedLines)
 
@@ -1177,7 +1177,7 @@ func TestPhaseRoundTrip(t *testing.T) {
 			// Render with phases
 			var rendered []byte
 			if len(phaseMarkers) > 0 {
-				rendered = RenderMarkdownWithPhases(taskList1, phaseMarkers)
+				rendered = RenderMarkdownWithPhases(taskList1, phaseMarkers, nil)
 			} else {
 				rendered = RenderMarkdown(taskList1)
 			}

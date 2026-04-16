@@ -722,13 +722,13 @@ func WriteFileWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, filePath stri
 	var content []byte
 	if tl.FrontMatter != nil && (len(tl.FrontMatter.References) > 0 || len(tl.FrontMatter.Metadata) > 0) {
 		// Render markdown with phases but without front matter
-		markdownContent := RenderMarkdownWithPhases(tl, phaseMarkers)
+		markdownContent := RenderMarkdownWithPhases(tl, phaseMarkers, nil)
 		// Combine with front matter
 		fullContent := SerializeWithFrontMatter(tl.FrontMatter, string(markdownContent))
 		content = []byte(fullContent)
 	} else {
 		// No front matter, just render markdown with phases
-		content = RenderMarkdownWithPhases(tl, phaseMarkers)
+		content = RenderMarkdownWithPhases(tl, phaseMarkers, nil)
 	}
 
 	// Get original file permissions if file exists, otherwise use default 0644
