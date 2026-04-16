@@ -229,12 +229,10 @@ func testRenumberWithPhases(t *testing.T, tempDir string) {
 		t.Fatalf("failed to parse renumbered file: %v", err)
 	}
 
-	// Verify at least one phase marker is preserved
-	// Note: There is a known issue with multiple phase markers not being correctly preserved
-	// during renumbering. This should be investigated and fixed separately.
-	if len(phaseMarkers) < 1 {
+	// Verify all phase markers are preserved (T-748: must be strict, not warning-only)
+	if len(phaseMarkers) != 2 {
 		t.Logf("Phase markers found: %+v", phaseMarkers)
-		t.Fatalf("expected at least 1 phase marker, got %d", len(phaseMarkers))
+		t.Fatalf("expected exactly 2 phase markers, got %d", len(phaseMarkers))
 	}
 
 	// Verify first phase marker
@@ -245,16 +243,12 @@ func testRenumberWithPhases(t *testing.T, tempDir string) {
 		t.Errorf("expected first phase after task 1, got after task %s", phaseMarkers[0].AfterTaskID)
 	}
 
-	// If we have a second phase marker, verify it
-	if len(phaseMarkers) >= 2 {
-		if phaseMarkers[1].Name != "Phase 2: Testing" {
-			t.Errorf("expected phase name 'Phase 2: Testing', got %s", phaseMarkers[1].Name)
-		}
-		if phaseMarkers[1].AfterTaskID != "3" {
-			t.Errorf("expected second phase after task 3, got after task %s", phaseMarkers[1].AfterTaskID)
-		}
-	} else {
-		t.Logf("WARNING: Second phase marker was not preserved (known issue)")
+	// Verify second phase marker
+	if phaseMarkers[1].Name != "Phase 2: Testing" {
+		t.Errorf("expected phase name 'Phase 2: Testing', got %s", phaseMarkers[1].Name)
+	}
+	if phaseMarkers[1].AfterTaskID != "3" {
+		t.Errorf("expected second phase after task 3, got after task %s", phaseMarkers[1].AfterTaskID)
 	}
 
 	// Verify tasks within phases are renumbered correctly
@@ -302,7 +296,7 @@ func testRenumberWithPhases(t *testing.T, tempDir string) {
 		t.Error("Phase 1 marker not found in file")
 	}
 	if phase2Line == -1 {
-		t.Logf("WARNING: Phase 2 marker not found in file (expected due to known issue)")
+		t.Error("Phase 2 marker not found in file")
 	}
 
 	// Verify phases are in correct positions (after specific tasks)
