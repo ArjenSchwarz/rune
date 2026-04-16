@@ -141,23 +141,16 @@ func getRepoRootImpl() (string, error) {
 }
 
 // isSpecialGitState checks if the git repository is in a special state
-// that should require explicit file specification
+// that should require explicit file specification. Only actual detached or
+// unnamed states are rejected — normal branch names that happen to contain
+// words like "merge" or "rebase" are allowed.
 func isSpecialGitState(branch string) bool {
 	specialStates := []string{
 		"HEAD",        // detached HEAD
 		"(no branch)", // also detached HEAD in some git versions
 	}
 
-	if slices.Contains(specialStates, branch) {
-		return true
-	}
-
-	// Check for rebase/merge states (branches typically contain these strings)
-	if strings.Contains(branch, "rebase") || strings.Contains(branch, "merge") {
-		return true
-	}
-
-	return false
+	return slices.Contains(specialStates, branch)
 }
 
 // fileExists checks if a file exists and is accessible
