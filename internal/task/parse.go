@@ -521,9 +521,12 @@ func countIndent(line string) int {
 
 // ExtractPhaseMarkers scans lines for H2 headers and returns phase markers with their positions.
 // Lines may contain trailing \r from CRLF files; these are stripped before matching.
+// AfterTaskID stores sequential positional IDs (matching parsed task IDs) rather than
+// raw markdown IDs, so that downstream consumers can compare directly against TaskList.Tasks[i].ID.
 func ExtractPhaseMarkers(lines []string) []PhaseMarker {
 	markers := []PhaseMarker{}
-	var lastTaskID string
+	var lastSequentialID string
+	topLevelTaskCount := 0
 
 	for _, line := range lines {
 		line = strings.TrimRight(line, "\r")
@@ -533,17 +536,18 @@ func ExtractPhaseMarkers(lines []string) []PhaseMarker {
 			phaseName := strings.TrimSpace(matches[1])
 			markers = append(markers, PhaseMarker{
 				Name:        phaseName,
-				AfterTaskID: lastTaskID,
+				AfterTaskID: lastSequentialID,
 			})
 		} else if _, ok, err := parseTaskLine(line); err == nil && ok {
 			// Extract task ID from the line
 			// The task ID is captured in the regex pattern
 			if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
-				// Only update lastTaskID for top-level tasks (not subtasks)
+				// Only update lastSequentialID for top-level tasks (not subtasks)
 				// Top-level tasks don't have dots in their IDs
 				taskID := taskMatches[3]
 				if !strings.Contains(taskID, ".") {
-					lastTaskID = taskID
+					topLevelTaskCount++
+					lastSequentialID = fmt.Sprintf("%d", topLevelTaskCount)
 				}
 			}
 		}

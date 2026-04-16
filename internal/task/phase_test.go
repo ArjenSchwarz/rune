@@ -1423,3 +1423,148 @@ func TestGetNextPhaseTasks_NonSequentialIDs(t *testing.T) {
 		})
 	}
 }
+
+// TestExtractPhaseMarkers_NonSequentialIDs verifies that ExtractPhaseMarkers
+// stores sequential positional IDs in AfterTaskID, not raw markdown IDs.
+// Regression test for T-742.
+func TestExtractPhaseMarkers_NonSequentialIDs(t *testing.T) {
+	tests := map[string]struct {
+		content     string
+		wantMarkers []PhaseMarker
+	}{
+		"non-sequential IDs produce sequential AfterTaskID": {
+			content: `# Project
+## Phase A
+- [ ] 10. First task
+- [ ] 20. Second task
+
+## Phase B
+- [ ] 30. Third task
+`,
+			wantMarkers: []PhaseMarker{
+				{Name: "Phase A", AfterTaskID: ""},
+				{Name: "Phase B", AfterTaskID: "2"},
+			},
+		},
+		"large gap IDs": {
+			content: `# Project
+- [ ] 100. Pre-phase task
+
+## Development
+- [ ] 200. Dev task
+- [ ] 300. Dev task 2
+
+## Testing
+- [ ] 400. Test task
+`,
+			wantMarkers: []PhaseMarker{
+				{Name: "Development", AfterTaskID: "1"},
+				{Name: "Testing", AfterTaskID: "3"},
+			},
+		},
+		"non-sequential with subtasks": {
+			content: `# Project
+## Phase One
+- [ ] 10. Parent task
+  - [ ] 10.1. Subtask
+
+## Phase Two
+- [ ] 20. Next parent
+`,
+			wantMarkers: []PhaseMarker{
+				{Name: "Phase One", AfterTaskID: ""},
+				{Name: "Phase Two", AfterTaskID: "1"},
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			lines := splitLines(tc.content)
+			markers := ExtractPhaseMarkers(lines)
+
+			if !reflect.DeepEqual(markers, tc.wantMarkers) {
+				t.Errorf("ExtractPhaseMarkers() mismatch:\ngot:  %+v\nwant: %+v", markers, tc.wantMarkers)
+			}
+		})
+	}
+}
+
+// TestGetTaskPhase_NonSequentialMarkdownIDs verifies that GetTaskPhase in render.go
+// correctly assigns phases when phase markers come from non-sequential markdown IDs.
+// Regression test for T-742.
+func TestGetTaskPhase_NonSequentialMarkdownIDs(t *testing.T) {
+	// Simulate what happens after ParseMarkdown: tasks have sequential IDs 1, 2, 3
+	// Phase markers should also have sequential AfterTaskIDs from ExtractPhaseMarkers
+	tl := &TaskList{
+		Tasks: []Task{
+			{ID: "1", Title: "First task"},
+			{ID: "2", Title: "Second task"},
+			{ID: "3", Title: "Third task"},
+		},
+	}
+
+	// These markers represent what ExtractPhaseMarkers produces from a file
+	// with non-sequential IDs (10, 20, 30) — now stored as sequential (1, 2, 3)
+	markers := []PhaseMarker{
+		{Name: "Phase A", AfterTaskID: ""},
+		{Name: "Phase B", AfterTaskID: "2"},
+	}
+
+	tests := map[string]struct {
+		taskID    string
+		wantPhase string
+	}{
+		"task 1 in Phase A": {taskID: "1", wantPhase: "Phase A"},
+		"task 2 in Phase A": {taskID: "2", wantPhase: "Phase A"},
+		"task 3 in Phase B": {taskID: "3", wantPhase: "Phase B"},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := GetTaskPhase(tl, markers, tc.taskID)
+			if got != tc.wantPhase {
+				t.Errorf("GetTaskPhase(%q) = %q, want %q", tc.taskID, got, tc.wantPhase)
+			}
+		})
+	}
+}
+
+// TestRenderMarkdownWithPhases_NonSequentialIDs verifies that
+// RenderMarkdownWithPhases correctly places phase headers when the original
+// markdown had non-sequential IDs that were renumbered by the parser.
+// Regression test for T-742.
+func TestRenderMarkdownWithPhases_NonSequentialIDs(t *testing.T) {
+	tl := &TaskList{
+		Title: "Non-Sequential Project",
+		Tasks: []Task{
+			{ID: "1", Title: "First task", Status: Pending},
+			{ID: "2", Title: "Second task", Status: InProgress},
+			{ID: "3", Title: "Third task", Status: Pending},
+		},
+	}
+
+	// Markers with sequential AfterTaskIDs (as produced by fixed ExtractPhaseMarkers)
+	markers := []PhaseMarker{
+		{Name: "Phase A", AfterTaskID: ""},
+		{Name: "Phase B", AfterTaskID: "2"},
+	}
+
+	got := string(RenderMarkdownWithPhases(tl, markers))
+	want := `# Non-Sequential Project
+
+## Phase A
+
+- [ ] 1. First task
+
+- [-] 2. Second task
+
+## Phase B
+
+- [ ] 3. Third task
+`
+
+	if got != want {
+		t.Errorf("RenderMarkdownWithPhases() mismatch:\nGot:\n%s\nWant:\n%s", got, want)
+	}
+}
