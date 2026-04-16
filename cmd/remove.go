@@ -91,14 +91,16 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("task %s not found", taskID)
 	}
 
-	// Count children recursively for informational output
+	// Capture task info by value before any mutation, since RemoveTaskWithPhases
+	// renumbers the slice and the pointer may refer to a different task afterward.
+	removedTitle := targetTask.Title
 	childCount := countTaskChildren(targetTask)
 
 	// Dry run mode - show what would be removed
 	if dryRun {
 		fmt.Printf("Would remove task from file: %s\n", filename)
 		fmt.Printf("Task ID: %s\n", taskID)
-		fmt.Printf("Title: %s\n", targetTask.Title)
+		fmt.Printf("Title: %s\n", removedTitle)
 		if childCount > 0 {
 			fmt.Printf("This task has %d subtask(s) that will also be removed\n", childCount)
 			fmt.Println("Subtasks to be removed:")
@@ -113,37 +115,37 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to remove task: %w", err)
 	}
 
-	// Format-aware output
+	// Format-aware output (uses captured values, not the now-stale pointer)
 	switch format {
 	case formatJSON:
 		return outputJSON(RemoveResponse{
 			Success:         true,
 			Message:         fmt.Sprintf("Removed task %s", taskID),
 			TaskID:          taskID,
-			Title:           targetTask.Title,
+			Title:           removedTitle,
 			ChildrenRemoved: childCount,
 		})
 	case formatMarkdown:
 		if childCount > 0 {
-			fmt.Printf("**Removed:** %s - %s (and %d subtasks)\n", taskID, targetTask.Title, childCount)
+			fmt.Printf("**Removed:** %s - %s (and %d subtasks)\n", taskID, removedTitle, childCount)
 		} else {
-			fmt.Printf("**Removed:** %s - %s\n", taskID, targetTask.Title)
+			fmt.Printf("**Removed:** %s - %s\n", taskID, removedTitle)
 		}
 		return nil
 	default: // table
 		if verbose {
 			fmt.Printf("Successfully removed task from file: %s\n", filename)
 			fmt.Printf("Removed task ID: %s\n", taskID)
-			fmt.Printf("Title: %s\n", targetTask.Title)
+			fmt.Printf("Title: %s\n", removedTitle)
 			if childCount > 0 {
 				fmt.Printf("Also removed %d subtask(s)\n", childCount)
 			}
 			fmt.Printf("Remaining tasks have been renumbered\n")
 		} else {
 			if childCount > 0 {
-				fmt.Printf("Removed task %s and %d subtask(s): %s\n", taskID, childCount, targetTask.Title)
+				fmt.Printf("Removed task %s and %d subtask(s): %s\n", taskID, childCount, removedTitle)
 			} else {
-				fmt.Printf("Removed task %s: %s\n", taskID, targetTask.Title)
+				fmt.Printf("Removed task %s: %s\n", taskID, removedTitle)
 			}
 		}
 		return nil

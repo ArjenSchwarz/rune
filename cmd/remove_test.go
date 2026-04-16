@@ -408,6 +408,99 @@ func TestCountTaskChildren(t *testing.T) {
 	}
 }
 
+// TestRemoveReportsCorrectTitleAfterDeletion is a regression test for T-801.
+// When removing task 1, the command should print the title of the removed task,
+// not the title of the task that shifted into its position after renumbering.
+func TestRemoveReportsCorrectTitleAfterDeletion(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-remove-title-bug")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		taskID        string
+		expectedTitle string
+		format        string
+		dryRun        bool
+	}{
+		"table format reports correct title when removing first task": {
+			taskID:        "1",
+			expectedTitle: "Blocker",
+			format:        "table",
+		},
+		"json format reports correct title when removing first task": {
+			taskID:        "1",
+			expectedTitle: "Blocker",
+			format:        "json",
+		},
+		"markdown format reports correct title when removing first task": {
+			taskID:        "1",
+			expectedTitle: "Blocker",
+			format:        "markdown",
+		},
+		"dry-run reports correct title when removing first task": {
+			taskID:        "1",
+			expectedTitle: "Blocker",
+			format:        "table",
+			dryRun:        true,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
+
+			// Create file with two tasks: "Blocker" at 1, "Dependent" at 2
+			tl := task.NewTaskList("Test Tasks")
+			tl.AddTask("", "Blocker", "")
+			tl.AddTask("", "Dependent", "")
+			if err := tl.WriteFile(filename); err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+
+			oldDryRun := dryRun
+			dryRun = tc.dryRun
+			t.Cleanup(func() { dryRun = oldDryRun })
+
+			oldFormat := format
+			format = tc.format
+			t.Cleanup(func() { format = oldFormat })
+
+			// Capture stdout
+			oldStdout := os.Stdout
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatalf("os.Pipe: %v", err)
+			}
+			os.Stdout = w
+
+			cmd := &cobra.Command{}
+			args := []string{filename, tc.taskID}
+			runErr := runRemove(cmd, args)
+
+			w.Close()
+			os.Stdout = oldStdout
+			var buf bytes.Buffer
+			if _, err := buf.ReadFrom(r); err != nil {
+				t.Fatalf("ReadFrom: %v", err)
+			}
+			output := buf.String()
+
+			if runErr != nil {
+				t.Fatalf("Unexpected error: %v", runErr)
+			}
+
+			if !strings.Contains(output, tc.expectedTitle) {
+				t.Errorf("Expected output to contain removed task title %q, got: %s", tc.expectedTitle, output)
+			}
+			if strings.Contains(output, "Dependent") {
+				t.Errorf("Output should NOT contain the shifted task title 'Dependent', got: %s", output)
+			}
+		})
+	}
+}
+
 func TestStatusToCheckbox(t *testing.T) {
 	tests := map[string]struct {
 		status   task.Status
