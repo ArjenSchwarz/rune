@@ -165,10 +165,10 @@ func (tl *TaskList) addTaskAtPosition(parentID, title, position string) (string,
 	return newTaskID, nil
 }
 
+// RemoveTask removes a task from the task list and renumbers remaining tasks.
+//
 // Deprecated: Use RemoveTaskWithDependents to ensure BlockedBy references
 // are cleaned up. RemoveTask only removes the task and renumbers.
-//
-// RemoveTask removes a task from the task list and renumbers remaining tasks
 func (tl *TaskList) RemoveTask(taskID string) error {
 	if removed := tl.removeTaskRecursive(&tl.Tasks, taskID, ""); removed {
 		tl.RenumberTasks()
