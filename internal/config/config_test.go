@@ -31,7 +31,6 @@ discovery:
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			resetConfigCache()
 			t.Cleanup(func() { resetConfigCache() })
 
 			// Isolate: work in a temp directory with a fake HOME
@@ -260,6 +259,7 @@ func TestLoadConfigFromSubdirectory(t *testing.T) {
 
 	// Create a temp directory simulating a repo root
 	tempDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
 	t.Cleanup(func() { resetConfigCache() })
 
 	// Create .rune.yml at the "repo root" with a distinctive template
@@ -305,6 +305,7 @@ discovery:
 func TestLoadConfigUncachedInvalidYAML(t *testing.T) {
 	resetConfigCache()
 	tempDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
 	t.Cleanup(func() { resetConfigCache() })
 
 	// Initialize git repo so getRepoRoot (which shells out to git rev-parse) works
@@ -338,6 +339,7 @@ func TestLoadConfigUncachedInvalidYAML(t *testing.T) {
 func TestLoadConfigUncachedUnknownFields(t *testing.T) {
 	resetConfigCache()
 	tempDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
 	t.Cleanup(func() { resetConfigCache() })
 
 	// Initialize git repo so getRepoRoot (which shells out to git rev-parse) works
@@ -436,6 +438,7 @@ discovery:
 func TestLoadConfigUncachedMissingFileStillDefaults(t *testing.T) {
 	resetConfigCache()
 	tempDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
 	t.Cleanup(func() { resetConfigCache() })
 
 	// Initialize git repo but do NOT create .rune.yml
