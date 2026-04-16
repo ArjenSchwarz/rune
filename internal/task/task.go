@@ -134,8 +134,8 @@ func (t *Task) Validate() error {
 	if t.Title == "" {
 		return fmt.Errorf("task title cannot be empty")
 	}
-	if len(t.Title) > 500 {
-		return fmt.Errorf("task title exceeds 500 characters")
+	if len(t.Title) > MaxTitleLength {
+		return fmt.Errorf("task title exceeds %d characters", MaxTitleLength)
 	}
 	if !IsValidID(t.ID) {
 		return fmt.Errorf("invalid task ID format: %s", t.ID)
