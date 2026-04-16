@@ -15,7 +15,7 @@ type CompleteResponse struct {
 	Message       string   `json:"message"`
 	TaskID        string   `json:"task_id"`
 	Title         string   `json:"title"`
-	DryRun        bool     `json:"dry_run"`
+	DryRun        bool     `json:"dry_run,omitempty"`
 	CurrentStatus string   `json:"current_status,omitempty"`
 	AutoCompleted []string `json:"auto_completed,omitempty"`
 }

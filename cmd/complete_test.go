@@ -483,6 +483,68 @@ func TestRunUncompleteDryRunJSON(t *testing.T) {
 	}
 }
 
+func TestRunUncompleteDryRunMarkdown(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-uncomplete-dry-md")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	filename := filepath.Join(tempDir, "test.md")
+
+	tl := task.NewTaskList("Test Tasks")
+	tl.AddTask("", "Completed task", "")
+	tl.UpdateStatus("1", task.Completed)
+	if err := tl.WriteFile(filename); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	dryRun = true
+	format = formatMarkdown
+	defer func() {
+		dryRun = false
+		format = "table"
+	}()
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := &cobra.Command{}
+	args := []string{filename, "1"}
+	err := runUncomplete(cmd, args)
+
+	w.Close()
+	os.Stdout = oldStdout
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if err != nil {
+		t.Fatalf("Unexpected error in dry run: %v", err)
+	}
+
+	if !strings.Contains(output, "**Dry run:**") {
+		t.Fatalf("Expected markdown dry run output, got: %s", output)
+	}
+	if !strings.Contains(output, "pending") {
+		t.Fatalf("Expected output to mention 'pending', got: %s", output)
+	}
+
+	// Verify original file not modified
+	tl2, err := task.ParseFile(filename)
+	if err != nil {
+		t.Fatalf("Failed to parse file after dry run: %v", err)
+	}
+	foundTask := tl2.FindTask("1")
+	if foundTask == nil {
+		t.Fatal("Task 1 not found after dry run")
+	}
+	if foundTask.Status != task.Completed {
+		t.Fatalf("Expected task to remain completed after dry run, got status %d", foundTask.Status)
+	}
+}
+
 func TestRunUncomplete(t *testing.T) {
 	tempDir := filepath.Join(".", "test-tmp-uncomplete")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
