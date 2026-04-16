@@ -422,6 +422,7 @@ func TestRemoveReportsCorrectTitleAfterDeletion(t *testing.T) {
 		taskID        string
 		expectedTitle string
 		format        string
+		dryRun        bool
 	}{
 		"table format reports correct title when removing first task": {
 			taskID:        "1",
@@ -438,9 +439,15 @@ func TestRemoveReportsCorrectTitleAfterDeletion(t *testing.T) {
 			expectedTitle: "Blocker",
 			format:        "markdown",
 		},
+		"dry-run reports correct title when removing first task": {
+			taskID:        "1",
+			expectedTitle: "Blocker",
+			format:        "table",
+			dryRun:        true,
+		},
 	}
 
-	for name, tt := range tests {
+	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
 
@@ -452,32 +459,40 @@ func TestRemoveReportsCorrectTitleAfterDeletion(t *testing.T) {
 				t.Fatalf("Failed to create test file: %v", err)
 			}
 
-			dryRun = false
+			oldDryRun := dryRun
+			dryRun = tc.dryRun
+			t.Cleanup(func() { dryRun = oldDryRun })
+
 			oldFormat := format
-			format = tt.format
-			defer func() { format = oldFormat }()
+			format = tc.format
+			t.Cleanup(func() { format = oldFormat })
 
 			// Capture stdout
 			oldStdout := os.Stdout
-			r, w, _ := os.Pipe()
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatalf("os.Pipe: %v", err)
+			}
 			os.Stdout = w
 
 			cmd := &cobra.Command{}
-			args := []string{filename, tt.taskID}
-			err := runRemove(cmd, args)
+			args := []string{filename, tc.taskID}
+			runErr := runRemove(cmd, args)
 
 			w.Close()
 			os.Stdout = oldStdout
 			var buf bytes.Buffer
-			buf.ReadFrom(r)
+			if _, err := buf.ReadFrom(r); err != nil {
+				t.Fatalf("ReadFrom: %v", err)
+			}
 			output := buf.String()
 
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
+			if runErr != nil {
+				t.Fatalf("Unexpected error: %v", runErr)
 			}
 
-			if !strings.Contains(output, tt.expectedTitle) {
-				t.Errorf("Expected output to contain removed task title %q, got: %s", tt.expectedTitle, output)
+			if !strings.Contains(output, tc.expectedTitle) {
+				t.Errorf("Expected output to contain removed task title %q, got: %s", tc.expectedTitle, output)
 			}
 			if strings.Contains(output, "Dependent") {
 				t.Errorf("Output should NOT contain the shifted task title 'Dependent', got: %s", output)
