@@ -206,6 +206,88 @@ func TestPathTraversalProtection(t *testing.T) {
 	}
 }
 
+// Test that ValidateFilePath rejects symlinks pointing outside working directory.
+// NOTE: os.Chdir modifies global process state — do not add t.Parallel() to this
+// test or any test in this package that depends on the working directory.
+func TestValidateFilePath_SymlinkEscape(t *testing.T) {
+	// Create a temporary working directory
+	workDir, err := os.MkdirTemp("", "rune-symlink-test-work-")
+	if err != nil {
+		t.Fatalf("Failed to create work dir: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(workDir) })
+
+	// Create an outside directory with a target file
+	outsideDir, err := os.MkdirTemp("", "rune-symlink-test-outside-")
+	if err != nil {
+		t.Fatalf("Failed to create outside dir: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(outsideDir) })
+
+	outsideFile := filepath.Join(outsideDir, "secret.md")
+	if err := os.WriteFile(outsideFile, []byte("secret data"), 0644); err != nil {
+		t.Fatalf("Failed to create outside file: %v", err)
+	}
+
+	// Create a symlink inside workDir that points to the outside file
+	symlinkPath := filepath.Join(workDir, "escape.md")
+	if err := os.Symlink(outsideFile, symlinkPath); err != nil {
+		t.Fatalf("Failed to create symlink: %v", err)
+	}
+
+	// Create a symlink to the outside directory itself
+	symlinkDir := filepath.Join(workDir, "escape-dir")
+	if err := os.Symlink(outsideDir, symlinkDir); err != nil {
+		t.Fatalf("Failed to create dir symlink: %v", err)
+	}
+
+	// Create a normal (non-symlink) file for the positive test case
+	if err := os.WriteFile(filepath.Join(workDir, "normal.md"), []byte("ok"), 0644); err != nil {
+		t.Fatalf("Failed to create normal file: %v", err)
+	}
+
+	// Switch to the working directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	tests := map[string]struct {
+		path    string
+		wantErr bool
+	}{
+		"symlink to file outside working directory": {
+			path:    "escape.md",
+			wantErr: true,
+		},
+		"file via symlinked directory outside working directory": {
+			path:    "escape-dir/secret.md",
+			wantErr: true,
+		},
+		"non-symlink file is still allowed": {
+			path:    "normal.md",
+			wantErr: false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := ValidateFilePath(tc.path)
+			if tc.wantErr && err == nil {
+				t.Errorf("expected error for symlink path %q, got nil", tc.path)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("unexpected error for path %q: %v", tc.path, err)
+			}
+		})
+	}
+}
+
 // Test atomic write operations
 func TestAtomicWriteOperations(t *testing.T) {
 	// Create temporary directory

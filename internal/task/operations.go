@@ -375,13 +375,60 @@ func ValidateFilePath(path string) error {
 		return fmt.Errorf("resolving file path: %w", err)
 	}
 
-	// Ensure resolved path is within working directory tree
-	// This prevents both absolute and relative path traversal attacks
+	// Lexical containment check first (fast path)
 	if !strings.HasPrefix(absPath, workDirAbs+string(filepath.Separator)) && absPath != workDirAbs {
 		return fmt.Errorf("path traversal attempt detected")
 	}
 
+	// Resolve symlinks to prevent escaping the working directory via symlinks.
+	// EvalSymlinks requires the path (or its parent) to exist, so we walk up
+	// until we find an existing ancestor and resolve from there.
+	realWorkDir, err := filepath.EvalSymlinks(workDirAbs)
+	if err != nil {
+		return fmt.Errorf("resolving working directory symlinks: %w", err)
+	}
+
+	realPath, err := resolveExistingPrefix(absPath)
+	if err != nil {
+		return fmt.Errorf("resolving file path symlinks: %w", err)
+	}
+
+	// Re-check containment after symlink resolution
+	if !strings.HasPrefix(realPath, realWorkDir+string(filepath.Separator)) && realPath != realWorkDir {
+		return fmt.Errorf("path traversal attempt detected: symlink resolves outside working directory")
+	}
+
 	return nil
+}
+
+// resolveExistingPrefix resolves symlinks for the longest existing prefix of
+// path, then appends the remaining unresolved tail. This handles the case
+// where the file itself does not yet exist (e.g. create operations) but an
+// ancestor directory contains a symlink.
+func resolveExistingPrefix(absPath string) (string, error) {
+	// Try resolving the full path first (common case: file exists)
+	resolved, err := filepath.EvalSymlinks(absPath)
+	if err == nil {
+		return resolved, nil
+	}
+
+	// Walk up to find the deepest existing ancestor
+	dir := filepath.Dir(absPath)
+	tail := filepath.Base(absPath)
+	cursor := absPath
+
+	for dir != cursor {
+		resolved, err = filepath.EvalSymlinks(dir)
+		if err == nil {
+			return filepath.Join(resolved, tail), nil
+		}
+		tail = filepath.Join(filepath.Base(dir), tail)
+		cursor = dir
+		dir = filepath.Dir(dir)
+	}
+
+	// Filesystem root could not be resolved; return as-is (safe: will fail containment check)
+	return cursor, nil
 }
 
 // validateTaskInput sanitizes and validates task input
