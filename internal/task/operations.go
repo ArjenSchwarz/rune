@@ -14,6 +14,7 @@ import (
 const (
 	MaxTaskCount      = 10000 // Maximum number of tasks
 	MaxHierarchyDepth = 10    // Maximum hierarchy depth
+	MaxTitleLength    = 500   // Maximum characters per task title
 	MaxDetailLength   = 1000  // Maximum characters per detail line
 )
 
@@ -438,7 +439,10 @@ func validateTaskInput(input string) error {
 		return fmt.Errorf("input contains null bytes or control characters")
 	}
 
-	// Length validation is handled by Task.Validate()
+	if len(input) > MaxTitleLength {
+		return fmt.Errorf("task title exceeds %d characters", MaxTitleLength)
+	}
+
 	return nil
 }
 
