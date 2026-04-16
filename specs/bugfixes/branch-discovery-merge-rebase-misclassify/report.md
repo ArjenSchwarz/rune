@@ -37,10 +37,10 @@ The `isSpecialGitState` function used broad `strings.Contains` checks for "rebas
 - `internal/config/discovery.go:145-155` — Removed `strings.Contains` checks for "rebase" and "merge". The function now only checks for exact matches against known detached-state values ("HEAD", "(no branch)").
 - `internal/config/discovery_test.go:303-327` — Fixed existing incorrect test assertions and added 13 new regression test cases covering branch names containing "merge" and "rebase" in various positions.
 
-**Approach rationale:** `git rev-parse --abbrev-ref HEAD` never returns a "rebase" or "merge" state string — it returns "HEAD" when detached. Removing the substring checks is the correct minimal fix.
+**Approach rationale:** `git rev-parse --abbrev-ref HEAD` never returns a "rebase" or "merge" state string. During rebase, git enters detached HEAD state and the command returns "HEAD". During an in-progress merge with conflicts, it returns the branch name — `.git/MERGE_HEAD` would be the reliable signal for that state, but auto-discovery on a normal branch during merge is correct behavior. Removing the substring checks is the correct minimal fix.
 
 **Alternatives considered:**
-- Detecting merge/rebase state via `.git/MERGE_HEAD` or `.git/rebase-merge/` directories — not needed because `git rev-parse --abbrev-ref HEAD` already returns "HEAD" during these operations, which is already handled.
+- Detecting merge/rebase state via `.git/MERGE_HEAD` or `.git/rebase-merge/` directories — not needed for this fix. During rebase, `git rev-parse --abbrev-ref HEAD` returns "HEAD" (already handled). During merge, it returns the branch name, so the substring checks never reliably detected in-progress merges anyway.
 
 ## Regression Test
 
