@@ -89,7 +89,7 @@ The test suite has been refactored to follow Go 2025 best practices:
 ### Go Install
 
 ```bash
-go install github.com/ArjenSchwarz/rune@v1.1.0
+go install github.com/arjenschwarz/rune@v1.1.0
 ```
 
 ### Build from Source

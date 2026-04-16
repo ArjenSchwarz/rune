@@ -24,7 +24,7 @@ A standalone Go command-line tool designed for AI agents and developers to creat
 ## Installation
 
 ```bash
-go install github.com/ArjenSchwarz/rune@latest
+go install github.com/arjenschwarz/rune@latest
 ```
 
 Or install from source:

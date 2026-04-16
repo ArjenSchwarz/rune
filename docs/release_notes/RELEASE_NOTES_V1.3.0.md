@@ -48,7 +48,7 @@ If the positional argument conflicts with a `file` field in the JSON payload, a 
 ### Go Install
 
 ```bash
-go install github.com/ArjenSchwarz/rune@v1.3.0
+go install github.com/arjenschwarz/rune@v1.3.0
 ```
 
 ### Build from Source

@@ -118,7 +118,7 @@ The `list` command now shows Stream, BlockedBy, and Owner columns only when rele
 ### Go Install
 
 ```bash
-go install github.com/ArjenSchwarz/rune@v1.2.0
+go install github.com/arjenschwarz/rune@v1.2.0
 ```
 
 ### Build from Source
