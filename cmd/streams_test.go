@@ -389,6 +389,63 @@ func TestStreamsCommandWithAvailableFilter(t *testing.T) {
 	}
 }
 
+// TestFilterEmptyStreamsRecomputesAvailable verifies that filterEmptyStreams
+// recomputes Available from the surviving streams rather than copying stale IDs.
+// Regression test for T-703.
+func TestFilterEmptyStreamsRecomputesAvailable(t *testing.T) {
+	// Craft a StreamsResult where Available is stale: it claims stream 2
+	// is available, but stream 2 has no ready/blocked/active tasks and
+	// should be dropped by filterEmptyStreams.
+	input := &task.StreamsResult{
+		Streams: []task.StreamStatus{
+			{ID: 1, Ready: []string{"1"}, Blocked: []string{}, Active: []string{}},
+			{ID: 2, Ready: []string{}, Blocked: []string{}, Active: []string{}},
+		},
+		Available: []int{1, 2}, // stale: stream 2 has no ready tasks
+	}
+
+	result := filterEmptyStreams(input)
+
+	if len(result.Streams) != 1 {
+		t.Fatalf("expected 1 stream after filtering, got %d", len(result.Streams))
+	}
+	if result.Streams[0].ID != 1 {
+		t.Errorf("expected stream 1, got stream %d", result.Streams[0].ID)
+	}
+	// Available must be recomputed: only stream 1 survives and has ready tasks.
+	if len(result.Available) != 1 || result.Available[0] != 1 {
+		t.Errorf("expected available=[1], got %v", result.Available)
+	}
+}
+
+// TestFilterAvailableStreamsRecomputesAvailable verifies that filterAvailableStreams
+// recomputes Available from the surviving streams rather than copying stale IDs.
+// Regression test for T-703.
+func TestFilterAvailableStreamsRecomputesAvailable(t *testing.T) {
+	// Craft a StreamsResult where Available is stale: it claims streams 1
+	// and 2 are available, but stream 2 has only blocked tasks. After
+	// filterAvailableStreams, only stream 1 should remain.
+	input := &task.StreamsResult{
+		Streams: []task.StreamStatus{
+			{ID: 1, Ready: []string{"1"}, Blocked: []string{}, Active: []string{}},
+			{ID: 2, Ready: []string{}, Blocked: []string{"2"}, Active: []string{}},
+		},
+		Available: []int{1, 2}, // stale: stream 2 has no ready tasks
+	}
+
+	result := filterAvailableStreams(input)
+
+	if len(result.Streams) != 1 {
+		t.Fatalf("expected 1 stream after filtering, got %d", len(result.Streams))
+	}
+	if result.Streams[0].ID != 1 {
+		t.Errorf("expected stream 1, got stream %d", result.Streams[0].ID)
+	}
+	if len(result.Available) != 1 || result.Available[0] != 1 {
+		t.Errorf("expected available=[1], got %v", result.Available)
+	}
+}
+
 func TestStreamsCommandEmptyResult(t *testing.T) {
 	// Create temporary directory for test files
 	tempDir, err := os.MkdirTemp("", "rune-streams-empty-test")

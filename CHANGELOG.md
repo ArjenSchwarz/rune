@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Streams Command**: `streams --available --json` (and `streams --json`) now recomputes the `available` array from the filtered `streams` list, preventing stale stream IDs from appearing in `available` after `filterEmptyStreams` or `filterAvailableStreams` removes streams
 - **Next Command**: `next --phase --claim AGENT` now correctly claims all ready tasks from the next phase instead of silently ignoring `--phase` and claiming only a single task
 - **Phase Parsing**: `ParseFileWithPhases` front-matter stripping no longer treats horizontal rules (`---`) after front matter as additional front-matter delimiters, which would cause phase markers after the rule to be silently dropped
 - **Phase Parsing**: Normalize CRLF line endings in all phase-related functions (`ParseFileWithPhases`, `ExtractPhaseMarkers`, `getTaskPhase`, `getNextPhaseTasks`, `FindNextPhaseTasks`, `FindNextPhaseTasksForStream`, and phase-aware operations) by introducing a `splitLines` helper that trims `\r` after splitting on `\n`

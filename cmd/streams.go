@@ -84,32 +84,38 @@ func runStreams(cmd *cobra.Command, args []string) error {
 	return outputStreamsTable(result)
 }
 
-// filterAvailableStreams returns only streams that have ready tasks
+// filterAvailableStreams returns only streams that have ready tasks.
+// Available is recomputed from the surviving streams.
 func filterAvailableStreams(result *task.StreamsResult) *task.StreamsResult {
 	filtered := &task.StreamsResult{
 		Streams:   make([]task.StreamStatus, 0),
-		Available: result.Available,
+		Available: []int{},
 	}
 
 	for _, stream := range result.Streams {
 		if len(stream.Ready) > 0 {
 			filtered.Streams = append(filtered.Streams, stream)
+			filtered.Available = append(filtered.Available, stream.ID)
 		}
 	}
 
 	return filtered
 }
 
-// filterEmptyStreams removes streams that have no pending tasks (all completed)
+// filterEmptyStreams removes streams that have no pending tasks (all completed).
+// Available is recomputed from the surviving streams.
 func filterEmptyStreams(result *task.StreamsResult) *task.StreamsResult {
 	filtered := &task.StreamsResult{
 		Streams:   make([]task.StreamStatus, 0),
-		Available: result.Available,
+		Available: []int{},
 	}
 
 	for _, stream := range result.Streams {
 		if len(stream.Ready) > 0 || len(stream.Blocked) > 0 || len(stream.Active) > 0 {
 			filtered.Streams = append(filtered.Streams, stream)
+			if len(stream.Ready) > 0 {
+				filtered.Available = append(filtered.Available, stream.ID)
+			}
 		}
 	}
 
