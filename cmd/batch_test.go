@@ -573,3 +573,102 @@ func TestBatchCommand_MaxOperationsLimit(t *testing.T) {
 		t.Errorf("Expected operation limit error, got: %v", err)
 	}
 }
+
+// TestBatchCommand_RemoveOnPhasedFilePreservesPhases verifies that batch remove
+// operations on a file with phases preserve the phase structure (T-820).
+// The bug was that cmd/batch.go only used phase-aware execution when an operation
+// explicitly referenced a phase, so plain removes on phased files would strip
+// all phase headers.
+func TestBatchCommand_RemoveOnPhasedFilePreservesPhases(t *testing.T) {
+	tmpDir := t.TempDir()
+	taskFile := filepath.Join(tmpDir, "test_tasks.md")
+
+	initialContent := `# Test Tasks
+
+## Planning
+
+- [ ] 1. Define requirements
+- [ ] 2. Create design
+
+## Implementation
+
+- [ ] 3. Write code
+- [ ] 4. Write tests
+
+## Deployment
+
+- [ ] 5. Deploy to staging
+- [ ] 6. Deploy to production
+`
+	if err := os.WriteFile(taskFile, []byte(initialContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	os.Chdir(tmpDir)
+
+	resetBatchFlags()
+
+	// Batch remove tasks 1 and 3 — no phase field set on any operation
+	req := task.BatchRequest{
+		File: "test_tasks.md",
+		Operations: []task.Operation{
+			{Type: "remove", ID: "1"},
+			{Type: "remove", ID: "3"},
+		},
+	}
+
+	jsonData, _ := json.Marshal(req)
+
+	var output bytes.Buffer
+	rootCmd.SetOut(&output)
+	rootCmd.SetArgs([]string{"batch", "--input", string(jsonData), "--format", "json"})
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("Batch command failed: %v", err)
+	}
+
+	// Re-read the file
+	updatedContent, err := os.ReadFile(taskFile)
+	if err != nil {
+		t.Fatalf("Failed to read updated file: %v", err)
+	}
+
+	contentStr := string(updatedContent)
+
+	// Phase headers must be preserved
+	if !strings.Contains(contentStr, "## Planning") {
+		t.Error("Planning phase header was lost after batch remove")
+	}
+	if !strings.Contains(contentStr, "## Implementation") {
+		t.Error("Implementation phase header was lost after batch remove")
+	}
+	if !strings.Contains(contentStr, "## Deployment") {
+		t.Error("Deployment phase header was lost after batch remove")
+	}
+
+	// Verify task positions relative to phase headers
+	planningIdx := strings.Index(contentStr, "## Planning")
+	implIdx := strings.Index(contentStr, "## Implementation")
+	deployIdx := strings.Index(contentStr, "## Deployment")
+
+	designIdx := strings.Index(contentStr, "Create design")
+	testsIdx := strings.Index(contentStr, "Write tests")
+	stagingIdx := strings.Index(contentStr, "Deploy to staging")
+
+	// "Create design" should be between Planning and Implementation
+	if designIdx < planningIdx || designIdx > implIdx {
+		t.Error("'Create design' should be in Planning phase")
+	}
+
+	// "Write tests" should be between Implementation and Deployment
+	if testsIdx < implIdx || testsIdx > deployIdx {
+		t.Error("'Write tests' should be in Implementation phase")
+	}
+
+	// "Deploy to staging" should be after Deployment
+	if stagingIdx < deployIdx {
+		t.Error("'Deploy to staging' should be in Deployment phase")
+	}
+}
