@@ -405,29 +405,30 @@ func ValidateFilePath(path string) error {
 // path, then appends the remaining unresolved tail. This handles the case
 // where the file itself does not yet exist (e.g. create operations) but an
 // ancestor directory contains a symlink.
-func resolveExistingPrefix(path string) (string, error) {
+func resolveExistingPrefix(absPath string) (string, error) {
 	// Try resolving the full path first (common case: file exists)
-	resolved, err := filepath.EvalSymlinks(path)
+	resolved, err := filepath.EvalSymlinks(absPath)
 	if err == nil {
 		return resolved, nil
 	}
 
 	// Walk up to find the deepest existing ancestor
-	dir := filepath.Dir(path)
-	tail := filepath.Base(path)
+	dir := filepath.Dir(absPath)
+	tail := filepath.Base(absPath)
+	cursor := absPath
 
-	for dir != path {
+	for dir != cursor {
 		resolved, err = filepath.EvalSymlinks(dir)
 		if err == nil {
 			return filepath.Join(resolved, tail), nil
 		}
 		tail = filepath.Join(filepath.Base(dir), tail)
-		path = dir
+		cursor = dir
 		dir = filepath.Dir(dir)
 	}
 
-	// Nothing resolved; return the original absolute path
-	return filepath.Abs(path)
+	// Filesystem root could not be resolved; return as-is (safe: will fail containment check)
+	return cursor, nil
 }
 
 // validateTaskInput sanitizes and validates task input
