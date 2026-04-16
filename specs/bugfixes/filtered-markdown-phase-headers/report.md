@@ -49,6 +49,7 @@
 **Test names:**
 - `TestRenderMarkdownWithPhases_FilteredBoundaryTask` — Two phases, boundary task filtered out
 - `TestRenderMarkdownWithPhases_FilteredBoundaryThreePhases` — Three phases, multiple boundary tasks filtered out
+- `TestRenderMarkdownWithPhases_FilteredNonAdjacentBlocks` — Non-adjacent filtered blocks across different phases
 - `TestRenderMarkdownWithPhases_NilPhaseSource` — Backward compatibility with nil phaseSource
 
 **What it verifies:** Phase headers appear correctly in markdown output even when the tasks referenced by `PhaseMarker.AfterTaskID` are absent from the filtered task list.

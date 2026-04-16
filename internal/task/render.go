@@ -294,6 +294,8 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSou
 	}
 
 	for i := range tl.Tasks {
+		// positionOf is keyed by resolutionList task IDs.
+		// Every task in tl must exist in resolutionList when phaseSource != nil.
 		taskPos := positionOf[tl.Tasks[i].ID]
 
 		// Emit phase headers that start at or before this task's position.

@@ -638,9 +638,13 @@ func TestRenderMarkdownWithPhases_FilteredBoundaryTask(t *testing.T) {
 	}
 
 	// Phase headers must appear before their tasks (ordering check).
+	designIdx := strings.Index(got, "## Design")
 	buildIdx := strings.Index(got, "## Build")
 	implIdx := strings.Index(got, "Implement")
 	deployIdx := strings.Index(got, "Deploy")
+	if designIdx >= buildIdx {
+		t.Errorf("'## Design' should appear before '## Build', got:\n%s", got)
+	}
 	if buildIdx >= implIdx {
 		t.Errorf("'## Build' header should appear before 'Implement' task, got:\n%s", got)
 	}
