@@ -9,47 +9,56 @@ import (
 
 func TestLoadConfig(t *testing.T) {
 	tests := map[string]struct {
-		setup       func(t *testing.T) string
-		cleanup     func(string)
+		writeConfig bool
+		content     string
 		wantEnabled bool
 		wantErr     bool
 	}{
 		"loads from current directory .rune.yml": {
-			setup: func(t *testing.T) string {
-				resetConfigCache() // Reset cache before test
-				content := `
+			writeConfig: true,
+			content: `
 discovery:
   enabled: true
   template: "tasks/{branch}.md"
-`
-				err := os.WriteFile(".rune.yml", []byte(content), 0644)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return ".rune.yml"
-			},
-			cleanup: func(path string) {
-				os.Remove(path)
-			},
+`,
 			wantEnabled: true,
 		},
 		"returns default config when no file exists": {
-			setup: func(t *testing.T) string {
-				resetConfigCache() // Reset cache before test
-				// Ensure no config files exist
-				os.Remove(".rune.yml")
-				return ""
-			},
-			cleanup:     func(string) {},
+			writeConfig: false,
 			wantEnabled: true,
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			path := tc.setup(t)
-			if tc.cleanup != nil {
-				defer tc.cleanup(path)
+			resetConfigCache()
+
+			// Isolate: work in a temp directory with a fake HOME
+			tempDir := t.TempDir()
+			fakeHome := t.TempDir()
+			t.Setenv("HOME", fakeHome)
+
+			originalDir, err := os.Getwd()
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				os.Chdir(originalDir)
+				resetConfigCache()
+			})
+
+			// Init a git repo so getRepoRoot works
+			cmd := exec.Command("git", "-C", tempDir, "init")
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("git init failed: %v", err)
+			}
+
+			os.Chdir(tempDir)
+
+			if tc.writeConfig {
+				if err := os.WriteFile(filepath.Join(tempDir, ".rune.yml"), []byte(tc.content), 0644); err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			cfg, err := LoadConfig()
@@ -165,13 +174,17 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestExpandHome(t *testing.T) {
+	// Use a fake HOME so the test is deterministic and never touches the real home
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+
 	tests := map[string]struct {
 		input string
 		want  string
 	}{
 		"expands tilde": {
 			input: "~/config/file.yml",
-			want:  filepath.Join(os.Getenv("HOME"), "config/file.yml"),
+			want:  filepath.Join(fakeHome, "config/file.yml"),
 		},
 		"no tilde": {
 			input: "/absolute/path/file.yml",
@@ -185,58 +198,61 @@ func TestExpandHome(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			// Set HOME env var for consistent testing
-			home := os.Getenv("HOME")
-			if home == "" {
-				home, _ = os.UserHomeDir()
-			}
-
 			got := expandHome(tc.input)
-
-			// For tilde expansion, check that it starts with home dir
-			if tc.input[:2] == "~/" {
-				if !contains(got, home) {
-					t.Errorf("expandHome(%q) = %q, should contain home dir %q", tc.input, got, home)
-				}
-			} else {
-				if got != tc.want {
-					t.Errorf("expandHome(%q) = %q, want %q", tc.input, got, tc.want)
-				}
+			if got != tc.want {
+				t.Errorf("expandHome(%q) = %q, want %q", tc.input, got, tc.want)
 			}
 		})
 	}
 }
 
 func TestConfigPrecedence(t *testing.T) {
-	resetConfigCache() // Reset cache before test
+	resetConfigCache()
 
-	// Create config in current directory
+	// Isolate: use temp directories so we never touch the real home
+	tempDir := t.TempDir()
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.Chdir(originalDir)
+		resetConfigCache()
+	})
+
+	// Init a git repo so getRepoRoot returns tempDir
+	cmd := exec.Command("git", "-C", tempDir, "init")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+	os.Chdir(tempDir)
+
+	// Create config in the "repo root" (should take precedence)
 	localContent := `
 discovery:
   enabled: true
   template: "local/{branch}.md"
 `
-	err := os.WriteFile(".rune.yml", []byte(localContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, ".rune.yml"), []byte(localContent), 0644); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(".rune.yml")
 
-	// Also create a home config (which should be ignored)
-	homeDir, _ := os.UserHomeDir()
-	homeConfigDir := filepath.Join(homeDir, ".config", "rune")
-	os.MkdirAll(homeConfigDir, 0755)
-	homeConfigPath := filepath.Join(homeConfigDir, "config.yml")
+	// Create a home config (should be ignored due to lower precedence)
+	homeConfigDir := filepath.Join(fakeHome, ".config", "rune")
+	if err := os.MkdirAll(homeConfigDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 	homeContent := `
 discovery:
   enabled: false
   template: "home/{branch}.md"
 `
-	err = os.WriteFile(homeConfigPath, []byte(homeContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(filepath.Join(homeConfigDir, "config.yml"), []byte(homeContent), 0644); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(homeConfigPath)
 
 	// Load config - should use local file
 	cfg, err := LoadConfig()
