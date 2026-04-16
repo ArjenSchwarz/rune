@@ -165,7 +165,10 @@ func (tl *TaskList) addTaskAtPosition(parentID, title, position string) (string,
 	return newTaskID, nil
 }
 
-// RemoveTask removes a task from the task list and renumbers remaining tasks
+// RemoveTask removes a task from the task list and renumbers remaining tasks.
+//
+// Deprecated: Use RemoveTaskWithDependents to ensure BlockedBy references
+// are cleaned up. RemoveTask only removes the task and renumbers.
 func (tl *TaskList) RemoveTask(taskID string) error {
 	if removed := tl.removeTaskRecursive(&tl.Tasks, taskID, ""); removed {
 		tl.RenumberTasks()
@@ -772,14 +775,14 @@ func (tl *TaskList) RemoveTaskWithPhases(taskID string, originalContent []byte) 
 
 	// If no phases, just use regular operations
 	if len(phaseMarkers) == 0 {
-		if err := tl.RemoveTask(taskID); err != nil {
+		if _, err := tl.RemoveTaskWithDependents(taskID); err != nil {
 			return err
 		}
 		return tl.WriteFile(tl.FilePath)
 	}
 
-	// Remove the task
-	if err := tl.RemoveTask(taskID); err != nil {
+	// Remove the task (cleans up stale BlockedBy references)
+	if _, err := tl.RemoveTaskWithDependents(taskID); err != nil {
 		return err
 	}
 

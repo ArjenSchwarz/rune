@@ -407,7 +407,8 @@ func applyOperation(tl *TaskList, op Operation) error {
 	case addOperation:
 		return applyAddOperation(tl, op)
 	case removeOperation:
-		return tl.RemoveTask(op.ID)
+		_, err := tl.RemoveTaskWithDependents(op.ID)
+		return err
 	case updateOperation:
 		return applyUpdateOperation(tl, op)
 	default:
@@ -751,7 +752,8 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
 	case removeOperation:
 		adjustPhaseMarkersForRemoval(op.ID, phaseMarkers)
-		return tl.RemoveTask(op.ID)
+		_, err := tl.RemoveTaskWithDependents(op.ID)
+		return err
 	case updateOperation:
 		// Apply field updates BEFORE status to avoid partial mutation if
 		// UpdateTask/UpdateTaskWithOptions rejects invalid content.

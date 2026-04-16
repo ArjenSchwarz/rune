@@ -1,6 +1,7 @@
 package task
 
 import (
+	"os"
 	"testing"
 )
 
@@ -57,19 +58,19 @@ func TestAddTaskWithOptions(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
 		// First add a task that will be the blocker
-		blockerId, err := tl.AddTaskWithOptions("", "Blocker task", AddOptions{})
+		blockerID, err := tl.AddTaskWithOptions("", "Blocker task", AddOptions{})
 		if err != nil {
 			t.Fatalf("AddTaskWithOptions failed: %v", err)
 		}
 
-		blockerTask := tl.FindTask(blockerId)
+		blockerTask := tl.FindTask(blockerID)
 		if blockerTask == nil {
 			t.Fatal("blocker task not found")
 		}
 
 		// Add a task blocked by the first task
 		id, err := tl.AddTaskWithOptions("", "Blocked task", AddOptions{
-			BlockedBy: []string{blockerId}, // Using hierarchical ID
+			BlockedBy: []string{blockerID}, // Using hierarchical ID
 		})
 		if err != nil {
 			t.Fatalf("AddTaskWithOptions failed: %v", err)
@@ -150,7 +151,7 @@ func TestAddTaskWithOptions(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
 		// Create a blocker task first
-		blockerId, err := tl.AddTaskWithOptions("", "Blocker", AddOptions{})
+		blockerID, err := tl.AddTaskWithOptions("", "Blocker", AddOptions{})
 		if err != nil {
 			t.Fatalf("AddTaskWithOptions failed: %v", err)
 		}
@@ -158,7 +159,7 @@ func TestAddTaskWithOptions(t *testing.T) {
 		// Add task with all options
 		id, err := tl.AddTaskWithOptions("", "Full options task", AddOptions{
 			Stream:    2,
-			BlockedBy: []string{blockerId},
+			BlockedBy: []string{blockerID},
 			Owner:     "agent-2",
 		})
 		if err != nil {
@@ -416,9 +417,9 @@ func TestUpdateTaskWithOptions(t *testing.T) {
 	t.Run("UpdateTask clearing blocked-by", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
-		blockerId, _ := tl.AddTaskWithOptions("", "Blocker", AddOptions{})
+		blockerID, _ := tl.AddTaskWithOptions("", "Blocker", AddOptions{})
 		taskId, _ := tl.AddTaskWithOptions("", "Task", AddOptions{
-			BlockedBy: []string{blockerId},
+			BlockedBy: []string{blockerID},
 		})
 
 		// Clear blocked-by with empty slice
@@ -445,20 +446,20 @@ func TestRemoveTaskWithDependents(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
 		// Create a task that others will depend on
-		blockerId, _ := tl.AddTaskWithOptions("", "Blocker", AddOptions{})
-		blockerTask := tl.FindTask(blockerId)
+		blockerID, _ := tl.AddTaskWithOptions("", "Blocker", AddOptions{})
+		blockerTask := tl.FindTask(blockerID)
 		blockerStableID := blockerTask.StableID
 
 		// Create tasks that depend on it
 		tl.AddTaskWithOptions("", "Dependent 1", AddOptions{
-			BlockedBy: []string{blockerId},
+			BlockedBy: []string{blockerID},
 		})
 		tl.AddTaskWithOptions("", "Dependent 2", AddOptions{
-			BlockedBy: []string{blockerId},
+			BlockedBy: []string{blockerID},
 		})
 
 		// Remove the blocker task (it's at ID "1", so after removal IDs will shift)
-		warnings, err := tl.RemoveTaskWithDependents(blockerId)
+		warnings, err := tl.RemoveTaskWithDependents(blockerID)
 		if err != nil {
 			t.Fatalf("RemoveTaskWithDependents failed: %v", err)
 		}
@@ -490,15 +491,15 @@ func TestRemoveTaskWithDependents(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
 		// Create blocker and dependent
-		blockerId, _ := tl.AddTaskWithOptions("", "Blocker", AddOptions{})
-		blockerTask := tl.FindTask(blockerId)
+		blockerID, _ := tl.AddTaskWithOptions("", "Blocker", AddOptions{})
+		blockerTask := tl.FindTask(blockerID)
 
-		depId, _ := tl.AddTaskWithOptions("", "Dependent", AddOptions{
-			BlockedBy: []string{blockerId},
+		depID, _ := tl.AddTaskWithOptions("", "Dependent", AddOptions{
+			BlockedBy: []string{blockerID},
 		})
 
 		// Verify dependent has the blocker in its BlockedBy
-		depTask := tl.FindTask(depId)
+		depTask := tl.FindTask(depID)
 		if len(depTask.BlockedBy) != 1 {
 			t.Fatalf("expected 1 blocker, got %d", len(depTask.BlockedBy))
 		}
@@ -507,7 +508,7 @@ func TestRemoveTaskWithDependents(t *testing.T) {
 		}
 
 		// Remove the blocker
-		_, err := tl.RemoveTaskWithDependents(blockerId)
+		_, err := tl.RemoveTaskWithDependents(blockerID)
 		if err != nil {
 			t.Fatalf("RemoveTaskWithDependents failed: %v", err)
 		}
@@ -554,11 +555,11 @@ func TestRemoveTaskWithDependents(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
 
 		// Create task A with a stable ID (the blocker)
-		blockerId, err := tl.AddTaskWithOptions("", "Blocker A", AddOptions{})
+		blockerID, err := tl.AddTaskWithOptions("", "Blocker A", AddOptions{})
 		if err != nil {
 			t.Fatalf("AddTaskWithOptions failed: %v", err)
 		}
-		blockerTask := tl.FindTask(blockerId)
+		blockerTask := tl.FindTask(blockerID)
 		blockerStableID := blockerTask.StableID
 
 		// Create task B without a stable ID but with BlockedBy referencing A.
@@ -575,7 +576,7 @@ func TestRemoveTaskWithDependents(t *testing.T) {
 		})
 
 		// Remove the blocker
-		_, err = tl.RemoveTaskWithDependents(blockerId)
+		_, err = tl.RemoveTaskWithDependents(blockerID)
 		if err != nil {
 			t.Fatalf("RemoveTaskWithDependents failed: %v", err)
 		}
@@ -756,4 +757,177 @@ func TestCollectStableIDs(t *testing.T) {
 			t.Errorf("expected 1 stable ID (excluding legacy), got %d", len(ids))
 		}
 	})
+}
+
+// T-806 regression: RemoveTaskWithPhases must clean up stale BlockedBy refs.
+func TestRemoveTaskWithPhases_CleansBlockedBy(t *testing.T) {
+	tl := &TaskList{Title: "Test Tasks"}
+
+	// Create blocker task with stable ID
+	blockerID, err := tl.AddTaskWithOptions("", "Blocker", AddOptions{})
+	if err != nil {
+		t.Fatalf("failed to add blocker task: %v", err)
+	}
+	blockerTask := tl.FindTask(blockerID)
+	blockerStableID := blockerTask.StableID
+
+	// Create dependent task blocked by the first
+	depID, err := tl.AddTaskWithOptions("", "Dependent", AddOptions{
+		BlockedBy: []string{blockerID},
+	})
+	if err != nil {
+		t.Fatalf("failed to add dependent task: %v", err)
+	}
+
+	depTask := tl.FindTask(depID)
+	if len(depTask.BlockedBy) != 1 || depTask.BlockedBy[0] != blockerStableID {
+		t.Fatalf("precondition: expected dependent blocked by %q, got %v", blockerStableID, depTask.BlockedBy)
+	}
+
+	// Render to markdown so RemoveTaskWithPhases has original content
+	md := RenderMarkdown(tl)
+	dir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer os.Chdir(originalDir)
+	tl.FilePath = "t806_test_phases.md"
+
+	// Remove the blocker via the phase-aware path (no actual phases)
+	if err := tl.RemoveTaskWithPhases(blockerID, md); err != nil {
+		t.Fatalf("RemoveTaskWithPhases failed: %v", err)
+	}
+
+	// After removal, the remaining task (renumbered to "1") must NOT reference
+	// the deleted blocker's stable ID.
+	remaining := tl.FindTask("1")
+	if remaining == nil {
+		t.Fatal("expected remaining task at ID 1")
+	}
+	if len(remaining.BlockedBy) != 0 {
+		t.Errorf("T-806: stale BlockedBy reference not cleaned up, got %v", remaining.BlockedBy)
+	}
+}
+
+// T-806 regression: batch remove must clean up stale BlockedBy refs.
+func TestBatchRemove_CleansBlockedBy(t *testing.T) {
+	tl := &TaskList{Title: "Test Tasks"}
+
+	// Create blocker and dependent
+	blockerID, err := tl.AddTaskWithOptions("", "Blocker", AddOptions{})
+	if err != nil {
+		t.Fatalf("failed to add blocker task: %v", err)
+	}
+	blockerTask := tl.FindTask(blockerID)
+	blockerStableID := blockerTask.StableID
+
+	depID, err := tl.AddTaskWithOptions("", "Dependent", AddOptions{
+		BlockedBy: []string{blockerID},
+	})
+	if err != nil {
+		t.Fatalf("failed to add dependent task: %v", err)
+	}
+
+	depTask := tl.FindTask(depID)
+	if len(depTask.BlockedBy) != 1 || depTask.BlockedBy[0] != blockerStableID {
+		t.Fatalf("precondition: expected dependent blocked by %q, got %v", blockerStableID, depTask.BlockedBy)
+	}
+
+	// Execute a batch remove operation
+	ops := []Operation{
+		{Type: "remove", ID: blockerID},
+	}
+
+	resp, err := tl.ExecuteBatch(ops, false)
+	if err != nil {
+		t.Fatalf("batch remove failed: %v", err)
+	}
+	if !resp.Success {
+		t.Fatalf("batch remove not successful: errors=%v", resp.Errors)
+	}
+
+	// The remaining task must have no stale BlockedBy
+	remaining := tl.FindTask("1")
+	if remaining == nil {
+		t.Fatal("expected remaining task at ID 1")
+	}
+	if len(remaining.BlockedBy) != 0 {
+		t.Errorf("T-806: stale BlockedBy reference not cleaned up after batch remove, got %v", remaining.BlockedBy)
+	}
+}
+
+// T-806 regression: ExecuteBatchWithPhases remove must clean up stale BlockedBy refs.
+func TestBatchRemoveWithPhases_CleansBlockedBy(t *testing.T) {
+	tl := &TaskList{Title: "Test Tasks"}
+
+	// Create blocker and dependent
+	blockerID, err := tl.AddTaskWithOptions("", "Blocker", AddOptions{})
+	if err != nil {
+		t.Fatalf("failed to add blocker task: %v", err)
+	}
+	blockerTask := tl.FindTask(blockerID)
+	blockerStableID := blockerTask.StableID
+
+	depID, err := tl.AddTaskWithOptions("", "Dependent", AddOptions{
+		BlockedBy: []string{blockerID},
+	})
+	if err != nil {
+		t.Fatalf("failed to add dependent task: %v", err)
+	}
+
+	depTask := tl.FindTask(depID)
+	if len(depTask.BlockedBy) != 1 || depTask.BlockedBy[0] != blockerStableID {
+		t.Fatalf("precondition: expected dependent blocked by %q, got %v", blockerStableID, depTask.BlockedBy)
+	}
+
+	// Set up a file path for phase-aware batch (it writes to disk)
+	dir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+	defer os.Chdir(originalDir)
+
+	filePath := "t806_batch_phases.md"
+	tl.FilePath = filePath
+
+	// Write initial content so ExecuteBatchWithPhases can read/write
+	md := RenderMarkdown(tl)
+	if err := os.WriteFile(filePath, md, 0o644); err != nil {
+		t.Fatalf("failed to write initial file: %v", err)
+	}
+
+	// Use phase markers to force the ExecuteBatchWithPhases path
+	// (without phase markers it falls through to ExecuteBatch)
+	phaseMarkers := []PhaseMarker{
+		{Name: "Phase 1", AfterTaskID: ""},
+	}
+
+	ops := []Operation{
+		{Type: "remove", ID: blockerID},
+	}
+
+	resp, err := tl.ExecuteBatchWithPhases(ops, false, phaseMarkers, filePath)
+	if err != nil {
+		t.Fatalf("batch remove with phases failed: %v", err)
+	}
+	if !resp.Success {
+		t.Fatalf("batch remove with phases not successful: errors=%v", resp.Errors)
+	}
+
+	// The remaining task must have no stale BlockedBy
+	remaining := tl.FindTask("1")
+	if remaining == nil {
+		t.Fatal("expected remaining task at ID 1")
+	}
+	if len(remaining.BlockedBy) != 0 {
+		t.Errorf("T-806: stale BlockedBy reference not cleaned up after batch remove with phases, got %v", remaining.BlockedBy)
+	}
 }
