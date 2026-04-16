@@ -1715,6 +1715,17 @@ func TestSkipFrontMatter_HorizontalRuleAfterFrontMatter(t *testing.T) {
 				"",
 			},
 		},
+		"multiple hrs after front matter preserved": {
+			content: "---\ntitle: x\n---\n## A\n---\n## B\n---\n## C\n",
+			wantLines: []string{
+				"## A",
+				"---",
+				"## B",
+				"---",
+				"## C",
+				"",
+			},
+		},
 	}
 
 	for name, tc := range tests {
@@ -1734,14 +1745,14 @@ func TestSkipFrontMatter_HorizontalRuleAfterFrontMatter(t *testing.T) {
 	}
 }
 
-// TestFindNextPhaseTasks_HorizontalRuleAfterFrontMatter is an end-to-end test
-// verifying that phases after a horizontal rule are found when front matter is
-// present. Regression test for T-763.
+// TestFindNextPhaseTasks_WithFrontMatter is an end-to-end test verifying that
+// FindNextPhaseTasks correctly handles files with YAML front matter. It first
+// confirms skipFrontMatter preserves phase content, then exercises the full
+// FindNextPhaseTasks pipeline. Regression test for T-763.
 //
 // Note: ParseMarkdown does not allow bare --- at root level in a task file,
-// so this test uses skipFrontMatter directly on realistic multi-phase content
-// where front matter is stripped and the remaining phases are intact.
-func TestFindNextPhaseTasks_HorizontalRuleAfterFrontMatter(t *testing.T) {
+// so the end-to-end portion uses content without a horizontal rule separator.
+func TestFindNextPhaseTasks_WithFrontMatter(t *testing.T) {
 	// Verify skipFrontMatter with content matching FindNextPhaseTasks usage pattern.
 	content := "---\ntitle: Project\n---\n## Phase A\n- [x] 1. Done task\n\n## Phase B\n- [ ] 2. Pending task\n"
 	lines := strings.Split(content, "\n")
@@ -1759,7 +1770,7 @@ func TestFindNextPhaseTasks_HorizontalRuleAfterFrontMatter(t *testing.T) {
 		t.Errorf("skipFrontMatter dropped tasks after front matter")
 	}
 
-	// Now test the full flow without HR (validates the pipeline works).
+	// End-to-end: verify the full pipeline finds the correct next phase.
 	tmpFile, err := os.CreateTemp("", "hr-frontmatter-*.md")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
