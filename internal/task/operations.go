@@ -772,14 +772,14 @@ func (tl *TaskList) RemoveTaskWithPhases(taskID string, originalContent []byte) 
 
 	// If no phases, just use regular operations
 	if len(phaseMarkers) == 0 {
-		if err := tl.RemoveTask(taskID); err != nil {
+		if _, err := tl.RemoveTaskWithDependents(taskID); err != nil {
 			return err
 		}
 		return tl.WriteFile(tl.FilePath)
 	}
 
-	// Remove the task
-	if err := tl.RemoveTask(taskID); err != nil {
+	// Remove the task (cleans up stale BlockedBy references)
+	if _, err := tl.RemoveTaskWithDependents(taskID); err != nil {
 		return err
 	}
 
