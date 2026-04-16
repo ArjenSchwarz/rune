@@ -309,8 +309,6 @@ func TestIsSpecialGitState(t *testing.T) {
 		"feature branch": {"feature/auth", false},
 		"detached HEAD":  {"HEAD", true},
 		"no branch":      {"(no branch)", true},
-		"rebase state":   {"main-rebase", false},
-		"merge state":    {"feature-merge", false},
 		// T-716: Normal branch names containing "merge" or "rebase" must NOT be
 		// classified as special git states. Only actual detached/special states
 		// (HEAD, "(no branch)") should be rejected.
