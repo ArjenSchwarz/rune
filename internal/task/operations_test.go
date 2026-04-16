@@ -1540,3 +1540,133 @@ func TestTitleLengthValidation(t *testing.T) {
 		}
 	})
 }
+
+// TestEmbeddedNewlinesRejected verifies that embedded newlines (\n, \r)
+// are rejected in titles, details, and references to prevent markdown corruption.
+// Regression test for T-781.
+func TestEmbeddedNewlinesRejected(t *testing.T) {
+	const errSubstring = "control characters"
+
+	t.Run("AddTask rejects title with newline", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		_, err := tl.AddTask("", "line1\nline2", "")
+		if err == nil {
+			t.Fatal("expected error for title containing \\n, got nil")
+		}
+		if !strings.Contains(err.Error(), errSubstring) {
+			t.Errorf("error %q should mention %q", err, errSubstring)
+		}
+	})
+
+	t.Run("AddTask rejects title with carriage return", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		_, err := tl.AddTask("", "line1\rline2", "")
+		if err == nil {
+			t.Fatal("expected error for title containing \\r, got nil")
+		}
+		if !strings.Contains(err.Error(), errSubstring) {
+			t.Errorf("error %q should mention %q", err, errSubstring)
+		}
+	})
+
+	t.Run("AddTask rejects title with CRLF", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		_, err := tl.AddTask("", "line1\r\nline2", "")
+		if err == nil {
+			t.Fatal("expected error for title containing \\r\\n, got nil")
+		}
+	})
+
+	t.Run("UpdateTask rejects title with newline", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
+
+		err := tl.UpdateTask("1", "new\ntitle", nil, nil, nil)
+		if err == nil {
+			t.Fatal("expected error for title containing \\n, got nil")
+		}
+	})
+
+	t.Run("UpdateTask rejects details with newline", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
+
+		err := tl.UpdateTask("1", "", []string{"detail\ninjection"}, nil, nil)
+		if err == nil {
+			t.Fatal("expected error for detail containing \\n, got nil")
+		}
+	})
+
+	t.Run("UpdateTask rejects details with CRLF", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
+
+		err := tl.UpdateTask("1", "", []string{"detail\r\ninjection"}, nil, nil)
+		if err == nil {
+			t.Fatal("expected error for detail containing \\r\\n, got nil")
+		}
+	})
+
+	t.Run("UpdateTask rejects references with newline", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
+
+		err := tl.UpdateTask("1", "", nil, []string{"ref\ninjection"}, nil)
+		if err == nil {
+			t.Fatal("expected error for reference containing \\n, got nil")
+		}
+	})
+
+	t.Run("UpdateTask rejects references with carriage return", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
+
+		err := tl.UpdateTask("1", "", nil, []string{"ref\rinjection"}, nil)
+		if err == nil {
+			t.Fatal("expected error for reference containing \\r, got nil")
+		}
+	})
+
+	t.Run("UpdateTask rejects details with carriage return", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		if _, err := tl.AddTask("", "Valid task", ""); err != nil {
+			t.Fatalf("test setup failed: %v", err)
+		}
+
+		err := tl.UpdateTask("1", "", []string{"detail\rinjection"}, nil, nil)
+		if err == nil {
+			t.Fatal("expected error for detail containing \\r, got nil")
+		}
+	})
+
+	t.Run("valid inputs still accepted", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		_, err := tl.AddTask("", "Normal title with spaces", "")
+		if err != nil {
+			t.Fatalf("valid title rejected: %v", err)
+		}
+
+		err = tl.UpdateTask("1", "Updated title", []string{"A valid detail"}, []string{"https://example.com"}, nil)
+		if err != nil {
+			t.Fatalf("valid update rejected: %v", err)
+		}
+	})
+
+	t.Run("tab characters still accepted in titles", func(t *testing.T) {
+		tl := &TaskList{Title: "Test"}
+		_, err := tl.AddTask("", "Title\twith\ttabs", "")
+		if err != nil {
+			t.Fatalf("title with tabs should be accepted: %v", err)
+		}
+	})
+}
