@@ -888,11 +888,10 @@ func TestRenumberPreservesAllPhaseMarkers(t *testing.T) {
 			}
 
 			// Count phase markers before renumber
-			beforeTL, beforeMarkers, err := task.ParseFileWithPhases(testFile)
+			_, beforeMarkers, err := task.ParseFileWithPhases(testFile)
 			if err != nil {
 				t.Fatalf("Failed to parse before renumber: %v", err)
 			}
-			_ = beforeTL
 
 			cmd := &cobra.Command{}
 			if err := runRenumber(cmd, []string{testFile}); err != nil {

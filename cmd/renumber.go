@@ -278,13 +278,14 @@ func convertPhasePositionsToMarkers(positions []phasePosition, tl *task.TaskList
 	for _, pos := range positions {
 		marker := task.PhaseMarker{Name: pos.Name}
 
-		if pos.AfterPosition == -1 {
+		switch {
+		case pos.AfterPosition == -1:
 			// Phase at the beginning
 			marker.AfterTaskID = ""
-		} else if pos.AfterPosition < len(tl.Tasks) {
+		case pos.AfterPosition < len(tl.Tasks):
 			// Use the new ID of the task at this position
 			marker.AfterTaskID = tl.Tasks[pos.AfterPosition].ID
-		} else if len(tl.Tasks) > 0 {
+		case len(tl.Tasks) > 0:
 			// Position exceeds task count; anchor to the last task so the
 			// marker is preserved rather than silently dropped.
 			marker.AfterTaskID = tl.Tasks[len(tl.Tasks)-1].ID
