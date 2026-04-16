@@ -485,10 +485,13 @@ func validateRequirements(requirements []string) error {
 	return nil
 }
 
-// containsNullByte checks for null bytes and dangerous control characters
+// containsNullByte checks for null bytes and dangerous control characters.
+// Rejects all control characters below U+0020 except horizontal tab (\t).
+// Notably, \n and \r are rejected because they break markdown line structure
+// when embedded in titles, details, or references.
 func containsNullByte(s string) bool {
 	for _, r := range s {
-		if r == 0 || (r < 32 && r != '\t' && r != '\n' && r != '\r') {
+		if r == 0 || (r < 32 && r != '\t') {
 			return true
 		}
 	}
