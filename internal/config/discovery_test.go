@@ -305,13 +305,26 @@ func TestIsSpecialGitState(t *testing.T) {
 		branch   string
 		expected bool
 	}{
-		"normal branch":              {"main", false},
-		"feature branch":             {"feature/auth", false},
-		"detached HEAD":              {"HEAD", true},
-		"no branch":                  {"(no branch)", true},
-		"rebase state":               {"main-rebase", true},
-		"merge state":                {"feature-merge", true},
-		"branch with rebase in name": {"rebase-feature", true}, // This might be overly cautious but safer
+		"normal branch":  {"main", false},
+		"feature branch": {"feature/auth", false},
+		"detached HEAD":  {"HEAD", true},
+		"no branch":      {"(no branch)", true},
+		// T-716: Normal branch names containing "merge" or "rebase" must NOT be
+		// classified as special git states. Only actual detached/special states
+		// (HEAD, "(no branch)") should be rejected.
+		"branch containing merge":         {"feature/merge-sort", false},
+		"branch containing rebase":        {"bugfix/rebased-docs", false},
+		"branch with merge prefix":        {"merge-feature", false},
+		"branch with rebase prefix":       {"rebase-feature", false},
+		"branch with merge suffix":        {"feature-merge", false},
+		"branch with rebase suffix":       {"main-rebase", false},
+		"branch with merge in middle":     {"my-merge-branch", false},
+		"branch with rebase in middle":    {"my-rebase-branch", false},
+		"branch with merge after slash":   {"feature/merge-conflicts-fix", false},
+		"branch with rebase after slash":  {"feature/rebase-cleanup", false},
+		"branch named exactly merge":      {"merge", false},
+		"branch named exactly rebase":     {"rebase", false},
+		"branch T-number with merge word": {"T-123/bugfix-merge-error", false},
 	}
 
 	for name, tc := range tests {
