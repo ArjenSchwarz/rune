@@ -1676,3 +1676,130 @@ func TestFindNextPhaseTasksForStream_NonSequentialIDs(t *testing.T) {
 		})
 	}
 }
+
+// TestSkipFrontMatter_HorizontalRuleAfterFrontMatter verifies that a horizontal
+// rule (---) appearing after YAML front matter does not cause subsequent lines to
+// be dropped. Regression test for T-763.
+func TestSkipFrontMatter_HorizontalRuleAfterFrontMatter(t *testing.T) {
+	tests := map[string]struct {
+		content   string
+		wantLines []string
+	}{
+		"hr after front matter preserved": {
+			content: "---\ntitle: test\n---\n## Phase A\n- [ ] 1. Task A\n---\n## Phase B\n- [ ] 2. Task B\n",
+			wantLines: []string{
+				"## Phase A",
+				"- [ ] 1. Task A",
+				"---",
+				"## Phase B",
+				"- [ ] 2. Task B",
+				"",
+			},
+		},
+		"no front matter unchanged": {
+			content: "## Phase A\n- [ ] 1. Task A\n---\n## Phase B\n- [ ] 2. Task B\n",
+			wantLines: []string{
+				"## Phase A",
+				"- [ ] 1. Task A",
+				"---",
+				"## Phase B",
+				"- [ ] 2. Task B",
+				"",
+			},
+		},
+		"front matter only": {
+			content: "---\ntitle: test\n---\n## Phase A\n- [ ] 1. Task A\n",
+			wantLines: []string{
+				"## Phase A",
+				"- [ ] 1. Task A",
+				"",
+			},
+		},
+		"multiple hrs after front matter preserved": {
+			content: "---\ntitle: x\n---\n## A\n---\n## B\n---\n## C\n",
+			wantLines: []string{
+				"## A",
+				"---",
+				"## B",
+				"---",
+				"## C",
+				"",
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			lines := strings.Split(tc.content, "\n")
+			got := skipFrontMatter(tc.content, lines)
+			if len(got) != len(tc.wantLines) {
+				t.Fatalf("skipFrontMatter() returned %d lines %v, want %d lines %v",
+					len(got), got, len(tc.wantLines), tc.wantLines)
+			}
+			for i, want := range tc.wantLines {
+				if got[i] != want {
+					t.Errorf("line[%d] = %q, want %q", i, got[i], want)
+				}
+			}
+		})
+	}
+}
+
+// TestFindNextPhaseTasks_WithFrontMatter is an end-to-end test verifying that
+// FindNextPhaseTasks correctly handles files with YAML front matter. It first
+// confirms skipFrontMatter preserves phase content, then exercises the full
+// FindNextPhaseTasks pipeline. Regression test for T-763.
+//
+// Note: ParseMarkdown does not allow bare --- at root level in a task file,
+// so the end-to-end portion uses content without a horizontal rule separator.
+func TestFindNextPhaseTasks_WithFrontMatter(t *testing.T) {
+	// Verify skipFrontMatter with content matching FindNextPhaseTasks usage pattern.
+	content := "---\ntitle: Project\n---\n## Phase A\n- [x] 1. Done task\n\n## Phase B\n- [ ] 2. Pending task\n"
+	lines := strings.Split(content, "\n")
+	got := skipFrontMatter(content, lines)
+
+	// After stripping, we should have Phase A, Phase B content intact.
+	joined := strings.Join(got, "\n")
+	if !strings.Contains(joined, "## Phase A") {
+		t.Errorf("skipFrontMatter dropped Phase A")
+	}
+	if !strings.Contains(joined, "## Phase B") {
+		t.Errorf("skipFrontMatter dropped Phase B")
+	}
+	if !strings.Contains(joined, "- [ ] 2. Pending task") {
+		t.Errorf("skipFrontMatter dropped tasks after front matter")
+	}
+
+	// End-to-end: verify the full pipeline finds the correct next phase.
+	tmpFile, err := os.CreateTemp("", "hr-frontmatter-*.md")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(content); err != nil {
+		t.Fatalf("Failed to write content: %v", err)
+	}
+	tmpFile.Close()
+
+	result, err := FindNextPhaseTasks(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("FindNextPhaseTasks() error = %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("FindNextPhaseTasks() = nil, want Phase B with 1 task")
+	}
+
+	if result.PhaseName != "Phase B" {
+		t.Errorf("phase = %q, want %q", result.PhaseName, "Phase B")
+	}
+
+	if len(result.Tasks) != 1 {
+		t.Fatalf("got %d tasks, want 1", len(result.Tasks))
+	}
+
+	if result.Tasks[0].Title != "Pending task" {
+		t.Errorf("task title = %q, want %q", result.Tasks[0].Title, "Pending task")
+	}
+}
