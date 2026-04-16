@@ -213,9 +213,15 @@ type phasePosition struct {
 // extractTaskIDOrder extracts root-level task IDs in the order they appear in the file.
 // This is needed because the parser automatically renumbers tasks, but phase markers
 // reference the original IDs from the file.
+// Front matter is stripped first so that the extracted IDs align with what
+// ExtractPhaseMarkers sees (it also strips front matter).
 func extractTaskIDOrder(content string) []string {
 	var taskIDs []string
 	lines := strings.Split(content, "\n")
+
+	// Strip front matter to stay consistent with ExtractPhaseMarkers,
+	// which also strips front matter before scanning for task IDs.
+	lines = task.StripFrontMatterLines(lines)
 
 	taskLinePattern := regexp.MustCompile(`^- \[[ \-xX]\] (\d+(?:\.\d+)*)\. `)
 
@@ -267,19 +273,25 @@ func convertPhaseMarkersToPositions(markers []task.PhaseMarker, fileTaskIDOrder 
 // convertPhasePositionsToMarkers converts position-based phase data back to
 // ID-based phase markers using the renumbered task IDs.
 func convertPhasePositionsToMarkers(positions []phasePosition, tl *task.TaskList) []task.PhaseMarker {
-	markers := make([]task.PhaseMarker, len(positions))
+	markers := make([]task.PhaseMarker, 0, len(positions))
 
-	for i, pos := range positions {
-		markers[i].Name = pos.Name
+	for _, pos := range positions {
+		marker := task.PhaseMarker{Name: pos.Name}
 
 		if pos.AfterPosition == -1 {
 			// Phase at the beginning
-			markers[i].AfterTaskID = ""
+			marker.AfterTaskID = ""
 		} else if pos.AfterPosition < len(tl.Tasks) {
 			// Use the new ID of the task at this position
-			markers[i].AfterTaskID = tl.Tasks[pos.AfterPosition].ID
+			marker.AfterTaskID = tl.Tasks[pos.AfterPosition].ID
+		} else if len(tl.Tasks) > 0 {
+			// Position exceeds task count; anchor to the last task so the
+			// marker is preserved rather than silently dropped.
+			marker.AfterTaskID = tl.Tasks[len(tl.Tasks)-1].ID
 		}
-		// If position is out of bounds, leave AfterTaskID empty (shouldn't happen)
+		// If there are no tasks at all, AfterTaskID stays empty.
+
+		markers = append(markers, marker)
 	}
 
 	return markers

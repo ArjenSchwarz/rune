@@ -511,6 +511,16 @@ func TestExtractTaskIDOrder(t *testing.T) {
 - [ ] 2. Second`,
 			expected: []string{"1", "2"},
 		},
+		"with front matter": {
+			content: `---
+references:
+  - requirements.md
+---
+# Test
+- [ ] 1. First
+- [ ] 2. Second`,
+			expected: []string{"1", "2"},
+		},
 	}
 
 	for name, tc := range tests {
@@ -738,6 +748,232 @@ func TestRenumberWithPhases(t *testing.T) {
 	}
 	if phaseMarkers[1].AfterTaskID != "2" {
 		t.Errorf("Expected AfterTaskID '2', got '%s'", phaseMarkers[1].AfterTaskID)
+	}
+}
+
+// TestRenumberPreservesAllPhaseMarkers is a regression test for T-748:
+// renumbering must preserve all phase markers in multi-phase files with
+// non-sequential task IDs.
+func TestRenumberPreservesAllPhaseMarkers(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-renumber-all-phases")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		content            string
+		expectedPhaseCount int
+		expectedPhases     []task.PhaseMarker
+		expectedTaskIDs    []string
+	}{
+		"two phases with gaps": {
+			content: `# Test
+
+- [ ] 1. First task
+
+## Phase 1: Development
+
+- [ ] 5. Task in phase
+  - [ ] 5.1. Subtask
+- [ ] 8. Another task
+
+## Phase 2: Testing
+
+- [ ] 10. Testing task
+`,
+			expectedPhaseCount: 2,
+			expectedPhases: []task.PhaseMarker{
+				{Name: "Phase 1: Development", AfterTaskID: "1"},
+				{Name: "Phase 2: Testing", AfterTaskID: "3"},
+			},
+			expectedTaskIDs: []string{"1", "2", "3", "4"},
+		},
+		"three phases with gaps": {
+			content: `# Test
+
+- [ ] 1. Task A
+
+## Phase 1: Dev
+
+- [ ] 5. Task B
+- [ ] 8. Task C
+
+## Phase 2: Test
+
+- [ ] 12. Task D
+
+## Phase 3: Deploy
+
+- [ ] 20. Task E
+`,
+			expectedPhaseCount: 3,
+			expectedPhases: []task.PhaseMarker{
+				{Name: "Phase 1: Dev", AfterTaskID: "1"},
+				{Name: "Phase 2: Test", AfterTaskID: "3"},
+				{Name: "Phase 3: Deploy", AfterTaskID: "4"},
+			},
+			expectedTaskIDs: []string{"1", "2", "3", "4", "5"},
+		},
+		"phase before all tasks": {
+			content: `# Test
+
+## Phase 0: Setup
+
+- [ ] 3. Task A
+- [ ] 7. Task B
+
+## Phase 1: Work
+
+- [ ] 12. Task C
+`,
+			expectedPhaseCount: 2,
+			expectedPhases: []task.PhaseMarker{
+				{Name: "Phase 0: Setup", AfterTaskID: ""},
+				{Name: "Phase 1: Work", AfterTaskID: "2"},
+			},
+			expectedTaskIDs: []string{"1", "2", "3"},
+		},
+		"consecutive phases no tasks between": {
+			content: `# Test
+
+- [ ] 1. Task A
+
+## Phase 1: Dev
+
+- [ ] 5. Task B
+
+## Phase 2: Empty
+
+## Phase 3: Deploy
+
+- [ ] 10. Task C
+`,
+			expectedPhaseCount: 3,
+			expectedPhases: []task.PhaseMarker{
+				{Name: "Phase 1: Dev", AfterTaskID: "1"},
+				{Name: "Phase 2: Empty", AfterTaskID: "2"},
+				{Name: "Phase 3: Deploy", AfterTaskID: "2"},
+			},
+			expectedTaskIDs: []string{"1", "2", "3"},
+		},
+		"idempotent renumber": {
+			// Already-sequential IDs should remain unchanged after renumber
+			content: `# Test
+
+- [ ] 1. Task A
+
+## Phase 1: Dev
+
+- [ ] 2. Task B
+
+## Phase 2: Test
+
+- [ ] 3. Task C
+`,
+			expectedPhaseCount: 2,
+			expectedPhases: []task.PhaseMarker{
+				{Name: "Phase 1: Dev", AfterTaskID: "1"},
+				{Name: "Phase 2: Test", AfterTaskID: "2"},
+			},
+			expectedTaskIDs: []string{"1", "2", "3"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			testFile := filepath.Join(tempDir, name+".md")
+			if err := os.WriteFile(testFile, []byte(tc.content), 0644); err != nil {
+				t.Fatalf("Failed to write test file: %v", err)
+			}
+
+			// Count phase markers before renumber
+			beforeTL, beforeMarkers, err := task.ParseFileWithPhases(testFile)
+			if err != nil {
+				t.Fatalf("Failed to parse before renumber: %v", err)
+			}
+			_ = beforeTL
+
+			cmd := &cobra.Command{}
+			if err := runRenumber(cmd, []string{testFile}); err != nil {
+				t.Fatalf("Renumber failed: %v", err)
+			}
+
+			// Parse after renumber
+			afterTL, afterMarkers, err := task.ParseFileWithPhases(testFile)
+			if err != nil {
+				t.Fatalf("Failed to parse after renumber: %v", err)
+			}
+
+			// Phase marker count must be preserved
+			if len(afterMarkers) != tc.expectedPhaseCount {
+				t.Logf("Before markers: %+v", beforeMarkers)
+				t.Logf("After markers:  %+v", afterMarkers)
+				t.Fatalf("Expected %d phase markers, got %d", tc.expectedPhaseCount, len(afterMarkers))
+			}
+
+			// Verify each phase marker
+			for i, expected := range tc.expectedPhases {
+				if afterMarkers[i].Name != expected.Name {
+					t.Errorf("Phase %d: expected name %q, got %q", i, expected.Name, afterMarkers[i].Name)
+				}
+				if afterMarkers[i].AfterTaskID != expected.AfterTaskID {
+					t.Errorf("Phase %d: expected AfterTaskID %q, got %q", i, expected.AfterTaskID, afterMarkers[i].AfterTaskID)
+				}
+			}
+
+			// Verify task IDs are sequential
+			for i, expectedID := range tc.expectedTaskIDs {
+				if i >= len(afterTL.Tasks) {
+					t.Fatalf("Expected task %d with ID %s, but only %d root tasks exist", i, expectedID, len(afterTL.Tasks))
+				}
+				if afterTL.Tasks[i].ID != expectedID {
+					t.Errorf("Task %d: expected ID %s, got %s", i, expectedID, afterTL.Tasks[i].ID)
+				}
+			}
+
+			// Verify file content contains all phase headers
+			fileContent, err := os.ReadFile(testFile)
+			if err != nil {
+				t.Fatalf("Failed to read file: %v", err)
+			}
+			for _, expected := range tc.expectedPhases {
+				if !strings.Contains(string(fileContent), "## "+expected.Name) {
+					t.Errorf("Phase header %q not found in file content", expected.Name)
+				}
+			}
+		})
+	}
+}
+
+// TestConvertPhasePositionsToMarkersOutOfBounds verifies that out-of-bounds
+// positions are handled gracefully (anchored to last task, not silently dropped).
+func TestConvertPhasePositionsToMarkersOutOfBounds(t *testing.T) {
+	tl := &task.TaskList{
+		Tasks: []task.Task{
+			{ID: "1", Title: "Task A"},
+			{ID: "2", Title: "Task B"},
+		},
+	}
+
+	positions := []phasePosition{
+		{Name: "Phase 1", AfterPosition: 0},
+		{Name: "Phase 2", AfterPosition: 5}, // out of bounds
+	}
+
+	markers := convertPhasePositionsToMarkers(positions, tl)
+
+	if len(markers) != 2 {
+		t.Fatalf("Expected 2 markers, got %d", len(markers))
+	}
+
+	if markers[0].AfterTaskID != "1" {
+		t.Errorf("Marker 0: expected AfterTaskID '1', got %q", markers[0].AfterTaskID)
+	}
+
+	// Out-of-bounds position should anchor to last task, not be empty
+	if markers[1].AfterTaskID != "2" {
+		t.Errorf("Marker 1: expected AfterTaskID '2' (last task), got %q", markers[1].AfterTaskID)
 	}
 }
 
