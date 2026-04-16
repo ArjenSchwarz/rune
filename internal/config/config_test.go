@@ -31,6 +31,7 @@ discovery:
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			resetConfigCache()
 			t.Cleanup(func() { resetConfigCache() })
 
 			// Isolate: work in a temp directory with a fake HOME
