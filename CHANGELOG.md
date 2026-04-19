@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Homebrew Install Spec** (T-824): Planning docs for publishing rune via Homebrew with an automated formula-update job appended to the release workflow, sha256 sidecars emitted by the release matrix, `brew audit`/`brew test` validation on macOS, and cross-repo push to a companion `homebrew-rune` tap via a fine-grained PAT (`specs/homebrew-install/`)
+
 ### Changed
 
 - **Configuration**: `.rune.yml` now rejects unknown fields (`KnownFields` enforcement). Config files with extra or misspelled keys that were previously silently ignored will now produce an error. Remove any unsupported fields from your `.rune.yml` to resolve.
