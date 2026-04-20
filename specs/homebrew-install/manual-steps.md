@@ -7,11 +7,11 @@ references:
 
 ## Before first automated release
 
-- [ ] 1. Tap repo ArjenSchwarz/homebrew-rune exists with Formula/rune.rb committed using the placeholder content specified in smolspec.md <!-- id:rcb7ioi -->
+- [x] 1. Tap repo ArjenSchwarz/homebrew-rune exists with Formula/rune.rb committed using the placeholder content specified in smolspec.md <!-- id:rcb7ioi -->
 
-- [ ] 2. Fine-grained PAT scoped to ArjenSchwarz/homebrew-rune with contents:write is generated; expiry date noted on calendar for rotation <!-- id:rcb7ioj -->
+- [x] 2. Fine-grained PAT scoped to ArjenSchwarz/homebrew-rune with contents:write is generated; expiry date noted on calendar for rotation <!-- id:rcb7ioj -->
 
-- [ ] 3. HOMEBREW_TAP_TOKEN secret is configured on ArjenSchwarz/rune using the PAT <!-- id:rcb7iok -->
+- [x] 3. HOMEBREW_TAP_TOKEN secret is configured on ArjenSchwarz/rune using the PAT <!-- id:rcb7iok -->
   - Blocked-by: rcb7ioi (Tap repo ArjenSchwarz/homebrew-rune exists with Formula/rune.rb committed using the placeholder content specified in smolspec.md), rcb7ioj (Fine-grained PAT scoped to ArjenSchwarz/homebrew-rune with contents:write is generated; expiry date noted on calendar for rotation)
 
 ## After implementation lands
