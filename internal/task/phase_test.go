@@ -1550,7 +1550,7 @@ func TestRenderMarkdownWithPhases_NonSequentialIDs(t *testing.T) {
 		{Name: "Phase B", AfterTaskID: "2"},
 	}
 
-	got := string(RenderMarkdownWithPhases(tl, markers))
+	got := string(RenderMarkdownWithPhases(tl, markers, nil))
 	want := `# Non-Sequential Project
 
 ## Phase A

@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/arjenschwarz/rune/internal/config"
 	"github.com/arjenschwarz/rune/internal/task"
 )
 
@@ -446,6 +449,31 @@ metadata:
 }
 
 func TestResolveFilename(t *testing.T) {
+	// Isolate from the developer's real config and git state: run in a fresh
+	// git repo with discovery disabled so "no filename provided" deterministically
+	// returns an error regardless of the host branch or surrounding filesystem.
+	config.ResetConfigCache()
+	tempDir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	t.Cleanup(func() {
+		os.Chdir(originalDir)
+		config.ResetConfigCache()
+	})
+
+	if err := exec.Command("git", "-C", tempDir, "init").Run(); err != nil {
+		t.Fatalf("failed to init git repo: %v", err)
+	}
+	configYAML := "discovery:\n  enabled: false\n"
+	if err := os.WriteFile(filepath.Join(tempDir, ".rune.yml"), []byte(configYAML), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to chdir: %v", err)
+	}
+
 	tests := map[string]struct {
 		args        []string
 		expectArg   bool
@@ -459,7 +487,7 @@ func TestResolveFilename(t *testing.T) {
 		"no filename provided": {
 			args:        []string{},
 			expectArg:   false,
-			expectError: true, // Will error since git discovery is disabled by default
+			expectError: true,
 		},
 	}
 
