@@ -18,6 +18,8 @@ The dependents map registers tasks even if they lack a StableID (using hierarchi
 - Returns warnings listing how many tasks had references cleaned up.
 - After cleanup, delegates to `removeTaskRecursive` + `RenumberTasks`.
 
+Known gap: the user-facing `remove` command goes through `RemoveTaskWithPhases`, and batch remove operations call `RemoveTask` directly. Those paths currently bypass `RemoveTaskWithDependents`, so removing a blocker can leave stale `BlockedBy` references behind. The `remove` command also keeps a `*Task` pointer for output before mutating the slice; deleting an earlier task can make the success message report the shifted task's title instead of the removed task's title. The title-output issue is tracked as T-801.
+
 ## StableID Assignment
 
 Tasks get StableIDs in two ways:

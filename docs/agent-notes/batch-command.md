@@ -34,6 +34,15 @@ The block-based approach matters because users may intentionally interleave remo
 3. When adding new validatable fields to `Operation`, update `validateOperation` to include content validation for both add and update cases
 
 The `validateDetailsAndReferences` helper in batch.go centralises detail/reference content validation for use in `validateOperation`.
+
+## Phase Marker Adjustment
+
+Phase-aware batch adds use `addTaskWithPhaseMarkers` in `internal/task/batch.go`. When inserting a top-level task into an earlier phase, the immediate next phase marker must move to the new task and every later marker must be shifted to account for renumbered top-level tasks. T-787 tracks a bug where the batch path only updates the immediate next marker, which can render later phase headers before the wrong task in files with three or more phases.
+
 ## Testing Gotcha: Cobra Flag State
 
 Cobra flag values and `Changed` bits persist across `Execute()` calls in the same process. This matters in tests where multiple tests share `rootCmd`. The `resetBatchFlags()` helper in `batch_test.go` resets `batchInput` and the flag's `Changed` bit. Call it at the start of any batch test that does NOT use `--input` to avoid false positives from stale state.
+
+## Known Gap: Phase Detection for Plain Operations
+
+`cmd/batch.go` currently routes to `ExecuteBatchWithPhases` only when an operation has a `phase` field or type `add-phase`. If the target file already has phase markers but the batch contains only plain operations such as `remove`, it uses `ExecuteBatch` and then `WriteFile`, which reuses original phase markers without adjusting them for removed top-level tasks. T-820 tracks this; the command should detect existing phase markers before choosing the execution path.
