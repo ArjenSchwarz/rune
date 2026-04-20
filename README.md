@@ -23,6 +23,14 @@ A standalone Go command-line tool designed for AI agents and developers to creat
 
 ## Installation
 
+### Homebrew (macOS/Linux)
+
+```bash
+brew install arjenschwarz/rune/rune
+```
+
+### Go install
+
 ```bash
 go install github.com/arjenschwarz/rune@latest
 ```

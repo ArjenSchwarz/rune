@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Homebrew Install Spec** (T-824): Planning docs for publishing rune via Homebrew with an automated formula-update job appended to the release workflow, sha256 sidecars emitted by the release matrix, `brew audit`/`brew test` validation on macOS, and cross-repo push to a companion `homebrew-rune` tap via a fine-grained PAT (`specs/homebrew-install/`)
+- **Homebrew Install** (T-824): Install rune via `brew install arjenschwarz/rune/rune`. Release workflow now emits `.sha256` sidecars for every platform tarball and runs a new macOS `homebrew` job that renders `Formula/rune.rb` from the sidecars, validates with `brew audit --strict --online` and `brew install`/`brew test`, and commits to the `ArjenSchwarz/homebrew-rune` tap using `HOMEBREW_TAP_TOKEN`. A `workflow_dispatch` trigger with a `tag` input allows re-running the formula update against an existing release without rebuilding binaries. Commits are idempotent (skip when unchanged) and serialised via a concurrency group.
 
 ### Changed
 
