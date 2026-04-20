@@ -168,5 +168,5 @@ jobs:
             echo "Formula already up-to-date for $TAG; nothing to commit."
           else
             git commit -m "rune $TAG"
-            git push origin HEAD
+            git push origin HEAD:main
           fi

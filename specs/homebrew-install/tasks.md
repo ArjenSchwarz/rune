@@ -11,7 +11,7 @@ references:
 - [x] 2. Release workflow supports manual re-run via workflow_dispatch with a tag input so the homebrew job can be exercised against an existing release without rebuilding binaries
 
 - [x] 3. Homebrew job renders a fresh Formula/rune.rb from the published sidecars and passes brew audit --strict --online and brew test on macos-latest before attempting any push <!-- id:h92gaov -->
-  - Blocked-by: h92gaou (Release workflow publishes .sha256 sidecar files for every platform tarball (sha256sum: true enabled; verified by inspecting release assets of a test tag)), sidecar, tarball, release, sidecar, tarball, release, sidecar, tarball, release, sidecar, tarball, release, sidecar, tarball, release
+  - Blocked-by: h92gaou (Release workflow publishes .sha256 sidecar files for every platform tarball (sha256sum: true enabled; verified by inspecting release assets of a test tag))
 
 - [x] 4. Homebrew job commits the rendered formula to ArjenSchwarz/homebrew-rune idempotently, with concurrency group preventing parallel runs from clobbering each other <!-- id:h92gaow -->
   - Blocked-by: h92gaov (Homebrew job renders a fresh Formula/rune.rb from the published sidecars and passes brew audit --strict --online and brew test on macos-latest before attempting any push)
