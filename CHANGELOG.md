@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Renumber Command** (T-859): `renumber` now preserves all phase markers in files with non-sequential top-level task IDs. Previously the command extracted raw file IDs to map phase positions, but `ExtractPhaseMarkers` was changed (T-742) to return sequential positional IDs instead — the mismatched lookup silently dropped later phase markers (e.g. a three-phase file would render with the second and third phase headers anchored to the wrong tasks or lost entirely)
 - **Streams Command**: `streams --available --json` (and `streams --json`) now recomputes the `available` array from the filtered `streams` list, preventing stale stream IDs from appearing in `available` after `filterEmptyStreams` or `filterAvailableStreams` removes streams
 - **Batch Command**: Batch remove operations on phased files now preserve phase boundaries; previously, removes without an explicit `phase` field bypassed phase-aware execution, stripping all phase headers from the output
 - **Next Command**: `next --phase --claim AGENT` now correctly claims all ready tasks from the next phase instead of silently ignoring `--phase` and claiming only a single task

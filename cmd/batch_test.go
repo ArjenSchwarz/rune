@@ -19,6 +19,10 @@ func resetBatchFlags() {
 	if f := batchCmd.Flags().Lookup("input"); f != nil {
 		f.Changed = false
 	}
+	format = "table"
+	if f := rootCmd.PersistentFlags().Lookup("format"); f != nil {
+		f.Changed = false
+	}
 }
 
 func TestBatchCommand_BasicOperations(t *testing.T) {
@@ -215,6 +219,8 @@ func TestBatchCommand_ValidationFailures(t *testing.T) {
 }
 
 func TestBatchCommand_JSONOutput(t *testing.T) {
+	t.Cleanup(resetBatchFlags)
+
 	// Create temporary directory
 	tmpDir := t.TempDir()
 	taskFile := filepath.Join(tmpDir, "test_tasks.md")
@@ -609,6 +615,7 @@ func TestBatchCommand_RemoveOnPhasedFilePreservesPhases(t *testing.T) {
 	os.Chdir(tmpDir)
 
 	resetBatchFlags()
+	t.Cleanup(resetBatchFlags)
 
 	// Batch remove tasks 1 and 3 — no phase field set on any operation
 	req := task.BatchRequest{

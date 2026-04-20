@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
+	"strconv"
 	"strings"
 
 	output "github.com/ArjenSchwarz/go-output/v2"
@@ -91,14 +91,7 @@ func runRenumber(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("file exceeds 10MB limit")
 	}
 
-	// Phase 2: Read file content to extract task IDs in file order (before parsing renumbers them)
-	fileContent, err := os.ReadFile(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-	fileTaskIDOrder := extractTaskIDOrder(string(fileContent))
-
-	// Phase 2.5: Parse file (note: parser renumbers tasks automatically)
+	// Phase 2: Parse file (note: parser renumbers tasks automatically)
 	taskList, phaseMarkers, err := task.ParseFileWithPhases(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse task file: %w", err)
@@ -117,8 +110,10 @@ func runRenumber(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
 
-	// Phase 5: Convert phase markers from ID-based to position-based using file task order
-	phasePositions := convertPhaseMarkersToPositions(phaseMarkers, fileTaskIDOrder)
+	// Phase 5: Convert phase markers from ID-based to position-based.
+	// ExtractPhaseMarkers returns AfterTaskID as a sequential 1-based count
+	// of preceding top-level tasks, so position is N-1.
+	phasePositions := convertPhaseMarkersToPositions(phaseMarkers)
 
 	// Phase 5.5: Renumber tasks
 	taskList.RenumberTasks()
@@ -210,61 +205,27 @@ type phasePosition struct {
 	AfterPosition int // -1 means before all tasks, 0+ means after task at that index
 }
 
-// extractTaskIDOrder extracts root-level task IDs in the order they appear in the file.
-// This is needed because the parser automatically renumbers tasks, but phase markers
-// reference the original IDs from the file.
-// Front matter is stripped first so that the extracted IDs align with what
-// ExtractPhaseMarkers sees (it also strips front matter).
-func extractTaskIDOrder(content string) []string {
-	var taskIDs []string
-	lines := strings.Split(content, "\n")
-
-	// Strip front matter to stay consistent with ExtractPhaseMarkers,
-	// which also strips front matter before scanning for task IDs.
-	lines = task.StripFrontMatterLines(lines)
-
-	taskLinePattern := regexp.MustCompile(`^- \[[ \-xX]\] (\d+(?:\.\d+)*)\. `)
-
-	for _, line := range lines {
-		if matches := taskLinePattern.FindStringSubmatch(line); len(matches) >= 2 {
-			taskID := matches[1]
-			// Only track root-level tasks (no dots in ID)
-			if !strings.Contains(taskID, ".") {
-				taskIDs = append(taskIDs, taskID)
-			}
-		}
-	}
-
-	return taskIDs
-}
-
 // convertPhaseMarkersToPositions converts phase markers from ID-based to position-based.
-// Uses fileTaskIDOrder to map original file task IDs to their position in the file.
-func convertPhaseMarkersToPositions(markers []task.PhaseMarker, fileTaskIDOrder []string) []phasePosition {
-	// Build a map from file task ID to position
-	idToPosition := make(map[string]int)
-	for i, id := range fileTaskIDOrder {
-		idToPosition[id] = i
-	}
-
+// ExtractPhaseMarkers stores AfterTaskID as a 1-based sequential count of preceding
+// top-level tasks (e.g. "3" means the marker appears after the 3rd top-level task),
+// so the corresponding position is N-1. AfterTaskID="" means before all tasks.
+func convertPhaseMarkersToPositions(markers []task.PhaseMarker) []phasePosition {
 	positions := make([]phasePosition, len(markers))
 
 	for i, marker := range markers {
 		positions[i].Name = marker.Name
 
 		if marker.AfterTaskID == "" {
-			// Phase at the beginning
 			positions[i].AfterPosition = -1
 			continue
 		}
 
-		// Look up the position where this task ID appeared in the file
-		if pos, exists := idToPosition[marker.AfterTaskID]; exists {
-			positions[i].AfterPosition = pos
-		} else {
-			// Task ID not found, default to -1 (shouldn't happen with valid files)
+		n, err := strconv.Atoi(marker.AfterTaskID)
+		if err != nil || n < 1 {
 			positions[i].AfterPosition = -1
+			continue
 		}
+		positions[i].AfterPosition = n - 1
 	}
 
 	return positions
