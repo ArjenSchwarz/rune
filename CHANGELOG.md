@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Homebrew Install** (T-824): Install rune via `brew install arjenschwarz/rune/rune`. Release workflow now emits `.sha256` sidecars for every platform tarball and runs a new macOS `homebrew` job that renders `Formula/rune.rb` from the sidecars, validates with `brew audit --strict --online` and `brew install`/`brew test`, and commits to the `ArjenSchwarz/homebrew-rune` tap using `HOMEBREW_TAP_TOKEN`. A `workflow_dispatch` trigger with a `tag` input allows re-running the formula update against an existing release without rebuilding binaries. Commits are idempotent (skip when unchanged) and serialised via a concurrency group.
+
 ### Changed
 
 - **Configuration**: `.rune.yml` now rejects unknown fields (`KnownFields` enforcement). Config files with extra or misspelled keys that were previously silently ignored will now produce an error. Remove any unsupported fields from your `.rune.yml` to resolve.

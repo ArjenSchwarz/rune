@@ -28,6 +28,7 @@ Uses `exec.CommandContext` with a timeout context to prevent hangs. Key details:
 - The timeout test (`TestGetCurrentBranchTimeout`) uses a 200ms timeout with a mock git that sleeps 10s, verifying the function returns within the computed bound
 - `TestDiscoverFileFromBranch` tests mock both `getCurrentBranch` and `getRepoRoot` (returning the temp dir) since the temp dirs are not real git repos
 - `TestDiscoverFileFromBranchSubdirectory` initializes a real git repo and tests from a subdirectory without mocking `getRepoRoot`
+- Home config tests should isolate `HOME` with a temp directory. T-812 tracks `TestConfigPrecedence` writing to the developer's real `~/.config/rune/config.yml`, which breaks restricted sandboxes and can mutate real local config.
 
 ## Gotchas
 

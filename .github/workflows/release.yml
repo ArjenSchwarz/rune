@@ -4,6 +4,12 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to regenerate the Homebrew formula for (e.g. v1.3.1)"
+        required: true
+        type: string
 
 permissions:
     contents: write
@@ -12,6 +18,7 @@ permissions:
 jobs:
   releases-matrix:
     name: Release Go Binary
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -33,3 +40,133 @@ jobs:
         binary_name: "rune"
         ldflags: "-w -s -X 'github.com/ArjenSchwarz/rune/cmd.Version=${{ env.APP_VERSION }}' -X 'github.com/ArjenSchwarz/rune/cmd.BuildTime=${{ env.BUILD_TIME }}' -X 'github.com/ArjenSchwarz/rune/cmd.GitCommit=${{ env.GIT_COMMIT }}'"
         extra_files: "LICENSE README.md"
+        sha256sum: true
+
+  homebrew:
+    name: Update Homebrew tap
+    needs: releases-matrix
+    if: always() && needs.releases-matrix.result != 'failure' && needs.releases-matrix.result != 'cancelled'
+    runs-on: macos-latest
+    concurrency:
+      group: homebrew-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve release tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          if [ -z "$TAG" ]; then
+            echo "No tag resolved" >&2
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Download sha256 sidecars
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" \
+            -p 'rune-*-darwin-*.tar.gz.sha256' \
+            -p 'rune-*-linux-*.tar.gz.sha256'
+          ls -1 rune-*.tar.gz.sha256
+      - name: Parse sha256 digests
+        id: digests
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          DARWIN_ARM64=$(awk '{print $1}' "rune-v${VERSION}-darwin-arm64.tar.gz.sha256")
+          DARWIN_AMD64=$(awk '{print $1}' "rune-v${VERSION}-darwin-amd64.tar.gz.sha256")
+          LINUX_ARM64=$(awk '{print $1}' "rune-v${VERSION}-linux-arm64.tar.gz.sha256")
+          LINUX_AMD64=$(awk '{print $1}' "rune-v${VERSION}-linux-amd64.tar.gz.sha256")
+          for v in "$DARWIN_ARM64" "$DARWIN_AMD64" "$LINUX_ARM64" "$LINUX_AMD64"; do
+            if [ -z "$v" ] || [ ${#v} -ne 64 ]; then
+              echo "Invalid sha256 digest: $v" >&2
+              exit 1
+            fi
+          done
+          echo "darwin_arm64=$DARWIN_ARM64" >> "$GITHUB_OUTPUT"
+          echo "darwin_amd64=$DARWIN_AMD64" >> "$GITHUB_OUTPUT"
+          echo "linux_arm64=$LINUX_ARM64" >> "$GITHUB_OUTPUT"
+          echo "linux_amd64=$LINUX_AMD64" >> "$GITHUB_OUTPUT"
+      - name: Render Formula/rune.rb
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          DARWIN_ARM64: ${{ steps.digests.outputs.darwin_arm64 }}
+          DARWIN_AMD64: ${{ steps.digests.outputs.darwin_amd64 }}
+          LINUX_ARM64: ${{ steps.digests.outputs.linux_arm64 }}
+          LINUX_AMD64: ${{ steps.digests.outputs.linux_amd64 }}
+        run: |
+          mkdir -p Formula
+          cat > Formula/rune.rb <<EOF
+          class Rune < Formula
+            desc "CLI for managing hierarchical markdown task lists"
+            homepage "https://github.com/ArjenSchwarz/rune"
+            version "${VERSION}"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/ArjenSchwarz/rune/releases/download/v#{version}/rune-v#{version}-darwin-arm64.tar.gz"
+                sha256 "${DARWIN_ARM64}"
+              else
+                url "https://github.com/ArjenSchwarz/rune/releases/download/v#{version}/rune-v#{version}-darwin-amd64.tar.gz"
+                sha256 "${DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/ArjenSchwarz/rune/releases/download/v#{version}/rune-v#{version}-linux-arm64.tar.gz"
+                sha256 "${LINUX_ARM64}"
+              else
+                url "https://github.com/ArjenSchwarz/rune/releases/download/v#{version}/rune-v#{version}-linux-amd64.tar.gz"
+                sha256 "${LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "rune"
+            end
+
+            test do
+              system "#{bin}/rune", "--version"
+            end
+          end
+          EOF
+          cat Formula/rune.rb
+      - name: brew audit
+        run: brew audit --strict --online ./Formula/rune.rb
+      - name: brew install + test
+        run: |
+          brew install --formula ./Formula/rune.rb
+          brew test rune
+      - name: Checkout tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: ArjenSchwarz/homebrew-rune
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-rune
+      - name: Commit formula to tap
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          mkdir -p homebrew-rune/Formula
+          cp Formula/rune.rb homebrew-rune/Formula/rune.rb
+          cd homebrew-rune
+          git config user.name "rune-release-bot"
+          git config user.email "rune-release-bot@users.noreply.github.com"
+          git add Formula/rune.rb
+          if git diff --cached --quiet; then
+            echo "Formula already up-to-date for $TAG; nothing to commit."
+          else
+            git commit -m "rune $TAG"
+            git push origin HEAD:main
+          fi
