@@ -5,33 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.0] - 2026-08-03
 
 ### Added
 
-- **Homebrew Install** (T-824): Install rune via `brew install arjenschwarz/rune/rune`. Release workflow now emits `.sha256` sidecars for every platform tarball and runs a new macOS `homebrew` job that renders `Formula/rune.rb` from the sidecars, validates with `brew audit --strict --online` and `brew install`/`brew test`, and commits to the `ArjenSchwarz/homebrew-rune` tap using `HOMEBREW_TAP_TOKEN`. A `workflow_dispatch` trigger with a `tag` input allows re-running the formula update against an existing release without rebuilding binaries. Commits are idempotent (skip when unchanged) and serialised via a concurrency group.
+- **Homebrew Install**: Install rune with `brew install arjenschwarz/rune/rune`. Releases now publish SHA256 checksums for all platform tarballs and update the Homebrew tap automatically
 
 ### Changed
 
-- **Configuration**: `.rune.yml` now rejects unknown fields (`KnownFields` enforcement). Config files with extra or misspelled keys that were previously silently ignored will now produce an error. Remove any unsupported fields from your `.rune.yml` to resolve.
+- **Configuration Validation**: Invalid `.rune.yml` files now produce an error instead of being silently ignored, and unknown or misspelled fields are rejected. Remove any unsupported fields from your config to resolve
+- **Dependencies**: Updated go-output to v2.7.0 and refreshed all transitive dependencies, resolving a known vulnerability (GO-2026-5764) in an indirect AWS SDK dependency
 
 ### Fixed
 
-- **Renumber Command** (T-859): `renumber` now preserves all phase markers in files with non-sequential top-level task IDs. Previously the command extracted raw file IDs to map phase positions, but `ExtractPhaseMarkers` was changed (T-742) to return sequential positional IDs instead — the mismatched lookup silently dropped later phase markers (e.g. a three-phase file would render with the second and third phase headers anchored to the wrong tasks or lost entirely)
-- **Streams Command**: `streams --available --json` (and `streams --json`) now recomputes the `available` array from the filtered `streams` list, preventing stale stream IDs from appearing in `available` after `filterEmptyStreams` or `filterAvailableStreams` removes streams
-- **Batch Command**: Batch remove operations on phased files now preserve phase boundaries; previously, removes without an explicit `phase` field bypassed phase-aware execution, stripping all phase headers from the output
-- **Next Command**: `next --phase --claim AGENT` now correctly claims all ready tasks from the next phase instead of silently ignoring `--phase` and claiming only a single task
-- **Phase Parsing**: `ParseFileWithPhases` front-matter stripping no longer treats horizontal rules (`---`) after front matter as additional front-matter delimiters, which would cause phase markers after the rule to be silently dropped
-- **Phase Parsing**: Normalize CRLF line endings in all phase-related functions (`ParseFileWithPhases`, `ExtractPhaseMarkers`, `getTaskPhase`, `getNextPhaseTasks`, `FindNextPhaseTasks`, `FindNextPhaseTasksForStream`, and phase-aware operations) by introducing a `splitLines` helper that trims `\r` after splitting on `\n`
-- **Find Command**: `--parent ""` now correctly filters to top-level tasks; previously the empty string was indistinguishable from the flag's default, causing the filter to be skipped
-- **List Command**: `list --json` with `--filter`, `--stream`, or `--owner` now excludes non-matching parent tasks, aligning JSON output with table output
-- **JSON Output**: Fix pointer reuse in `RenderJSONWithPhases` where loop variable address was captured instead of slice element address, preventing potential task data corruption in JSON output
-- **Front Matter**: `ParseFrontMatter` now handles CRLF (`\r\n`) line endings, fixing front matter parsing for files authored on Windows
-- **Dependencies**: Auto-assign stable IDs to updated tasks when `blocked_by` is set, ensuring they appear in the dependency index for cycle detection and `GetDependents` queries
-- **Dependencies**: Auto-assign stable IDs to dependency targets instead of failing with `ErrNoStableID` when a `blocked_by` reference targets a task without extended fields
-- **Batch Command**: `--input -` now correctly reads JSON from stdin instead of treating `"-"` as literal JSON, enabling piped input with a positional target file (`echo '...' | rune batch tasks.md --input -`)
-- **Renumber Command**: Document that stable IDs, blocked-by dependencies, streams, and owners are preserved during renumbering
-- **Renumber Test Coverage**: Add test verifying stable IDs and dependency metadata survive renumbering
+- **Version Reporting**: Release binaries now report their actual version in `rune --version` instead of `dev`
+- **Phase Preservation**: Phase headers are no longer lost or misplaced by `renumber`, batch removes, batch adds to earlier phases, filtered output, files with non-sequential task IDs, or content following a horizontal rule after front matter
+- **Windows Line Endings**: Files with CRLF line endings now parse correctly, including front matter and phase markers
+- **Task Claiming**: Blocked tasks can no longer be returned or claimed by `next`; `next --phase --claim` claims all ready tasks in the next phase; `next --claim --one` falls back correctly when the deepest task in the path is blocked
+- **Next Command**: `next` no longer skips incomplete grandchildren, and checks subtasks under completed parents when determining phase completion
+- **Filtered Output**: `list` and `find` now produce consistent results across table, markdown, and JSON output when filters are applied — non-matching parents and descendants are excluded, phase headers are retained, and stream, owner, and blocked-by metadata is preserved
+- **JSON Output**: Fixed stale parent IDs after promotion, duplicated matches, stale `available` stream IDs, and a pointer-reuse bug that could corrupt task data; `--dry-run` now honours the `--format` flag
+- **Task Dependencies**: Stable IDs are auto-assigned when tasks gain `blocked_by` references, removing a task cleans up blockers that reference it, and tasks with missing blockers are no longer treated as ready
+- **Input Validation**: The 500-character title limit is enforced on all code paths, embedded newlines in titles are rejected, invalid indented lines are reported instead of silently ignored, and invalid `--filter` values produce an error instead of matching nothing
+- **Security**: File paths that escape the working directory through symlinks are now rejected
+- **Batch Operations**: `--input -` reads JSON from stdin, remove operations no longer reorder across other operation types, and `details`/`references` are validated before any changes are applied
+- **Git Discovery**: Task file auto-detection works from subdirectories, the discovery timeout is enforced, and merge/rebase states are no longer misclassified
+- **Find Command**: `--parent ""` filters top-level tasks and `--include-parent` now works as documented
+- **Remove Command**: Reports the correct task title when removing a task after earlier deletions in the same file
+- **Documentation**: `go install` instructions use the correct lowercase module path
 
 ## [1.3.0] - 2026-02-09
 
