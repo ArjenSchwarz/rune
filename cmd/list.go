@@ -139,10 +139,10 @@ func flattenTasks(tasks []task.Task, statusFilter string) []map[string]any {
 
 		// Create task record
 		taskRecord := map[string]any{
-			"ID":     t.ID,
-			"Title":  t.Title,
-			"Status": formatStatus(t.Status),
-			"Level":  getTaskLevel(t.ID),
+			"ID":         t.ID,
+			columnTitle:  t.Title,
+			columnStatus: formatStatus(t.Status),
+			columnLevel:  getTaskLevel(t.ID),
 		}
 
 		// Add optional details
@@ -166,11 +166,11 @@ func flattenTasks(tasks []task.Task, statusFilter string) []map[string]any {
 }
 
 // canonicalStatusValues are the documented status values shown in help and error messages.
-var canonicalStatusValues = []string{"pending", "in-progress", "completed"}
+var canonicalStatusValues = []string{statusPending, statusInProgress, statusCompleted}
 
 // validStatusFilters lists all accepted values for the --filter / --status flag,
 // including convenience aliases like "inprogress".
-var validStatusFilters = []string{"pending", "in-progress", "inprogress", "completed"}
+var validStatusFilters = []string{statusPending, statusInProgress, "inprogress", statusCompleted}
 
 // validateStatusFilter returns an error if filter is non-empty and not a
 // recognised status value. Call this early to reject typos instead of silently
@@ -189,11 +189,11 @@ func validateStatusFilter(filter string) error {
 
 func matchesStatusFilter(status task.Status, filter string) bool {
 	switch filter {
-	case "pending":
+	case statusPending:
 		return status == task.Pending
-	case "in-progress", "inprogress":
+	case statusInProgress, "inprogress":
 		return status == task.InProgress
-	case "completed":
+	case statusCompleted:
 		return status == task.Completed
 	default:
 		return false
@@ -240,7 +240,7 @@ func findDuplicatePhases(markers []task.PhaseMarker) []string {
 
 func outputTable(taskList *task.TaskList, taskData []map[string]any) error {
 	// Build table keys based on what we want to show
-	keys := []string{"ID", "Title", "Status", "Level"}
+	keys := []string{"ID", columnTitle, columnStatus, columnLevel}
 	if showAll {
 		keys = append(keys, "Details", "References")
 	}
@@ -254,10 +254,10 @@ func outputTable(taskList *task.TaskList, taskData []map[string]any) error {
 		referencesData := make([]map[string]any, len(taskList.FrontMatter.References))
 		for i, ref := range taskList.FrontMatter.References {
 			referencesData[i] = map[string]any{
-				"Reference": ref,
+				columnReference: ref,
 			}
 		}
-		docBuilder = docBuilder.Table("References", referencesData, output.WithKeys("Reference"))
+		docBuilder = docBuilder.Table("References", referencesData, output.WithKeys(columnReference))
 	}
 
 	doc := docBuilder.Build()
@@ -318,10 +318,10 @@ func flattenTasksWithPhases(taskList *task.TaskList, phaseMarkers []task.PhaseMa
 
 			// Create task record
 			taskRecord := map[string]any{
-				"ID":     t.ID,
-				"Title":  t.Title,
-				"Status": formatStatus(t.Status),
-				"Level":  getTaskLevel(t.ID),
+				"ID":         t.ID,
+				columnTitle:  t.Title,
+				columnStatus: formatStatus(t.Status),
+				columnLevel:  getTaskLevel(t.ID),
 			}
 
 			// Add phase column if phases exist
@@ -360,7 +360,7 @@ func outputTableWithPhases(taskList *task.TaskList, taskData []map[string]any, p
 		keys = append(keys, "Phase")
 	}
 
-	keys = append(keys, "Title", "Status", "Level")
+	keys = append(keys, columnTitle, columnStatus, columnLevel)
 
 	if showAll {
 		keys = append(keys, "Details", "References")
@@ -375,10 +375,10 @@ func outputTableWithPhases(taskList *task.TaskList, taskData []map[string]any, p
 		referencesData := make([]map[string]any, len(taskList.FrontMatter.References))
 		for i, ref := range taskList.FrontMatter.References {
 			referencesData[i] = map[string]any{
-				"Reference": ref,
+				columnReference: ref,
 			}
 		}
-		docBuilder = docBuilder.Table("References", referencesData, output.WithKeys("Reference"))
+		docBuilder = docBuilder.Table("References", referencesData, output.WithKeys(columnReference))
 	}
 
 	doc := docBuilder.Build()
@@ -586,10 +586,10 @@ func flattenTasksWithFilters(taskList *task.TaskList, phaseMarkers []task.PhaseM
 
 			// Create task record
 			taskRecord := map[string]any{
-				"ID":     t.ID,
-				"Title":  t.Title,
-				"Status": formatStatus(t.Status),
-				"Level":  getTaskLevel(t.ID),
+				"ID":         t.ID,
+				columnTitle:  t.Title,
+				columnStatus: formatStatus(t.Status),
+				columnLevel:  getTaskLevel(t.ID),
 			}
 
 			// Add phase column if phases exist
@@ -649,7 +649,7 @@ func outputTableWithFilters(taskList *task.TaskList, taskData []map[string]any, 
 		keys = append(keys, "Phase")
 	}
 
-	keys = append(keys, "Title", "Status")
+	keys = append(keys, columnTitle, columnStatus)
 
 	// Add Stream column conditionally
 	if hasNonDefaultStreams {
@@ -674,7 +674,7 @@ func outputTableWithFilters(taskList *task.TaskList, taskData []map[string]any, 
 		keys = append(keys, "Owner")
 	}
 
-	keys = append(keys, "Level")
+	keys = append(keys, columnLevel)
 
 	if showAll {
 		keys = append(keys, "Details", "References")
@@ -689,10 +689,10 @@ func outputTableWithFilters(taskList *task.TaskList, taskData []map[string]any, 
 		referencesData := make([]map[string]any, len(taskList.FrontMatter.References))
 		for i, ref := range taskList.FrontMatter.References {
 			referencesData[i] = map[string]any{
-				"Reference": ref,
+				columnReference: ref,
 			}
 		}
-		docBuilder = docBuilder.Table("References", referencesData, output.WithKeys("Reference"))
+		docBuilder = docBuilder.Table("References", referencesData, output.WithKeys(columnReference))
 	}
 
 	doc := docBuilder.Build()

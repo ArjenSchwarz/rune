@@ -167,11 +167,11 @@ func runComplete(cmd *cobra.Command, args []string) error {
 func statusToString(status task.Status) string {
 	switch status {
 	case task.Pending:
-		return "pending"
+		return statusPending
 	case task.InProgress:
-		return "in-progress"
+		return statusInProgress
 	case task.Completed:
-		return "completed"
+		return statusCompleted
 	default:
 		return "unknown"
 	}

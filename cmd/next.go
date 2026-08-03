@@ -369,20 +369,20 @@ func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.Front
 
 	// Add the main task
 	taskRecord := map[string]any{
-		"ID":     nextTask.ID,
-		"Title":  nextTask.Title,
-		"Status": formatStatus(nextTask.Status),
-		"Level":  getTaskLevel(nextTask.ID),
+		"ID":         nextTask.ID,
+		columnTitle:  nextTask.Title,
+		columnStatus: formatStatus(nextTask.Status),
+		columnLevel:  getTaskLevel(nextTask.ID),
 	}
 	taskData = append(taskData, taskRecord)
 
 	// Add incomplete children
 	for _, child := range nextTask.IncompleteChildren {
 		childRecord := map[string]any{
-			"ID":     child.ID,
-			"Title":  child.Title,
-			"Status": formatStatus(child.Status),
-			"Level":  getTaskLevel(child.ID),
+			"ID":         child.ID,
+			columnTitle:  child.Title,
+			columnStatus: formatStatus(child.Status),
+			columnLevel:  getTaskLevel(child.ID),
 		}
 		taskData = append(taskData, childRecord)
 
@@ -392,7 +392,7 @@ func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.Front
 
 	// Create table document
 	builder := output.New().
-		Table("Next Task", taskData, output.WithKeys("ID", "Title", "Status", "Level"))
+		Table("Next Task", taskData, output.WithKeys("ID", columnTitle, columnStatus, columnLevel))
 
 	// Add task details if present
 	if len(nextTask.Details) > 0 {
@@ -410,10 +410,10 @@ func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.Front
 		taskRefData := make([]map[string]any, len(nextTask.References))
 		for i, ref := range nextTask.References {
 			taskRefData[i] = map[string]any{
-				"Path": ref,
+				columnPath: ref,
 			}
 		}
-		builder = builder.Table("Task References", taskRefData, output.WithKeys("Path"))
+		builder = builder.Table("Task References", taskRefData, output.WithKeys(columnPath))
 	}
 
 	// Add front matter references if present
@@ -421,10 +421,10 @@ func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.Front
 		refData := make([]map[string]any, len(frontMatter.References))
 		for i, ref := range frontMatter.References {
 			refData[i] = map[string]any{
-				"Path": ref,
+				columnPath: ref,
 			}
 		}
-		builder = builder.Table("Reference Documents", refData, output.WithKeys("Path"))
+		builder = builder.Table("Reference Documents", refData, output.WithKeys(columnPath))
 	}
 
 	doc := builder.Build()
@@ -550,10 +550,10 @@ func addIncompleteChildrenToData(parentTask *task.Task, taskData *[]map[string]a
 	for _, child := range parentTask.Children {
 		if task.HasIncompleteWork(&child) {
 			childRecord := map[string]any{
-				"ID":     child.ID,
-				"Title":  child.Title,
-				"Status": formatStatus(child.Status),
-				"Level":  getTaskLevel(child.ID),
+				"ID":         child.ID,
+				columnTitle:  child.Title,
+				columnStatus: formatStatus(child.Status),
+				columnLevel:  getTaskLevel(child.ID),
 			}
 			*taskData = append(*taskData, childRecord)
 
@@ -658,10 +658,10 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 	// Add all tasks from the phase
 	for _, t := range phaseResult.Tasks {
 		taskRecord := map[string]any{
-			"ID":     t.ID,
-			"Title":  t.Title,
-			"Status": formatStatusWithBlocking(&t, index),
-			"Level":  getTaskLevel(t.ID),
+			"ID":         t.ID,
+			columnTitle:  t.Title,
+			columnStatus: formatStatusWithBlocking(&t, index),
+			columnLevel:  getTaskLevel(t.ID),
 		}
 		if phaseResult.PhaseName != "" {
 			taskRecord["Phase"] = phaseResult.PhaseName
@@ -673,7 +673,7 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 	}
 
 	// Create table document
-	keys := []string{"ID", "Title", "Status", "Level"}
+	keys := []string{"ID", columnTitle, columnStatus, columnLevel}
 	if phaseResult.PhaseName != "" {
 		keys = append(keys, "Phase")
 	}
@@ -691,10 +691,10 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 		refData := make([]map[string]any, len(frontMatter.References))
 		for i, ref := range frontMatter.References {
 			refData[i] = map[string]any{
-				"Path": ref,
+				columnPath: ref,
 			}
 		}
-		builder = builder.Table("Reference Documents", refData, output.WithKeys("Path"))
+		builder = builder.Table("Reference Documents", refData, output.WithKeys(columnPath))
 	}
 
 	doc := builder.Build()
@@ -893,10 +893,10 @@ func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMa
 func addAllChildrenToData(parentTask *task.Task, taskData *[]map[string]any, phaseName string, index *task.DependencyIndex) {
 	for _, child := range parentTask.Children {
 		childRecord := map[string]any{
-			"ID":     child.ID,
-			"Title":  child.Title,
-			"Status": formatStatusWithBlocking(&child, index),
-			"Level":  getTaskLevel(child.ID),
+			"ID":         child.ID,
+			columnTitle:  child.Title,
+			columnStatus: formatStatusWithBlocking(&child, index),
+			columnLevel:  getTaskLevel(child.ID),
 		}
 		if phaseName != "" {
 			childRecord["Phase"] = phaseName
@@ -1103,17 +1103,17 @@ func outputClaimTable(claimed []task.Task, _ *task.FrontMatter) error {
 	var taskData []map[string]any
 	for _, t := range claimed {
 		record := map[string]any{
-			"ID":     t.ID,
-			"Title":  t.Title,
-			"Status": formatStatus(t.Status),
-			"Owner":  t.Owner,
-			"Stream": task.GetEffectiveStream(&t),
+			"ID":         t.ID,
+			columnTitle:  t.Title,
+			columnStatus: formatStatus(t.Status),
+			"Owner":      t.Owner,
+			"Stream":     task.GetEffectiveStream(&t),
 		}
 		taskData = append(taskData, record)
 	}
 
 	builder := output.New().
-		Table("Claimed Tasks", taskData, output.WithKeys("ID", "Title", "Status", "Owner", "Stream"))
+		Table("Claimed Tasks", taskData, output.WithKeys("ID", columnTitle, columnStatus, "Owner", "Stream"))
 
 	doc := builder.Build()
 	out := output.NewOutput(

@@ -18,6 +18,9 @@ const (
 	MaxDetailLength   = 1000  // Maximum characters per detail line
 )
 
+// tempTaskID is the placeholder ID assigned to newly inserted tasks before renumbering
+const tempTaskID = "temp"
+
 // AddOptions contains optional parameters for adding a task with extended features
 type AddOptions struct {
 	Position  string   // Position to insert at (e.g., "1", "2.1")
@@ -123,7 +126,7 @@ func (tl *TaskList) addTaskAtPosition(parentID, title, position string) (string,
 
 		// Create new task
 		newTask := Task{
-			ID:       "temp", // Will be renumbered
+			ID:       tempTaskID, // Will be renumbered
 			Title:    title,
 			Status:   Pending,
 			ParentID: parentID,
@@ -140,7 +143,7 @@ func (tl *TaskList) addTaskAtPosition(parentID, title, position string) (string,
 
 		// Create new task
 		newTask := Task{
-			ID:     "temp", // Will be renumbered
+			ID:     tempTaskID, // Will be renumbered
 			Title:  title,
 			Status: Pending,
 		}
@@ -668,7 +671,7 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 	// Insert task at the calculated position
 	newTaskID = fmt.Sprintf("%d", insertPosition+1)
 	newTask := Task{
-		ID:     "temp", // Will be renumbered
+		ID:     tempTaskID, // Will be renumbered
 		Title:  title,
 		Status: Pending,
 	}
@@ -1017,7 +1020,7 @@ func (tl *TaskList) addTaskWithOptionsAtPosition(parentID string, newTask *Task,
 			targetIndex = len(parent.Children)
 		}
 
-		newTask.ID = "temp"
+		newTask.ID = tempTaskID
 		newTask.ParentID = parentID
 		parent.Children = append(parent.Children[:targetIndex],
 			append([]Task{*newTask}, parent.Children[targetIndex:]...)...)
@@ -1026,7 +1029,7 @@ func (tl *TaskList) addTaskWithOptionsAtPosition(parentID string, newTask *Task,
 			targetIndex = len(tl.Tasks)
 		}
 
-		newTask.ID = "temp"
+		newTask.ID = tempTaskID
 		tl.Tasks = append(tl.Tasks[:targetIndex],
 			append([]Task{*newTask}, tl.Tasks[targetIndex:]...)...)
 	}

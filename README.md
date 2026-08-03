@@ -618,6 +618,8 @@ discovery:
 - `discovery.enabled` (boolean) - Enable/disable git branch-based file discovery (default: true)
 - `discovery.template` (string) - Path template for branch-based files (default: "specs/{branch}/tasks.md")
 
+Configuration files are validated strictly: a file that fails to parse produces an error, and unknown or misspelled fields are rejected rather than silently ignored.
+
 ### Git Branch Discovery
 
 When enabled, rune automatically discovers task files based on your current git branch:

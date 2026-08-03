@@ -38,7 +38,7 @@ jobs:
         goos: ${{ matrix.goos }}
         goarch: ${{ matrix.goarch }}
         binary_name: "rune"
-        ldflags: "-w -s -X 'github.com/ArjenSchwarz/rune/cmd.Version=${{ env.APP_VERSION }}' -X 'github.com/ArjenSchwarz/rune/cmd.BuildTime=${{ env.BUILD_TIME }}' -X 'github.com/ArjenSchwarz/rune/cmd.GitCommit=${{ env.GIT_COMMIT }}'"
+        ldflags: "-w -s -X 'github.com/arjenschwarz/rune/cmd.Version=${{ env.APP_VERSION }}' -X 'github.com/arjenschwarz/rune/cmd.BuildTime=${{ env.BUILD_TIME }}' -X 'github.com/arjenschwarz/rune/cmd.GitCommit=${{ env.GIT_COMMIT }}'"
         extra_files: "LICENSE README.md"
         sha256sum: true
 

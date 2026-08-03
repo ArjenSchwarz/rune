@@ -205,10 +205,10 @@ func outputSearchResultsTable(results []task.Task, pattern, title string) error 
 
 	for _, t := range results {
 		record := map[string]any{
-			"ID":     t.ID,
-			"Title":  t.Title,
-			"Status": formatStatus(t.Status),
-			"Level":  getTaskLevel(t.ID),
+			"ID":         t.ID,
+			columnTitle:  t.Title,
+			columnStatus: formatStatus(t.Status),
+			columnLevel:  getTaskLevel(t.ID),
 		}
 
 		// Add parent context if available
@@ -238,7 +238,7 @@ func outputSearchResultsTable(results []task.Task, pattern, title string) error 
 	// Create document using go-output/v2
 	doc := output.New().
 		Table(fmt.Sprintf("Search Results for '%s' in %s", pattern, title), tableData,
-			output.WithKeys("ID", "Title", "Status", "Level", "Parent", "Details", "References")).
+			output.WithKeys("ID", columnTitle, columnStatus, columnLevel, "Parent", "Details", "References")).
 		Build()
 
 	// Create output renderer

@@ -9,6 +9,24 @@ const (
 	checkboxCompleted  = "[x]"
 )
 
+// Table column names shared across command output
+const (
+	columnTitle     = "Title"
+	columnStatus    = "Status"
+	columnLevel     = "Level"
+	columnReference = "Reference"
+	columnPath      = "Path"
+	columnField     = "Field"
+	columnValue     = "Value"
+)
+
+// Status strings used in filters and JSON output
+const (
+	statusPending    = "pending"
+	statusInProgress = "in-progress"
+	statusCompleted  = "completed"
+)
+
 // formatStatus converts a task.Status to a human-readable string
 func formatStatus(status task.Status) string {
 	switch status {

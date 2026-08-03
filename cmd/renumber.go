@@ -179,13 +179,13 @@ func displaySummary(tl *task.TaskList, backupPath, format string) error {
 	default:
 		// Use go-output library for consistent formatting
 		data := []map[string]any{
-			{"Field": "Total Tasks", "Value": fmt.Sprintf("%d", totalTasks)},
-			{"Field": "Backup File", "Value": backupPath},
-			{"Field": "Status", "Value": "✓ Success"},
+			{columnField: "Total Tasks", columnValue: fmt.Sprintf("%d", totalTasks)},
+			{columnField: "Backup File", columnValue: backupPath},
+			{columnField: columnStatus, columnValue: "✓ Success"},
 		}
 
 		doc := output.New().
-			Table("Renumbering Summary", data, output.WithKeys("Field", "Value")).
+			Table("Renumbering Summary", data, output.WithKeys(columnField, columnValue)).
 			Build()
 
 		out := output.NewOutput(

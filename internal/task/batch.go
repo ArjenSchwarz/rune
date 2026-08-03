@@ -936,7 +936,7 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 
 	// Insert task at the calculated position
 	newTask := Task{
-		ID:        "temp", // Will be renumbered
+		ID:        tempTaskID, // Will be renumbered
 		Title:     op.Title,
 		Status:    Pending,
 		StableID:  stableID,
