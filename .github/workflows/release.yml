@@ -110,24 +110,23 @@ jobs:
           class Rune < Formula
             desc "CLI for managing hierarchical markdown task lists"
             homepage "https://github.com/ArjenSchwarz/rune"
-            version "${VERSION}"
 
             on_macos do
               if Hardware::CPU.arm?
-                url "https://github.com/ArjenSchwarz/rune/releases/download/v#{version}/rune-v#{version}-darwin-arm64.tar.gz"
+                url "https://github.com/ArjenSchwarz/rune/releases/download/v${VERSION}/rune-v${VERSION}-darwin-arm64.tar.gz"
                 sha256 "${DARWIN_ARM64}"
               else
-                url "https://github.com/ArjenSchwarz/rune/releases/download/v#{version}/rune-v#{version}-darwin-amd64.tar.gz"
+                url "https://github.com/ArjenSchwarz/rune/releases/download/v${VERSION}/rune-v${VERSION}-darwin-amd64.tar.gz"
                 sha256 "${DARWIN_AMD64}"
               end
             end
 
             on_linux do
               if Hardware::CPU.arm?
-                url "https://github.com/ArjenSchwarz/rune/releases/download/v#{version}/rune-v#{version}-linux-arm64.tar.gz"
+                url "https://github.com/ArjenSchwarz/rune/releases/download/v${VERSION}/rune-v${VERSION}-linux-arm64.tar.gz"
                 sha256 "${LINUX_ARM64}"
               else
-                url "https://github.com/ArjenSchwarz/rune/releases/download/v#{version}/rune-v#{version}-linux-amd64.tar.gz"
+                url "https://github.com/ArjenSchwarz/rune/releases/download/v${VERSION}/rune-v${VERSION}-linux-amd64.tar.gz"
                 sha256 "${LINUX_AMD64}"
               end
             end
@@ -137,17 +136,20 @@ jobs:
             end
 
             test do
-              system "#{bin}/rune", "--version"
+              system bin/"rune", "--version"
             end
           end
           EOF
           cat Formula/rune.rb
       - name: brew audit
-        run: brew audit --strict --online ./Formula/rune.rb
+        run: |
+          brew tap-new --no-git local/rune-test
+          cp Formula/rune.rb "$(brew --repository)/Library/Taps/local/homebrew-rune-test/Formula/rune.rb"
+          brew audit --strict --online local/rune-test/rune
       - name: brew install + test
         run: |
-          brew install --formula ./Formula/rune.rb
-          brew test rune
+          brew install local/rune-test/rune
+          brew test local/rune-test/rune
       - name: Checkout tap repo
         uses: actions/checkout@v4
         with:
