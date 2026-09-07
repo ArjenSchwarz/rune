@@ -1270,6 +1270,13 @@ func TestValidateOperation_AddPhase(t *testing.T) {
 			op:        Operation{Type: "add-phase", Phase: "  Valid Phase  "},
 			wantError: false,
 		},
+		"phase name with newline injection": {
+			// Regression test for T-1603: a newline in the phase name must be
+			// rejected rather than silently rendered as extra markdown lines.
+			op:        Operation{Type: "add-phase", Phase: "Bad\n- [ ] 999. Injected"},
+			wantError: true,
+			errMsg:    "control character",
+		},
 	}
 
 	tl := NewTaskList("Test")

@@ -813,6 +813,21 @@ func TestRunAddWithPhase(t *testing.T) {
 				}
 			},
 		},
+		"phase name with newline is rejected": {
+			// Regression test for T-1603: a newline in --phase must be
+			// rejected rather than injecting extra markdown/task lines when
+			// the phase header is rendered.
+			setupFile: func(filename string) error {
+				content := `# Test Tasks
+
+- [ ] 1. Existing task`
+				return os.WriteFile(filename, []byte(content), 0644)
+			},
+			title:         "New task",
+			phase:         "Bad\n- [ ] 999. Injected",
+			expectError:   true,
+			errorContains: "control character",
+		},
 	}
 
 	for name, tt := range tests {
@@ -830,6 +845,16 @@ func TestRunAddWithPhase(t *testing.T) {
 			addParent = ""
 			addPosition = ""
 			dryRun = false
+
+			// Reset flags after the subtest regardless of outcome, so an
+			// error return (e.g. an invalid phase name) doesn't leak state
+			// into later tests.
+			t.Cleanup(func() {
+				addTitle = ""
+				addPhase = ""
+				addParent = ""
+				addPosition = ""
+			})
 
 			// Create command and run
 			cmd := &cobra.Command{}
@@ -855,12 +880,6 @@ func TestRunAddWithPhase(t *testing.T) {
 			if tt.validateFile != nil {
 				tt.validateFile(t, filename)
 			}
-
-			// Reset flags for next test
-			addTitle = ""
-			addPhase = ""
-			addParent = ""
-			addPosition = ""
 		})
 	}
 }
