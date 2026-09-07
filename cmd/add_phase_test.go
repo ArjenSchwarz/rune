@@ -171,6 +171,79 @@ func TestAddPhaseCommand(t *testing.T) {
 	}
 }
 
+// TestRunAddPhaseRejectsNewline is a regression test for T-1603: the
+// add-phase command must reject a phase name containing a newline instead of
+// writing it verbatim into the "## {name}" header, which lets the phase name
+// inject arbitrary markdown/task lines into the file.
+func TestRunAddPhaseRejectsNewline(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-add-phase-newline-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	testFile := "tasks.md"
+	original := "# My Tasks\n\n- [ ] 1. Existing task\n"
+	if err := os.WriteFile(testFile, []byte(original), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	maliciousPhase := "Bad\n- [ ] 999. Injected"
+
+	err = runAddPhase(&cobra.Command{}, []string{testFile, maliciousPhase})
+	if err == nil {
+		t.Fatal("expected error for phase name containing newline, got nil")
+	}
+
+	content, readErr := os.ReadFile(testFile)
+	if readErr != nil {
+		t.Fatalf("failed to read file: %v", readErr)
+	}
+	if string(content) != original {
+		t.Errorf("file was modified despite validation error; got:\n%s", string(content))
+	}
+	if strings.Contains(string(content), "999. Injected") {
+		t.Error("injected line was written to the task file")
+	}
+}
+
+// TestRunAddPhaseTrimsTrailingNewline pins the behaviour that a phase name
+// whose only problem is surrounding whitespace is trimmed and accepted, on
+// every path. T-1603 briefly broke this on the batch path while the CLI path
+// kept working, so the same logical operation had two different outcomes.
+func TestRunAddPhaseTrimsTrailingNewline(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-add-phase-trim-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	testFile := "tasks.md"
+	if err := os.WriteFile(testFile, []byte("# My Tasks\n\n- [ ] 1. Existing task\n"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	if err := runAddPhase(&cobra.Command{}, []string{testFile, "Planning\n"}); err != nil {
+		t.Fatalf("expected trailing newline to be trimmed and accepted, got: %v", err)
+	}
+
+	content, readErr := os.ReadFile(testFile)
+	if readErr != nil {
+		t.Fatalf("failed to read file: %v", readErr)
+	}
+	if !strings.Contains(string(content), "## Planning\n") {
+		t.Errorf("expected trimmed phase header, got:\n%s", string(content))
+	}
+}
+
 func TestAddPhaseCommandEmptyFile(t *testing.T) {
 	// Create temp directory for test
 	tempDir, err := os.MkdirTemp("", "rune-add-phase-empty-test")

@@ -116,6 +116,18 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Normalize and validate the phase name before the dry-run branch so the
+	// preview matches what a real run would do (add-phase does the same), and
+	// use the normalized name from here on so every path writes and matches the
+	// same string.
+	phaseName := addPhase
+	if phaseName != "" {
+		phaseName, err = task.NormalizePhaseName(phaseName)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Dry run mode - just show what would be added
 	if dryRun {
 		fmt.Printf("Would add task to file: %s\n", filename)
@@ -130,8 +142,8 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		if addPosition != "" {
 			fmt.Printf("Position: %s\n", addPosition)
 		}
-		if addPhase != "" {
-			fmt.Printf("Phase: %s\n", addPhase)
+		if phaseName != "" {
+			fmt.Printf("Phase: %s\n", phaseName)
 		}
 
 		// Calculate what the new task ID would be
@@ -153,13 +165,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	// Add the task - use phase-aware logic if phase is specified
 	var newTaskID string
 	switch {
-	case addPhase != "":
-		// Validate phase name
-		if err := task.ValidatePhaseName(addPhase); err != nil {
-			return err
-		}
-		// Use phase-aware task addition
-		newTaskID, err = task.AddTaskToPhase(filename, addParent, addTitle, addPhase)
+	case phaseName != "":
+		// Phase name already normalized and validated above (before the dry-run
+		// branch). Use phase-aware task addition.
+		newTaskID, err = task.AddTaskToPhase(filename, addParent, addTitle, phaseName)
 		if err != nil {
 			return fmt.Errorf("failed to add task to phase: %w", err)
 		}
@@ -252,7 +261,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			TaskID:  newTaskID,
 			Title:   addTitle,
 			Parent:  addParent,
-			Phase:   addPhase,
+			Phase:   phaseName,
 		})
 	case formatMarkdown:
 		if addParent != "" {

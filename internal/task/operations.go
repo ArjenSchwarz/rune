@@ -615,6 +615,15 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 	if err := validateTaskInput(title); err != nil {
 		return "", err
 	}
+	// Normalize the phase name here as well as at the call sites: this is an
+	// exported API, and the name is rendered verbatim into a "## {name}" header,
+	// so an unvalidated control character would let a caller inject arbitrary
+	// markdown/task lines into the file. Normalizing also means the marker
+	// lookup below compares the trimmed name, matching an existing header.
+	phaseName, err = NormalizePhaseName(phaseName)
+	if err != nil {
+		return "", err
+	}
 
 	// Check resource limits
 	if err := tl.checkResourceLimits(parentID); err != nil {

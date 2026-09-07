@@ -813,6 +813,50 @@ func TestRunAddWithPhase(t *testing.T) {
 				}
 			},
 		},
+		"phase name with newline is rejected": {
+			// Regression test for T-1603: a newline in --phase must be
+			// rejected rather than injecting extra markdown/task lines when
+			// the phase header is rendered.
+			setupFile: func(filename string) error {
+				content := `# Test Tasks
+
+- [ ] 1. Existing task`
+				return os.WriteFile(filename, []byte(content), 0644)
+			},
+			title:         "New task",
+			phase:         "Bad\n- [ ] 999. Injected",
+			expectError:   true,
+			errorContains: "control character",
+		},
+		"phase name with trailing newline is trimmed": {
+			// The trailing newline is trimmed, so this must match the
+			// existing "## Planning" header rather than erroring or creating
+			// a second phase. Same input, same result, as the batch path.
+			setupFile: func(filename string) error {
+				content := `# Test Tasks
+
+- [ ] 1. Existing task
+
+## Planning
+`
+				return os.WriteFile(filename, []byte(content), 0644)
+			},
+			title:       "New task",
+			phase:       "Planning\n",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				content, err := os.ReadFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to read file: %v", err)
+				}
+				if got := strings.Count(string(content), "## Planning"); got != 1 {
+					t.Errorf("expected exactly one Planning phase header, got %d in:\n%s", got, string(content))
+				}
+				if !strings.Contains(string(content), "New task") {
+					t.Errorf("new task missing from:\n%s", string(content))
+				}
+			},
+		},
 	}
 
 	for name, tt := range tests {
@@ -830,6 +874,16 @@ func TestRunAddWithPhase(t *testing.T) {
 			addParent = ""
 			addPosition = ""
 			dryRun = false
+
+			// Reset flags after the subtest regardless of outcome, so an
+			// error return (e.g. an invalid phase name) doesn't leak state
+			// into later tests.
+			t.Cleanup(func() {
+				addTitle = ""
+				addPhase = ""
+				addParent = ""
+				addPosition = ""
+			})
 
 			// Create command and run
 			cmd := &cobra.Command{}
@@ -855,13 +909,40 @@ func TestRunAddWithPhase(t *testing.T) {
 			if tt.validateFile != nil {
 				tt.validateFile(t, filename)
 			}
-
-			// Reset flags for next test
-			addTitle = ""
-			addPhase = ""
-			addParent = ""
-			addPosition = ""
 		})
+	}
+}
+
+// TestRunAddWithPhaseDryRunRejectsNewline verifies that `add --phase` validates
+// the phase name before the dry-run branch, so the preview matches what a real
+// run would do. Previously the dry-run path returned early and printed the raw
+// multi-line phase name without error.
+func TestRunAddWithPhaseDryRunRejectsNewline(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "tasks.md")
+	original := "# Test Tasks\n\n- [ ] 1. Existing task\n"
+	if err := os.WriteFile(filename, []byte(original), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	addTitle = "New task"
+	addPhase = "Bad\n- [ ] 999. Injected"
+	addParent = ""
+	addPosition = ""
+	dryRun = true
+	t.Cleanup(func() {
+		addTitle = ""
+		addPhase = ""
+		addParent = ""
+		addPosition = ""
+		dryRun = false
+	})
+
+	err := runAdd(&cobra.Command{}, []string{filename})
+	if err == nil {
+		t.Fatal("expected error for phase name containing newline in dry-run, got nil")
+	}
+	if !strings.Contains(err.Error(), "control character") {
+		t.Fatalf("expected control character error, got: %v", err)
 	}
 }
 

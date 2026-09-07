@@ -316,9 +316,7 @@ func validateOperation(tl *TaskList, op Operation) error {
 			}
 		}
 	case addPhaseOperation:
-		// Trim whitespace to match CLI behavior (see runAddPhase in cmd/add_phase.go)
-		phaseName := strings.TrimSpace(op.Phase)
-		if err := ValidatePhaseName(phaseName); err != nil {
+		if _, err := NormalizePhaseName(op.Phase); err != nil {
 			return err
 		}
 	default:
@@ -581,7 +579,9 @@ func (tl *TaskList) ExecuteBatchWithPhases(ops []Operation, dryRun bool, phaseMa
 	hasPhaseOps := false
 	for _, op := range ops {
 		if op.Phase != "" {
-			if err := ValidatePhaseName(op.Phase); err != nil {
+			// This is the only phase-name guard for an "add" operation carrying
+			// a phase: validateOperation's add case never inspects op.Phase.
+			if _, err := NormalizePhaseName(op.Phase); err != nil {
 				return nil, err
 			}
 			hasPhaseOps = true
@@ -705,8 +705,10 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 	switch strings.ToLower(op.Type) {
 	case addPhaseOperation:
 		// Create a new phase at the end of the document
-		// Trim whitespace to match CLI behavior (see runAddPhase in cmd/add_phase.go)
-		phaseName := strings.TrimSpace(op.Phase)
+		phaseName, err := NormalizePhaseName(op.Phase)
+		if err != nil {
+			return err
+		}
 		// Determine the AfterTaskID - if there are tasks, use the last one's ID
 		afterTaskID := ""
 		if len(tl.Tasks) > 0 {
@@ -823,6 +825,15 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 		return err
 	}
 
+	// Normalize the phase name so marker lookups compare (and any new marker
+	// stores) the same canonical string the add-phase path writes. Without this,
+	// {"phase": "Planning\n"} would fail to match an existing "## Planning"
+	// header and silently create a duplicate phase.
+	phaseName, err := NormalizePhaseName(op.Phase)
+	if err != nil {
+		return err
+	}
+
 	// Check resource limits
 	if err := tl.checkResourceLimits(op.Parent); err != nil {
 		return err
@@ -833,7 +844,7 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 
 	// Find the phase position
 	for _, marker := range *phaseMarkers {
-		if marker.Name == op.Phase {
+		if marker.Name == phaseName {
 			phaseFound = true
 			break
 		}
@@ -849,7 +860,7 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 			afterTaskID = tl.Tasks[len(tl.Tasks)-1].ID
 		}
 		*phaseMarkers = append(*phaseMarkers, PhaseMarker{
-			Name:        op.Phase,
+			Name:        phaseName,
 			AfterTaskID: afterTaskID,
 		})
 	} else {
@@ -859,7 +870,7 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 		// Look for the next phase marker in document order
 		for i, marker := range *phaseMarkers {
 			// Skip until we find our target phase
-			if marker.Name != op.Phase {
+			if marker.Name != phaseName {
 				continue
 			}
 
@@ -969,7 +980,7 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 	if phaseFound {
 		// Find the next phase marker after our target phase
 		for i, marker := range *phaseMarkers {
-			if marker.Name == op.Phase {
+			if marker.Name == phaseName {
 				// Update the immediate next marker to point to the newly inserted task
 				if i+1 < len(*phaseMarkers) && insertPosition < len(tl.Tasks) {
 					(*phaseMarkers)[i+1].AfterTaskID = tl.Tasks[insertPosition].ID
