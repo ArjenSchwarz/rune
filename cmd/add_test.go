@@ -946,6 +946,76 @@ func TestRunAddWithPhaseDryRunRejectsNewline(t *testing.T) {
 	}
 }
 
+// TestRunAddRejectsEmptyTitle verifies that `rune add` rejects an empty or
+// whitespace-only --title instead of writing an unparseable bullet (e.g.
+// "- [ ] 1. ") that a subsequent `rune list` fails to read back with
+// "invalid task format". Regression test for T-1561.
+func TestRunAddRejectsEmptyTitle(t *testing.T) {
+	tests := map[string]struct {
+		title   string
+		wantErr string
+	}{
+		"empty title":     {title: "", wantErr: "cannot be empty"},
+		"whitespace only": {title: "   ", wantErr: "cannot be empty"},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// A relative path under the working directory, like the other tests in
+			// this file: rune's path-traversal guard rejects an absolute t.TempDir()
+			// path on macOS (where /tmp resolves through a /private symlink) before
+			// title validation would even run, which would mask the case under test.
+			tempDir := filepath.Join(".", "test-tmp-add-empty-title-"+strings.ReplaceAll(name, " ", "-"))
+			if err := os.MkdirAll(tempDir, 0755); err != nil {
+				t.Fatalf("failed to create temp dir: %v", err)
+			}
+			t.Cleanup(func() { os.RemoveAll(tempDir) })
+
+			filename := filepath.Join(tempDir, "tasks.md")
+			original := "# Test Tasks\n\n- [ ] 1. Existing task\n"
+			if err := os.WriteFile(filename, []byte(original), 0644); err != nil {
+				t.Fatalf("failed to create test file: %v", err)
+			}
+
+			addTitle = tt.title
+			addParent = ""
+			addPosition = ""
+			addPhase = ""
+			dryRun = false
+			t.Cleanup(func() {
+				addTitle = ""
+				addParent = ""
+				addPosition = ""
+				addPhase = ""
+				dryRun = false
+			})
+
+			err := runAdd(&cobra.Command{}, []string{filename})
+			if err == nil {
+				t.Fatalf("expected error for title %q, got nil", tt.title)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("expected error containing %q, got %q", tt.wantErr, err.Error())
+			}
+
+			// The file must be left untouched and must still parse: the bug this
+			// guards against wrote "- [ ] 1. " (no title text) before rejecting,
+			// which a following `list`/ParseFile fails on with "invalid task format".
+			content, readErr := os.ReadFile(filename)
+			if readErr != nil {
+				t.Fatalf("failed to read file after rejected add: %v", readErr)
+			}
+			if string(content) != original {
+				t.Fatalf("file was modified despite rejected add: got %q, want %q", string(content), original)
+			}
+
+			if _, err := task.ParseFile(filename); err != nil {
+				t.Fatalf("file is not parseable after rejected add: %v", err)
+			}
+		})
+	}
+}
+
 func TestAddCmdFlags(t *testing.T) {
 	// Test that required flags are properly configured
 	if !addCmd.Flag("title").Changed && addCmd.Flag("title").Value.String() == "" {

@@ -438,8 +438,21 @@ func resolveExistingPrefix(absPath string) (string, error) {
 	return cursor, nil
 }
 
-// validateTaskInput sanitizes and validates task input
+// validateTaskInput sanitizes and validates task title input. It is the
+// single choke point for every operation that sets a task's title (AddTask,
+// AddTaskToPhase, AddTaskWithOptions, UpdateTask, UpdateTaskWithOptions, and
+// the batch equivalents), as well as TaskList titles via ValidateTaskListTitle.
+//
+// A title that is empty or only whitespace is rejected because it renders as
+// a bullet with no title text (e.g. "- [ ] 1. ") or, for a TaskList title, a
+// bare "# " heading — neither of which the parser recognises as valid,
+// producing a file Rune cannot read back. See T-1561 (task titles) and
+// T-1500 (TaskList titles), which hit the same failure mode independently.
 func validateTaskInput(input string) error {
+	if strings.TrimSpace(input) == "" {
+		return fmt.Errorf("task title cannot be empty")
+	}
+
 	// Check for null bytes and control characters
 	if containsNullByte(input) {
 		return fmt.Errorf("input contains null bytes or control characters")
@@ -453,17 +466,11 @@ func validateTaskInput(input string) error {
 }
 
 // ValidateTaskListTitle validates a TaskList title before it is rendered into
-// the markdown H1 heading. A title that is empty (or only whitespace) is
-// rejected because it renders as a bare "# " heading, which the parser does
-// not recognise as a title. Titles containing null bytes or control characters
-// (including \n and \r) are rejected because they would split the single-line
-// heading across multiple lines. Either case produces a file Rune cannot parse
-// back. The remaining checks are the same ones applied to task titles.
+// the markdown H1 heading. It applies the same rules as task titles
+// (validateTaskInput): non-empty (and not whitespace-only), free of null
+// bytes and control characters (including \n and \r, which would split the
+// single-line heading across multiple lines), and within the length limit.
 func ValidateTaskListTitle(title string) error {
-	if strings.TrimSpace(title) == "" {
-		return fmt.Errorf("title cannot be empty")
-	}
-
 	return validateTaskInput(title)
 }
 
