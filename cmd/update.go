@@ -184,6 +184,22 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Handle blocked-by. A non-empty raw flag value that parses down to zero
+	// task IDs (e.g. ",", " , ", ",,,") is malformed input, not a request to
+	// clear dependencies: task.UpdateTaskWithOptions treats a non-nil empty
+	// BlockedBy slice as the "clear" sentinel, and there is currently no way
+	// to reach that path from this command with an intentionally empty
+	// --blocked-by value (the batch JSON API can, by passing an empty list)
+	// (see T-1493), so any empty-but-non-nil slice here can only be an
+	// accident. Reject it before the file is touched (T-1906).
+	var newBlockedBy []string
+	if updateBlockedBy != "" {
+		newBlockedBy = parseRequirementIDs(updateBlockedBy)
+		if len(newBlockedBy) == 0 {
+			return fmt.Errorf("invalid --blocked-by value %q: no task IDs found", updateBlockedBy)
+		}
+	}
+
 	// Dry run mode - show what would be updated
 	if dryRun {
 		fmt.Printf("Would update task in file: %s\n", filename)
@@ -252,7 +268,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 		// Set blocked-by if provided
 		if updateBlockedBy != "" {
-			opts.BlockedBy = parseRequirementIDs(updateBlockedBy)
+			opts.BlockedBy = newBlockedBy
 		}
 
 		// Set owner if flag was used

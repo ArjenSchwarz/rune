@@ -897,6 +897,107 @@ func TestRunUpdateWithBlockedBy(t *testing.T) {
 	}
 }
 
+// TestRunUpdateBlockedByCommaOnlyRejected is the regression test for T-1906:
+// a --blocked-by value that is non-empty but parses down to zero task IDs
+// (comma-only or comma-plus-whitespace punctuation) must be rejected as
+// malformed input rather than silently interpreted as "clear dependencies".
+// Before the fix, parseRequirementIDs returned a non-nil empty slice for
+// these inputs, which UpdateTaskWithOptions treats as the intentional clear
+// sentinel, so the task's existing Blocked-by line was deleted with exit 0.
+func TestRunUpdateBlockedByCommaOnlyRejected(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-update-blocked-by-comma-only")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	tests := map[string]struct {
+		blockedBy string
+	}{
+		"single comma":               {blockedBy: ","},
+		"comma surrounded by spaces": {blockedBy: " , "},
+		"repeated commas":            {blockedBy: ",,,,"},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			filename := filepath.Join(tempDir, "test-"+strings.ReplaceAll(name, " ", "-")+".md")
+
+			tl := task.NewTaskList("Test Tasks")
+			if _, err := tl.AddTaskWithOptions("", "Blocker", task.AddOptions{}); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+			if _, err := tl.AddTaskWithOptions("", "Task to update", task.AddOptions{BlockedBy: []string{"1"}}); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+			if err := tl.WriteFile(filename); err != nil {
+				t.Fatalf("Setup failed: %v", err)
+			}
+
+			before, err := os.ReadFile(filename)
+			if err != nil {
+				t.Fatalf("Failed to read file before update: %v", err)
+			}
+
+			// Reset all flags
+			updateTitle = ""
+			updateDetails = ""
+			updateReferences = ""
+			updateRequirements = ""
+			clearDetails = false
+			clearReferences = false
+			clearRequirements = false
+			updateStream = 0
+			updateStreamSet = false
+			updateBlockedBy = tt.blockedBy
+			updateOwner = ""
+			updateOwnerSet = false
+			updateRelease = false
+			dryRun = false
+			t.Cleanup(func() {
+				updateBlockedBy = ""
+			})
+
+			cmd := &cobra.Command{}
+			args := []string{filename, "2"}
+
+			err = runUpdate(cmd, args)
+			if err == nil {
+				t.Fatal("Expected error for comma-only --blocked-by, got none")
+			}
+			// Assert on the specific message so an unrelated blocked-by
+			// failure (e.g. a nonexistent task ID) cannot satisfy this test.
+			if !strings.Contains(err.Error(), "no task IDs found") {
+				t.Errorf("Expected error to mention %q, got: %s", "no task IDs found", err.Error())
+			}
+			if !strings.Contains(err.Error(), tt.blockedBy) {
+				t.Errorf("Expected error to quote the offending value %q, got: %s", tt.blockedBy, err.Error())
+			}
+
+			after, err := os.ReadFile(filename)
+			if err != nil {
+				t.Fatalf("Failed to read file after update: %v", err)
+			}
+			if !bytes.Equal(before, after) {
+				t.Fatalf("File was modified by rejected update.\nBefore:\n%s\nAfter:\n%s", before, after)
+			}
+
+			// Confirm the dependency itself is still intact, not just the bytes.
+			tl2, err := task.ParseFile(filename)
+			if err != nil {
+				t.Fatalf("Failed to parse file after update: %v", err)
+			}
+			task2 := tl2.FindTask("2")
+			if task2 == nil {
+				t.Fatal("Task 2 not found after update")
+			}
+			if len(task2.BlockedBy) != 1 {
+				t.Fatalf("Expected task 2 to still have 1 blocked-by reference, got %d", len(task2.BlockedBy))
+			}
+		})
+	}
+}
+
 func TestRunUpdateWithOwner(t *testing.T) {
 	tempDir := filepath.Join(".", "test-tmp-update-owner")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
