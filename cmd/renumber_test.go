@@ -1935,3 +1935,58 @@ func TestRenumberDryRunMarkdown(t *testing.T) {
 		t.Errorf("Backup file %s was created during --dry-run --format markdown", backupPath)
 	}
 }
+
+// TestRenumberDryRunWithPhases verifies that --dry-run leaves a file
+// containing phase markers completely untouched. The dry-run short-circuit
+// returns before the phase conversion (Phase 5) and write (Phase 6), so this
+// closes the loop on the trickiest part of the renumber path.
+func TestRenumberDryRunWithPhases(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-renumber-dryrun-phases")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	testFile := filepath.Join(tempDir, "phases.md")
+
+	// Phase markers plus a gap in numbering (3 -> 5), so a real renumber
+	// would definitely rewrite both the task IDs and the phase markers.
+	content := `# Project with Phases
+
+## Phase 1
+
+- [ ] 1. First task in phase 1
+- [ ] 3. Second task in phase 1
+
+## Phase 2
+
+- [ ] 5. First task in phase 2
+  - [ ] 5.1. Subtask in phase 2
+`
+
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	dryRun = true
+	defer func() { dryRun = false }()
+
+	cmd := &cobra.Command{}
+	args := []string{testFile}
+	if err := runRenumber(cmd, args); err != nil {
+		t.Fatalf("runRenumber with --dry-run failed: %v", err)
+	}
+
+	finalContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("Failed to read file after dry run: %v", err)
+	}
+	if string(finalContent) != content {
+		t.Errorf("File with phase markers was modified during --dry-run.\nBefore:\n%s\nAfter:\n%s", content, finalContent)
+	}
+
+	backupPath := testFile + ".bak"
+	if _, err := os.Stat(backupPath); !os.IsNotExist(err) {
+		t.Errorf("Backup file %s was created during --dry-run", backupPath)
+	}
+}

@@ -47,12 +47,13 @@
 ## Regression Test
 
 **Test file:** `cmd/renumber_test.go`
-**Test names:** `TestRenumberDryRunDoesNotModifyFile`, `TestRenumberDryRunJSON`, `TestRenumberDryRunMarkdown`
+**Test names:** `TestRenumberDryRunDoesNotModifyFile`, `TestRenumberDryRunJSON`, `TestRenumberDryRunMarkdown`, `TestRenumberDryRunWithPhases`
 
 **What they verify:**
 - `TestRenumberDryRunDoesNotModifyFile` reproduces the exact ticket scenario (IDs `1`/`3`) with table format, asserts the file content is byte-for-byte unchanged after `--dry-run`, and asserts no `.bak` file is created.
 - `TestRenumberDryRunJSON` reproduces the ticket's `--format json` repro, asserts the JSON response has `success: true`, `dry_run: true` and an empty `backup_file`, and asserts the file and absence of a `.bak` file, same as above.
 - `TestRenumberDryRunMarkdown` covers the `--format markdown` branch of the dry-run path, asserting the preview reports the dry-run status with no backup file line, and that the task file is untouched.
+- `TestRenumberDryRunWithPhases` asserts a file containing phase markers (and a numbering gap that a real renumber does rewrite) is left byte-for-byte unchanged, covering the phase-conversion path that the dry-run short-circuit skips.
 
 **Run command:** `go test ./cmd -run 'TestRenumberDryRun' -v`
 
