@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -67,6 +68,10 @@ func testAddPhaseWriteFailurePreservesFile(t *testing.T, tempDir string) {
 		t.Fatalf("failed to resolve example file: %v", err)
 	}
 
+	if runeBinaryPath == "" {
+		t.Fatal("rune binary path not set - TestMain should have built the binary")
+	}
+
 	originalContent, err := os.ReadFile(examplePath)
 	if err != nil {
 		t.Fatalf("failed to read example file: %v", err)
@@ -88,6 +93,13 @@ func testAddPhaseWriteFailurePreservesFile(t *testing.T, tempDir string) {
 
 	if runErr == nil {
 		t.Fatalf("expected add-phase to fail under ulimit -f 1, but it succeeded. Output: %s", output)
+	}
+	// A non-nil error alone proves nothing: if the binary path were empty the
+	// shell would exit 127 without running rune at all, the file would be
+	// trivially unchanged, and this test would pass while testing nothing.
+	// Require the failure to be rune's own write error.
+	if !strings.Contains(string(output), "failed to write file") {
+		t.Fatalf("expected the failure to come from rune's write path, got: %s", output)
 	}
 	t.Logf("add-phase output (expected failure): %s", output)
 

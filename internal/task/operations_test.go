@@ -331,6 +331,25 @@ func TestWriteFileAtomic(t *testing.T) {
 			wantContent: replacement,
 			wantPerm:    0600,
 		},
+		"preserves a group-writable mode the umask would otherwise strip": {
+			// Regression guard for the permission bug the atomic rewrite
+			// introduced. os.WriteFile creates the temp file through open(2),
+			// which filters the mode through the umask, so 0664 silently became
+			// 0644 under the common umask 022. Writing in place never had that
+			// problem, because open(2) ignores the mode for an existing file.
+			// 0600 cannot catch this: the umask does not touch owner bits.
+			setup: func(t *testing.T) string {
+				if err := os.WriteFile("groupwritable.md", []byte(original), 0600); err != nil {
+					t.Fatalf("failed to create existing file: %v", err)
+				}
+				if err := os.Chmod("groupwritable.md", 0664); err != nil {
+					t.Fatalf("failed to set mode: %v", err)
+				}
+				return "groupwritable.md"
+			},
+			wantContent: replacement,
+			wantPerm:    0664,
+		},
 		"write failure leaves the original file untouched": {
 			setup: func(t *testing.T) string {
 				if err := os.WriteFile("blocked.md", []byte(original), 0644); err != nil {

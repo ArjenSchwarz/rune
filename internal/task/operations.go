@@ -369,6 +369,17 @@ func WriteFileAtomic(filePath string, content []byte) error {
 		return fmt.Errorf("writing temp file: %w", err)
 	}
 
+	// os.WriteFile creates the temp file through open(2), which filters the
+	// mode through the process umask, so group- and other-writable bits are
+	// dropped (0664 becomes 0644 under the common umask 022). Writing in place
+	// over an existing file did not have this problem, because open(2) ignores
+	// the mode argument when the file already exists. Set the mode explicitly
+	// so the renamed file keeps the permissions the original had.
+	if err := os.Chmod(tmpFile, perm); err != nil {
+		_ = os.Remove(tmpFile)
+		return fmt.Errorf("setting temp file permissions: %w", err)
+	}
+
 	// Atomic rename
 	if err := os.Rename(tmpFile, filePath); err != nil {
 		// Clean up temp file on failure. Best-effort for the same reason as
