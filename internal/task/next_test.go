@@ -1335,7 +1335,7 @@ func TestExtractPhasesWithTaskRangesIndentedLines(t *testing.T) {
 			wantTaskCounts: []int{2, 1},
 		},
 		"indented_phase_header_not_treated_as_phase": {
-			content:        "# Project\n\n## Real Phase\n\n- [ ] 1. Task One\n  ## Not a phase\n- [ ] 2. Task Two\n",
+			content:        "# Project\n\n## Real Phase\n\n- [ ] 1. Task One\n  - ## Not a phase\n- [ ] 2. Task Two\n",
 			wantPhases:     1,
 			wantPhaseNames: []string{"Real Phase"},
 			wantTaskCounts: []int{2},
@@ -1347,7 +1347,7 @@ func TestExtractPhasesWithTaskRangesIndentedLines(t *testing.T) {
 			wantTaskCounts: []int{2, 1},
 		},
 		"continuation_lines_with_description": {
-			content:        "# Project\n\n## Planning\n\n- [ ] 1. Define requirements\n  This task involves gathering input\n  - [ ] 1.1. Review docs\n- [ ] 2. Write spec\n\n## Implementation\n\n- [ ] 3. Build feature\n",
+			content:        "# Project\n\n## Planning\n\n- [ ] 1. Define requirements\n  - This task involves gathering input\n  - [ ] 1.1. Review docs\n- [ ] 2. Write spec\n\n## Implementation\n\n- [ ] 3. Build feature\n",
 			wantPhases:     2,
 			wantPhaseNames: []string{"Planning", "Implementation"},
 			wantTaskCounts: []int{2, 1},

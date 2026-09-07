@@ -20,8 +20,8 @@ metadata:
 # Test Tasks
 
 - [ ] 1. First task
-  Details about first task
-  References: ./task1.md
+  - Details about first task
+  - References: ./task1.md
 - [ ] 2. Second task
   - [ ] 2.1. Subtask one
   - [ ] 2.2. Subtask two
