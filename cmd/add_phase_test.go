@@ -404,7 +404,10 @@ func TestAddPhaseCommandRejectsPathOutsideWorkingDirectory(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected add-phase to reject a file outside the working directory, got nil error")
 	}
-	if !strings.Contains(err.Error(), "path traversal") && !strings.Contains(err.Error(), "invalid file path") {
+	// Assert on both halves: the command's own wrap prefix and the specific containment
+	// reason from task.ValidateFilePath. runAddPhase wraps every error it returns here as
+	// "invalid file path: %w", so checking only that half would pass for any failure.
+	if !strings.Contains(err.Error(), "invalid file path") || !strings.Contains(err.Error(), "path traversal") {
 		t.Errorf("expected a path containment error, got: %v", err)
 	}
 
