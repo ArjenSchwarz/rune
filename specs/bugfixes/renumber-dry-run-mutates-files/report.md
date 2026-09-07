@@ -63,8 +63,8 @@ Both tests were confirmed to fail against the pre-fix code (file mutated, `.bak`
 
 | File | Change |
 |------|--------|
-| `cmd/renumber.go` | Added `dryRun` short-circuit before backup/write; added `displayDryRunSummary`; added `DryRun` field to `RenumberResponse` |
-| `cmd/renumber_test.go` | Added `TestRenumberDryRunDoesNotModifyFile` and `TestRenumberDryRunJSON` regression tests |
+| `cmd/renumber.go` | Added `dryRun` short-circuit before backup/write; added `displayDryRunSummary`; added `DryRun` field to `RenumberResponse`; corrected the "backup file is always created" help text and added a `--dry-run` usage example |
+| `cmd/renumber_test.go` | Added `TestRenumberDryRunDoesNotModifyFile`, `TestRenumberDryRunJSON`, `TestRenumberDryRunMarkdown` and `TestRenumberDryRunWithPhases` regression tests |
 
 ## Verification
 
