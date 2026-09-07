@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Batch Command**: `rune batch` now rejects an unsupported `--format` value before any operation is applied, instead of writing the modified task file to disk and only then failing with `unsupported output format`. The check now runs before the batch input is read, so an unsupported format is reported even when the request JSON or the target file is also invalid
 - **Renumber Command**: `renumber --dry-run` no longer writes the renumbered file or creates a `.bak` backup. The command previously ignored the global `--dry-run` flag entirely, so a preview silently mutated the task file and left a stray backup behind. Dry runs now print a format-aware summary and report `"dry_run": true` with no backup file in JSON output
 - **Input Validation**: Indented content directly beneath a task that is not a `- ` bullet (free text, or a bare `-` with no content) is now reported as a parse error instead of being silently dropped. Previously such lines parsed without complaint but were omitted from output and permanently deleted by any command that rewrote the file (`add`, `update`, `remove`, `batch`). Add the missing `- ` prefix to keep the content
+- **Input Validation**: Indented content directly beneath a task that is not a `- ` bullet (free text, or a bare `-` with no content) is now reported as a parse error instead of being silently dropped. Previously such lines parsed without complaint but were omitted from output and permanently deleted by any command that rewrote the file (`add`, `update`, `remove`, `batch`). Add the missing `- ` prefix to any such line to keep its content.
+
 
 
 ## [1.4.0] - 2026-08-03
