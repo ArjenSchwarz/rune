@@ -467,9 +467,20 @@ func ValidateTaskListTitle(title string) error {
 	return validateTaskInput(title)
 }
 
-// validateDetails validates task details
+// validateDetails validates task details.
+//
+// Empty and whitespace-only details are rejected. renderTask writes every
+// detail as a "- <content>" bullet, so a detail with no content renders as a
+// bare "  - " line, which the parser refuses to read back (T-2041) — rune
+// would be able to write a file it cannot open. Rejecting here rather than
+// skipping the detail at render time keeps the round-trip honest: silently
+// dropping input is exactly the behaviour T-2041 removed from the parser, and
+// a detail without content carries no meaning to drop.
 func validateDetails(details []string) error {
 	for i, detail := range details {
+		if strings.TrimSpace(detail) == "" {
+			return fmt.Errorf("detail %d is empty: details must have content", i+1)
+		}
 		if containsNullByte(detail) {
 			return fmt.Errorf("detail %d contains null bytes or control characters", i+1)
 		}

@@ -167,3 +167,94 @@ func TestAddTaskToPhaseRejectsNonBulletLines(t *testing.T) {
 		t.Errorf("AddTaskToPhase() error = %q, want it to report the parse failure", err)
 	}
 }
+
+// TestEmptyDetailRejectedOnEveryWritePath covers the other half of the T-2041
+// round-trip invariant: rune must not be able to write a file it then refuses
+// to read. renderTask writes every detail as a "- <content>" bullet, so a
+// detail with no content renders as a bare "  - " line — exactly the shape the
+// parser rejects above. validateDetails is the single choke point for details
+// (UpdateTask, UpdateTaskWithOptions and every batch path funnel through it),
+// so the rejection is asserted on each of those entry points.
+func TestEmptyDetailRejectedOnEveryWritePath(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string][]string{
+		"empty_string":      {""},
+		"whitespace_only":   {"   "},
+		"empty_among_valid": {"Valid detail", ""},
+	}
+
+	newList := func(t *testing.T) *TaskList {
+		t.Helper()
+		tl, err := ParseMarkdown([]byte("# Tasks\n\n- [ ] 1. Keep me\n"))
+		if err != nil {
+			t.Fatalf("ParseMarkdown() error = %v", err)
+		}
+		return tl
+	}
+
+	for name, details := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("UpdateTask", func(t *testing.T) {
+				tl := newList(t)
+				if err := tl.UpdateTask("1", "", details, nil, nil); err == nil {
+					t.Fatal("UpdateTask() accepted a detail with no content")
+				}
+			})
+
+			t.Run("UpdateTaskWithOptions", func(t *testing.T) {
+				tl := newList(t)
+				if err := tl.UpdateTaskWithOptions("1", UpdateOptions{Details: details}); err == nil {
+					t.Fatal("UpdateTaskWithOptions() accepted a detail with no content")
+				}
+			})
+
+			t.Run("ExecuteBatch", func(t *testing.T) {
+				tl := newList(t)
+				resp, err := tl.ExecuteBatch([]Operation{{
+					Type:    updateOperation,
+					ID:      "1",
+					Details: details,
+				}}, false)
+				if err != nil {
+					t.Fatalf("ExecuteBatch() error = %v", err)
+				}
+				if resp.Success {
+					t.Fatal("ExecuteBatch() reported success for a detail with no content")
+				}
+				if got := tl.Tasks[0].Details; len(got) != 0 {
+					t.Errorf("details were applied despite the failure: %v", got)
+				}
+			})
+		})
+	}
+}
+
+// TestMutationCannotProduceUnreadableFile asserts the invariant itself rather
+// than the mechanism that enforces it: whatever a batch caller asks for, the
+// markdown rune writes must parse back. Before the guard in validateDetails,
+// {"type":"update","id":"1","details":[""]} reported success, wrote a bare
+// "  - " line, and every subsequent rune command failed on the file.
+func TestMutationCannotProduceUnreadableFile(t *testing.T) {
+	t.Parallel()
+
+	tl, err := ParseMarkdown([]byte("# Tasks\n\n- [ ] 1. Keep me\n"))
+	if err != nil {
+		t.Fatalf("ParseMarkdown() error = %v", err)
+	}
+
+	if _, err := tl.ExecuteBatch([]Operation{{
+		Type:    updateOperation,
+		ID:      "1",
+		Details: []string{""},
+	}}, false); err != nil {
+		t.Fatalf("ExecuteBatch() error = %v", err)
+	}
+
+	rendered := RenderMarkdown(tl)
+	if _, err := ParseMarkdown(rendered); err != nil {
+		t.Fatalf("rune wrote a file it cannot read back: %v\nrendered:\n%s", err, rendered)
+	}
+}

@@ -74,7 +74,7 @@ if detail := parseDetailLine(lines[i]); detail != "" {
 - *User-facing symptom* — the read-modify-write cycle aborts at the read step and the file on disk is left byte-identical, so a mutation can no longer delete the line. This guards the actual reported bug rather than only its root cause
 - *Filepath-taking helpers* — `AddTaskToPhase`, which parses internally rather than via `ParseFile`, surfaces the parse failure. The assertion matches the error text on purpose: writes outside the working directory are separately rejected as path traversal, so a bare non-nil check would pass even with the bug reintroduced
 
-All four fail with the fix reverted and pass with it applied (verified by temporarily restoring the old branch).
+Three of the four fail with the fix reverted and pass with it applied (verified by temporarily restoring the old branch). `TestParseAllowsValidDetailLines` is a positive guard: it asserts that legitimate bullets still parse, so it passes either way by design and exists to catch the fix being too broad, not too narrow.
 
 **Run command:** `go test -run 'TestParseRejectsNonBulletDetailLines|TestParseAllowsValidDetailLines|TestMutationDoesNotDropNonBulletLines|TestAddTaskToPhaseRejectsNonBulletLines' -v ./internal/task/`
 
@@ -106,6 +106,19 @@ All four fail with the fix reverted and pass with it applied (verified by tempor
 - Fixing a "silently skips invalid content" defect in one function is a prompt to grep for the same shape in sibling parse functions rather than only the reported call site
 
 ## Known Limitations
+
+**The reported line number is wrong for most real files.** The error indexes the slice it is handed, which
+has already had front matter stripped and the H1 title removed, so the number does not correspond to the
+line the user sees in their editor. A file with six lines of front matter plus a title reports `line 4` for
+real line 11; the common case of a title with no front matter is off by exactly one. No command names the
+file either. This is pre-existing — T-674's message has the identical defect — but this change makes it the
+error users actually hit, and the "add the missing `- ` prefix" advice depends on finding the line. Worth a
+follow-up ticket.
+
+**The same silent-drop shape survives elsewhere.** `parseRequirements` and `parseBlockedByLine` discard
+trailing prose the same way: `- Blocked-by: abc1234, see the design doc` renders back without `see the
+design doc`. Out of scope here, but it is the sibling case this report's own Prevention section says to look
+for, and it deserves its own ticket.
 
 `detailLinePattern` is `^(\s*)- (.+)$`, so a bullet followed by two or more spaces (`"  -  "`) captures a whitespace-only string as "content" and is accepted as a detail. Unlike the bug fixed here this causes no data loss — the whitespace round-trips through render — so it is out of scope. A bullet with a single trailing space (`"  - "`) and a bare `-` are both correctly rejected. Worth a follow-up ticket if whitespace-only details ever matter.
 
