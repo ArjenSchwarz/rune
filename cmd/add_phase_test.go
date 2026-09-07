@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/arjenschwarz/rune/internal/task"
+	"github.com/spf13/cobra"
 )
 
 func TestAddPhaseCommand(t *testing.T) {
@@ -372,5 +374,59 @@ func TestAddPhaseCommandWithVariousFormats(t *testing.T) {
 				t.Errorf("expected header %q not found in content:\n%s", tc.expectedHeader, string(content))
 			}
 		})
+	}
+}
+
+// TestAddPhaseCommandRejectsPathOutsideWorkingDirectory is a regression test for T-1473/T-1752:
+// runAddPhase used to read and write the target file directly via os.ReadFile/os.WriteFile
+// without ever calling task.ValidateFilePath, so it could mutate a markdown file outside the
+// current working directory. Every other mutating command enforces this containment check, so
+// add-phase must too. Before the fix this test fails because the outside file gets modified;
+// after the fix runAddPhase returns a path containment error and leaves the file untouched.
+func TestAddPhaseCommandRejectsPathOutsideWorkingDirectory(t *testing.T) {
+	// Run rune from a working directory inside the repo/module tree.
+	workDir, err := os.MkdirTemp("", "rune-add-phase-workdir")
+	if err != nil {
+		t.Fatalf("failed to create working dir: %v", err)
+	}
+	defer os.RemoveAll(workDir)
+
+	oldDir, _ := os.Getwd()
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("failed to chdir into working dir: %v", err)
+	}
+	defer os.Chdir(oldDir)
+
+	// The target file lives in a completely separate directory, outside workDir.
+	outsideDir, err := os.MkdirTemp("", "rune-add-phase-outside")
+	if err != nil {
+		t.Fatalf("failed to create outside dir: %v", err)
+	}
+	defer os.RemoveAll(outsideDir)
+
+	outsideFile := filepath.Join(outsideDir, "tasks.md")
+	originalContent := "# Outside\n\n- [ ] 1. Outside task\n"
+	if err := os.WriteFile(outsideFile, []byte(originalContent), 0644); err != nil {
+		t.Fatalf("failed to create outside test file: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	args := []string{outsideFile, "Escaped"}
+
+	err = runAddPhase(cmd, args)
+	if err == nil {
+		t.Fatal("expected add-phase to reject a file outside the working directory, got nil error")
+	}
+	if !strings.Contains(err.Error(), "path traversal") && !strings.Contains(err.Error(), "invalid file path") {
+		t.Errorf("expected a path containment error, got: %v", err)
+	}
+
+	// The outside file must be left completely untouched.
+	content, readErr := os.ReadFile(outsideFile)
+	if readErr != nil {
+		t.Fatalf("failed to read outside file after rejected add-phase: %v", readErr)
+	}
+	if string(content) != originalContent {
+		t.Errorf("outside file was modified despite path containment violation:\ngot:  %q\nwant: %q", string(content), originalContent)
 	}
 }

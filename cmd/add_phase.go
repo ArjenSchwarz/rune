@@ -55,6 +55,12 @@ func runAddPhase(cmd *cobra.Command, args []string) error {
 		phaseName = args[1]
 	}
 
+	// Validate the file path stays within the working directory before touching the
+	// filesystem, consistent with the other mutating commands (see task.ValidateFilePath).
+	if err := task.ValidateFilePath(filename); err != nil {
+		return fmt.Errorf("invalid file path: %w", err)
+	}
+
 	// Trim whitespace from phase name
 	phaseName = strings.TrimSpace(phaseName)
 
