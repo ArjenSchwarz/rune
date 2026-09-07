@@ -828,6 +828,35 @@ func TestRunAddWithPhase(t *testing.T) {
 			expectError:   true,
 			errorContains: "control character",
 		},
+		"phase name with trailing newline is trimmed": {
+			// The trailing newline is trimmed, so this must match the
+			// existing "## Planning" header rather than erroring or creating
+			// a second phase. Same input, same result, as the batch path.
+			setupFile: func(filename string) error {
+				content := `# Test Tasks
+
+- [ ] 1. Existing task
+
+## Planning
+`
+				return os.WriteFile(filename, []byte(content), 0644)
+			},
+			title:       "New task",
+			phase:       "Planning\n",
+			expectError: false,
+			validateFile: func(t *testing.T, filename string) {
+				content, err := os.ReadFile(filename)
+				if err != nil {
+					t.Fatalf("Failed to read file: %v", err)
+				}
+				if got := strings.Count(string(content), "## Planning"); got != 1 {
+					t.Errorf("expected exactly one Planning phase header, got %d in:\n%s", got, string(content))
+				}
+				if !strings.Contains(string(content), "New task") {
+					t.Errorf("new task missing from:\n%s", string(content))
+				}
+			},
+		},
 	}
 
 	for name, tt := range tests {

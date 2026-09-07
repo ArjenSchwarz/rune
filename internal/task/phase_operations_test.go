@@ -1333,22 +1333,27 @@ func TestAddTaskToPhaseSubtaskNoPhantomPhase(t *testing.T) {
 	}
 }
 
-// TestAddTaskToPhaseValidatesPhaseName verifies that AddTaskToPhase validates
-// its phaseName argument itself rather than relying on callers to do so.
+// TestAddTaskToPhaseNormalizesPhaseName verifies that AddTaskToPhase normalizes
+// and validates its phaseName argument itself rather than relying on callers to
+// do so, and that the header it writes uses the normalized name.
 //
 // Follow-up to T-1603: AddTaskToPhase is exported, and it writes phaseName
 // verbatim into a "## {name}" header, so a direct caller that skipped
-// ValidatePhaseName would reopen the newline-injection hole.
-func TestAddTaskToPhaseValidatesPhaseName(t *testing.T) {
+// NormalizePhaseName would reopen the newline-injection hole.
+func TestAddTaskToPhaseNormalizesPhaseName(t *testing.T) {
 	tests := map[string]struct {
-		phaseName string
-		wantErr   bool
+		phaseName  string
+		wantErr    bool
+		wantHeader string
 	}{
-		"valid phase name":     {phaseName: "Planning", wantErr: false},
-		"phase with newline":   {phaseName: "Bad\n- [ ] 999. Injected", wantErr: true},
-		"phase with CR":        {phaseName: "Bad\rInjected", wantErr: true},
-		"phase with null byte": {phaseName: "Bad\x00Name", wantErr: true},
-		"empty phase name":     {phaseName: "", wantErr: true},
+		"valid phase name":       {phaseName: "Planning", wantHeader: "## Planning"},
+		"surrounding whitespace": {phaseName: "  Planning  ", wantHeader: "## Planning"},
+		"trailing newline":       {phaseName: "Planning\n", wantHeader: "## Planning"},
+		"embedded tab":           {phaseName: "Design\tPhase", wantHeader: "## Design\tPhase"},
+		"phase with newline":     {phaseName: "Bad\n- [ ] 999. Injected", wantErr: true},
+		"phase with CR":          {phaseName: "Bad\rInjected", wantErr: true},
+		"phase with null byte":   {phaseName: "Bad\x00Name", wantErr: true},
+		"empty phase name":       {phaseName: "", wantErr: true},
 	}
 
 	original := "# Project\n\n- [ ] 1. Existing task\n"
@@ -1381,6 +1386,13 @@ func TestAddTaskToPhaseValidatesPhaseName(t *testing.T) {
 
 			if err != nil {
 				t.Fatalf("AddTaskToPhase(%q): unexpected error: %v", tc.phaseName, err)
+			}
+			content, readErr := os.ReadFile(fileName)
+			if readErr != nil {
+				t.Fatalf("failed to read file: %v", readErr)
+			}
+			if !strings.Contains(string(content), tc.wantHeader) {
+				t.Errorf("AddTaskToPhase(%q): expected header %q in:\n%s", tc.phaseName, tc.wantHeader, string(content))
 			}
 		})
 	}

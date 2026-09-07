@@ -63,13 +63,13 @@ func runAddPhase(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid file path: %w", err)
 	}
 
-	// Trim whitespace from phase name
-	phaseName = strings.TrimSpace(phaseName)
-
-	// Validate phase name
-	if err := task.ValidatePhaseName(phaseName); err != nil {
+	// Trim and validate the phase name in one step, and use the normalized name
+	// from here on so the header written matches what every other path writes.
+	normalizedPhase, err := task.NormalizePhaseName(phaseName)
+	if err != nil {
 		return err
 	}
+	phaseName = normalizedPhase
 
 	// Use stderr for verbose when JSON requested
 	if format == formatJSON {

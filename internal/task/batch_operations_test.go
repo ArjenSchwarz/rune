@@ -1277,6 +1277,17 @@ func TestValidateOperation_AddPhase(t *testing.T) {
 			wantError: true,
 			errMsg:    "control character",
 		},
+		"phase name with trailing newline is trimmed": {
+			// A trailing newline is not an injection vector once trimmed, and
+			// this worked before T-1603 — it must keep working.
+			op:        Operation{Type: "add-phase", Phase: "Planning\n"},
+			wantError: false,
+		},
+		"phase name with embedded tab": {
+			// Tab is allowed, matching task-title validation and the parser.
+			op:        Operation{Type: "add-phase", Phase: "Design\tPhase"},
+			wantError: false,
+		},
 	}
 
 	tl := NewTaskList("Test")
@@ -1378,5 +1389,116 @@ func TestBatchAddToEarlierPhaseMisplacesLaterMarkers(t *testing.T) {
 	}
 	if a1Idx > a2Idx || a2Idx > b1Idx || b1Idx > c1Idx {
 		t.Errorf("Tasks should be ordered A1, A2, B1, C1, got:\n%s", result)
+	}
+}
+
+// TestExecuteBatchWithPhases_AddOperationPhaseNameGuard covers the phase-name
+// check in ExecuteBatchWithPhases. For an "add" operation carrying a phase,
+// that pre-check loop is the ONLY guard: validateOperation's add case never
+// inspects op.Phase, and applyOperationWithPhases hands the name straight to
+// addTaskWithPhaseMarkers. Delete the loop's NormalizePhaseName call and the
+// "embedded newline" case below writes an injected task line into the file.
+//
+// It also pins the trim/raw behaviour that regressed during T-1603: a phase
+// name whose only problem is surrounding whitespace is trimmed and accepted on
+// every path, exactly as it was before the fix.
+func TestExecuteBatchWithPhases_AddOperationPhaseNameGuard(t *testing.T) {
+	tests := map[string]struct {
+		content   string
+		op        Operation
+		wantError bool
+		errMsg    string
+		wantFile  string
+	}{
+		"embedded newline is rejected": {
+			content:   "# Test Tasks\n\n- [ ] 1. Existing task\n\n## Planning\n",
+			op:        Operation{Type: "add", Title: "New task", Phase: "Planning\n- [ ] 999. Injected"},
+			wantError: true,
+			errMsg:    "control character",
+		},
+		"embedded carriage return is rejected": {
+			content:   "# Test Tasks\n\n- [ ] 1. Existing task\n\n## Planning\n",
+			op:        Operation{Type: "add", Title: "New task", Phase: "Planning\rInjected"},
+			wantError: true,
+			errMsg:    "control character",
+		},
+		"embedded null byte is rejected": {
+			content:   "# Test Tasks\n\n- [ ] 1. Existing task\n\n## Planning\n",
+			op:        Operation{Type: "add", Title: "New task", Phase: "Plan\x00ning"},
+			wantError: true,
+			errMsg:    "control character",
+		},
+		"whitespace-only phase is rejected": {
+			content:   "# Test Tasks\n\n- [ ] 1. Existing task\n",
+			op:        Operation{Type: "add", Title: "New task", Phase: "   "},
+			wantError: true,
+			errMsg:    "phase name cannot be empty",
+		},
+		"trailing newline matches the existing phase": {
+			// Before T-1603 this raw name never matched "## Planning" and
+			// silently created a duplicate header. Normalising at every phase
+			// call site means it now lands in the phase that already exists.
+			content:  "# Test Tasks\n\n- [ ] 1. Existing task\n\n## Planning\n",
+			op:       Operation{Type: "add", Title: "New task", Phase: "Planning\n"},
+			wantFile: "# Test Tasks\n\n- [ ] 1. Existing task\n\n## Planning\n\n- [ ] 2. New task\n",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Written into the working directory: the phase-aware writer
+			// rejects paths outside it as path traversal.
+			tempFile := fmt.Sprintf("test_batch_phase_guard_%s.md", strings.ReplaceAll(name, " ", "_"))
+			if err := os.WriteFile(tempFile, []byte(tc.content), 0644); err != nil {
+				t.Fatalf("Failed to write temp file: %v", err)
+			}
+			defer os.Remove(tempFile)
+
+			tl, phaseMarkers, err := ParseFileWithPhases(tempFile)
+			if err != nil {
+				t.Fatalf("Failed to parse file: %v", err)
+			}
+
+			response, err := tl.ExecuteBatchWithPhases([]Operation{tc.op}, false, phaseMarkers, tempFile)
+
+			after, readErr := os.ReadFile(tempFile)
+			if readErr != nil {
+				t.Fatalf("Failed to read temp file: %v", readErr)
+			}
+
+			if tc.wantError {
+				// The pre-check loop rejects up front by returning an error
+				// with a nil response, before any operation is validated or
+				// applied. Asserting on the returned error (rather than
+				// response.Errors) is what makes this test fail if the guard
+				// is removed.
+				if err == nil {
+					t.Fatalf("Expected phase name %q to be rejected before execution, got response %+v", tc.op.Phase, response)
+				}
+				if response != nil {
+					t.Errorf("Expected nil response when the phase name is rejected, got %+v", response)
+				}
+				if !strings.Contains(err.Error(), tc.errMsg) {
+					t.Errorf("Expected error containing %q, got %q", tc.errMsg, err.Error())
+				}
+				if string(after) != tc.content {
+					t.Errorf("File was modified despite validation error; got:\n%s", string(after))
+				}
+				if strings.Contains(string(after), "999. Injected") {
+					t.Error("Injected line was written to the task file")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("ExecuteBatchWithPhases failed: %v", err)
+			}
+			if !response.Success {
+				t.Fatalf("Batch failed: %v", response.Errors)
+			}
+			if string(after) != tc.wantFile {
+				t.Errorf("File content mismatch.\nGot:\n%q\nWant:\n%q", string(after), tc.wantFile)
+			}
+		})
 	}
 }
