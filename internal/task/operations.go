@@ -452,6 +452,23 @@ func validateTaskInput(input string) error {
 	return nil
 }
 
+// ValidateTaskListTitle validates a TaskList title before it is rendered into
+// the markdown H1 heading. Titles containing null bytes or control characters
+// (including \n and \r) are rejected because they would split the single-line
+// heading across multiple lines, producing a file Rune cannot parse back. The
+// same length limit used for task titles applies here.
+func ValidateTaskListTitle(title string) error {
+	if containsNullByte(title) {
+		return fmt.Errorf("title contains null bytes or control characters")
+	}
+
+	if len(title) > MaxTitleLength {
+		return fmt.Errorf("title exceeds %d characters", MaxTitleLength)
+	}
+
+	return nil
+}
+
 // validateDetails validates task details
 func validateDetails(details []string) error {
 	for i, detail := range details {

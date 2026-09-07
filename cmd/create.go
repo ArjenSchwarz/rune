@@ -50,6 +50,13 @@ func init() {
 func runCreate(cmd *cobra.Command, args []string) error {
 	filename := args[0]
 
+	// Reject titles that would break the single-line H1 heading (e.g.
+	// embedded newlines), which would otherwise produce a file Rune
+	// cannot parse back. See T-1500.
+	if err := task.ValidateTaskListTitle(createTitle); err != nil {
+		return fmt.Errorf("invalid title: %w", err)
+	}
+
 	// Check if file already exists
 	if _, err := os.Stat(filename); err == nil {
 		return fmt.Errorf("file %s already exists", filename)

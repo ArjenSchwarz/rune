@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/arjenschwarz/rune/internal/task"
+	"github.com/spf13/cobra"
 )
 
 func TestCreateCommand(t *testing.T) {
@@ -371,6 +372,53 @@ func TestCreateCommandWithFrontMatter(t *testing.T) {
 			// Check content using test-specific validator
 			if tc.checkContent != nil {
 				tc.checkContent(t, string(content))
+			}
+		})
+	}
+}
+
+// TestCreateCommandRejectsControlCharacterTitles verifies that `rune create`
+// rejects titles containing newlines or other control characters instead of
+// writing a file with a split H1 heading that Rune cannot parse back.
+// Regression test for T-1500.
+func TestCreateCommandRejectsControlCharacterTitles(t *testing.T) {
+	tests := map[string]string{
+		"newline":         "Bad\nTitle",
+		"carriage return": "Bad\rTitle",
+		"crlf":            "Bad\r\nTitle",
+		"null byte":       "Bad\x00Title",
+	}
+
+	for name, title := range tests {
+		t.Run(name, func(t *testing.T) {
+			tempDir, err := os.MkdirTemp("", "rune-create-newline-test")
+			if err != nil {
+				t.Fatalf("failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			oldDir, _ := os.Getwd()
+			os.Chdir(tempDir)
+			defer os.Chdir(oldDir)
+
+			// Reset package-level flag state used by runCreate
+			createTitle = title
+			createReferences = nil
+			createMetadata = nil
+			dryRun = false
+
+			filename := "tasks.md"
+			err = runCreate(&cobra.Command{}, []string{filename})
+
+			if err == nil {
+				t.Fatalf("expected error for title %q, got nil", title)
+			}
+			if !strings.Contains(err.Error(), "control characters") {
+				t.Errorf("error %q should mention control characters", err)
+			}
+
+			if _, statErr := os.Stat(filename); statErr == nil {
+				t.Errorf("file %s should not have been created for invalid title %q", filename, title)
 			}
 		})
 	}
