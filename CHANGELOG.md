@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Dry Run**: `next --claim AGENT_ID --dry-run` no longer writes the task file. The command previously claimed for real — setting the task to in-progress and adding an `Owner:` line — silently defeating `--dry-run`. Dry-run claims now preview only: JSON output includes `"dry_run": true` and markdown/table output is headed "Would Claim Tasks (Dry Run)"
+
 ## [1.4.0] - 2026-08-03
 
 ### Added

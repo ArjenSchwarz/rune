@@ -2622,6 +2622,11 @@ func TestNextCommandClaimDryRun(t *testing.T) {
 				oneFlag = false
 				dryRun = false
 			})
+			// Each subtest passes --format, which leaks into the package-level
+			// `format` global (see docs/agent-notes/testing.md). Subtests run in
+			// randomised map order, so without this the value left behind is
+			// nondeterministic. resetBatchFlags also clears the flag's Changed bit.
+			t.Cleanup(resetBatchFlags)
 
 			// Write test file
 			if err := os.WriteFile(tc.fileName, []byte(fileContent), 0644); err != nil {

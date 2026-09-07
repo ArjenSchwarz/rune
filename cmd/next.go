@@ -38,6 +38,8 @@ Stream and Claim Support:
 - --claim AGENT_ID: Claim the task(s) by setting status to in-progress and owner
 - --stream N --claim AGENT_ID: Claim ALL ready tasks in stream N
 - --claim AGENT_ID (without --stream): Claim only the single next ready task
+- --claim AGENT_ID --dry-run: Preview which tasks would be claimed without
+  writing the task file
 
 If no filename is provided and git discovery is enabled in configuration, the file
 will be automatically discovered based on the current git branch using the configured
@@ -1090,13 +1092,18 @@ func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *
 	return outputJSON(resp)
 }
 
+// claimOutputTitle returns the heading used by both the markdown and the table
+// claim output. Sharing it keeps the two headings from drifting apart.
+func claimOutputTitle() string {
+	if dryRun {
+		return "Would Claim Tasks (Dry Run)"
+	}
+	return "Claimed Tasks"
+}
+
 // outputClaimMarkdown outputs claimed tasks in markdown format
 func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter) error {
-	if dryRun {
-		fmt.Println("# Would Claim Tasks (Dry Run)")
-	} else {
-		fmt.Println("# Claimed Tasks")
-	}
+	fmt.Printf("# %s\n", claimOutputTitle())
 	fmt.Println()
 	for _, t := range claimed {
 		fmt.Printf("- [-] %s. %s\n", t.ID, t.Title)
@@ -1122,13 +1129,8 @@ func outputClaimTable(claimed []task.Task, _ *task.FrontMatter) error {
 		taskData = append(taskData, record)
 	}
 
-	tableTitle := "Claimed Tasks"
-	if dryRun {
-		tableTitle = "Would Claim Tasks (Dry Run)"
-	}
-
 	builder := output.New().
-		Table(tableTitle, taskData, output.WithKeys("ID", columnTitle, columnStatus, "Owner", "Stream"))
+		Table(claimOutputTitle(), taskData, output.WithKeys("ID", columnTitle, columnStatus, "Owner", "Stream"))
 
 	doc := builder.Build()
 	out := output.NewOutput(

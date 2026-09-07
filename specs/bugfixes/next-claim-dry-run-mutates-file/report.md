@@ -26,7 +26,9 @@ Observed: the command exits 0, prints a successful claim response, and rewrites 
 
 ## Discovered Root Cause
 
-`runNextWithClaim` in `cmd/next.go` never checked the global `dryRun` flag before mutating claimed tasks in memory and calling `taskList.WriteFile(filename)`. Every other mutating command (`complete`, `remove`, `add`, `update`, `batch`, ...) branches on `dryRun` before writing; `next --claim` was missing that branch entirely.
+`runNextWithClaim` in `cmd/next.go` never checked the global `dryRun` flag before mutating claimed tasks in memory and calling `taskList.WriteFile(filename)`. Most mutating commands (`complete`, `remove`, `add`, `update`, `batch`, ...) branch on `dryRun` before writing; `next --claim` was missing that branch entirely.
+
+Note: `cmd/renumber.go` has the same defect and is **not** fixed here — it contains no reference to `dryRun` and writes unconditionally (`cmd/renumber.go:126-128`, plus an unconditional `.bak` at `:150`), even though `skill/SKILL.md:34` documents `rune renumber --dry-run` as a preview. That is tracked separately as T-1345 and fixed in PR #96.
 
 **Defect type:** Missing conditional / incomplete flag wiring — a new mutating code path (`--claim`) was added without honouring the pre-existing global `--dry-run` contract.
 
@@ -37,9 +39,12 @@ Observed: the command exits 0, prints a successful claim response, and rewrites 
 ## Resolution for the Issue
 
 **Changes made:**
-- `cmd/next.go:264-282` (`runNextWithClaim`) — guarded the `taskList.WriteFile(filename)` call with `if !dryRun`. The in-memory claim (status → in-progress, owner set) still happens so the existing output functions can render an accurate preview, but nothing is persisted to disk when `--dry-run` is set.
-- `cmd/next.go` (`ClaimResponse`, `outputClaimJSON`) — added a `dry_run` field (`omitempty`), following the same convention already used by `internal/task.BatchResponse.DryRun`, so JSON consumers can detect a preview response programmatically.
-- `cmd/next.go` (`outputClaimMarkdown`, `outputClaimTable`) — adjusted the markdown header and table title to say "Would Claim Tasks (dry run)" when `dryRun` is set, so human-facing output is unambiguous too.
+- `cmd/next.go:273-280` (`runNextWithClaim`) — guarded the `taskList.WriteFile(filename)` call with `if !dryRun`. The in-memory claim (status → in-progress, owner set) still happens so the existing output functions can render an accurate preview, but nothing is persisted to disk when `--dry-run` is set.
+- `cmd/next.go` (`ClaimResponse`, `outputClaimJSON`) — added a `dry_run` field (`omitempty`), matching the `dry_run,omitempty` convention used by `CompleteResponse` (`cmd/complete.go:18`) and `UncompleteResponse` (`cmd/uncomplete.go:17`), so JSON consumers can detect a preview response programmatically. (`internal/task.BatchRequest.DryRun` uses the same key without `omitempty`; both spellings exist in the codebase.)
+- `cmd/next.go` (`claimOutputTitle`, `outputClaimMarkdown`, `outputClaimTable`) — the markdown header and table title read "Would Claim Tasks (Dry Run)" when `dryRun` is set, so human-facing output is unambiguous too. Both call sites share a single `claimOutputTitle()` helper so the two headings cannot drift apart.
+- `cmd/next.go` (`nextCmd.Long`) — documented `--claim AGENT_ID --dry-run` in the command help.
+- `docs/json-api.md` (`ClaimResult` schema) — documented the new `dry_run` property.
+- `CHANGELOG.md` — added the `[Unreleased] / Fixed` entry.
 
 **Approach rationale:** The minimal, correct fix is to gate the single `WriteFile` call — the root cause is exactly "no dry-run branch before the write". Reusing the existing claim-computation and output code (rather than duplicating a separate preview path) keeps the diff small and guarantees the preview reflects the exact same claim logic (phase/stream/one-flag selection) as the real path.
 
@@ -60,8 +65,10 @@ Observed: the command exits 0, prints a successful claim response, and rewrites 
 
 | File | Change |
 |------|--------|
-| `cmd/next.go` | Gated `taskList.WriteFile` in `runNextWithClaim` behind `!dryRun`; added `DryRun` field to `ClaimResponse`/`outputClaimJSON`; dry-run-aware headers in `outputClaimMarkdown`/`outputClaimTable` |
+| `cmd/next.go` | Gated `taskList.WriteFile` in `runNextWithClaim` behind `!dryRun`; added `DryRun` field to `ClaimResponse`/`outputClaimJSON`; added `claimOutputTitle` and used it for the dry-run-aware headers in `outputClaimMarkdown`/`outputClaimTable`; documented `--dry-run` in `nextCmd.Long` |
 | `cmd/next_test.go` | Added `TestNextCommandClaimDryRun` regression test (JSON/markdown/table) |
+| `docs/json-api.md` | Documented `dry_run` in the `ClaimResult` schema |
+| `CHANGELOG.md` | Added the `[Unreleased] / Fixed` entry |
 
 ## Verification
 
