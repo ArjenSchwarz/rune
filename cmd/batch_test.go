@@ -715,6 +715,9 @@ func TestBatchCommand_UnsupportedFormatDoesNotMutateFile(t *testing.T) {
 	}
 	jsonData, _ := json.Marshal(req)
 
+	var output bytes.Buffer
+	rootCmd.SetOut(&output)
+	rootCmd.SetErr(&output)
 	rootCmd.SetArgs([]string{"batch", "--input", string(jsonData), "--format", "yaml"})
 
 	err := rootCmd.Execute()
@@ -764,6 +767,9 @@ func TestBatchCommand_UnsupportedFormatRejectedBeforeFileAccess(t *testing.T) {
 	}
 	jsonData, _ := json.Marshal(req)
 
+	var output bytes.Buffer
+	rootCmd.SetOut(&output)
+	rootCmd.SetErr(&output)
 	rootCmd.SetArgs([]string{"batch", "--input", string(jsonData), "--format", "yaml"})
 
 	err := rootCmd.Execute()
