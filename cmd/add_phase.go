@@ -55,8 +55,10 @@ func runAddPhase(cmd *cobra.Command, args []string) error {
 		phaseName = args[1]
 	}
 
-	// Validate the file path stays within the working directory before touching the
-	// filesystem, consistent with the other mutating commands (see task.ValidateFilePath).
+	// Validate the file path stays within the working directory before any filesystem
+	// access. Commands that persist through TaskList.WriteFile inherit this check;
+	// add-phase appends raw bytes with os.WriteFile instead, so it calls the validator
+	// itself, the same way renumber does.
 	if err := task.ValidateFilePath(filename); err != nil {
 		return fmt.Errorf("invalid file path: %w", err)
 	}

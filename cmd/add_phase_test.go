@@ -404,9 +404,11 @@ func TestAddPhaseCommandRejectsPathOutsideWorkingDirectory(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected add-phase to reject a file outside the working directory, got nil error")
 	}
-	// Assert on both halves: the command's own wrap prefix and the specific containment
-	// reason from task.ValidateFilePath. runAddPhase wraps every error it returns here as
-	// "invalid file path: %w", so checking only that half would pass for any failure.
+	// Assert on both halves: the "invalid file path" prefix runAddPhase wraps around the
+	// validator's error, and the containment reason task.ValidateFilePath itself returns.
+	// Matching only one half would also accept an unrelated failure that happens to
+	// mention it -- runAddPhase returns several other errors (not-exist, read, write)
+	// that carry neither string.
 	if !strings.Contains(err.Error(), "invalid file path") || !strings.Contains(err.Error(), "path traversal") {
 		t.Errorf("expected a path containment error, got: %v", err)
 	}
@@ -418,5 +420,39 @@ func TestAddPhaseCommandRejectsPathOutsideWorkingDirectory(t *testing.T) {
 	}
 	if string(content) != originalContent {
 		t.Errorf("outside file was modified despite path containment violation:\ngot:  %q\nwant: %q", string(content), originalContent)
+	}
+}
+
+// TestAddPhaseCommandAcceptsPathInsideWorkingDirectory is the positive counterpart to
+// TestAddPhaseCommandRejectsPathOutsideWorkingDirectory. The T-1473 fix added a check that
+// can reject input, so this test pins down that it does not reject a legitimate path inside
+// the working directory. Without it, `make test` alone cannot catch a regression where the
+// containment check wrongly rejects a valid file -- only the INTEGRATION=1 suite would.
+func TestAddPhaseCommandAcceptsPathInsideWorkingDirectory(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	// runAddPhase reads these package-level flag globals. Pin them to their defaults so the
+	// test cannot be affected by a sibling test that left them set.
+	verbose, format, dryRun = false, "table", false
+
+	const filename = "tasks.md"
+	originalContent := "# Inside\n\n- [ ] 1. Inside task\n"
+	if err := os.WriteFile(filename, []byte(originalContent), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	captureStdout(t, func() {
+		if err := runAddPhase(&cobra.Command{}, []string{filename, "Planning"}); err != nil {
+			t.Errorf("add-phase rejected a file inside the working directory: %v", err)
+		}
+	})
+
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatalf("failed to read task file after add-phase: %v", err)
+	}
+	want := originalContent + "## Planning\n"
+	if string(content) != want {
+		t.Errorf("unexpected file content after add-phase:\ngot:  %q\nwant: %q", string(content), want)
 	}
 }
