@@ -2595,7 +2595,7 @@ func TestNextCommandClaimDryRun(t *testing.T) {
 		"markdown format": {
 			fileName:       "dry-run-markdown.md",
 			format:         "markdown",
-			expectInOutput: []string{"Would Claim Tasks (dry run)"},
+			expectInOutput: []string{"Would Claim Tasks (Dry Run)"},
 		},
 		"table format": {
 			fileName:       "dry-run-table.md",

@@ -1093,7 +1093,7 @@ func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *
 // outputClaimMarkdown outputs claimed tasks in markdown format
 func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter) error {
 	if dryRun {
-		fmt.Println("# Would Claim Tasks (dry run)")
+		fmt.Println("# Would Claim Tasks (Dry Run)")
 	} else {
 		fmt.Println("# Claimed Tasks")
 	}
