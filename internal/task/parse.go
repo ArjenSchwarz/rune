@@ -303,10 +303,17 @@ func parseDetailsAndChildren(lines []string, startIdx, expectedIndent int, paren
 
 			return items, newIdx, nil
 		case indent == expectedIndent:
-			// This is a detail line
-			if detail := parseDetailLine(lines[i]); detail != "" {
-				items = append(items, detail)
+			// This is a detail line. parseDetailLine only returns "" for
+			// lines that aren't a "- " bullet: plain text, a bullet with
+			// no content, or a marker rune's format doesn't use ("*", "+"
+			// and "1." are all valid Markdown, just not this format).
+			// Such lines must be rejected rather than silently dropped,
+			// or a later mutation would rewrite the file without them.
+			detail := parseDetailLine(lines[i])
+			if detail == "" {
+				return nil, i, fmt.Errorf("line %d: unexpected content at this indentation level (missing '- ' bullet?)", i+1)
 			}
+			items = append(items, detail)
 		default:
 			// Deeper indentation without being a task or detail
 			return nil, i, fmt.Errorf("line %d: unexpected indentation", i+1)

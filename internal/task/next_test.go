@@ -1334,8 +1334,13 @@ func TestExtractPhasesWithTaskRangesIndentedLines(t *testing.T) {
 			wantPhaseNames: []string{"Phase A", "Phase B"},
 			wantTaskCounts: []int{2, 1},
 		},
-		"indented_phase_header_not_treated_as_phase": {
-			content:        "# Project\n\n## Real Phase\n\n- [ ] 1. Task One\n  ## Not a phase\n- [ ] 2. Task Two\n",
+		// A detail line whose content happens to start with "## ". This is
+		// the strongest form of the indented-header case that a real file can
+		// still contain — an indented bare "## Not a phase" is rejected by the
+		// parser as of T-2041 and is covered directly by
+		// TestExtractPhasesWithTaskRangesIndentedPhaseHeader below.
+		"detail_line_starting_with_hashes_not_treated_as_phase": {
+			content:        "# Project\n\n## Real Phase\n\n- [ ] 1. Task One\n  - ## Not a phase\n- [ ] 2. Task Two\n",
 			wantPhases:     1,
 			wantPhaseNames: []string{"Real Phase"},
 			wantTaskCounts: []int{2},
@@ -1346,8 +1351,12 @@ func TestExtractPhasesWithTaskRangesIndentedLines(t *testing.T) {
 			wantPhaseNames: []string{"Phase A", "Phase B"},
 			wantTaskCounts: []int{2, 1},
 		},
-		"continuation_lines_with_description": {
-			content:        "# Project\n\n## Planning\n\n- [ ] 1. Define requirements\n  This task involves gathering input\n  - [ ] 1.1. Review docs\n- [ ] 2. Write spec\n\n## Implementation\n\n- [ ] 3. Build feature\n",
+		// The description line must carry a "- " bullet: a bare, non-bulleted
+		// continuation line is rejected by the parser as of T-2041 (see
+		// parse_detail_line_test.go), so this case covers a bulleted detail
+		// between a task and its subtask, not a free-text continuation.
+		"bulleted_continuation_with_description": {
+			content:        "# Project\n\n## Planning\n\n- [ ] 1. Define requirements\n  - This task involves gathering input\n  - [ ] 1.1. Review docs\n- [ ] 2. Write spec\n\n## Implementation\n\n- [ ] 3. Build feature\n",
 			wantPhases:     2,
 			wantPhaseNames: []string{"Planning", "Implementation"},
 			wantTaskCounts: []int{2, 1},
@@ -1385,6 +1394,55 @@ func TestExtractPhasesWithTaskRangesIndentedLines(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestExtractPhasesWithTaskRangesIndentedPhaseHeader verifies that an H2
+// header which is not at column 0 does not start a phase. Regression test for
+// T-594, where the scanner trimmed each line before matching, so an indented
+// "## ..." became a phase and swallowed the tasks that followed it.
+//
+// The lines are handed to extractPhasesWithTaskRanges directly instead of
+// being produced by ParseMarkdown: since T-2041 the parser rejects an indented
+// non-bullet line, so no document that parses can carry one, and routing this
+// case through ParseMarkdown would only be possible by mangling the fixture
+// into something the phase-header pattern can no longer match — which is how
+// this guard was neutered in the first place. extractPhasesWithTaskRanges has
+// its own contract as a line scanner ("only a column-0 '## ' starts a phase")
+// and that contract is what this test pins.
+func TestExtractPhasesWithTaskRangesIndentedPhaseHeader(t *testing.T) {
+	// Tasks come from the well-formed equivalent of the lines below; the
+	// scanner only uses them to look up tasks it finds by position.
+	taskList, err := ParseMarkdown([]byte("# Project\n\n## Real Phase\n\n- [ ] 1. Task One\n- [ ] 2. Task Two\n"))
+	if err != nil {
+		t.Fatalf("ParseMarkdown() error = %v", err)
+	}
+
+	lines := []string{
+		"# Project",
+		"",
+		"## Real Phase",
+		"",
+		"- [ ] 1. Task One",
+		"  ## Not a phase",
+		"- [ ] 2. Task Two",
+		"",
+	}
+
+	phases := extractPhasesWithTaskRanges(lines, taskList.Tasks)
+
+	if len(phases) != 1 {
+		names := make([]string, len(phases))
+		for i, phase := range phases {
+			names[i] = phase.Name
+		}
+		t.Fatalf("got %d phases %v, want 1; an indented \"## \" header must not start a phase", len(phases), names)
+	}
+	if phases[0].Name != "Real Phase" {
+		t.Errorf("phase[0].Name = %q, want %q", phases[0].Name, "Real Phase")
+	}
+	if len(phases[0].Tasks) != 2 {
+		t.Errorf("phase[0] has %d tasks, want 2", len(phases[0].Tasks))
 	}
 }
 
