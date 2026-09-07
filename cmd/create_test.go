@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -377,48 +378,47 @@ func TestCreateCommandWithFrontMatter(t *testing.T) {
 	}
 }
 
-// TestCreateCommandRejectsControlCharacterTitles verifies that `rune create`
-// rejects titles containing newlines or other control characters instead of
-// writing a file with a split H1 heading that Rune cannot parse back.
-// Regression test for T-1500.
-func TestCreateCommandRejectsControlCharacterTitles(t *testing.T) {
-	tests := map[string]string{
-		"newline":         "Bad\nTitle",
-		"carriage return": "Bad\rTitle",
-		"crlf":            "Bad\r\nTitle",
-		"null byte":       "Bad\x00Title",
+// TestCreateCommandRejectsInvalidTitles verifies that `rune create` rejects
+// titles containing newlines or other control characters, and titles longer
+// than the documented limit, instead of writing a file with a split or
+// oversized H1 heading. Regression test for T-1500.
+func TestCreateCommandRejectsInvalidTitles(t *testing.T) {
+	tests := map[string]struct {
+		title   string
+		wantErr string
+	}{
+		"newline":         {title: "Bad\nTitle", wantErr: "control characters"},
+		"carriage return": {title: "Bad\rTitle", wantErr: "control characters"},
+		"crlf":            {title: "Bad\r\nTitle", wantErr: "control characters"},
+		"null byte":       {title: "Bad\x00Title", wantErr: "control characters"},
+		"too long": {
+			title:   strings.Repeat("a", task.MaxTitleLength+1),
+			wantErr: fmt.Sprintf("title exceeds %d characters", task.MaxTitleLength),
+		},
 	}
 
-	for name, title := range tests {
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			tempDir, err := os.MkdirTemp("", "rune-create-newline-test")
-			if err != nil {
-				t.Fatalf("failed to create temp dir: %v", err)
-			}
-			defer os.RemoveAll(tempDir)
-
-			oldDir, _ := os.Getwd()
-			os.Chdir(tempDir)
-			defer os.Chdir(oldDir)
+			t.Chdir(t.TempDir())
 
 			// Reset package-level flag state used by runCreate
-			createTitle = title
+			createTitle = tt.title
 			createReferences = nil
 			createMetadata = nil
 			dryRun = false
 
 			filename := "tasks.md"
-			err = runCreate(&cobra.Command{}, []string{filename})
+			err := runCreate(&cobra.Command{}, []string{filename})
 
 			if err == nil {
-				t.Fatalf("expected error for title %q, got nil", title)
+				t.Fatalf("expected error for title %q, got nil", tt.title)
 			}
-			if !strings.Contains(err.Error(), "control characters") {
-				t.Errorf("error %q should mention control characters", err)
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("expected error containing %q, got %q", tt.wantErr, err.Error())
 			}
 
 			if _, statErr := os.Stat(filename); statErr == nil {
-				t.Errorf("file %s should not have been created for invalid title %q", filename, title)
+				t.Errorf("file %s should not have been created for invalid title %q", filename, tt.title)
 			}
 		})
 	}

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Dry Run**: `next --claim AGENT_ID --dry-run` no longer writes the task file. The command previously claimed for real — setting the task to in-progress and adding an `Owner:` line — silently defeating `--dry-run`. Dry-run claims now preview only: JSON output includes `"dry_run": true` and markdown/table output is headed "Would Claim Tasks (Dry Run)"
 - **Security**: `add-phase` now rejects task files outside the working directory. It read and wrote the target file directly, bypassing the path containment check every other mutating command applies
+- **Input Validation**: `rune create --title` now rejects titles containing newlines or other control characters, and titles longer than 500 characters, instead of writing a task file with a split H1 heading that rune cannot parse back
 
 ## [1.4.0] - 2026-08-03
 
