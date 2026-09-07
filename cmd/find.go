@@ -13,6 +13,7 @@ import (
 const (
 	formatJSON     = "json"
 	formatMarkdown = "markdown"
+	formatTable    = "table"
 	checkboxEmpty  = "[ ]"
 )
 

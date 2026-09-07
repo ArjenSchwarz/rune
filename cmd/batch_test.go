@@ -679,3 +679,109 @@ func TestBatchCommand_RemoveOnPhasedFilePreservesPhases(t *testing.T) {
 		t.Error("'Deploy to staging' should be in Deployment phase")
 	}
 }
+
+// TestBatchCommand_UnsupportedFormatDoesNotMutateFile verifies that an
+// unsupported --format value is rejected before any operation is applied
+// (T-1787). The bug was that the format switch in runBatch ran after
+// ExecuteBatch/ExecuteBatchWithPhases had already applied and saved the
+// operations, so an invalid --format still wrote changes to disk before the
+// command exited with an error.
+func TestBatchCommand_UnsupportedFormatDoesNotMutateFile(t *testing.T) {
+	t.Cleanup(resetBatchFlags)
+
+	tmpDir := t.TempDir()
+	taskFile := filepath.Join(tmpDir, "test_tasks.md")
+
+	initialContent := `# Test Tasks
+
+- [ ] 1. First task
+`
+	if err := os.WriteFile(taskFile, []byte(initialContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	os.Chdir(tmpDir)
+
+	req := task.BatchRequest{
+		File: "test_tasks.md",
+		Operations: []task.Operation{
+			{
+				Type:  "add",
+				Title: "Applied despite error",
+			},
+		},
+	}
+	jsonData, _ := json.Marshal(req)
+
+	var output bytes.Buffer
+	rootCmd.SetOut(&output)
+	rootCmd.SetErr(&output)
+	rootCmd.SetArgs([]string{"batch", "--input", string(jsonData), "--format", "yaml"})
+
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("Expected command to fail for unsupported output format")
+	}
+	if !strings.Contains(err.Error(), "unsupported output format") {
+		t.Errorf("Expected 'unsupported output format' error, got: %v", err)
+	}
+
+	// The file must not have been mutated: no operations should have been
+	// applied before the format error was returned.
+	currentContent, err := os.ReadFile(taskFile)
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+	}
+	if string(currentContent) != initialContent {
+		t.Errorf("File was mutated despite unsupported format error.\nWant:\n%s\nGot:\n%s", initialContent, string(currentContent))
+	}
+	if strings.Contains(string(currentContent), "Applied despite error") {
+		t.Error("Operation was applied to the file despite the command returning an unsupported format error")
+	}
+}
+
+// TestBatchCommand_UnsupportedFormatRejectedBeforeFileAccess verifies that the
+// --format check runs before the task file is even read (T-1787). Pointing the
+// batch request at a file that does not exist must still surface the format
+// error, proving validation strictly precedes file access rather than merely
+// preceding the write.
+func TestBatchCommand_UnsupportedFormatRejectedBeforeFileAccess(t *testing.T) {
+	t.Cleanup(resetBatchFlags)
+
+	tmpDir := t.TempDir()
+
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	os.Chdir(tmpDir)
+
+	req := task.BatchRequest{
+		File: "does_not_exist.md",
+		Operations: []task.Operation{
+			{
+				Type:  "add",
+				Title: "Should never be applied",
+			},
+		},
+	}
+	jsonData, _ := json.Marshal(req)
+
+	var output bytes.Buffer
+	rootCmd.SetOut(&output)
+	rootCmd.SetErr(&output)
+	rootCmd.SetArgs([]string{"batch", "--input", string(jsonData), "--format", "yaml"})
+
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("Expected command to fail for unsupported output format")
+	}
+	if !strings.Contains(err.Error(), "unsupported output format") {
+		t.Errorf("Expected the format error to win over any file error, got: %v", err)
+	}
+
+	// The command must not have created the missing file either.
+	if _, statErr := os.Stat(filepath.Join(tmpDir, "does_not_exist.md")); !os.IsNotExist(statErr) {
+		t.Errorf("Expected file to remain absent, stat returned: %v", statErr)
+	}
+}

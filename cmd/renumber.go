@@ -174,7 +174,7 @@ func displaySummary(tl *task.TaskList, backupPath, format string) error {
 		fmt.Println("- **Status**: ✓ Success")
 		return nil
 
-	case "table":
+	case formatTable:
 		fallthrough
 	default:
 		// Use go-output library for consistent formatting
