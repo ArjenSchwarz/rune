@@ -316,7 +316,7 @@ func validateOperation(tl *TaskList, op Operation) error {
 			}
 		}
 	case addPhaseOperation:
-		// Trim whitespace to match CLI behavior (cmd/add_phase.go:59)
+		// Trim whitespace to match CLI behavior (see runAddPhase in cmd/add_phase.go)
 		phaseName := strings.TrimSpace(op.Phase)
 		if err := ValidatePhaseName(phaseName); err != nil {
 			return err
@@ -705,7 +705,7 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 	switch strings.ToLower(op.Type) {
 	case addPhaseOperation:
 		// Create a new phase at the end of the document
-		// Trim whitespace to match CLI behavior (cmd/add_phase.go:59)
+		// Trim whitespace to match CLI behavior (see runAddPhase in cmd/add_phase.go)
 		phaseName := strings.TrimSpace(op.Phase)
 		// Determine the AfterTaskID - if there are tasks, use the last one's ID
 		afterTaskID := ""
