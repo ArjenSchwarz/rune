@@ -6,9 +6,14 @@
 
 ## Description of the Issue
 
-`rune add` accepted an explicitly empty (or whitespace-only) `--title` and wrote it
-verbatim as a task bullet with no title text. The resulting line does not match the
-parser's grammar for a task, so any subsequent command that reads the file fails.
+`rune add` accepted an explicitly empty `--title` and wrote it verbatim as a task
+bullet with no title text. The resulting line does not match the parser's grammar
+for a task, so any subsequent command that reads the file fails.
+
+A whitespace-only title is now rejected as well, but for consistency rather than
+necessity: `- [ ] 1.    ` does parse, round-tripping as a task whose title is blank
+spaces. Only the fully empty case corrupts the file. (The TaskList equivalent differs
+— both `# ` and `#    ` fail to parse — which is why T-1500 treated the two together.)
 
 **Reproduction steps:**
 

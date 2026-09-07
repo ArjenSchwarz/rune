@@ -443,11 +443,13 @@ func resolveExistingPrefix(absPath string) (string, error) {
 // AddTaskToPhase, AddTaskWithOptions, UpdateTask, UpdateTaskWithOptions, and
 // the batch equivalents), as well as TaskList titles via ValidateTaskListTitle.
 //
-// A title that is empty or only whitespace is rejected because it renders as
-// a bullet with no title text (e.g. "- [ ] 1. ") or, for a TaskList title, a
-// bare "# " heading — neither of which the parser recognises as valid,
-// producing a file Rune cannot read back. See T-1561 (task titles) and
-// T-1500 (TaskList titles), which hit the same failure mode independently.
+// An empty title is rejected because it renders as a bullet with no title
+// text (e.g. "- [ ] 1. ") or, for a TaskList title, a bare "# " heading —
+// neither of which the parser recognises, producing a file Rune cannot read
+// back. A whitespace-only title is rejected for consistency rather than
+// necessity: "- [ ] 1.    " does parse and round-trips as a task titled with
+// blank spaces, though the TaskList equivalent "#    " does not. See T-1561
+// (task titles) and T-1500 (TaskList titles).
 func validateTaskInput(input string) error {
 	if strings.TrimSpace(input) == "" {
 		return fmt.Errorf("task title cannot be empty")
