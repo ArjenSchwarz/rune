@@ -384,25 +384,12 @@ func TestAddPhaseCommandWithVariousFormats(t *testing.T) {
 // add-phase must too. Before the fix this test fails because the outside file gets modified;
 // after the fix runAddPhase returns a path containment error and leaves the file untouched.
 func TestAddPhaseCommandRejectsPathOutsideWorkingDirectory(t *testing.T) {
-	// Run rune from a working directory inside the repo/module tree.
-	workDir, err := os.MkdirTemp("", "rune-add-phase-workdir")
-	if err != nil {
-		t.Fatalf("failed to create working dir: %v", err)
-	}
-	defer os.RemoveAll(workDir)
+	// Run rune from an isolated temporary working directory. t.Chdir restores the
+	// original working directory automatically when the test finishes.
+	t.Chdir(t.TempDir())
 
-	oldDir, _ := os.Getwd()
-	if err := os.Chdir(workDir); err != nil {
-		t.Fatalf("failed to chdir into working dir: %v", err)
-	}
-	defer os.Chdir(oldDir)
-
-	// The target file lives in a completely separate directory, outside workDir.
-	outsideDir, err := os.MkdirTemp("", "rune-add-phase-outside")
-	if err != nil {
-		t.Fatalf("failed to create outside dir: %v", err)
-	}
-	defer os.RemoveAll(outsideDir)
+	// The target file lives in a completely separate directory, outside the working directory.
+	outsideDir := t.TempDir()
 
 	outsideFile := filepath.Join(outsideDir, "tasks.md")
 	originalContent := "# Outside\n\n- [ ] 1. Outside task\n"
@@ -413,7 +400,7 @@ func TestAddPhaseCommandRejectsPathOutsideWorkingDirectory(t *testing.T) {
 	cmd := &cobra.Command{}
 	args := []string{outsideFile, "Escaped"}
 
-	err = runAddPhase(cmd, args)
+	err := runAddPhase(cmd, args)
 	if err == nil {
 		t.Fatal("expected add-phase to reject a file outside the working directory, got nil error")
 	}
