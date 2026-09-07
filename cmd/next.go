@@ -270,9 +270,13 @@ func runNextWithClaim(filename string) error {
 		}
 	}
 
-	// Write the updated task list back to file
-	if err := taskList.WriteFile(filename); err != nil {
-		return fmt.Errorf("failed to write task file: %w", err)
+	// Write the updated task list back to file, unless this is a dry run.
+	// The in-memory claim above is still used to render an accurate preview
+	// below, but --dry-run must never persist it to disk.
+	if !dryRun {
+		if err := taskList.WriteFile(filename); err != nil {
+			return fmt.Errorf("failed to write task file: %w", err)
+		}
 	}
 
 	// Rebuild index after modification
@@ -1055,6 +1059,7 @@ type ClaimResponse struct {
 	Success bool            `json:"success"`
 	Count   int             `json:"count"`
 	Stream  int             `json:"stream,omitempty"`
+	DryRun  bool            `json:"dry_run,omitempty"`
 	Claimed []ClaimTaskJSON `json:"claimed"`
 }
 
@@ -1075,6 +1080,7 @@ func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *
 	resp := ClaimResponse{
 		Success: true,
 		Count:   len(claimed),
+		DryRun:  dryRun,
 		Claimed: claimedJSON,
 	}
 	if stream > 0 {
@@ -1086,7 +1092,11 @@ func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *
 
 // outputClaimMarkdown outputs claimed tasks in markdown format
 func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter) error {
-	fmt.Println("# Claimed Tasks")
+	if dryRun {
+		fmt.Println("# Would Claim Tasks (dry run)")
+	} else {
+		fmt.Println("# Claimed Tasks")
+	}
 	fmt.Println()
 	for _, t := range claimed {
 		fmt.Printf("- [-] %s. %s\n", t.ID, t.Title)
@@ -1112,8 +1122,13 @@ func outputClaimTable(claimed []task.Task, _ *task.FrontMatter) error {
 		taskData = append(taskData, record)
 	}
 
+	tableTitle := "Claimed Tasks"
+	if dryRun {
+		tableTitle = "Would Claim Tasks (Dry Run)"
+	}
+
 	builder := output.New().
-		Table("Claimed Tasks", taskData, output.WithKeys("ID", columnTitle, columnStatus, "Owner", "Stream"))
+		Table(tableTitle, taskData, output.WithKeys("ID", columnTitle, columnStatus, "Owner", "Stream"))
 
 	doc := builder.Build()
 	out := output.NewOutput(

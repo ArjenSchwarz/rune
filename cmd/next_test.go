@@ -2558,3 +2558,122 @@ func TestNextCommandPhaseClaimExcludesBlockedTasks(t *testing.T) {
 		t.Errorf("blocked task 3 should not be claimed, got: %s", output)
 	}
 }
+
+// TestNextCommandClaimDryRun is a regression test for T-1398/T-1786:
+// `next --claim --dry-run` must preview the claim without writing the task
+// file. Previously runNextWithClaim never checked the global dryRun flag, so
+// it claimed the task and called taskList.WriteFile unconditionally, silently
+// defeating --dry-run.
+func TestNextCommandClaimDryRun(t *testing.T) {
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "rune-next-claim-dryrun-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	const fileContent = `# Project Tasks
+
+- [ ] 1. First ready task <!-- id:abc1234 -->
+`
+
+	tests := map[string]struct {
+		fileName       string
+		format         string
+		expectInOutput []string
+	}{
+		"json format": {
+			fileName:       "dry-run-json.md",
+			format:         "json",
+			expectInOutput: []string{`"success": true`, `"owner": "agent-a"`},
+		},
+		"markdown format": {
+			fileName: "dry-run-markdown.md",
+			format:   "markdown",
+		},
+		"table format": {
+			fileName: "dry-run-table.md",
+			format:   "table",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Reset flags before each test to ensure isolation. dryRun in
+			// particular must be reset explicitly: pflag only assigns a bound
+			// variable when the flag is present in argv, so a prior --dry-run
+			// run would otherwise leak into later tests.
+			streamFlag = 0
+			claimFlag = ""
+			phaseFlag = false
+			oneFlag = false
+			dryRun = false
+			t.Cleanup(func() {
+				streamFlag = 0
+				claimFlag = ""
+				phaseFlag = false
+				oneFlag = false
+				dryRun = false
+			})
+
+			// Write test file
+			if err := os.WriteFile(tc.fileName, []byte(fileContent), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			before, err := os.ReadFile(tc.fileName)
+			if err != nil {
+				t.Fatalf("failed to read file before claim: %v", err)
+			}
+
+			// Capture output
+			var buf bytes.Buffer
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			args := []string{"next", tc.fileName, "--format", tc.format, "--claim", "agent-a", "--dry-run"}
+			rootCmd.SetArgs(args)
+			err = rootCmd.Execute()
+
+			// Restore stdout and capture output
+			w.Close()
+			os.Stdout = oldStdout
+			buf.ReadFrom(r)
+			output := buf.String()
+
+			// Reset command args for next test
+			rootCmd.SetArgs([]string{})
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			for _, expected := range tc.expectInOutput {
+				if !strings.Contains(output, expected) {
+					t.Errorf("expected %q in output, got: %s", expected, output)
+				}
+			}
+
+			after, err := os.ReadFile(tc.fileName)
+			if err != nil {
+				t.Fatalf("failed to read file after claim: %v", err)
+			}
+
+			if string(before) != string(after) {
+				t.Errorf("--dry-run mutated the task file.\nbefore:\n%s\nafter:\n%s", before, after)
+			}
+			if strings.Contains(string(after), "Owner:") {
+				t.Errorf("--dry-run wrote an Owner into the task file: %s", after)
+			}
+			if strings.Contains(string(after), "[-]") {
+				t.Errorf("--dry-run marked a task in-progress in the task file: %s", after)
+			}
+		})
+	}
+}
