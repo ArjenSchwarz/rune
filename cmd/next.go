@@ -38,6 +38,8 @@ Stream and Claim Support:
 - --claim AGENT_ID: Claim the task(s) by setting status to in-progress and owner
 - --stream N --claim AGENT_ID: Claim ALL ready tasks in stream N
 - --claim AGENT_ID (without --stream): Claim only the single next ready task
+- --claim AGENT_ID --dry-run: Preview which tasks would be claimed without
+  writing the task file
 
 If no filename is provided and git discovery is enabled in configuration, the file
 will be automatically discovered based on the current git branch using the configured
@@ -270,9 +272,13 @@ func runNextWithClaim(filename string) error {
 		}
 	}
 
-	// Write the updated task list back to file
-	if err := taskList.WriteFile(filename); err != nil {
-		return fmt.Errorf("failed to write task file: %w", err)
+	// Write the updated task list back to file, unless this is a dry run.
+	// The in-memory claim above is still used to render an accurate preview
+	// below, but --dry-run must never persist it to disk.
+	if !dryRun {
+		if err := taskList.WriteFile(filename); err != nil {
+			return fmt.Errorf("failed to write task file: %w", err)
+		}
 	}
 
 	// Rebuild index after modification
@@ -1055,6 +1061,7 @@ type ClaimResponse struct {
 	Success bool            `json:"success"`
 	Count   int             `json:"count"`
 	Stream  int             `json:"stream,omitempty"`
+	DryRun  bool            `json:"dry_run,omitempty"`
 	Claimed []ClaimTaskJSON `json:"claimed"`
 }
 
@@ -1075,6 +1082,7 @@ func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *
 	resp := ClaimResponse{
 		Success: true,
 		Count:   len(claimed),
+		DryRun:  dryRun,
 		Claimed: claimedJSON,
 	}
 	if stream > 0 {
@@ -1084,9 +1092,18 @@ func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *
 	return outputJSON(resp)
 }
 
+// claimOutputTitle returns the heading used by both the markdown and the table
+// claim output. Sharing it keeps the two headings from drifting apart.
+func claimOutputTitle() string {
+	if dryRun {
+		return "Would Claim Tasks (Dry Run)"
+	}
+	return "Claimed Tasks"
+}
+
 // outputClaimMarkdown outputs claimed tasks in markdown format
 func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter) error {
-	fmt.Println("# Claimed Tasks")
+	fmt.Printf("# %s\n", claimOutputTitle())
 	fmt.Println()
 	for _, t := range claimed {
 		fmt.Printf("- [-] %s. %s\n", t.ID, t.Title)
@@ -1113,7 +1130,7 @@ func outputClaimTable(claimed []task.Task, _ *task.FrontMatter) error {
 	}
 
 	builder := output.New().
-		Table("Claimed Tasks", taskData, output.WithKeys("ID", columnTitle, columnStatus, "Owner", "Stream"))
+		Table(claimOutputTitle(), taskData, output.WithKeys("ID", columnTitle, columnStatus, "Owner", "Stream"))
 
 	doc := builder.Build()
 	out := output.NewOutput(

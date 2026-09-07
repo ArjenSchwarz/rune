@@ -570,10 +570,14 @@ Returned by `rune next --claim AGENT_ID --json`:
       "minimum": 1,
       "description": "Stream ID if --stream flag was used"
     },
+    "dry_run": {
+      "type": "boolean",
+      "description": "Present and true when --dry-run was used. The claim was previewed only; the task file was not modified. Omitted for a real claim"
+    },
     "claimed": {
       "type": "array",
       "items": {"$ref": "#/definitions/ClaimedTask"},
-      "description": "Tasks that were claimed"
+      "description": "Tasks that would be claimed (dry run) or were claimed"
     }
   },
   "required": ["success", "count", "claimed"],
