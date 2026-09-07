@@ -965,8 +965,13 @@ func TestRunUpdateBlockedByCommaOnlyRejected(t *testing.T) {
 			if err == nil {
 				t.Fatal("Expected error for comma-only --blocked-by, got none")
 			}
-			if !strings.Contains(err.Error(), "blocked-by") {
-				t.Errorf("Expected error to mention blocked-by, got: %s", err.Error())
+			// Assert on the specific message so an unrelated blocked-by
+			// failure (e.g. a nonexistent task ID) cannot satisfy this test.
+			if !strings.Contains(err.Error(), "no task IDs found") {
+				t.Errorf("Expected error to mention %q, got: %s", "no task IDs found", err.Error())
+			}
+			if !strings.Contains(err.Error(), tt.blockedBy) {
+				t.Errorf("Expected error to quote the offending value %q, got: %s", tt.blockedBy, err.Error())
 			}
 
 			after, err := os.ReadFile(filename)
