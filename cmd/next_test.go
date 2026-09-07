@@ -2590,15 +2590,17 @@ func TestNextCommandClaimDryRun(t *testing.T) {
 		"json format": {
 			fileName:       "dry-run-json.md",
 			format:         "json",
-			expectInOutput: []string{`"success": true`, `"owner": "agent-a"`},
+			expectInOutput: []string{`"success": true`, `"owner": "agent-a"`, `"dry_run": true`},
 		},
 		"markdown format": {
-			fileName: "dry-run-markdown.md",
-			format:   "markdown",
+			fileName:       "dry-run-markdown.md",
+			format:         "markdown",
+			expectInOutput: []string{"Would Claim Tasks (dry run)"},
 		},
 		"table format": {
-			fileName: "dry-run-table.md",
-			format:   "table",
+			fileName:       "dry-run-table.md",
+			format:         "table",
+			expectInOutput: []string{"Would Claim Tasks (Dry Run)"},
 		},
 	}
 
