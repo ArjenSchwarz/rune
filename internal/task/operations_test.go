@@ -1542,17 +1542,20 @@ func TestTitleLengthValidation(t *testing.T) {
 }
 
 // TestValidateTaskListTitle covers the validation applied to a TaskList title
-// before it is rendered into the markdown H1 heading, including both the
-// control-character and the length-limit branch. Regression test for T-1500.
+// before it is rendered into the markdown H1 heading: the empty, the
+// control-character and the length-limit branch. Every rejected title is one
+// that would render into an H1 heading ParseMarkdown cannot read back.
+// Regression test for T-1500.
 func TestValidateTaskListTitle(t *testing.T) {
 	tests := map[string]struct {
 		title   string
 		wantErr string
 	}{
 		"plain title":         {title: "My Tasks"},
-		"empty title":         {title: ""},
 		"tab is allowed":      {title: "My\tTasks"},
 		"title at max length": {title: strings.Repeat("a", MaxTitleLength)},
+		"empty title":         {title: "", wantErr: "cannot be empty"},
+		"whitespace only":     {title: "   ", wantErr: "cannot be empty"},
 		"newline":             {title: "Bad\nTitle", wantErr: "control characters"},
 		"carriage return":     {title: "Bad\rTitle", wantErr: "control characters"},
 		"null byte":           {title: "Bad\x00Title", wantErr: "control characters"},

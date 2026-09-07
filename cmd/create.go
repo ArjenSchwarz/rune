@@ -26,6 +26,10 @@ var createCmd = &cobra.Command{
 The file will be initialized with proper markdown structure and formatting.
 If the file already exists, this command will fail to prevent accidental overwrites.
 
+The title becomes the H1 heading of the file, so it must be a single non-empty
+line of at most 500 characters. Newlines and other control characters (tab
+excepted) are rejected because they would produce a file rune cannot parse back.
+
 Optional front matter can be added using --reference and --meta flags:
   --reference: Add reference files (can be used multiple times)
   --meta: Add metadata in key:value format (can be used multiple times)`,

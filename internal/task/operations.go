@@ -453,20 +453,18 @@ func validateTaskInput(input string) error {
 }
 
 // ValidateTaskListTitle validates a TaskList title before it is rendered into
-// the markdown H1 heading. Titles containing null bytes or control characters
+// the markdown H1 heading. A title that is empty (or only whitespace) is
+// rejected because it renders as a bare "# " heading, which the parser does
+// not recognise as a title. Titles containing null bytes or control characters
 // (including \n and \r) are rejected because they would split the single-line
-// heading across multiple lines, producing a file Rune cannot parse back. The
-// same length limit used for task titles applies here.
+// heading across multiple lines. Either case produces a file Rune cannot parse
+// back. The remaining checks are the same ones applied to task titles.
 func ValidateTaskListTitle(title string) error {
-	if containsNullByte(title) {
-		return fmt.Errorf("title contains null bytes or control characters")
+	if strings.TrimSpace(title) == "" {
+		return fmt.Errorf("title cannot be empty")
 	}
 
-	if len(title) > MaxTitleLength {
-		return fmt.Errorf("title exceeds %d characters", MaxTitleLength)
-	}
-
-	return nil
+	return validateTaskInput(title)
 }
 
 // validateDetails validates task details
