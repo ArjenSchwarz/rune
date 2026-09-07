@@ -1321,6 +1321,19 @@ func (tl *TaskList) resolveToStableIDs(hierarchicalIDs []string) ([]string, erro
 	return stableIDs, nil
 }
 
+// ValidateOwner validates an owner string using the same rules
+// AddTaskWithOptions and UpdateTaskWithOptions already apply via the
+// unexported validateOwner: control characters (including newlines) are
+// rejected, everything else — including spaces — is allowed, and an empty
+// owner is valid (it means "unclaimed"). Exported so command entry points
+// that assign Owner directly, without going through AddTaskWithOptions or
+// UpdateTaskWithOptions (such as `next --claim`), can validate the value
+// before writing it into task metadata rather than duplicating the rules
+// or skipping validation entirely (T-1565).
+func ValidateOwner(owner string) error {
+	return validateOwner(owner)
+}
+
 // validateOwner checks if an owner string contains valid characters.
 // Owner strings must not contain newlines or other control characters.
 func validateOwner(owner string) error {

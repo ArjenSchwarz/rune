@@ -2684,3 +2684,125 @@ func TestNextCommandClaimDryRun(t *testing.T) {
 		})
 	}
 }
+
+// TestNextCommandClaimRejectsInvalidOwner is a regression test for T-1565:
+// `next --claim` wrote claimFlag directly into a task's Owner metadata with
+// no validation, so a claim value containing a newline (or other control
+// character) was written verbatim and produced an unparseable task file —
+// a subsequent `list --format json` failed with a parse error. The fix
+// validates the claim value with the same rules AddTaskWithOptions and
+// UpdateTaskWithOptions already apply (task.ValidateOwner) before the file
+// is touched.
+func TestNextCommandClaimRejectsInvalidOwner(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "rune-next-claim-invalid-owner-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	oldDir, _ := os.Getwd()
+	os.Chdir(tempDir)
+	defer os.Chdir(oldDir)
+
+	const fileName = "claim-invalid-owner.md"
+	const fileContent = `# Project Tasks
+
+- [ ] 1. Ready task <!-- id:abc1234 -->
+`
+
+	tests := map[string]struct {
+		claimValue string
+		wantErr    bool
+	}{
+		"newline in claim value is rejected": {
+			claimValue: "agent\nbad",
+			wantErr:    true,
+		},
+		"carriage return in claim value is rejected": {
+			claimValue: "agent\rbad",
+			wantErr:    true,
+		},
+		"tab in claim value is rejected": {
+			claimValue: "agent\tbad",
+			wantErr:    true,
+		},
+		"null byte in claim value is rejected": {
+			claimValue: "agent\x00bad",
+			wantErr:    true,
+		},
+		"claim value with spaces is still accepted": {
+			claimValue: "My Agent",
+			wantErr:    false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Reset flags before each test to ensure isolation, and restore
+			// them afterwards since these are package-level globals shared
+			// across the whole test binary (docs/agent-notes/testing.md).
+			streamFlag = 0
+			claimFlag = ""
+			phaseFlag = false
+			oneFlag = false
+			dryRun = false
+			t.Cleanup(func() {
+				streamFlag = 0
+				claimFlag = ""
+				phaseFlag = false
+				oneFlag = false
+				dryRun = false
+			})
+			t.Cleanup(resetBatchFlags)
+
+			if err := os.WriteFile(fileName, []byte(fileContent), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			before, err := os.ReadFile(fileName)
+			if err != nil {
+				t.Fatalf("failed to read file before claim: %v", err)
+			}
+
+			// Capture output so a failure doesn't spam the test log.
+			var buf bytes.Buffer
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			args := []string{"next", fileName, "--format", "json", "--claim", tc.claimValue}
+			rootCmd.SetArgs(args)
+			runErr := rootCmd.Execute()
+
+			w.Close()
+			os.Stdout = oldStdout
+			buf.ReadFrom(r)
+			rootCmd.SetArgs([]string{})
+
+			if tc.wantErr {
+				if runErr == nil {
+					t.Fatalf("expected an error for claim value %q, got nil (output: %s)", tc.claimValue, buf.String())
+				}
+			} else if runErr != nil {
+				t.Fatalf("unexpected error for claim value %q: %v", tc.claimValue, runErr)
+			}
+
+			after, err := os.ReadFile(fileName)
+			if err != nil {
+				t.Fatalf("failed to read file after claim: %v", err)
+			}
+
+			if tc.wantErr {
+				if string(before) != string(after) {
+					t.Errorf("invalid claim value mutated the task file.\nbefore:\n%s\nafter:\n%s", before, after)
+				}
+
+				// This is the actual user-visible failure from the ticket: a
+				// later command reading the file back fails to parse it.
+				if _, err := task.ParseFile(fileName); err != nil {
+					t.Errorf("task file is no longer parseable after a rejected claim: %v", err)
+				}
+			}
+		})
+	}
+}
