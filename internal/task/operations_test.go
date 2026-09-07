@@ -1586,6 +1586,84 @@ func TestValidateTaskListTitle(t *testing.T) {
 	}
 }
 
+// TestAddTaskRejectsEmptyTitle covers the validation applied to a task title
+// by validateTaskInput, the shared choke point used by every operation that
+// sets a task's title (AddTask, AddTaskWithOptions, UpdateTaskWithOptions,
+// and their batch/phase-aware equivalents). Before this fix, an empty or
+// whitespace-only title passed validateTaskInput unchanged and was written
+// as a bullet with no title text (e.g. "- [ ] 1. "), which
+// ParseMarkdown then fails to read back with "invalid task format".
+// Regression test for T-1561.
+func TestAddTaskRejectsEmptyTitle(t *testing.T) {
+	tests := map[string]struct {
+		title   string
+		wantErr string
+	}{
+		"plain title":     {title: "Valid title"},
+		"tab is allowed":  {title: "My\tTitle"},
+		"empty title":     {title: "", wantErr: "cannot be empty"},
+		"whitespace only": {title: "   ", wantErr: "cannot be empty"},
+		"newline":         {title: "Bad\nTitle", wantErr: "control characters"},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Run("AddTask", func(t *testing.T) {
+				tl := &TaskList{Title: "Test"}
+				id, err := tl.AddTask("", tt.title, "")
+				assertTitleValidation(t, err, id, tt.wantErr, tt.title)
+			})
+
+			t.Run("AddTaskWithOptions", func(t *testing.T) {
+				tl := &TaskList{Title: "Test"}
+				id, err := tl.AddTaskWithOptions("", tt.title, AddOptions{})
+				assertTitleValidation(t, err, id, tt.wantErr, tt.title)
+			})
+
+			t.Run("UpdateTaskWithOptions", func(t *testing.T) {
+				tl := &TaskList{Title: "Test"}
+				_, _ = tl.AddTask("", "Original title", "")
+				title := tt.title
+				err := tl.UpdateTaskWithOptions("1", UpdateOptions{Title: &title})
+				// UpdateTaskWithOptions treats an empty string as "no change" (the
+				// sentinel for leaving the title untouched), so only the
+				// whitespace-only and control-character cases are expected to be
+				// rejected here.
+				if title == "" {
+					if err != nil {
+						t.Fatalf("expected no error for empty-string sentinel, got %v", err)
+					}
+					if tl.Tasks[0].Title != "Original title" {
+						t.Fatalf("expected title to remain unchanged, got %q", tl.Tasks[0].Title)
+					}
+					return
+				}
+				assertTitleValidation(t, err, "", tt.wantErr, tt.title)
+			})
+		})
+	}
+}
+
+// assertTitleValidation checks the outcome of a title-setting operation
+// against the expected error substring (or lack thereof).
+func assertTitleValidation(t *testing.T, err error, gotID, wantErr, title string) {
+	t.Helper()
+
+	if wantErr == "" {
+		if err != nil {
+			t.Fatalf("expected no error for title %q, got %v", title, err)
+		}
+		return
+	}
+
+	if err == nil {
+		t.Fatalf("expected error containing %q for title %q, got nil (task id %q)", wantErr, title, gotID)
+	}
+	if !strings.Contains(err.Error(), wantErr) {
+		t.Errorf("expected error containing %q, got %q", wantErr, err.Error())
+	}
+}
+
 // TestEmbeddedNewlinesRejected verifies that embedded newlines (\n, \r)
 // are rejected in titles, details, and references to prevent markdown corruption.
 // Regression test for T-781.
