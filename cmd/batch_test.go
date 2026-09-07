@@ -738,3 +738,44 @@ func TestBatchCommand_UnsupportedFormatDoesNotMutateFile(t *testing.T) {
 		t.Error("Operation was applied to the file despite the command returning an unsupported format error")
 	}
 }
+
+// TestBatchCommand_UnsupportedFormatRejectedBeforeFileAccess verifies that the
+// --format check runs before the task file is even read (T-1787). Pointing the
+// batch request at a file that does not exist must still surface the format
+// error, proving validation strictly precedes file access rather than merely
+// preceding the write.
+func TestBatchCommand_UnsupportedFormatRejectedBeforeFileAccess(t *testing.T) {
+	t.Cleanup(resetBatchFlags)
+
+	tmpDir := t.TempDir()
+
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	os.Chdir(tmpDir)
+
+	req := task.BatchRequest{
+		File: "does_not_exist.md",
+		Operations: []task.Operation{
+			{
+				Type:  "add",
+				Title: "Should never be applied",
+			},
+		},
+	}
+	jsonData, _ := json.Marshal(req)
+
+	rootCmd.SetArgs([]string{"batch", "--input", string(jsonData), "--format", "yaml"})
+
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("Expected command to fail for unsupported output format")
+	}
+	if !strings.Contains(err.Error(), "unsupported output format") {
+		t.Errorf("Expected the format error to win over any file error, got: %v", err)
+	}
+
+	// The command must not have created the missing file either.
+	if _, statErr := os.Stat(filepath.Join(tmpDir, "does_not_exist.md")); !os.IsNotExist(statErr) {
+		t.Errorf("Expected file to remain absent, stat returned: %v", statErr)
+	}
+}

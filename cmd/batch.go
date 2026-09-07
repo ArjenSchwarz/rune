@@ -188,15 +188,13 @@ func runBatch(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Handle output based on format
-	switch strings.ToLower(format) {
-	case formatJSON:
+	// Handle output based on format. Unsupported values were already rejected
+	// at the top of runBatch, so only json needs its own branch here; the
+	// remaining supported formats (table, markdown) both render as text.
+	if strings.ToLower(format) == formatJSON {
 		return outputBatchJSON(cmd, response)
-	case formatTable, formatMarkdown:
-		return outputBatchText(cmd, response, req.DryRun, req.File, taskList)
-	default:
-		return fmt.Errorf("unsupported output format: %s", format)
 	}
+	return outputBatchText(cmd, response, req.DryRun, req.File, taskList)
 }
 
 func outputBatchJSON(cmd *cobra.Command, response *task.BatchResponse) error {
