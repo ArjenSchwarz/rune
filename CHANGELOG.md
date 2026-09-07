@@ -6,13 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-
 ### Fixed
 
 - **Dry Run**: `next --claim AGENT_ID --dry-run` no longer writes the task file. The command previously claimed for real — setting the task to in-progress and adding an `Owner:` line — silently defeating `--dry-run`. Dry-run claims now preview only: JSON output includes `"dry_run": true` and markdown/table output is headed "Would Claim Tasks (Dry Run)"
 - **Security**: `add-phase` now rejects task files outside the working directory. It read and wrote the target file directly, bypassing the path containment check every other mutating command applies
 - **Input Validation**: `rune create --title` now rejects titles that produce an unparseable H1 heading — empty or whitespace-only titles (which render as a bare `# `) and titles containing newlines or other control characters (which split the heading) — as well as titles longer than 500 characters, matching the limit already enforced on task titles
 - **Batch Command**: `rune batch` now rejects an unsupported `--format` value before any operation is applied, instead of writing the modified task file to disk and only then failing with `unsupported output format`. The check now runs before the batch input is read, so an unsupported format is reported even when the request JSON or the target file is also invalid
+- **Renumber Command**: `renumber --dry-run` no longer writes the renumbered file or creates a `.bak` backup. The command previously ignored the global `--dry-run` flag entirely, so a preview silently mutated the task file and left a stray backup behind. Dry runs now print a format-aware summary and report `"dry_run": true` with no backup file in JSON output
 
 
 ## [1.4.0] - 2026-08-03

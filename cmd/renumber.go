@@ -17,6 +17,7 @@ type RenumberResponse struct {
 	Success    bool   `json:"success"`
 	TaskCount  int    `json:"task_count"`
 	BackupFile string `json:"backup_file"`
+	DryRun     bool   `json:"dry_run,omitempty"`
 }
 
 var renumberCmd = &cobra.Command{
@@ -28,7 +29,7 @@ This command is useful when tasks have been manually reordered and the
 hierarchical IDs need to be recalculated.
 
 Features:
-- Creates automatic backups (.bak extension) before making any changes
+- Creates automatic backups (.bak extension) before making any changes (skipped with --dry-run)
 - Uses global sequential numbering (1, 2, 3...) across the entire file
 - Preserves task hierarchy and parent-child relationships
 - Preserves task statuses, details, and references
@@ -46,6 +47,9 @@ Usage Examples:
   # Renumber file with phases
   rune renumber project.md --format markdown
 
+  # Preview without creating a backup or modifying the file
+  rune renumber tasks.md --dry-run
+
 How It Works:
   1. Validates file path and checks resource limits
   2. Parses the task file and phase markers
@@ -55,9 +59,14 @@ How It Works:
   6. Writes changes atomically (temp file → rename)
   7. Displays summary with task count and backup location
 
+  With --dry-run the command stops after step 2 and reports the parsed task
+  count without creating a backup or writing the file.
+
 Important Notes:
   - Requirement links in task details are NOT updated automatically
-  - Backup file is always created for safety
+  - Backup file is always created for safety, except with --dry-run, which
+    reports what would be renumbered without creating a backup or writing
+    the file
   - If interrupted (Ctrl+C), original file remains intact
   - Use backup file to restore if needed
 
@@ -102,6 +111,11 @@ func runRenumber(cmd *cobra.Command, args []string) error {
 	if totalTasks >= task.MaxTaskCount {
 		return fmt.Errorf("task count (%d) exceeds limit of %d",
 			totalTasks, task.MaxTaskCount)
+	}
+
+	// Phase 3.5: Dry-run mode - preview without creating a backup or modifying the file
+	if dryRun {
+		return displayDryRunSummary(taskList, format)
 	}
 
 	// Phase 4: Create backup BEFORE any modifications
@@ -156,22 +170,45 @@ func createBackup(filePath string, fileInfo os.FileInfo) (string, error) {
 
 // displaySummary outputs the renumbering results in the specified format
 func displaySummary(tl *task.TaskList, backupPath, format string) error {
-	totalTasks := tl.CountTotalTasks()
+	return renderRenumberSummary(RenumberResponse{
+		Success:    true,
+		TaskCount:  tl.CountTotalTasks(),
+		BackupFile: backupPath,
+	}, format)
+}
+
+// displayDryRunSummary outputs a preview of the renumbering results without
+// reporting a backup file, since dry-run mode does not create one or modify
+// the task file.
+func displayDryRunSummary(tl *task.TaskList, format string) error {
+	return renderRenumberSummary(RenumberResponse{
+		Success:   true,
+		TaskCount: tl.CountTotalTasks(),
+		DryRun:    true,
+	}, format)
+}
+
+// renderRenumberSummary renders a renumber summary in the requested format.
+// The backup row is emitted only when a backup was actually created, so the
+// dry-run path does not report an empty backup location.
+func renderRenumberSummary(resp RenumberResponse, format string) error {
+	status := "✓ Success"
+	if resp.DryRun {
+		status = "Dry run - no changes made"
+	}
 
 	switch format {
 	case formatJSON:
-		return outputJSON(RenumberResponse{
-			Success:    true,
-			TaskCount:  totalTasks,
-			BackupFile: backupPath,
-		})
+		return outputJSON(resp)
 
 	case formatMarkdown:
 		fmt.Println("# Renumbering Summary")
 		fmt.Println()
-		fmt.Printf("- **Total Tasks**: %d\n", totalTasks)
-		fmt.Printf("- **Backup File**: %s\n", backupPath)
-		fmt.Println("- **Status**: ✓ Success")
+		fmt.Printf("- **Total Tasks**: %d\n", resp.TaskCount)
+		if resp.BackupFile != "" {
+			fmt.Printf("- **Backup File**: %s\n", resp.BackupFile)
+		}
+		fmt.Printf("- **Status**: %s\n", status)
 		return nil
 
 	case formatTable:
@@ -179,10 +216,12 @@ func displaySummary(tl *task.TaskList, backupPath, format string) error {
 	default:
 		// Use go-output library for consistent formatting
 		data := []map[string]any{
-			{columnField: "Total Tasks", columnValue: fmt.Sprintf("%d", totalTasks)},
-			{columnField: "Backup File", columnValue: backupPath},
-			{columnField: columnStatus, columnValue: "✓ Success"},
+			{columnField: "Total Tasks", columnValue: strconv.Itoa(resp.TaskCount)},
 		}
+		if resp.BackupFile != "" {
+			data = append(data, map[string]any{columnField: "Backup File", columnValue: resp.BackupFile})
+		}
+		data = append(data, map[string]any{columnField: columnStatus, columnValue: status})
 
 		doc := output.New().
 			Table("Renumbering Summary", data, output.WithKeys(columnField, columnValue)).
