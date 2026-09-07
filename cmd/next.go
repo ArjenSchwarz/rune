@@ -179,6 +179,18 @@ func runNextWithStream(filename string) error {
 
 // runNextWithClaim handles the --claim flag (with or without --stream)
 func runNextWithClaim(filename string) error {
+	// Validate the claim value before touching the task file. claimFlag is
+	// written directly into a task's Owner metadata below; add/update reach
+	// the same field through AddTaskWithOptions/UpdateTaskWithOptions, which
+	// validate internally, but this path assigned it unchecked. A claim
+	// value containing a newline or other control character produced an
+	// unparseable file (T-1565), so reject it up front and leave the file
+	// untouched — this also covers --dry-run, since dry-run must not
+	// silently accept input that a real claim would reject.
+	if err := task.ValidateOwner(claimFlag); err != nil {
+		return fmt.Errorf("invalid claim value: %w", err)
+	}
+
 	// Parse the task file
 	taskList, err := task.ParseFile(filename)
 	if err != nil {
