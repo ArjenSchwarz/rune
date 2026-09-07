@@ -363,14 +363,17 @@ func WriteFileAtomic(filePath string, content []byte) error {
 	if err := os.WriteFile(tmpFile, content, perm); err != nil {
 		// Clean up a partially written temp file on failure (e.g. disk full,
 		// quota exceeded, file-size limits stopped the write partway through).
-		os.Remove(tmpFile)
+		// Best-effort: the write error is what the caller needs to see, so a
+		// failure to remove the leftover temp file is deliberately ignored.
+		_ = os.Remove(tmpFile)
 		return fmt.Errorf("writing temp file: %w", err)
 	}
 
 	// Atomic rename
 	if err := os.Rename(tmpFile, filePath); err != nil {
-		// Clean up temp file on failure
-		os.Remove(tmpFile)
+		// Clean up temp file on failure. Best-effort for the same reason as
+		// above: the rename error is the one worth reporting.
+		_ = os.Remove(tmpFile)
 		return fmt.Errorf("atomic rename: %w", err)
 	}
 
