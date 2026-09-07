@@ -452,6 +452,21 @@ func validateTaskInput(input string) error {
 	return nil
 }
 
+// ValidateTaskListTitle validates a TaskList title before it is rendered into
+// the markdown H1 heading. A title that is empty (or only whitespace) is
+// rejected because it renders as a bare "# " heading, which the parser does
+// not recognise as a title. Titles containing null bytes or control characters
+// (including \n and \r) are rejected because they would split the single-line
+// heading across multiple lines. Either case produces a file Rune cannot parse
+// back. The remaining checks are the same ones applied to task titles.
+func ValidateTaskListTitle(title string) error {
+	if strings.TrimSpace(title) == "" {
+		return fmt.Errorf("title cannot be empty")
+	}
+
+	return validateTaskInput(title)
+}
+
 // validateDetails validates task details
 func validateDetails(details []string) error {
 	for i, detail := range details {

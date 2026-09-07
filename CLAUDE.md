@@ -97,7 +97,8 @@ make mod-tidy
 ## Important Constraints
 
 - Maximum file size: 10MB
-- Maximum task title: 500 characters
+- Maximum task title: 500 characters (also applies to the task list title set by `create`)
+- Titles must be a single non-empty line: control characters, including newlines, are rejected (tab is permitted)
 - Task ID pattern: `^\d+(\.\d+)*$` (e.g., "1", "1.2", "1.2.3")
 - File paths must be within working directory (security validation)
 

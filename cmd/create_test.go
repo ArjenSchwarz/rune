@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/arjenschwarz/rune/internal/task"
+	"github.com/spf13/cobra"
 )
 
 func TestCreateCommand(t *testing.T) {
@@ -371,6 +373,101 @@ func TestCreateCommandWithFrontMatter(t *testing.T) {
 			// Check content using test-specific validator
 			if tc.checkContent != nil {
 				tc.checkContent(t, string(content))
+			}
+		})
+	}
+}
+
+// setCreateFlags points the package-level create flags at the given values for
+// the duration of the test and restores the previous values afterwards. The cmd
+// package shares these globals across tests (see docs/agent-notes/testing.md).
+func setCreateFlags(t *testing.T, title string, dry bool) {
+	t.Helper()
+
+	oldTitle, oldRefs, oldMeta, oldDryRun := createTitle, createReferences, createMetadata, dryRun
+	t.Cleanup(func() {
+		createTitle, createReferences, createMetadata, dryRun = oldTitle, oldRefs, oldMeta, oldDryRun
+	})
+
+	createTitle = title
+	createReferences = nil
+	createMetadata = nil
+	dryRun = dry
+}
+
+// TestCreateCommandRejectsInvalidTitles verifies that `rune create` rejects
+// titles that would produce an H1 heading the parser cannot read back — empty
+// or whitespace-only titles (which render as a bare "# ") and titles containing
+// newlines or other control characters (which split the heading) — as well as
+// titles longer than the documented limit. Regression test for T-1500.
+func TestCreateCommandRejectsInvalidTitles(t *testing.T) {
+	tests := map[string]struct {
+		title   string
+		dryRun  bool
+		wantErr string
+	}{
+		"newline":         {title: "Bad\nTitle", wantErr: "control characters"},
+		"carriage return": {title: "Bad\rTitle", wantErr: "control characters"},
+		"crlf":            {title: "Bad\r\nTitle", wantErr: "control characters"},
+		"null byte":       {title: "Bad\x00Title", wantErr: "control characters"},
+		"empty":           {title: "", wantErr: "cannot be empty"},
+		"whitespace only": {title: "   ", wantErr: "cannot be empty"},
+		"newline dry run": {title: "Bad\nTitle", dryRun: true, wantErr: "control characters"},
+		"too long": {
+			title:   strings.Repeat("a", task.MaxTitleLength+1),
+			wantErr: fmt.Sprintf("title exceeds %d characters", task.MaxTitleLength),
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			setCreateFlags(t, tt.title, tt.dryRun)
+
+			filename := "tasks.md"
+			err := runCreate(&cobra.Command{}, []string{filename})
+
+			if err == nil {
+				t.Fatalf("expected error for title %q, got nil", tt.title)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("expected error containing %q, got %q", tt.wantErr, err.Error())
+			}
+
+			if _, statErr := os.Stat(filename); statErr == nil {
+				t.Errorf("file %s should not have been created for invalid title %q", filename, tt.title)
+			}
+		})
+	}
+}
+
+// TestCreateCommandWritesParseableFile is the positive half of the T-1500
+// regression: a title accepted by `rune create` must produce a file that parses
+// back with the same title. Without this, tightening title validation could
+// pass its own tests while breaking the round trip it exists to protect.
+func TestCreateCommandWritesParseableFile(t *testing.T) {
+	titles := map[string]string{
+		"plain":               "My Project Tasks",
+		"tab is allowed":      "My\tTasks",
+		"title at max length": strings.Repeat("a", task.MaxTitleLength),
+	}
+
+	for name, title := range titles {
+		t.Run(name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			setCreateFlags(t, title, false)
+
+			filename := "tasks.md"
+			if err := runCreate(&cobra.Command{}, []string{filename}); err != nil {
+				t.Fatalf("runCreate() unexpected error: %v", err)
+			}
+
+			tl, err := task.ParseFile(filename)
+			if err != nil {
+				t.Fatalf("created file does not parse back: %v", err)
+			}
+			if tl.Title != title {
+				t.Errorf("round-tripped title = %q, want %q", tl.Title, title)
 			}
 		})
 	}

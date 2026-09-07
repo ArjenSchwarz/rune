@@ -1541,6 +1541,51 @@ func TestTitleLengthValidation(t *testing.T) {
 	})
 }
 
+// TestValidateTaskListTitle covers the validation applied to a TaskList title
+// before it is rendered into the markdown H1 heading: the empty, the
+// control-character and the length-limit branch. Every rejected title is one
+// that would render into an H1 heading ParseMarkdown cannot read back.
+// Regression test for T-1500.
+func TestValidateTaskListTitle(t *testing.T) {
+	tests := map[string]struct {
+		title   string
+		wantErr string
+	}{
+		"plain title":         {title: "My Tasks"},
+		"tab is allowed":      {title: "My\tTasks"},
+		"title at max length": {title: strings.Repeat("a", MaxTitleLength)},
+		"empty title":         {title: "", wantErr: "cannot be empty"},
+		"whitespace only":     {title: "   ", wantErr: "cannot be empty"},
+		"newline":             {title: "Bad\nTitle", wantErr: "control characters"},
+		"carriage return":     {title: "Bad\rTitle", wantErr: "control characters"},
+		"null byte":           {title: "Bad\x00Title", wantErr: "control characters"},
+		"title exceeds max length": {
+			title:   strings.Repeat("a", MaxTitleLength+1),
+			wantErr: fmt.Sprintf("title exceeds %d characters", MaxTitleLength),
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := ValidateTaskListTitle(tt.title)
+
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("expected no error for title %q, got %v", tt.title, err)
+				}
+				return
+			}
+
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("expected error containing %q, got %q", tt.wantErr, err.Error())
+			}
+		})
+	}
+}
+
 // TestEmbeddedNewlinesRejected verifies that embedded newlines (\n, \r)
 // are rejected in titles, details, and references to prevent markdown corruption.
 // Regression test for T-781.
