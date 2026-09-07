@@ -331,6 +331,27 @@ func (tl *TaskList) WriteFile(filePath string) error {
 		content = RenderMarkdown(tl)
 	}
 
+	if err := WriteFileAtomic(filePath, content); err != nil {
+		return err
+	}
+
+	// Update file path in TaskList
+	tl.FilePath = filePath
+	return nil
+}
+
+// WriteFileAtomic writes content to filePath without ever truncating or
+// otherwise modifying the existing file in place: it writes the full content
+// to a temporary file (filePath + ".tmp") in the same directory first, then
+// replaces the target with a single atomic rename. If the write to the temp
+// file fails partway (disk full, quota exceeded, file-size limits, etc.), the
+// temp file is removed and filePath is left completely untouched, unlike
+// os.WriteFile, which opens the target with O_TRUNC and can leave it
+// truncated if the write fails after that.
+//
+// Callers are responsible for validating filePath (e.g. via ValidateFilePath)
+// before calling this.
+func WriteFileAtomic(filePath string, content []byte) error {
 	// Get original file permissions if file exists, otherwise use default 0644
 	perm := os.FileMode(0644)
 	if fileInfo, err := os.Stat(filePath); err == nil {
@@ -340,6 +361,9 @@ func (tl *TaskList) WriteFile(filePath string) error {
 	// Write to temp file first for atomic operation
 	tmpFile := filePath + ".tmp"
 	if err := os.WriteFile(tmpFile, content, perm); err != nil {
+		// Clean up a partially written temp file on failure (e.g. disk full,
+		// quota exceeded, file-size limits stopped the write partway through).
+		os.Remove(tmpFile)
 		return fmt.Errorf("writing temp file: %w", err)
 	}
 
@@ -350,8 +374,6 @@ func (tl *TaskList) WriteFile(filePath string) error {
 		return fmt.Errorf("atomic rename: %w", err)
 	}
 
-	// Update file path in TaskList
-	tl.FilePath = filePath
 	return nil
 }
 
@@ -788,23 +810,8 @@ func WriteFileWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, filePath stri
 		content = RenderMarkdownWithPhases(tl, phaseMarkers, nil)
 	}
 
-	// Get original file permissions if file exists, otherwise use default 0644
-	perm := os.FileMode(0644)
-	if fileInfo, err := os.Stat(filePath); err == nil {
-		perm = fileInfo.Mode().Perm()
-	}
-
-	// Write to temp file first for atomic operation
-	tmpFile := filePath + ".tmp"
-	if err := os.WriteFile(tmpFile, content, perm); err != nil {
-		return fmt.Errorf("writing temp file: %w", err)
-	}
-
-	// Atomic rename
-	if err := os.Rename(tmpFile, filePath); err != nil {
-		// Clean up temp file on failure
-		os.Remove(tmpFile)
-		return fmt.Errorf("atomic rename: %w", err)
+	if err := WriteFileAtomic(filePath, content); err != nil {
+		return err
 	}
 
 	// Update file path in TaskList
