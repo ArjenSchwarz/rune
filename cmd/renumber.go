@@ -17,6 +17,7 @@ type RenumberResponse struct {
 	Success    bool   `json:"success"`
 	TaskCount  int    `json:"task_count"`
 	BackupFile string `json:"backup_file"`
+	DryRun     bool   `json:"dry_run,omitempty"`
 }
 
 var renumberCmd = &cobra.Command{
@@ -104,6 +105,11 @@ func runRenumber(cmd *cobra.Command, args []string) error {
 			totalTasks, task.MaxTaskCount)
 	}
 
+	// Phase 3.5: Dry-run mode - preview without creating a backup or modifying the file
+	if dryRun {
+		return displayDryRunSummary(taskList, format)
+	}
+
 	// Phase 4: Create backup BEFORE any modifications
 	backupPath, err := createBackup(filePath, fileInfo)
 	if err != nil {
@@ -182,6 +188,47 @@ func displaySummary(tl *task.TaskList, backupPath, format string) error {
 			{columnField: "Total Tasks", columnValue: fmt.Sprintf("%d", totalTasks)},
 			{columnField: "Backup File", columnValue: backupPath},
 			{columnField: columnStatus, columnValue: "✓ Success"},
+		}
+
+		doc := output.New().
+			Table("Renumbering Summary", data, output.WithKeys(columnField, columnValue)).
+			Build()
+
+		out := output.NewOutput(
+			output.WithFormat(output.Table()),
+			output.WithWriter(output.NewStdoutWriter()),
+		)
+
+		return out.Render(context.Background(), doc)
+	}
+}
+
+// displayDryRunSummary outputs a preview of the renumbering results without
+// reporting a backup file, since dry-run mode does not create one or modify
+// the task file.
+func displayDryRunSummary(tl *task.TaskList, format string) error {
+	totalTasks := tl.CountTotalTasks()
+
+	switch format {
+	case formatJSON:
+		return outputJSON(RenumberResponse{
+			Success:   true,
+			TaskCount: totalTasks,
+			DryRun:    true,
+		})
+
+	case formatMarkdown:
+		fmt.Println("# Renumbering Summary")
+		fmt.Println()
+		fmt.Printf("- **Total Tasks**: %d\n", totalTasks)
+		fmt.Println("- **Status**: Dry run - no changes made")
+		return nil
+
+	default:
+		// Use go-output library for consistent formatting
+		data := []map[string]any{
+			{columnField: "Total Tasks", columnValue: fmt.Sprintf("%d", totalTasks)},
+			{columnField: columnStatus, columnValue: "Dry run - no changes made"},
 		}
 
 		doc := output.New().

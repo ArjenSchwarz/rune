@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -1709,5 +1710,142 @@ func TestDisplaySummaryJSON(t *testing.T) {
 				t.Errorf("Expected success=%v, got %v", tc.expectedSuccessValue, result["success"])
 			}
 		})
+	}
+}
+
+// TestRenumberDryRunDoesNotModifyFile is a regression test for T-1345:
+// `rune renumber --dry-run` was writing renumbered content back to the task
+// file and creating a `.bak` backup, even though dry-run mode is supposed to
+// only preview the change. runRenumber never checked the global `dryRun`
+// flag before calling createBackup and writing the file.
+//
+// Expected: the file content is byte-for-byte unchanged and no backup file
+// is created.
+func TestRenumberDryRunDoesNotModifyFile(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-renumber-dryrun")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	testFile := filepath.Join(tempDir, "tasks.md")
+
+	// Create a task list with a gap in numbering (ID "3" instead of "2"),
+	// mirroring the T-1345 repro.
+	tl := task.NewTaskList("Tasks")
+	tl.AddTask("", "First", "")
+	tl.AddTask("", "Third", "")
+	tl.Tasks[0].ID = "1"
+	tl.Tasks[1].ID = "3"
+
+	if err := tl.WriteFile(testFile); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	originalContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("Failed to read original file: %v", err)
+	}
+
+	dryRun = true
+	defer func() { dryRun = false }()
+
+	cmd := &cobra.Command{}
+	args := []string{testFile}
+	if err := runRenumber(cmd, args); err != nil {
+		t.Fatalf("runRenumber with --dry-run failed: %v", err)
+	}
+
+	finalContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("Failed to read file after dry run: %v", err)
+	}
+
+	if string(originalContent) != string(finalContent) {
+		t.Errorf("File was modified during --dry-run.\nBefore:\n%s\nAfter:\n%s", originalContent, finalContent)
+	}
+
+	backupPath := testFile + ".bak"
+	if _, err := os.Stat(backupPath); !os.IsNotExist(err) {
+		t.Errorf("Backup file %s was created during --dry-run", backupPath)
+	}
+}
+
+// TestRenumberDryRunJSON is a regression test for T-1345, covering the
+// `--format json` repro from the bug report. It verifies that dry-run mode
+// reports success without a backup file and without touching the task file.
+func TestRenumberDryRunJSON(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-renumber-dryrun-json")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	testFile := filepath.Join(tempDir, "tasks.md")
+
+	tl := task.NewTaskList("Tasks")
+	tl.AddTask("", "First", "")
+	tl.AddTask("", "Third", "")
+	tl.Tasks[0].ID = "1"
+	tl.Tasks[1].ID = "3"
+
+	if err := tl.WriteFile(testFile); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	originalContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("Failed to read original file: %v", err)
+	}
+
+	dryRun = true
+	format = formatJSON
+	defer func() {
+		dryRun = false
+		format = "table"
+	}()
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := &cobra.Command{}
+	args := []string{testFile}
+	runErr := runRenumber(cmd, args)
+
+	w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if runErr != nil {
+		t.Fatalf("runRenumber with --dry-run --format json failed: %v", runErr)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("Failed to parse JSON output: %v\nOutput: %s", err, output)
+	}
+
+	if success, ok := result["success"].(bool); !ok || !success {
+		t.Errorf("Expected success=true, got %v", result["success"])
+	}
+	if backupFile, ok := result["backup_file"].(string); ok && backupFile != "" {
+		t.Errorf("Expected no backup_file to be reported during --dry-run, got %q", backupFile)
+	}
+
+	finalContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("Failed to read file after dry run: %v", err)
+	}
+	if string(originalContent) != string(finalContent) {
+		t.Errorf("File was modified during --dry-run --format json.\nBefore:\n%s\nAfter:\n%s", originalContent, finalContent)
+	}
+
+	backupPath := testFile + ".bak"
+	if _, err := os.Stat(backupPath); !os.IsNotExist(err) {
+		t.Errorf("Backup file %s was created during --dry-run --format json", backupPath)
 	}
 }
