@@ -48,10 +48,14 @@ reproduces identically.
     entire blocked-by branch behind `if updateBlockedBy != ""`, so an
     explicitly empty flag value is indistinguishable from the flag not being
     passed at all and never reaches `opts.BlockedBy`. That gap is T-1493's
-    concern, not this one. This confirms the clear-sentinel branch in
-    `UpdateTaskWithOptions` is, in the current CLI, reachable *only* through
-    malformed comma-only input -- i.e., through this bug -- which is why fixing
-    it at the parsing layer cannot regress a working "explicit clear" feature
+    concern, not this one. So the sentinel is unreachable by intent *from the
+    `update` command*, which is why fixing this at the CLI parsing layer cannot
+    regress a working "explicit clear" feature. Note the sentinel is not
+    unreachable in general: `internal/task/batch.go` forwards `op.BlockedBy`
+    whenever it is non-nil, so a batch operation `{"type":"update","id":"2",
+    "blocked_by":[]}` reaches it deliberately and clears the dependency. The
+    clear-sentinel branch in `UpdateTaskWithOptions` is therefore live code and
+    must not be removed
     that doesn't yet exist.
 
 ## Discovered Root Cause
@@ -212,9 +216,11 @@ ticket exactly). Restoring the fix makes all three pass.
 
 - T-1493 -- `update` has no way to explicitly and intentionally clear
   `blocked-by`; the CLI-level gate (`updateBlockedBy != ""`) means the clear
-  sentinel in `UpdateTaskWithOptions` is currently unreachable through valid
-  input. This fix does not add or block that capability -- it only prevents
-  malformed input from reaching the sentinel by accident.
+  sentinel in `UpdateTaskWithOptions` cannot be reached on purpose from that
+  command. It is reachable from the batch JSON API, which passes a non-nil
+  empty list straight through, so the sentinel itself is live code. This fix
+  does not add or block that capability -- it only prevents malformed input
+  from reaching the sentinel by accident.
 - T-2023 -- the identical comma-only-input shape for the `--requirements`
   flag. Intentionally not fixed here; `parseRequirementIDs` was left
   unchanged so as not to alter requirements behaviour as a side effect.
