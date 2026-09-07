@@ -250,15 +250,17 @@ rune renumber [file] [options]
 
 **Options:**
 - `--format [table|markdown|json]` - Output format (default: table)
+- `--dry-run` - Preview without creating a backup or writing the file
 
 **Examples:**
 ```bash
 rune renumber tasks.md
 rune renumber tasks.md --format json
+rune renumber tasks.md --dry-run
 ```
 
 **How it works:**
-- Creates automatic backup with `.bak` extension before making changes
+- Creates automatic backup with `.bak` extension before making changes (skipped with `--dry-run`)
 - Renumbers all tasks sequentially (fills gaps like 1, 2, 5 → 1, 2, 3)
 - Preserves task hierarchy and parent-child relationships
 - Preserves task statuses, details, and references
@@ -268,7 +270,7 @@ rune renumber tasks.md --format json
 
 **Important Notes:**
 - Requirement links (`[Req 1.1]`) in task details are NOT updated automatically - these must be manually fixed if they reference renumbered tasks
-- The backup file (`.bak`) is always created for safety - review changes and manually delete if not needed
+- The backup file (`.bak`) is always created for safety - review changes and manually delete if not needed. `--dry-run` creates no backup and leaves the file untouched
 - If interrupted (Ctrl+C), original file remains intact until atomic write completes
 
 **Use Cases:**

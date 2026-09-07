@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -51,6 +52,11 @@ func TestIntegrationRenumber(t *testing.T) {
 			name:        "Renumber Malformed Phase Markers",
 			description: "Test renumber handles malformed phase markers",
 			workflow:    testRenumberMalformedPhases,
+		},
+		"renumber_dry_run": {
+			name:        "Renumber Dry Run",
+			description: "Test renumber --dry-run leaves the file and backup untouched",
+			workflow:    testRenumberDryRun,
 		},
 		"renumber_large_file": {
 			name:        "Renumber Large File Handling",
@@ -725,4 +731,67 @@ func testRenumberLargeFile(t *testing.T, tempDir string) {
 	}
 
 	t.Logf("Large file handling test passed successfully (processed %d tasks with 10-level hierarchy)", len(tl.Tasks))
+}
+
+// testRenumberDryRun verifies that the --dry-run flag reaches runRenumber through
+// the real CLI. The unit tests set the package-level dryRun variable directly, so
+// only this test covers the flag-parsing path the T-1345 bug was reported against.
+func testRenumberDryRun(t *testing.T, tempDir string) {
+	filename := "tasks.md"
+
+	content := `# Test Tasks
+
+- [ ] 1. First task
+- [ ] 3. Second task with a numbering gap
+  - [ ] 3.2. Subtask with a gap
+`
+
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	cmd := exec.Command(runeBinaryPath, "renumber", filename, "--dry-run", "--format", "json")
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("renumber --dry-run failed: %v\nOutput: %s", err, output)
+	}
+
+	var response struct {
+		Success    bool   `json:"success"`
+		TaskCount  int    `json:"task_count"`
+		BackupFile string `json:"backup_file"`
+		DryRun     bool   `json:"dry_run"`
+	}
+	if err := json.Unmarshal(output, &response); err != nil {
+		t.Fatalf("failed to parse JSON output: %v\nOutput: %s", err, output)
+	}
+
+	if !response.Success {
+		t.Errorf("expected success=true, got %v", response.Success)
+	}
+	if !response.DryRun {
+		t.Errorf("expected dry_run=true, got %v", response.DryRun)
+	}
+	if response.BackupFile != "" {
+		t.Errorf("expected no backup file to be reported, got %q", response.BackupFile)
+	}
+	if response.TaskCount != 3 {
+		t.Errorf("expected task_count=3, got %d", response.TaskCount)
+	}
+
+	// The file must be byte-for-byte unchanged.
+	finalContent, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatalf("failed to read file after dry run: %v", err)
+	}
+	if string(finalContent) != content {
+		t.Errorf("file was modified during --dry-run.\nBefore:\n%s\nAfter:\n%s", content, finalContent)
+	}
+
+	// No backup may be left behind.
+	if _, err := os.Stat(filename + ".bak"); !os.IsNotExist(err) {
+		t.Errorf("backup file was created during --dry-run")
+	}
+
+	t.Logf("Dry run renumber test passed successfully")
 }

@@ -34,14 +34,18 @@
 ## Resolution for the Issue
 
 **Changes made:**
-- `cmd/renumber.go:77-141` (`runRenumber`) — Added a dry-run short-circuit immediately after resource-limit validation (Phase 3) and before backup creation (Phase 4): `if dryRun { return displayDryRunSummary(taskList, format) }`.
-- `cmd/renumber.go` — Added `displayDryRunSummary`, a format-aware (table/markdown/json) preview function that reports the task count and a "Dry run - no changes made" status without a backup file, mirroring the JSON `DryRun`-field pattern already used by `CompleteResponse`.
+- `cmd/renumber.go:82-147` (`runRenumber`) — Added a dry-run short-circuit immediately after resource-limit validation (Phase 3) and before backup creation (Phase 4): `if dryRun { return displayDryRunSummary(taskList, format) }`.
+- `cmd/renumber.go` — Added `displayDryRunSummary`, a format-aware (table/markdown/json) preview function that reports the task count and a "Dry run - no changes made" status without a backup file, mirroring the JSON `DryRun`-field pattern already used by `CompleteResponse`. It shares the format switch with `displaySummary` through `renderRenumberSummary`.
 - `cmd/renumber.go` — Added `DryRun bool` (`json:"dry_run,omitempty"`) to `RenumberResponse` so JSON consumers can distinguish a dry-run preview from a real write.
+
+- `cmd/renumber.go` — Corrected the help text that claimed a backup is always created, noted that `--dry-run` stops after parsing, and added a `--dry-run` usage example.
+- `README.md` — Documented `--dry-run` in the renumber options and examples and qualified the backup claims.
+- `CHANGELOG.md` — Added the `[Unreleased] / Fixed` entry required by the CONTRIBUTING documentation checklist.
 
 **Approach rationale:** This follows the exact convention already used by `add.go`, `remove.go`, `update.go`, and `complete.go` — check `dryRun` before any mutation and return early with a preview. `renumber` already had full table/markdown/json output support via `displaySummary`, so the preview was made format-aware (like `complete.go`'s dry-run path) rather than falling back to plain-text-only output (like `add.go`/`remove.go`), since `--format json` is explicitly part of the bug report's repro and is relied on by the JSON API consumers this tool targets.
 
 **Alternatives considered:**
-- Reusing `displaySummary` with an added `isDryRun bool` parameter — rejected because it would require updating three existing table/markdown/JSON tests' call sites (`TestDisplaySummaryTable`, `TestDisplaySummaryMarkdown`, `TestDisplaySummaryJSON`) for no functional benefit; a small dedicated `displayDryRunSummary` function keeps the change minimal and isolated.
+- Adding an `isDryRun bool` parameter to `displaySummary` — rejected because it would churn the three existing call sites (`TestDisplaySummaryTable`, `TestDisplaySummaryMarkdown`, `TestDisplaySummaryJSON`). Instead, `displaySummary` and `displayDryRunSummary` both keep their signatures and delegate to a shared `renderRenumberSummary(RenumberResponse, format)`, which emits the backup row only when a backup exists. This avoids duplicating the ~40-line format switch while leaving every existing call site untouched.
 - Plain-text-only dry-run output (matching `add.go`/`remove.go`) — rejected because `renumber` already fully supports `--format json`/`markdown`, and the ticket's own repro used `--format json`, so silently ignoring `--format` in dry-run mode would reintroduce the same kind of inconsistency previously fixed for `complete`/`uncomplete` (see `specs/bugfixes/complete-dry-run-json/report.md`).
 
 ## Regression Test
@@ -57,7 +61,7 @@
 
 **Run command:** `go test ./cmd -run 'TestRenumberDryRun' -v`
 
-Both tests were confirmed to fail against the pre-fix code (file mutated, `.bak` created, `backup_file` populated) and pass after the fix.
+All four tests were confirmed to fail against the pre-fix code (file mutated, `.bak` created, `backup_file` populated) and pass after the fix.
 
 ## Affected Files
 
@@ -65,11 +69,14 @@ Both tests were confirmed to fail against the pre-fix code (file mutated, `.bak`
 |------|--------|
 | `cmd/renumber.go` | Added `dryRun` short-circuit before backup/write; added `displayDryRunSummary`; added `DryRun` field to `RenumberResponse`; corrected the "backup file is always created" help text and added a `--dry-run` usage example |
 | `cmd/renumber_test.go` | Added `TestRenumberDryRunDoesNotModifyFile`, `TestRenumberDryRunJSON`, `TestRenumberDryRunMarkdown` and `TestRenumberDryRunWithPhases` regression tests |
+| `README.md` | Documented `--dry-run` for renumber and qualified the "backup is always created" claims |
+| `CHANGELOG.md` | Added `[Unreleased] / Fixed` entry for the dry-run fix |
+| `cmd/integration_renumber_test.go` | Added the `renumber_dry_run` integration case covering the real CLI flag path |
 
 ## Verification
 
 **Automated:**
-- [x] Regression tests pass (`TestRenumberDryRunDoesNotModifyFile`, `TestRenumberDryRunJSON`)
+- [x] Regression tests pass (`TestRenumberDryRunDoesNotModifyFile`, `TestRenumberDryRunJSON`, `TestRenumberDryRunMarkdown`, `TestRenumberDryRunWithPhases`, and the `renumber_dry_run` integration case)
 - [x] Full test suite passes (`make test` via `make check`)
 - [x] Linters/validators pass (`make lint` via `make check`, 0 issues)
 
@@ -85,4 +92,4 @@ Both tests were confirmed to fail against the pre-fix code (file mutated, `.bak`
 ## Related
 
 - Ticket: T-1345
-- Related prior fix for the same class of bug in dry-run/format handling: `specs/bugfixes/complete-dry-run-json/report.md` (T-725), `specs/bugfixes/progress-dry-run-json-format/report.md`
+- Related prior fix for the same class of bug in dry-run/format handling: `specs/bugfixes/complete-dry-run-json/report.md` (T-725), `specs/bugfixes/progress-dry-run-json-format/report.md` (T-616)

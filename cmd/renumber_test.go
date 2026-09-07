@@ -1747,8 +1747,13 @@ func TestRenumberDryRunDoesNotModifyFile(t *testing.T) {
 		t.Fatalf("Failed to read original file: %v", err)
 	}
 
+	oldDryRun, oldFormat := dryRun, format
 	dryRun = true
-	defer func() { dryRun = false }()
+	format = "table"
+	t.Cleanup(func() {
+		dryRun = oldDryRun
+		format = oldFormat
+	})
 
 	cmd := &cobra.Command{}
 	args := []string{testFile}
@@ -1798,12 +1803,13 @@ func TestRenumberDryRunJSON(t *testing.T) {
 		t.Fatalf("Failed to read original file: %v", err)
 	}
 
+	oldDryRun, oldFormat := dryRun, format
 	dryRun = true
 	format = formatJSON
-	defer func() {
-		dryRun = false
-		format = "table"
-	}()
+	t.Cleanup(func() {
+		dryRun = oldDryRun
+		format = oldFormat
+	})
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -1881,12 +1887,13 @@ func TestRenumberDryRunMarkdown(t *testing.T) {
 		t.Fatalf("Failed to read original file: %v", err)
 	}
 
+	oldDryRun, oldFormat := dryRun, format
 	dryRun = true
 	format = formatMarkdown
-	defer func() {
-		dryRun = false
-		format = "table"
-	}()
+	t.Cleanup(func() {
+		dryRun = oldDryRun
+		format = oldFormat
+	})
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -1968,8 +1975,13 @@ func TestRenumberDryRunWithPhases(t *testing.T) {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
 
+	oldDryRun, oldFormat := dryRun, format
 	dryRun = true
-	defer func() { dryRun = false }()
+	format = "table"
+	t.Cleanup(func() {
+		dryRun = oldDryRun
+		format = oldFormat
+	})
 
 	cmd := &cobra.Command{}
 	args := []string{testFile}
