@@ -310,7 +310,7 @@ func parseDetailsAndChildren(lines []string, startIdx, expectedIndent int, paren
 			// rewrite the file without them.
 			detail := parseDetailLine(lines[i])
 			if detail == "" {
-				return nil, i, fmt.Errorf("line %d: unexpected content at this indentation level", i+1)
+				return nil, i, fmt.Errorf("line %d: unexpected content at this indentation level (missing '- ' bullet?)", i+1)
 			}
 			items = append(items, detail)
 		default:

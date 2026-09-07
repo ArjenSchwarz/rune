@@ -1346,7 +1346,11 @@ func TestExtractPhasesWithTaskRangesIndentedLines(t *testing.T) {
 			wantPhaseNames: []string{"Phase A", "Phase B"},
 			wantTaskCounts: []int{2, 1},
 		},
-		"continuation_lines_with_description": {
+		// The description line must carry a "- " bullet: a bare, non-bulleted
+		// continuation line is rejected by the parser as of T-2041 (see
+		// parse_detail_line_test.go), so this case covers a bulleted detail
+		// between a task and its subtask, not a free-text continuation.
+		"bulleted_continuation_with_description": {
 			content:        "# Project\n\n## Planning\n\n- [ ] 1. Define requirements\n  - This task involves gathering input\n  - [ ] 1.1. Review docs\n- [ ] 2. Write spec\n\n## Implementation\n\n- [ ] 3. Build feature\n",
 			wantPhases:     2,
 			wantPhaseNames: []string{"Planning", "Implementation"},

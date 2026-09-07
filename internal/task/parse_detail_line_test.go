@@ -33,7 +33,9 @@ func TestParseRejectsNonBulletDetailLines(t *testing.T) {
 - [ ] 1. Keep me
   this malformed body line is not a Markdown bullet
 - [ ] 2. Keep me too`,
-			errContains: "unexpected content",
+			// The hint is asserted here because this is the first error
+			// users of previously-tolerated files will hit after upgrading.
+			errContains: "unexpected content at this indentation level (missing '- ' bullet?)",
 		},
 		"non_bullet_line_after_valid_detail": {
 			content: `# Tasks
