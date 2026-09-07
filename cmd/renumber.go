@@ -47,6 +47,9 @@ Usage Examples:
   # Renumber file with phases
   rune renumber project.md --format markdown
 
+  # Preview without creating a backup or modifying the file
+  rune renumber tasks.md --dry-run
+
 How It Works:
   1. Validates file path and checks resource limits
   2. Parses the task file and phase markers
@@ -58,7 +61,8 @@ How It Works:
 
 Important Notes:
   - Requirement links in task details are NOT updated automatically
-  - Backup file is always created for safety
+  - Backup file is always created for safety, except with --dry-run, which
+    previews the result without creating a backup or writing the file
   - If interrupted (Ctrl+C), original file remains intact
   - Use backup file to restore if needed
 

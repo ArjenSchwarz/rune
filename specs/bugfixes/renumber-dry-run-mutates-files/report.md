@@ -47,13 +47,14 @@
 ## Regression Test
 
 **Test file:** `cmd/renumber_test.go`
-**Test names:** `TestRenumberDryRunDoesNotModifyFile`, `TestRenumberDryRunJSON`
+**Test names:** `TestRenumberDryRunDoesNotModifyFile`, `TestRenumberDryRunJSON`, `TestRenumberDryRunMarkdown`
 
 **What they verify:**
 - `TestRenumberDryRunDoesNotModifyFile` reproduces the exact ticket scenario (IDs `1`/`3`) with table format, asserts the file content is byte-for-byte unchanged after `--dry-run`, and asserts no `.bak` file is created.
-- `TestRenumberDryRunJSON` reproduces the ticket's `--format json` repro, asserts the JSON response has `success: true` and an empty `backup_file`, and asserts the file and absence of a `.bak` file, same as above.
+- `TestRenumberDryRunJSON` reproduces the ticket's `--format json` repro, asserts the JSON response has `success: true`, `dry_run: true` and an empty `backup_file`, and asserts the file and absence of a `.bak` file, same as above.
+- `TestRenumberDryRunMarkdown` covers the `--format markdown` branch of the dry-run path, asserting the preview reports the dry-run status with no backup file line, and that the task file is untouched.
 
-**Run command:** `go test ./cmd -run 'TestRenumberDryRunDoesNotModifyFile|TestRenumberDryRunJSON' -v`
+**Run command:** `go test ./cmd -run 'TestRenumberDryRun' -v`
 
 Both tests were confirmed to fail against the pre-fix code (file mutated, `.bak` created, `backup_file` populated) and pass after the fix.
 
