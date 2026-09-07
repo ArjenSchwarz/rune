@@ -2783,6 +2783,13 @@ func TestNextCommandClaimRejectsInvalidOwner(t *testing.T) {
 				if runErr == nil {
 					t.Fatalf("expected an error for claim value %q, got nil (output: %s)", tc.claimValue, buf.String())
 				}
+				// Require the rejection to come from owner validation. Several
+				// other paths in runNextWithClaim also return errors, so a bare
+				// non-nil check would stay green if the guard were removed and
+				// something else happened to fail instead.
+				if !strings.Contains(runErr.Error(), "invalid claim value") {
+					t.Fatalf("expected an owner-validation error for %q, got: %v", tc.claimValue, runErr)
+				}
 			} else if runErr != nil {
 				t.Fatalf("unexpected error for claim value %q: %v", tc.claimValue, runErr)
 			}
@@ -2790,6 +2797,15 @@ func TestNextCommandClaimRejectsInvalidOwner(t *testing.T) {
 			after, err := os.ReadFile(fileName)
 			if err != nil {
 				t.Fatalf("failed to read file after claim: %v", err)
+			}
+
+			if !tc.wantErr {
+				// Positive control: a valid claim must actually land in the
+				// file. Without this the success row would pass even if the
+				// guard rejected everything.
+				if !strings.Contains(string(after), "Owner: "+tc.claimValue) {
+					t.Errorf("valid claim %q was not written to the file:\n%s", tc.claimValue, after)
+				}
 			}
 
 			if tc.wantErr {

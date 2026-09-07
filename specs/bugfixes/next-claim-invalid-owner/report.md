@@ -64,11 +64,15 @@ caller, like `next --claim`, that needed to validate without going through
 the full option-struct update path (claiming also sets `Status`, which
 `UpdateTaskWithOptions` does not handle).
 
-**Contributing factors:** owner assignment has three independent write
-sites in the codebase (`AddTaskWithOptions`, `UpdateTaskWithOptions`, and
-this direct assignment in `next --claim`), and only the first two were
-built after `validateOwner` existed and wired through it. The claim path
-was never revisited against that convention.
+**Contributing factors:** owner assignment has four independent write
+sites in the codebase: `AddTaskWithOptions`, `UpdateTaskWithOptions`, the
+direct `newTask.Owner = *op.Owner` in `internal/task/batch.go`, and this
+direct assignment in `next --claim`. Only the first two validate locally.
+The batch site is safe today, but by caller-side validation rather than its
+own guard: `ExecuteBatchWithPhases` validates every operation up front. That
+is the same drift-prone shape this report argues against elsewhere, and it
+is why the claim path went unnoticed for so long — the convention was never
+enforced at the point of assignment.
 
 ## Resolution for the Issue
 
