@@ -529,3 +529,56 @@ func TestAddPhaseCommandAcceptsPathInsideWorkingDirectory(t *testing.T) {
 		t.Errorf("unexpected file content after add-phase:\ngot:  %q\nwant: %q", string(content), want)
 	}
 }
+
+// TestAddPhaseCommandWriteFailurePreservesFile is a regression test for T-1854:
+// runAddPhase used to write the appended content back to the target file with
+// a plain os.WriteFile, which truncates the target (O_TRUNC) before writing
+// any bytes. If the write failed partway through -- disk full, quota
+// exceeded, a file-size limit -- the original file was left truncated and
+// the pre-existing content was lost. See TestIntegrationAddPhase in
+// cmd/integration_add_phase_test.go (INTEGRATION=1) for a faithful
+// reproduction of the exact ulimit -f scenario confirmed during triage.
+//
+// This test forces the write step to fail deterministically, without
+// needing ulimit/disk-full, by pre-creating "tasks.md.tmp" as a directory:
+// task.WriteFileAtomic's os.WriteFile to that path then fails with "is a
+// directory" before ever touching "tasks.md". Before the fix, runAddPhase
+// wrote directly to "tasks.md" via os.WriteFile and never created a ".tmp"
+// file at all, so this setup had no effect on it -- the write succeeded,
+// silently truncating and overwriting the original content instead of
+// failing. After the fix, the write fails and "tasks.md" is left
+// byte-for-byte unchanged.
+func TestAddPhaseCommandWriteFailurePreservesFile(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	// runAddPhase reads these package-level flag globals. Save and restore
+	// them so this test cannot leak state into sibling tests.
+	origVerbose, origFormat, origDryRun := verbose, format, dryRun
+	t.Cleanup(func() { verbose, format, dryRun = origVerbose, origFormat, origDryRun })
+	verbose, format, dryRun = false, "table", false
+
+	const filename = "tasks.md"
+	originalContent := "# My Tasks\n\n- [ ] 1. Existing task\n"
+	if err := os.WriteFile(filename, []byte(originalContent), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	// Block the atomic writer's temp file with a directory of the same name,
+	// forcing the write step to fail.
+	if err := os.Mkdir(filename+".tmp", 0755); err != nil {
+		t.Fatalf("failed to create blocking directory: %v", err)
+	}
+
+	err := runAddPhase(&cobra.Command{}, []string{filename, "Planning"})
+	if err == nil {
+		t.Fatal("expected add-phase to fail when the write step cannot complete, got nil")
+	}
+
+	content, readErr := os.ReadFile(filename)
+	if readErr != nil {
+		t.Fatalf("failed to read file after failed add-phase: %v", readErr)
+	}
+	if string(content) != originalContent {
+		t.Errorf("original file was modified despite write failure:\ngot:  %q\nwant: %q", string(content), originalContent)
+	}
+}

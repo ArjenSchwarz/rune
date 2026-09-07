@@ -298,6 +298,133 @@ func TestWriteFile(t *testing.T) {
 	})
 }
 
+// TestWriteFileAtomic exercises the shared atomic-write helper directly.
+// TaskList.WriteFile, WriteFileWithPhases and the add-phase command all route
+// through it, so its contract is pinned here independently of any one caller:
+// the target is only ever replaced by a rename of a fully written temp file,
+// so a failed write leaves it untouched, and no temp file survives either way.
+func TestWriteFileAtomic(t *testing.T) {
+	const original = "# Original\n\n- [ ] 1. Original task\n"
+	const replacement = "# Replacement\n\n- [ ] 1. Replacement task\n"
+
+	tests := map[string]struct {
+		// setup prepares the working directory and returns the target path.
+		setup func(t *testing.T) string
+		// wantErr is a substring of the expected error; empty means success.
+		wantErr string
+		// wantContent, when set, is the content the target must hold after.
+		wantContent string
+		// wantPerm, when non-zero, is the permission the target must keep.
+		wantPerm os.FileMode
+	}{
+		"creates a file that does not exist yet": {
+			setup:       func(t *testing.T) string { return "new.md" },
+			wantContent: replacement,
+		},
+		"replaces an existing file and preserves its permissions": {
+			setup: func(t *testing.T) string {
+				if err := os.WriteFile("existing.md", []byte(original), 0600); err != nil {
+					t.Fatalf("failed to create existing file: %v", err)
+				}
+				return "existing.md"
+			},
+			wantContent: replacement,
+			wantPerm:    0600,
+		},
+		"preserves a group-writable mode the umask would otherwise strip": {
+			// Regression guard for the permission bug the atomic rewrite
+			// introduced. os.WriteFile creates the temp file through open(2),
+			// which filters the mode through the umask, so 0664 silently became
+			// 0644 under the common umask 022. Writing in place never had that
+			// problem, because open(2) ignores the mode for an existing file.
+			// 0600 cannot catch this: the umask does not touch owner bits.
+			setup: func(t *testing.T) string {
+				if err := os.WriteFile("groupwritable.md", []byte(original), 0600); err != nil {
+					t.Fatalf("failed to create existing file: %v", err)
+				}
+				if err := os.Chmod("groupwritable.md", 0664); err != nil {
+					t.Fatalf("failed to set mode: %v", err)
+				}
+				return "groupwritable.md"
+			},
+			wantContent: replacement,
+			wantPerm:    0664,
+		},
+		"write failure leaves the original file untouched": {
+			setup: func(t *testing.T) string {
+				if err := os.WriteFile("blocked.md", []byte(original), 0644); err != nil {
+					t.Fatalf("failed to create existing file: %v", err)
+				}
+				// A directory sitting at the temp path makes the write to it
+				// fail before the target is opened at all, standing in for a
+				// real disk-full/quota/file-size failure.
+				if err := os.Mkdir("blocked.md.tmp", 0755); err != nil {
+					t.Fatalf("failed to create blocking directory: %v", err)
+				}
+				return "blocked.md"
+			},
+			wantErr:     "writing temp file",
+			wantContent: original,
+		},
+		"rename failure cleans up the temp file": {
+			setup: func(t *testing.T) string {
+				// A directory at the target path lets the temp write succeed
+				// but makes the rename over it fail.
+				if err := os.Mkdir("target.md", 0755); err != nil {
+					t.Fatalf("failed to create directory: %v", err)
+				}
+				return "target.md"
+			},
+			wantErr: "atomic rename",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			path := tt.setup(t)
+
+			err := WriteFileAtomic(path, []byte(replacement))
+
+			switch {
+			case tt.wantErr == "":
+				if err != nil {
+					t.Fatalf("WriteFileAtomic failed: %v", err)
+				}
+			case err == nil:
+				t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+			case !strings.Contains(err.Error(), tt.wantErr):
+				t.Fatalf("expected error containing %q, got %v", tt.wantErr, err)
+			}
+
+			// The temp file must never survive, on success or on failure.
+			if _, statErr := os.Stat(path + ".tmp"); !os.IsNotExist(statErr) {
+				t.Errorf("temp file %q was not cleaned up", path+".tmp")
+			}
+
+			if tt.wantContent != "" {
+				content, readErr := os.ReadFile(path)
+				if readErr != nil {
+					t.Fatalf("failed to read target file: %v", readErr)
+				}
+				if string(content) != tt.wantContent {
+					t.Errorf("target content = %q, want %q", string(content), tt.wantContent)
+				}
+			}
+
+			if tt.wantPerm != 0 {
+				info, statErr := os.Stat(path)
+				if statErr != nil {
+					t.Fatalf("failed to stat target file: %v", statErr)
+				}
+				if info.Mode().Perm() != tt.wantPerm {
+					t.Errorf("target permissions = %v, want %v", info.Mode().Perm(), tt.wantPerm)
+				}
+			}
+		})
+	}
+}
+
 func TestAddTask(t *testing.T) {
 	t.Run("add root task", func(t *testing.T) {
 		tl := &TaskList{Title: "Test Tasks"}
