@@ -116,6 +116,14 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Validate phase name before the dry-run branch so the preview matches what
+	// a real run would do (add-phase validates ahead of its dry run too).
+	if addPhase != "" {
+		if err := task.ValidatePhaseName(addPhase); err != nil {
+			return err
+		}
+	}
+
 	// Dry run mode - just show what would be added
 	if dryRun {
 		fmt.Printf("Would add task to file: %s\n", filename)
@@ -154,10 +162,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	var newTaskID string
 	switch {
 	case addPhase != "":
-		// Validate phase name
-		if err := task.ValidatePhaseName(addPhase); err != nil {
-			return err
-		}
+		// Phase name already validated above (before the dry-run branch).
 		// Use phase-aware task addition
 		newTaskID, err = task.AddTaskToPhase(filename, addParent, addTitle, addPhase)
 		if err != nil {

@@ -615,6 +615,13 @@ func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error)
 	if err := validateTaskInput(title); err != nil {
 		return "", err
 	}
+	// Validate the phase name here as well as at the call sites: this is an
+	// exported API, and the name is rendered verbatim into a "## {name}" header,
+	// so an unvalidated control character would let a caller inject arbitrary
+	// markdown/task lines into the file.
+	if err := ValidatePhaseName(phaseName); err != nil {
+		return "", err
+	}
 
 	// Check resource limits
 	if err := tl.checkResourceLimits(parentID); err != nil {

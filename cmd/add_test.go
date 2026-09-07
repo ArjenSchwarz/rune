@@ -884,6 +884,39 @@ func TestRunAddWithPhase(t *testing.T) {
 	}
 }
 
+// TestRunAddWithPhaseDryRunRejectsNewline verifies that `add --phase` validates
+// the phase name before the dry-run branch, so the preview matches what a real
+// run would do. Previously the dry-run path returned early and printed the raw
+// multi-line phase name without error.
+func TestRunAddWithPhaseDryRunRejectsNewline(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "tasks.md")
+	original := "# Test Tasks\n\n- [ ] 1. Existing task\n"
+	if err := os.WriteFile(filename, []byte(original), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	addTitle = "New task"
+	addPhase = "Bad\n- [ ] 999. Injected"
+	addParent = ""
+	addPosition = ""
+	dryRun = true
+	t.Cleanup(func() {
+		addTitle = ""
+		addPhase = ""
+		addParent = ""
+		addPosition = ""
+		dryRun = false
+	})
+
+	err := runAdd(&cobra.Command{}, []string{filename})
+	if err == nil {
+		t.Fatal("expected error for phase name containing newline in dry-run, got nil")
+	}
+	if !strings.Contains(err.Error(), "control character") {
+		t.Fatalf("expected control character error, got: %v", err)
+	}
+}
+
 func TestAddCmdFlags(t *testing.T) {
 	// Test that required flags are properly configured
 	if !addCmd.Flag("title").Changed && addCmd.Flag("title").Value.String() == "" {

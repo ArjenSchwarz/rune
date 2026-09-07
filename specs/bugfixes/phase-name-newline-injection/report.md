@@ -63,6 +63,14 @@ when phase names started being written straight into headers.
   name containing a control character (via `unicode.IsControl`), which
   covers `\n`, `\r`, `\t`, and other C0/C1 control codes, in addition to the
   existing empty/whitespace-only check.
+- `internal/task/operations.go` - `AddTaskToPhase` calls `ValidatePhaseName`
+  itself. It is an exported API that writes `phaseName` verbatim into a
+  `## {name}` header, so a future direct caller that skipped validation would
+  reopen the hole. Defense-in-depth, added after PR review.
+- `cmd/add.go` - the `--phase` validation moved above the `--dry-run` early
+  return, so the dry-run preview errors the same way a real run does instead
+  of printing the raw multi-line name. Matches `add-phase`, which already
+  validated ahead of its dry run.
 
 **Approach rationale:** All four call sites already funnel through this one
 function, so fixing it there closes the hole everywhere at once with a
@@ -97,6 +105,11 @@ don't auto-correct).
   `TestRunAddWithPhase` (`add --phase` CLI path)
 - `cmd/add_phase_test.go` - `TestRunAddPhaseRejectsNewline` (`add-phase` CLI
   path, reproduces the exact ticket scenario end-to-end)
+- `internal/task/phase_operations_test.go` -
+  `TestAddTaskToPhaseValidatesPhaseName` (exported `AddTaskToPhase` rejects a
+  control-character phase name on its own, without call-site validation)
+- `cmd/add_test.go` - `TestRunAddWithPhaseDryRunRejectsNewline`
+  (`add --phase --dry-run` errors instead of previewing the raw name)
 
 **What it verifies:** a phase name containing a newline (or other control
 character) is rejected with an error, the file is left unmodified, and no
@@ -117,6 +130,9 @@ go test ./cmd/... -run 'TestRunAddPhaseRejectsNewline|TestRunAddWithPhase'
 | `internal/task/batch_operations_test.go` | New regression case for batch `add-phase` operation validation. |
 | `cmd/add_test.go` | New regression case for `add --phase`; also fixed a test-isolation gap where an `expectError` case didn't reset shared command flags, which the new case exposed as pollution into other tests in the same package. |
 | `cmd/add_phase_test.go` | New end-to-end regression test for the `add-phase` command. |
+| `internal/task/operations.go` | `AddTaskToPhase` validates `phaseName` internally (defense-in-depth for the exported API). |
+| `cmd/add.go` | `--phase` validation moved ahead of the `--dry-run` early return so the preview matches a real run. |
+| `internal/task/phase_operations_test.go` | New regression test that `AddTaskToPhase` rejects control-character phase names without call-site validation. |
 
 ## Verification
 

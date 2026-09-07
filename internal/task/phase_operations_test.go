@@ -1332,3 +1332,56 @@ func TestAddTaskToPhaseSubtaskNoPhantomPhase(t *testing.T) {
 		})
 	}
 }
+
+// TestAddTaskToPhaseValidatesPhaseName verifies that AddTaskToPhase validates
+// its phaseName argument itself rather than relying on callers to do so.
+//
+// Follow-up to T-1603: AddTaskToPhase is exported, and it writes phaseName
+// verbatim into a "## {name}" header, so a direct caller that skipped
+// ValidatePhaseName would reopen the newline-injection hole.
+func TestAddTaskToPhaseValidatesPhaseName(t *testing.T) {
+	tests := map[string]struct {
+		phaseName string
+		wantErr   bool
+	}{
+		"valid phase name":     {phaseName: "Planning", wantErr: false},
+		"phase with newline":   {phaseName: "Bad\n- [ ] 999. Injected", wantErr: true},
+		"phase with CR":        {phaseName: "Bad\rInjected", wantErr: true},
+		"phase with null byte": {phaseName: "Bad\x00Name", wantErr: true},
+		"empty phase name":     {phaseName: "", wantErr: true},
+	}
+
+	original := "# Project\n\n- [ ] 1. Existing task\n"
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Written into the working directory: WriteFileWithPhases rejects
+			// paths outside it as path traversal.
+			fileName := fmt.Sprintf("test_phase_name_validation_%s.md", strings.ReplaceAll(name, " ", "_"))
+			if err := os.WriteFile(fileName, []byte(original), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+			defer os.Remove(fileName)
+
+			_, err := AddTaskToPhase(fileName, "", "New task", tc.phaseName)
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("AddTaskToPhase(%q): expected error, got nil", tc.phaseName)
+				}
+				content, readErr := os.ReadFile(fileName)
+				if readErr != nil {
+					t.Fatalf("failed to read file: %v", readErr)
+				}
+				if string(content) != original {
+					t.Errorf("file was modified despite validation error; got:\n%s", string(content))
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("AddTaskToPhase(%q): unexpected error: %v", tc.phaseName, err)
+			}
+		})
+	}
+}

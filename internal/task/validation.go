@@ -12,6 +12,11 @@ import (
 // rendered verbatim into a markdown header ("## {name}"), so an unvalidated
 // control character (e.g. a newline) would let the name inject arbitrary
 // markdown/task lines into the file.
+//
+// This deliberately uses unicode.IsControl rather than the containsNullByte
+// helper used for task titles/details/references. A phase name is a short
+// heading, so the stricter rule applies: tabs and the DEL/C1 control codes
+// that containsNullByte permits are rejected here as well.
 func ValidatePhaseName(name string) error {
 	if strings.TrimSpace(name) == "" {
 		return fmt.Errorf("phase name cannot be empty")
