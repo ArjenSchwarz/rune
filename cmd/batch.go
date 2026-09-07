@@ -63,6 +63,17 @@ All operations are atomic - either all succeed or none are applied.`,
 }
 
 func runBatch(cmd *cobra.Command, args []string) error {
+	// Validate the requested output format before parsing or executing any
+	// operations. Rejecting an unsupported format must not mutate the task
+	// file, so this check has to happen before ExecuteBatch/
+	// ExecuteBatchWithPhases (which apply and save operations).
+	switch strings.ToLower(format) {
+	case formatJSON, formatTable, formatMarkdown:
+		// supported
+	default:
+		return fmt.Errorf("unsupported output format: %s", format)
+	}
+
 	// Read JSON input
 	var jsonData []byte
 	var err error
@@ -181,7 +192,7 @@ func runBatch(cmd *cobra.Command, args []string) error {
 	switch strings.ToLower(format) {
 	case formatJSON:
 		return outputBatchJSON(cmd, response)
-	case "table", formatMarkdown:
+	case formatTable, formatMarkdown:
 		return outputBatchText(cmd, response, req.DryRun, req.File, taskList)
 	default:
 		return fmt.Errorf("unsupported output format: %s", format)
