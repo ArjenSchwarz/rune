@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -74,12 +75,14 @@ func ParseFileWithPhases(filepath string) (*TaskList, []PhaseMarker, error) {
 	}
 	taskList.FilePath = filepath
 
-	// Extract phase markers from the content, stripping front matter first
-	lines := StripFrontMatterLines(splitLines(string(content)))
+	return taskList, phaseMarkersFromContent(content), nil
+}
 
-	phaseMarkers := ExtractPhaseMarkers(lines)
-
-	return taskList, phaseMarkers, nil
+// phaseMarkersFromContent extracts phase markers from raw file content,
+// skipping front matter first so YAML comment lines ("## ...") inside it are
+// not mistaken for phase headers.
+func phaseMarkersFromContent(content []byte) []PhaseMarker {
+	return ExtractPhaseMarkers(StripFrontMatterLines(splitLines(string(content))))
 }
 
 // StripFrontMatterLines removes front matter lines from the beginning of a
@@ -206,33 +209,7 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 				case Task:
 					task.Children = append(task.Children, v)
 				case string:
-					// Check for new metadata fields first (case-insensitive)
-					if blockedBy := parseBlockedByLine(v); blockedBy != nil {
-						task.BlockedBy = blockedBy
-					} else if stream := parseStreamLine(v); stream > 0 {
-						task.Stream = stream
-					} else if owner := parseOwnerLine(v); owner != "" {
-						task.Owner = owner
-					} else if reqs, ok := strings.CutPrefix(v, "Requirements: "); ok {
-						// Check if it's a requirements line
-						reqIDs, reqFile := parseRequirements(reqs)
-						// Only treat as requirements if we successfully parsed at least one
-						if len(reqIDs) > 0 {
-							task.Requirements = reqIDs
-							// Store requirements file path in TaskList if not already set
-							if reqFile != "" && taskList.RequirementsFile == "" {
-								taskList.RequirementsFile = reqFile
-							}
-						} else {
-							// Malformed requirements line, treat as plain text detail
-							task.Details = append(task.Details, v)
-						}
-					} else if refs, ok := strings.CutPrefix(v, "References: "); ok {
-						// Check if it's a reference line
-						task.References = parseReferences(refs)
-					} else {
-						task.Details = append(task.Details, v)
-					}
+					applyDetailLine(&task, v, taskList)
 				}
 			}
 
@@ -252,6 +229,54 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 	}
 
 	return tasks, len(lines) - 1, nil
+}
+
+// applyDetailLine records the content of one "- " line under a task either as
+// task metadata (Blocked-by, Stream, Owner, Requirements, References) or as a
+// plain detail. It returns the name of the metadata field the line was read
+// as, or "" for a plain detail.
+//
+// This is the only place that decides how such a line is read back, and
+// validateDetails uses it to reject details that would not survive a
+// write/read round trip, so the two can never disagree.
+func applyDetailLine(task *Task, v string, taskList *TaskList) string {
+	// Check for new metadata fields first (case-insensitive)
+	if blockedBy := parseBlockedByLine(v); blockedBy != nil {
+		task.BlockedBy = blockedBy
+		return "Blocked-by"
+	}
+	if stream := parseStreamLine(v); stream > 0 {
+		task.Stream = stream
+		return "Stream"
+	}
+	if owner := parseOwnerLine(v); owner != "" {
+		task.Owner = owner
+		return "Owner"
+	}
+	if reqs, ok := strings.CutPrefix(v, "Requirements: "); ok {
+		reqIDs, reqFile := parseRequirements(reqs)
+		// Only treat as requirements if we successfully parsed at least one;
+		// a malformed requirements line falls through to a plain detail
+		if len(reqIDs) > 0 {
+			task.Requirements = reqIDs
+			// Store requirements file path in TaskList if not already set
+			if reqFile != "" && taskList.RequirementsFile == "" {
+				taskList.RequirementsFile = reqFile
+			}
+			return "Requirements"
+		}
+	} else if refs, ok := strings.CutPrefix(v, "References: "); ok {
+		task.References = parseReferences(refs)
+		return "References"
+	}
+	task.Details = append(task.Details, v)
+	return ""
+}
+
+// detailMetadataField returns the metadata field a detail would be read back
+// as once written to a file, or "" if it would be read back as a detail.
+func detailMetadataField(detail string) string {
+	return applyDetailLine(&Task{}, detail, &TaskList{})
 }
 
 func parseDetailsAndChildren(lines []string, startIdx, expectedIndent int, parentID string, taskList *TaskList) ([]any, int, error) {
@@ -532,33 +557,11 @@ func countIndent(line string) int {
 // raw markdown IDs, so that downstream consumers can compare directly against TaskList.Tasks[i].ID.
 func ExtractPhaseMarkers(lines []string) []PhaseMarker {
 	markers := []PhaseMarker{}
-	var lastSequentialID string
-	topLevelTaskCount := 0
-
-	for _, line := range lines {
-		line = strings.TrimRight(line, "\r")
-		// Phase headers must start at the beginning of the line (no indentation)
-		// Check if line is a phase header (H2) - use original line, not trimmed
-		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
-			phaseName := strings.TrimSpace(matches[1])
-			markers = append(markers, PhaseMarker{
-				Name:        phaseName,
-				AfterTaskID: lastSequentialID,
-			})
-		} else if _, ok, err := parseTaskLine(line); err == nil && ok {
-			// Extract task ID from the line
-			// The task ID is captured in the regex pattern
-			if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
-				// Only update lastSequentialID for top-level tasks (not subtasks)
-				// Top-level tasks don't have dots in their IDs
-				taskID := taskMatches[3]
-				if !strings.Contains(taskID, ".") {
-					topLevelTaskCount++
-					lastSequentialID = fmt.Sprintf("%d", topLevelTaskCount)
-				}
-			}
-		}
-	}
-
+	lastSequentialID := ""
+	walkPhaseLines(lines,
+		func(name string) {
+			markers = append(markers, PhaseMarker{Name: name, AfterTaskID: lastSequentialID})
+		},
+		func(position int) { lastSequentialID = strconv.Itoa(position) })
 	return markers
 }

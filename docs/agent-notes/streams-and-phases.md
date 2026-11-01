@@ -26,10 +26,16 @@
 When tasks are inserted or removed, phase markers (`PhaseMarker.AfterTaskID`) must be adjusted to reflect new task numbering:
 
 - **Removal**: `adjustPhaseMarkersForRemoval` decrements all markers referencing tasks after the removed task. If a marker references the removed task itself, it shifts to the previous task.
-- **Insertion via `AddTaskToPhase`**: Two-step process:
-  1. The immediate next phase marker is set to the newly inserted task's ID (it becomes the last task in the current phase).
-  2. All markers beyond that are adjusted via `adjustPhaseMarkersForInsertion`, which increments `AfterTaskID` for tasks at or after the insertion position.
-- Both functions only apply to top-level tasks (IDs without dots), since subtask changes don't affect phase marker numbering.
+- **Insertion**: every add (the `add` command, batch `add`, and the file-level `AddTaskToPhase` wrapper) goes through `TaskList.AddTaskWithPhases` in `internal/task/batch.go`, which keeps the markers in step:
+  - Into a phase (`op.Phase`, no parent): the task is appended to the end of that phase; the immediate next marker is set to the new task's ID and all markers beyond it are shifted via `adjustPhaseMarkersForInsertion`.
+  - At a root position (`op.Position`, no phase): markers at or after the insertion point are shifted via `adjustPhaseMarkersForInsertion`, so the new task joins the phase of the task that previously held its position.
+  - Subtasks (`op.Parent` set) stay under their parent: `op.Phase` is ignored (but still validated) and never creates a phase.
+- Both adjustments only apply to top-level tasks (IDs without dots), since subtask changes don't affect phase marker numbering.
+- `TaskList.WriteFile` re-reads the markers from the file on disk. That is only correct when the top-level structure is unchanged since the file was read. Any code that inserts, removes or reorders top-level tasks must track markers itself and write with `WriteFileWithPhases`.
+
+## Scanning Lines for Phases
+
+All raw-line phase scanning (`ExtractPhaseMarkers`, `extractPhasesWithTaskRanges`, `buildTaskPhaseMap`, `getTaskPhase`) goes through `walkPhaseLines` in `internal/task/phase.go`. A task line is top-level only if it is unindented, matching the parser, which nests by indentation and ignores the raw IDs. Counting by "raw ID has no dot" (the old approach) mis-mapped every later task when a subtask was hand-written as `  - [ ] 1. child`. Use `phaseMarkersFromContent` to get markers from raw file content; it strips front matter first so YAML `## comment` lines aren't read as phases.
 
 ## Gotchas
 

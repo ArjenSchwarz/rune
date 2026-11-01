@@ -2,6 +2,7 @@ package task
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -18,12 +19,50 @@ func addPhase(name string) string {
 	return fmt.Sprintf("## %s\n", name)
 }
 
+// walkPhaseLines is the single scanner that maps raw document lines to phase
+// membership. In document order, it calls onPhase with the name of every H2
+// phase header and onTopLevelTask with the 1-based position of every top-level
+// task line. That position is the ID the parser assigns to the task, so it can
+// be compared directly against TaskList.Tasks[i].ID (or used as i+1). Either
+// callback may be nil. Trailing \r from CRLF files is ignored.
+//
+// Every phase-aware function must go through this walker so they all agree
+// with the parser about which lines are top-level tasks.
+func walkPhaseLines(lines []string, onPhase func(name string), onTopLevelTask func(position int)) {
+	position := 0
+	for _, line := range lines {
+		line = strings.TrimRight(line, "\r")
+		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
+			if onPhase != nil {
+				onPhase(strings.TrimSpace(matches[1]))
+			}
+			continue
+		}
+		if isTopLevelTaskLine(line) {
+			position++
+			if onTopLevelTask != nil {
+				onTopLevelTask(position)
+			}
+		}
+	}
+}
+
+// isTopLevelTaskLine reports whether line is a task line the parser would
+// treat as a top-level task. The parser accepts root tasks only at indent 0
+// and assigns IDs by position, so nesting is decided by indentation alone:
+// the raw ID written in the markdown says nothing about it. A subtask
+// hand-written as "  - [ ] 1. child" (no dot) is not top-level, and an
+// unindented "- [ ] 1.1. task" is.
+func isTopLevelTaskLine(line string) bool {
+	matches := taskLinePattern.FindStringSubmatch(line)
+	return matches != nil && matches[1] == ""
+}
+
 // getTaskPhase returns the name of the phase that contains the specified task
 // It determines phase membership by document position - a task belongs to the
 // most recent phase header that precedes it in the document.
 // For subtasks (IDs with dots), it finds the parent task's phase.
 // Returns empty string if the task is not within any phase or doesn't exist.
-// Uses positional counting to map raw markdown IDs to parsed sequential IDs.
 func getTaskPhase(taskID string, content []byte) string {
 	if taskID == "" {
 		return ""
@@ -35,62 +74,22 @@ func getTaskPhase(taskID string, content []byte) string {
 		parentID = before
 	}
 
-	lines := splitLines(string(content))
-	currentPhase := ""
-	topLevelTaskCount := 0
-
-	for _, line := range lines {
-		// Check if this is a phase header
-		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
-			currentPhase = strings.TrimSpace(matches[1])
-			continue
-		}
-
-		// Check if this line contains a top-level task
-		if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
-			rawID := taskMatches[3]
-			if !strings.Contains(rawID, ".") {
-				topLevelTaskCount++
-				sequentialID := fmt.Sprintf("%d", topLevelTaskCount)
-				if sequentialID == parentID {
-					return currentPhase
-				}
-			}
-		}
-	}
-
-	return ""
+	return buildTaskPhaseMap(splitLines(string(content)))[parentID]
 }
 
-// buildTaskPhaseMap creates a map from sequential parsed task IDs to phase names
-// in a single pass through the document lines. This is more efficient than calling
-// getTaskPhase for each task individually.
-// Uses positional counting to map raw markdown IDs to parsed sequential IDs.
+// buildTaskPhaseMap creates a map from sequential parsed top-level task IDs to
+// phase names in a single pass through the document lines. Tasks before the
+// first phase header are not included.
 func buildTaskPhaseMap(lines []string) map[string]string {
 	taskPhaseMap := make(map[string]string)
 	currentPhase := ""
-	topLevelTaskCount := 0
-
-	for _, line := range lines {
-		// Check if this is a phase header
-		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
-			currentPhase = strings.TrimSpace(matches[1])
-			continue
-		}
-
-		// Check if this line contains a top-level task
-		if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
-			rawID := taskMatches[3]
-			if !strings.Contains(rawID, ".") {
-				topLevelTaskCount++
-				if currentPhase != "" {
-					sequentialID := fmt.Sprintf("%d", topLevelTaskCount)
-					taskPhaseMap[sequentialID] = currentPhase
-				}
+	walkPhaseLines(lines,
+		func(name string) { currentPhase = name },
+		func(position int) {
+			if currentPhase != "" {
+				taskPhaseMap[strconv.Itoa(position)] = currentPhase
 			}
-		}
-	}
-
+		})
 	return taskPhaseMap
 }
 

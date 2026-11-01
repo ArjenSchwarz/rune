@@ -299,6 +299,14 @@ func NewTaskList(title string, frontMatter ...*FrontMatter) *TaskList {
 
 // WriteFile saves the TaskList to a markdown file using atomic writes
 // This method includes front matter if present
+//
+// If the file on disk has phase headers, WriteFile re-reads them and keeps
+// them at the same top-level task positions. That is only correct when the
+// top-level structure is unchanged since the file was read (status, title or
+// metadata edits, appends, subtask changes). A caller that inserts, removes
+// or reorders top-level tasks must track the markers itself (for example via
+// AddTaskWithPhases or adjustPhaseMarkersForRemoval) and write with
+// WriteFileWithPhases instead, or phase boundaries shift onto the wrong tasks.
 func (tl *TaskList) WriteFile(filePath string) error {
 	// Validate file path
 	if err := ValidateFilePath(filePath); err != nil {
@@ -308,9 +316,7 @@ func (tl *TaskList) WriteFile(filePath string) error {
 	// Check if the original file has phase markers (if file exists)
 	var phaseMarkers []PhaseMarker
 	if existingContent, err := os.ReadFile(filePath); err == nil {
-		// File exists, check for phases
-		lines := splitLines(string(existingContent))
-		phaseMarkers = ExtractPhaseMarkers(lines)
+		phaseMarkers = phaseMarkersFromContent(existingContent)
 	}
 
 	// If phases exist, use phase-aware write
@@ -521,6 +527,9 @@ func ValidateTaskListTitle(title string) error {
 // skipping the detail at render time keeps the round-trip honest: silently
 // dropping input is exactly the behaviour T-2041 removed from the parser, and
 // a detail without content carries no meaning to drop.
+//
+// Details that the parser would read back as metadata are rejected for the
+// same reason: they would not survive the round trip as details.
 func validateDetails(details []string) error {
 	for i, detail := range details {
 		if strings.TrimSpace(detail) == "" {
@@ -531,6 +540,12 @@ func validateDetails(details []string) error {
 		}
 		if len(detail) > MaxDetailLength {
 			return fmt.Errorf("detail %d exceeds maximum length of %d characters", i+1, MaxDetailLength)
+		}
+		// A detail that looks like a metadata line ("Stream: 3", "Owner: x",
+		// "References: a", ...) is rendered as a plain "- " bullet but parsed
+		// back as that metadata, silently turning the detail into data.
+		if field := detailMetadataField(detail); field != "" {
+			return fmt.Errorf("detail %d would be read back as %s metadata, not as a detail: %q", i+1, field, detail)
 		}
 	}
 	return nil
@@ -647,160 +662,35 @@ func (tl *TaskList) AddFrontMatterContent(references []string, metadata map[stri
 	return nil
 }
 
-// AddTaskToPhase adds a task to a specific phase, creating the phase if it doesn't exist
-// This function handles phase-aware task addition by finding the correct position within a phase
+// AddTaskToPhase adds a task to a specific phase of the file at filepath,
+// creating the phase if it doesn't exist, and writes the file. A subtask
+// (parentID set) stays under its parent and never creates a phase. This is a
+// file-level convenience wrapper around TaskList.AddTaskWithPhases.
 func AddTaskToPhase(filepath, parentID, title, phaseName string) (string, error) {
-	// Parse file with phase information
 	tl, phaseMarkers, err := ParseFileWithPhases(filepath)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse file '%s' with phases: %w", filepath, err)
 	}
 
-	// Validate input
-	if err := validateTaskInput(title); err != nil {
+	// An empty phase name would make AddTaskWithPhases fall back to a plain
+	// add, so reject it here: this API always targets a named phase.
+	if _, err := NormalizePhaseName(phaseName); err != nil {
 		return "", err
 	}
-	// Normalize the phase name here as well as at the call sites: this is an
-	// exported API, and the name is rendered verbatim into a "## {name}" header,
-	// so an unvalidated control character would let a caller inject arbitrary
-	// markdown/task lines into the file. Normalizing also means the marker
-	// lookup below compares the trimmed name, matching an existing header.
-	phaseName, err = NormalizePhaseName(phaseName)
+
+	newTaskID, err := tl.AddTaskWithPhases(Operation{
+		Type:   addOperation,
+		Parent: parentID,
+		Title:  title,
+		Phase:  phaseName,
+	}, &phaseMarkers)
 	if err != nil {
 		return "", err
 	}
 
-	// Check resource limits
-	if err := tl.checkResourceLimits(parentID); err != nil {
-		return "", err
-	}
-
-	// Subtasks inherit their parent's phase — skip all phase mutation logic
-	if parentID != "" {
-		newTaskID, err := tl.AddTask(parentID, title, "")
-		if err != nil {
-			return "", fmt.Errorf("failed to add subtask to '%s': %w", filepath, err)
-		}
-		if err := WriteFileWithPhases(tl, phaseMarkers, filepath); err != nil {
-			return "", fmt.Errorf("failed to write file '%s' with phases: %w", filepath, err)
-		}
-		return newTaskID, nil
-	}
-
-	var newTaskID string
-	var insertPosition int
-
-	// Find the phase position
-	phaseFound := false
-	for _, marker := range phaseMarkers {
-		if marker.Name == phaseName {
-			phaseFound = true
-			break
-		}
-	}
-
-	if !phaseFound {
-		// Phase doesn't exist, create it at the end and add task there
-		insertPosition = len(tl.Tasks)
-
-		// Add phase marker to the list (will be rendered when file is written)
-		afterTaskID := ""
-		if len(tl.Tasks) > 0 {
-			afterTaskID = tl.Tasks[len(tl.Tasks)-1].ID
-		}
-		phaseMarkers = append(phaseMarkers, PhaseMarker{
-			Name:        phaseName,
-			AfterTaskID: afterTaskID,
-		})
-	} else {
-		// Phase exists, find where to insert the task within this phase
-
-		// Now find where the next phase starts (this is where current phase ends)
-		phaseEndPos := len(tl.Tasks) // Default to end of list
-
-		// Look for the next phase marker in document order
-		for i, marker := range phaseMarkers {
-			// Skip until we find our target phase
-			if marker.Name != phaseName {
-				continue
-			}
-
-			// Look for the next phase after this one
-			if i+1 < len(phaseMarkers) {
-				nextMarker := phaseMarkers[i+1]
-				if nextMarker.AfterTaskID == "" {
-					phaseEndPos = 0 // Next phase is at the beginning (shouldn't happen in practice)
-				} else {
-					// Find where the next phase starts
-					// The next phase starts after the specified task, so we want to insert before that
-					for j, task := range tl.Tasks {
-						if task.ID == nextMarker.AfterTaskID {
-							phaseEndPos = j + 1 // Insert after this task (which is where next phase starts)
-							break
-						}
-					}
-				}
-			}
-			break
-		}
-
-		// Insert at the end of the current phase
-		insertPosition = phaseEndPos
-	}
-
-	// Insert task at the calculated position
-	newTaskID = fmt.Sprintf("%d", insertPosition+1)
-	newTask := Task{
-		ID:     tempTaskID, // Will be renumbered
-		Title:  title,
-		Status: Pending,
-	}
-
-	// Insert at position
-	if insertPosition >= len(tl.Tasks) {
-		tl.Tasks = append(tl.Tasks, newTask)
-	} else {
-		tl.Tasks = append(tl.Tasks[:insertPosition],
-			append([]Task{newTask}, tl.Tasks[insertPosition:]...)...)
-	}
-
-	// Renumber all tasks
-	tl.RenumberTasks()
-
-	// Get the actual new task ID after renumbering
-	if insertPosition < len(tl.Tasks) {
-		newTaskID = tl.Tasks[insertPosition].ID
-	}
-
-	// Update phase markers to account for the insertion.
-	// Two things need to happen:
-	// 1. The next phase marker after our target phase must point to the newly
-	//    inserted task (which is now the last task in the current phase).
-	// 2. All phase markers beyond that must have their AfterTaskID incremented
-	//    by one since all subsequent tasks shifted up by one.
-	if phaseFound {
-		for i, marker := range phaseMarkers {
-			if marker.Name == phaseName {
-				// Update the immediate next marker to point to the newly inserted task
-				if i+1 < len(phaseMarkers) && insertPosition < len(tl.Tasks) {
-					phaseMarkers[i+1].AfterTaskID = tl.Tasks[insertPosition].ID
-				}
-				// Adjust all markers beyond the next one for the shifted task numbering
-				if i+2 < len(phaseMarkers) {
-					remaining := phaseMarkers[i+2:]
-					adjustPhaseMarkersForInsertion(insertPosition, &remaining)
-				}
-				break
-			}
-		}
-	}
-
-	// Write the file with phases preserved
 	if err := WriteFileWithPhases(tl, phaseMarkers, filepath); err != nil {
 		return "", fmt.Errorf("failed to write file '%s' with phases: %w", filepath, err)
 	}
-
-	tl.Modified = time.Now()
 	return newTaskID, nil
 }
 
@@ -838,8 +728,7 @@ func WriteFileWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, filePath stri
 // RemoveTaskWithPhases removes a task while preserving phase structure
 func (tl *TaskList) RemoveTaskWithPhases(taskID string, originalContent []byte) error {
 	// Extract phase markers from the original content
-	lines := splitLines(string(originalContent))
-	phaseMarkers := ExtractPhaseMarkers(lines)
+	phaseMarkers := phaseMarkersFromContent(originalContent)
 
 	// If no phases, just use regular operations
 	if len(phaseMarkers) == 0 {
@@ -864,8 +753,7 @@ func (tl *TaskList) RemoveTaskWithPhases(taskID string, originalContent []byte) 
 // UpdateTaskWithPhases updates a task while preserving phase structure
 func (tl *TaskList) UpdateTaskWithPhases(taskID, title string, details, refs []string, originalContent []byte) error {
 	// Extract phase markers from the original content
-	lines := splitLines(string(originalContent))
-	phaseMarkers := ExtractPhaseMarkers(lines)
+	phaseMarkers := phaseMarkersFromContent(originalContent)
 
 	// Update the task
 	if err := tl.UpdateTask(taskID, title, details, refs, nil); err != nil {
@@ -884,8 +772,7 @@ func (tl *TaskList) UpdateTaskWithPhases(taskID, title string, details, refs []s
 // UpdateStatusWithPhases updates a task status while preserving phase structure
 func (tl *TaskList) UpdateStatusWithPhases(taskID string, status Status, originalContent []byte) error {
 	// Extract phase markers from the original content
-	lines := splitLines(string(originalContent))
-	phaseMarkers := ExtractPhaseMarkers(lines)
+	phaseMarkers := phaseMarkersFromContent(originalContent)
 
 	// Update the status
 	if err := tl.UpdateStatus(taskID, status); err != nil {
@@ -1301,14 +1188,18 @@ func (tl *TaskList) collectStableIDs() []string {
 func (tl *TaskList) resolveToStableIDs(hierarchicalIDs []string) ([]string, error) {
 	stableIDs := make([]string, 0, len(hierarchicalIDs))
 
+	// Created on first use and reused, rather than re-collecting every stable
+	// ID in the list for each task that needs one
+	var idGen *StableIDGenerator
 	for _, hid := range hierarchicalIDs {
 		task := tl.FindTask(hid)
 		if task == nil {
 			return nil, fmt.Errorf("task %s not found", hid)
 		}
 		if task.StableID == "" {
-			existingIDs := tl.collectStableIDs()
-			idGen := NewStableIDGenerator(existingIDs)
+			if idGen == nil {
+				idGen = NewStableIDGenerator(tl.collectStableIDs())
+			}
 			newID, err := idGen.Generate()
 			if err != nil {
 				return nil, fmt.Errorf("generating stable ID for task %s: %w", hid, err)

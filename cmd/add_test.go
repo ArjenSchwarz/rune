@@ -322,6 +322,12 @@ func TestRunAdd(t *testing.T) {
 			addParent = tt.parent
 			addPosition = tt.position
 			dryRun = false
+			// Reset flags for the next test even when this case returns early
+			t.Cleanup(func() {
+				addTitle = ""
+				addParent = ""
+				addPosition = ""
+			})
 
 			// Create command and capture output
 			cmd := &cobra.Command{}
@@ -347,11 +353,6 @@ func TestRunAdd(t *testing.T) {
 			if tt.validateFile != nil {
 				tt.validateFile(t, filename)
 			}
-
-			// Reset flags for next test
-			addTitle = ""
-			addParent = ""
-			addPosition = ""
 		})
 	}
 }
@@ -1719,5 +1720,130 @@ func TestAddCmdDependencyFlags(t *testing.T) {
 	}
 	if ownerFlag.Usage == "" {
 		t.Fatal("Owner flag should have usage description")
+	}
+}
+
+// resetAddFlags clears every add flag after the test, so an early return
+// can't leak state into later tests.
+func resetAddFlags(t *testing.T) {
+	t.Helper()
+	t.Cleanup(func() {
+		addTitle, addParent, addPosition, addPhase = "", "", "", ""
+		addRequirements, addRequirementsFile, addBlockedBy, addOwner = "", "", "", ""
+		addStream = 0
+		dryRun = false
+	})
+}
+
+const addPhasedFixture = "# T\n\n## A\n\n- [ ] 1. a1\n\n- [ ] 2. a2\n\n## B\n\n- [ ] 3. b1\n"
+
+func TestRunAddPositionKeepsPhaseBoundaries(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-add-position-phases")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	filename := filepath.Join(tempDir, "tasks.md")
+	if err := os.WriteFile(filename, []byte(addPhasedFixture), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	resetAddFlags(t)
+	addTitle = "new"
+	addPosition = "1"
+	if err := runAdd(&cobra.Command{}, []string{filename}); err != nil {
+		t.Fatalf("runAdd: %v", err)
+	}
+
+	got, _ := os.ReadFile(filename)
+	want := "# T\n\n## A\n\n- [ ] 1. new\n\n- [ ] 2. a1\n\n- [ ] 3. a2\n\n## B\n\n- [ ] 4. b1\n"
+	if string(got) != want {
+		t.Errorf("file =\n%s\nwant\n%s", got, want)
+	}
+}
+
+func TestRunAddPhaseHonoursAllFlags(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-add-phase-flags")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	filename := filepath.Join(tempDir, "tasks.md")
+	if err := os.WriteFile(filename, []byte(addPhasedFixture), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	resetAddFlags(t)
+	addTitle = "new"
+	addPhase = "A"
+	addRequirements = "1.1"
+	addRequirementsFile = "specs/req.md"
+	addStream = 2
+	addOwner = "bob"
+	addBlockedBy = "1"
+	if err := runAdd(&cobra.Command{}, []string{filename}); err != nil {
+		t.Fatalf("runAdd: %v", err)
+	}
+
+	tl, markers, err := task.ParseFileWithPhases(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	added := tl.FindTask("3")
+	if added == nil || added.Title != "new" {
+		t.Fatalf("task 3 = %+v, want the new task at the end of phase A", added)
+	}
+	if phase := task.GetTaskPhase(tl, markers, "3"); phase != "A" {
+		t.Errorf("phase = %q, want A", phase)
+	}
+	if added.Stream != 2 || added.Owner != "bob" || len(added.BlockedBy) != 1 ||
+		len(added.Requirements) != 1 || added.Requirements[0] != "1.1" {
+		t.Errorf("flags not applied: %+v", *added)
+	}
+	if tl.RequirementsFile != "specs/req.md" {
+		t.Errorf("RequirementsFile = %q, want specs/req.md", tl.RequirementsFile)
+	}
+}
+
+func TestRunAddDryRunReportsRealID(t *testing.T) {
+	tests := map[string]struct {
+		position string
+		phase    string
+		want     string
+	}{
+		"position": {position: "2", want: "New task ID would be: 2"},
+		"phase":    {phase: "A", want: "New task ID would be: 3"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			filename := filepath.Join(t.TempDir(), "tasks.md")
+			if err := os.WriteFile(filename, []byte(addPhasedFixture), 0644); err != nil {
+				t.Fatal(err)
+			}
+			resetAddFlags(t)
+			addTitle = "new"
+			addPosition = tc.position
+			addPhase = tc.phase
+			dryRun = true
+
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+			err := runAdd(&cobra.Command{}, []string{filename})
+			w.Close()
+			os.Stdout = oldStdout
+			var buf bytes.Buffer
+			buf.ReadFrom(r)
+
+			if err != nil {
+				t.Fatalf("runAdd: %v", err)
+			}
+			if !strings.Contains(buf.String(), tc.want) {
+				t.Errorf("output = %q, want it to contain %q", buf.String(), tc.want)
+			}
+			if got, _ := os.ReadFile(filename); string(got) != addPhasedFixture {
+				t.Error("dry run modified the file")
+			}
+		})
 	}
 }

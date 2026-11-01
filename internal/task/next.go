@@ -214,70 +214,23 @@ func hasPhases(lines []string) bool {
 	return slices.ContainsFunc(lines, phaseHeaderPattern.MatchString)
 }
 
-// extractPhasesWithTaskRanges parses the document and associates tasks with their phases.
-// It uses a positional counter to map raw markdown task lines to parsed tasks,
-// because the parser assigns sequential IDs regardless of what IDs appear in the markdown.
+// extractPhasesWithTaskRanges parses the document and associates top-level
+// tasks with their phases. It maps raw markdown task lines to parsed tasks by
+// position, because the parser assigns sequential IDs regardless of what IDs
+// appear in the markdown. Tasks before the first phase header are not included.
 func extractPhasesWithTaskRanges(lines []string, allTasks []Task) []PhaseWithTasks {
 	var phases []PhaseWithTasks
-	var currentPhase *PhaseWithTasks
-	taskMap := createTaskMap(allTasks)
-	topLevelTaskCount := 0
-
-	for _, line := range lines {
-		line = strings.TrimRight(line, "\r")
-
-		// Check for phase header
-		if matches := phaseHeaderPattern.FindStringSubmatch(line); matches != nil {
-			// Save previous phase if exists
-			if currentPhase != nil {
-				phases = append(phases, *currentPhase)
+	walkPhaseLines(lines,
+		func(name string) {
+			phases = append(phases, PhaseWithTasks{Name: name, Tasks: []Task{}})
+		},
+		func(position int) {
+			if len(phases) > 0 && position <= len(allTasks) {
+				current := &phases[len(phases)-1]
+				current.Tasks = append(current.Tasks, allTasks[position-1])
 			}
-
-			// Start new phase
-			currentPhase = &PhaseWithTasks{
-				Name:  strings.TrimSpace(matches[1]),
-				Tasks: []Task{},
-			}
-		} else if taskLinePattern.MatchString(line) {
-			if taskMatches := taskLinePattern.FindStringSubmatch(line); len(taskMatches) >= 4 {
-				rawID := taskMatches[3]
-				// Count all top-level tasks by position for correct mapping
-				if !strings.Contains(rawID, ".") {
-					topLevelTaskCount++
-					if currentPhase != nil {
-						sequentialID := fmt.Sprintf("%d", topLevelTaskCount)
-						if task, exists := taskMap[sequentialID]; exists {
-							currentPhase.Tasks = append(currentPhase.Tasks, task)
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Don't forget the last phase
-	if currentPhase != nil {
-		phases = append(phases, *currentPhase)
-	}
-
+		})
 	return phases
-}
-
-// createTaskMap creates a map of task ID to Task for quick lookup
-func createTaskMap(tasks []Task) map[string]Task {
-	taskMap := make(map[string]Task)
-
-	var addToMap func([]Task)
-	addToMap = func(taskList []Task) {
-		for _, task := range taskList {
-			taskMap[task.ID] = task
-			// Recursively add children
-			addToMap(task.Children)
-		}
-	}
-
-	addToMap(tasks)
-	return taskMap
 }
 
 // getAllPendingTasks recursively collects all tasks with pending work

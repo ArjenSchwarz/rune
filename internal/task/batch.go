@@ -3,9 +3,11 @@ package task
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -154,11 +156,19 @@ type BatchResponse struct {
 	AutoCompleted []string `json:"auto_completed,omitempty"`
 }
 
-// ExecuteBatch validates and executes a batch of operations atomically
-func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, error) {
+// batchApplyFunc applies a single validated operation to a task list,
+// recording auto-completed parents and updating phase markers as needed.
+type batchApplyFunc func(tl *TaskList, op Operation, autoCompleted map[string]bool, phaseMarkers *[]PhaseMarker) error
+
+// runBatch validates and applies ops, in execution order, to a deep copy of
+// tl. The original is never touched, so a failing operation leaves it
+// exactly as it was. On success the copy and its phase markers are the
+// batch's result: the caller adopts them instead of replaying every
+// operation against the original, so each operation runs exactly once.
+// The returned task list and markers are nil when an operation failed.
+func (tl *TaskList) runBatch(ops []Operation, phaseMarkers []PhaseMarker, apply batchApplyFunc) (*BatchResponse, *TaskList, []PhaseMarker) {
 	response := &BatchResponse{
 		Success:       true,
-		Applied:       0,
 		Errors:        []string{},
 		AutoCompleted: []string{},
 	}
@@ -167,60 +177,50 @@ func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, 
 	// This ensures references use original pre-batch state
 	sortedOps := sortOperationsForExecution(ops)
 
-	// Create a deep copy to test all operations first (per Decision #12)
-	testList, err := tl.deepCopy()
-	if err != nil {
-		return nil, fmt.Errorf("creating test copy: %w", err)
-	}
-
-	// Track auto-completed tasks for test copy
-	testAutoCompleted := make(map[string]bool)
-
-	// Validate and apply operations to test copy sequentially
-	for i, op := range sortedOps {
-		if err := validateOperation(testList, op); err != nil {
-			response.Success = false
-			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
-			return response, nil
-		}
-
-		// Apply operation to test copy for subsequent validations
-		if err := applyOperationWithAutoComplete(testList, op, testAutoCompleted); err != nil {
-			response.Success = false
-			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
-			return response, nil
-		}
-	}
-
-	// Convert test auto-completed map to slice for response
-	for taskID := range testAutoCompleted {
-		response.AutoCompleted = append(response.AutoCompleted, taskID)
-	}
-
-	// For dry run, return preview without applying to original
-	if dryRun {
-		response.Preview = string(RenderMarkdown(testList))
-		response.Applied = len(sortedOps)
-		return response, nil
-	}
-
-	// Track auto-completed tasks for actual operations
+	work := tl.deepCopy()
+	markers := slices.Clone(phaseMarkers)
 	autoCompleted := make(map[string]bool)
 
-	// Apply all operations to original (atomic - all succeed or all fail)
-	for _, op := range sortedOps {
-		if err := applyOperationWithAutoComplete(tl, op, autoCompleted); err != nil {
-			return nil, fmt.Errorf("applying operation: %w", err)
+	for i, op := range sortedOps {
+		if err := validateOperation(work, op); err != nil {
+			response.Success = false
+			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
+			return response, nil, nil
 		}
-		response.Applied++
+		if err := apply(work, op, autoCompleted, &markers); err != nil {
+			response.Success = false
+			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
+			return response, nil, nil
+		}
 	}
 
-	// Clear and rebuild auto-completed list from actual operations
-	response.AutoCompleted = []string{}
 	for taskID := range autoCompleted {
 		response.AutoCompleted = append(response.AutoCompleted, taskID)
 	}
+	sort.Strings(response.AutoCompleted)
+	response.Applied = len(sortedOps)
+	return response, work, markers
+}
 
+// ExecuteBatch validates and executes a batch of operations atomically:
+// either every operation succeeds and tl is updated, or tl is left unchanged
+// and the response lists the first failure. With dryRun, tl is never changed
+// and the response carries a preview of the result.
+func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, error) {
+	response, result, _ := tl.runBatch(ops, nil,
+		func(l *TaskList, op Operation, autoCompleted map[string]bool, _ *[]PhaseMarker) error {
+			return applyOperationWithAutoComplete(l, op, autoCompleted)
+		})
+	if result == nil {
+		return response, nil
+	}
+
+	if dryRun {
+		response.Preview = string(RenderMarkdown(result))
+		return response, nil
+	}
+
+	*tl = *result
 	return response, nil
 }
 
@@ -295,26 +295,9 @@ func validateOperation(tl *TaskList, op Operation) error {
 		if err := validateExtendedFields(tl, op); err != nil {
 			return err
 		}
-		// For updates with blocked-by, check for cycles
-		if len(op.BlockedBy) > 0 {
-			task := tl.FindTask(op.ID)
-			if task != nil {
-				// Auto-assign stable ID to the task being updated so cycle
-				// detection can track it in the dependency graph.
-				if task.StableID == "" {
-					existingIDs := tl.collectStableIDs()
-					idGen := NewStableIDGenerator(existingIDs)
-					newID, genErr := idGen.Generate()
-					if genErr != nil {
-						return fmt.Errorf("generating stable ID for task %s: %w", op.ID, genErr)
-					}
-					task.StableID = newID
-				}
-				if err := validateNoCycle(tl, task.StableID, op.BlockedBy); err != nil {
-					return err
-				}
-			}
-		}
+		// Cycles are detected when the update is applied
+		// (UpdateTaskWithOptions), which reports the same error; checking here
+		// too would build the dependency index twice per operation.
 	case addPhaseOperation:
 		if _, err := NormalizePhaseName(op.Phase); err != nil {
 			return err
@@ -349,22 +332,11 @@ func validateExtendedFields(tl *TaskList, op Operation) error {
 		return ErrInvalidStream
 	}
 
-	// Validate blocked-by references, auto-assigning stable IDs as needed
-	if len(op.BlockedBy) > 0 {
-		for _, hid := range op.BlockedBy {
-			task := tl.FindTask(hid)
-			if task == nil {
-				return fmt.Errorf("blocked-by task %s not found", hid)
-			}
-			if task.StableID == "" {
-				existingIDs := tl.collectStableIDs()
-				idGen := NewStableIDGenerator(existingIDs)
-				newID, err := idGen.Generate()
-				if err != nil {
-					return fmt.Errorf("generating stable ID for task %s: %w", hid, err)
-				}
-				task.StableID = newID
-			}
+	// Validate blocked-by references. Stable IDs for the referenced tasks are
+	// assigned when the operation is applied (resolveToStableIDs).
+	for _, hid := range op.BlockedBy {
+		if tl.FindTask(hid) == nil {
+			return fmt.Errorf("blocked-by task %s not found", hid)
 		}
 	}
 
@@ -378,32 +350,12 @@ func validateExtendedFields(tl *TaskList, op Operation) error {
 	return nil
 }
 
-// validateNoCycle checks that adding dependencies would not create a cycle
-func validateNoCycle(tl *TaskList, fromStableID string, blockedByIDs []string) error {
-	// Build dependency index
-	index := BuildDependencyIndex(tl.Tasks)
-
-	// Resolve hierarchical IDs to stable IDs
-	for _, hid := range blockedByIDs {
-		task := tl.FindTask(hid)
-		if task == nil || task.StableID == "" {
-			continue // Already validated in validateExtendedFields
-		}
-
-		// Check if adding this dependency would create a cycle
-		if hasCycle, path := index.DetectCycle(fromStableID, task.StableID); hasCycle {
-			return &CircularDependencyError{Path: path}
-		}
-	}
-
-	return nil
-}
-
 // applyOperation executes a single operation
 func applyOperation(tl *TaskList, op Operation) error {
 	switch strings.ToLower(op.Type) {
 	case addOperation:
-		return applyAddOperation(tl, op)
+		_, err := tl.AddTaskWithPhases(op, &[]PhaseMarker{})
+		return err
 	case removeOperation:
 		_, err := tl.RemoveTaskWithDependents(op.ID)
 		return err
@@ -414,52 +366,68 @@ func applyOperation(tl *TaskList, op Operation) error {
 	}
 }
 
-// applyAddOperation handles add operations with extended fields
-func applyAddOperation(tl *TaskList, op Operation) error {
-	// Check if any extended fields are used
+// addTaskFromOperation adds a task for an "add" operation without any phase
+// handling, choosing AddTaskWithOptions only when extended fields are set so
+// plain adds don't get a stable ID. Returns the new task's hierarchical ID.
+func addTaskFromOperation(tl *TaskList, op Operation) (string, error) {
 	hasExtendedFields := op.Stream != nil || len(op.BlockedBy) > 0 || op.Owner != nil
-
-	if hasExtendedFields {
-		// Use AddTaskWithOptions for extended fields
-		opts := AddOptions{
-			Position: op.Position,
-		}
-		if op.Stream != nil {
-			opts.Stream = *op.Stream
-		}
-		if len(op.BlockedBy) > 0 {
-			opts.BlockedBy = op.BlockedBy
-		}
-		if op.Owner != nil {
-			opts.Owner = *op.Owner
-		}
-
-		newTaskID, err := tl.AddTaskWithOptions(op.Parent, op.Title, opts)
-		if err != nil {
-			return err
-		}
-
-		// If details, references, or requirements are provided, update the newly added task
-		if len(op.Details) > 0 || len(op.References) > 0 || len(op.Requirements) > 0 {
-			if newTaskID != "" {
-				return tl.UpdateTask(newTaskID, "", op.Details, op.References, op.Requirements)
-			}
-		}
-		return nil
+	if !hasExtendedFields {
+		return tl.AddTask(op.Parent, op.Title, op.Position)
 	}
 
-	// Standard add operation without extended fields
-	newTaskID, err := tl.AddTask(op.Parent, op.Title, op.Position)
+	opts := AddOptions{
+		Position:  op.Position,
+		BlockedBy: op.BlockedBy,
+	}
+	if op.Stream != nil {
+		opts.Stream = *op.Stream
+	}
+	if op.Owner != nil {
+		opts.Owner = *op.Owner
+	}
+	return tl.AddTaskWithOptions(op.Parent, op.Title, opts)
+}
+
+// AddTaskWithPhases adds the task described by an "add" operation — title,
+// parent, position, phase, stream, blocked-by, owner, details, references and
+// requirements — and keeps phaseMarkers in step with the resulting top-level
+// numbering. It is the single add path shared by the add command and batch
+// operations, so every flag is honoured the same way everywhere.
+//
+//   - With op.Phase set and no parent, the task is appended to the end of that
+//     phase, creating the phase at the end of the document if it does not exist.
+//   - A subtask (op.Parent set) stays under its parent, so op.Phase has no
+//     effect on where it goes and never creates a phase.
+//   - A positional insert at the root shifts every later top-level task down
+//     by one, and markers after the insertion point are shifted with it. The
+//     new task joins the phase of the task that previously held its position.
+//
+// phaseMarkers must be non-nil; it may point to an empty slice for files
+// without phases. Returns the hierarchical ID of the new task.
+func (tl *TaskList) AddTaskWithPhases(op Operation, phaseMarkers *[]PhaseMarker) (string, error) {
+	if op.Phase != "" && op.Parent == "" {
+		return addTaskWithPhaseMarkers(tl, op, phaseMarkers)
+	}
+	if op.Phase != "" {
+		// Validate the name even though a subtask ignores it, so a bad phase
+		// name is reported consistently on every path.
+		if _, err := NormalizePhaseName(op.Phase); err != nil {
+			return "", err
+		}
+	}
+
+	newTaskID, err := addTaskFromOperation(tl, op)
 	if err != nil {
-		return err
+		return "", err
 	}
-	// If details, references, or requirements are provided, update the newly added task
-	if len(op.Details) > 0 || len(op.References) > 0 || len(op.Requirements) > 0 {
-		if newTaskID != "" {
-			return tl.UpdateTask(newTaskID, "", op.Details, op.References, op.Requirements)
+
+	if op.Parent == "" && op.Position != "" {
+		if position, convErr := strconv.Atoi(newTaskID); convErr == nil && position > 0 {
+			adjustPhaseMarkersForInsertion(position-1, phaseMarkers)
 		}
 	}
-	return nil
+
+	return newTaskID, updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
 }
 
 // applyUpdateOperation handles update operations with extended fields.
@@ -545,36 +513,12 @@ func applyOperationWithAutoComplete(tl *TaskList, op Operation, autoCompleted ma
 	return nil
 }
 
-// deepCopy creates a deep copy of the TaskList for dry-run operations
-func (tl *TaskList) deepCopy() (*TaskList, error) {
-	// Simple approach: render to markdown and parse back
-	content := RenderMarkdown(tl)
-	copyList, err := ParseMarkdown(content)
-	if err != nil {
-		return nil, fmt.Errorf("creating deep copy: %w", err)
-	}
-	copyList.FilePath = tl.FilePath
-	// Preserve front matter
-	if tl.FrontMatter != nil {
-		copyList.FrontMatter = &FrontMatter{
-			References: make([]string, len(tl.FrontMatter.References)),
-			Metadata:   make(map[string]string),
-		}
-		copy(copyList.FrontMatter.References, tl.FrontMatter.References)
-		maps.Copy(copyList.FrontMatter.Metadata, tl.FrontMatter.Metadata)
-	}
-	return copyList, nil
-}
-
-// ExecuteBatchWithPhases validates and executes a batch of operations atomically with phase support
+// ExecuteBatchWithPhases validates and executes a batch of operations atomically
+// with phase support, keeping phaseMarkers in step with the operations, and
+// writes the result to filePath (unless dryRun). Falls back to ExecuteBatch
+// when neither the file nor any operation involves phases; in that case the
+// caller is responsible for writing the file.
 func (tl *TaskList) ExecuteBatchWithPhases(ops []Operation, dryRun bool, phaseMarkers []PhaseMarker, filePath string) (*BatchResponse, error) {
-	response := &BatchResponse{
-		Success:       true,
-		Applied:       0,
-		Errors:        []string{},
-		AutoCompleted: []string{},
-	}
-
 	// Check if any operations use phases and validate phase names
 	hasPhaseOps := false
 	for _, op := range ops {
@@ -596,98 +540,53 @@ func (tl *TaskList) ExecuteBatchWithPhases(ops []Operation, dryRun bool, phaseMa
 		return tl.ExecuteBatch(ops, dryRun)
 	}
 
-	// Sort operations for correct execution order (position insertions and removes in reverse)
-	sortedOps := sortOperationsForExecution(ops)
-
-	// Create a deep copy to test all operations first
-	testList, err := tl.deepCopyWithPhases(phaseMarkers)
-	if err != nil {
-		return nil, fmt.Errorf("creating test copy: %w", err)
-	}
-
-	// Track auto-completed tasks for test copy
-	testAutoCompleted := make(map[string]bool)
-
-	// Track phase markers during test execution
-	testPhaseMarkers := make([]PhaseMarker, len(phaseMarkers))
-	copy(testPhaseMarkers, phaseMarkers)
-
-	// Validate and apply operations to test copy sequentially
-	for i, op := range sortedOps {
-		if err := validateOperation(testList, op); err != nil {
-			response.Success = false
-			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
-			return response, nil
-		}
-
-		// Apply operation to test copy
-		if err := applyOperationWithPhases(testList, op, testAutoCompleted, &testPhaseMarkers); err != nil {
-			response.Success = false
-			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
-			return response, nil
-		}
-	}
-
-	// Convert test auto-completed map to slice for response
-	for taskID := range testAutoCompleted {
-		response.AutoCompleted = append(response.AutoCompleted, taskID)
-	}
-
-	// For dry run, return preview without applying to original
-	if dryRun {
-		response.Preview = string(RenderMarkdownWithPhases(testList, testPhaseMarkers, nil))
-		response.Applied = len(sortedOps)
+	response, result, resultMarkers := tl.runBatch(ops, phaseMarkers, applyOperationWithPhases)
+	if result == nil {
 		return response, nil
 	}
 
-	// Track auto-completed tasks for actual operations
-	autoCompleted := make(map[string]bool)
-
-	// Track phase markers during actual execution
-	actualPhaseMarkers := make([]PhaseMarker, len(phaseMarkers))
-	copy(actualPhaseMarkers, phaseMarkers)
-
-	// Apply all operations to original (atomic - all succeed or all fail)
-	for _, op := range sortedOps {
-		if err := applyOperationWithPhases(tl, op, autoCompleted, &actualPhaseMarkers); err != nil {
-			return nil, fmt.Errorf("applying operation: %w", err)
-		}
-		response.Applied++
+	if dryRun {
+		response.Preview = string(RenderMarkdownWithPhases(result, resultMarkers, nil))
+		return response, nil
 	}
 
-	// Clear and rebuild auto-completed list from actual operations
-	response.AutoCompleted = []string{}
-	for taskID := range autoCompleted {
-		response.AutoCompleted = append(response.AutoCompleted, taskID)
-	}
-
-	// Write the file with phases preserved
-	if err := WriteFileWithPhases(tl, actualPhaseMarkers, filePath); err != nil {
+	// Write before adopting the result so a failed write leaves tl unchanged
+	if err := WriteFileWithPhases(result, resultMarkers, filePath); err != nil {
 		return nil, fmt.Errorf("writing file with phases: %w", err)
 	}
-
+	*tl = *result
 	return response, nil
 }
 
-// deepCopyWithPhases creates a deep copy preserving phase markers
-func (tl *TaskList) deepCopyWithPhases(phaseMarkers []PhaseMarker) (*TaskList, error) {
-	// Render with phases and parse back
-	content := RenderMarkdownWithPhases(tl, phaseMarkers, nil)
-	copyList, err := ParseMarkdown(content)
-	if err != nil {
-		return nil, fmt.Errorf("creating deep copy: %w", err)
-	}
-	copyList.FilePath = tl.FilePath
-	// Preserve front matter
+// deepCopy returns a copy of tl that shares no mutable state with it, so
+// operations can be tried on the copy without touching the original.
+func (tl *TaskList) deepCopy() *TaskList {
+	c := *tl
+	c.Tasks = cloneTasks(tl.Tasks)
 	if tl.FrontMatter != nil {
-		copyList.FrontMatter = &FrontMatter{
-			References: make([]string, len(tl.FrontMatter.References)),
-			Metadata:   make(map[string]string),
+		c.FrontMatter = &FrontMatter{
+			References: slices.Clone(tl.FrontMatter.References),
+			Metadata:   maps.Clone(tl.FrontMatter.Metadata),
 		}
-		copy(copyList.FrontMatter.References, tl.FrontMatter.References)
-		maps.Copy(copyList.FrontMatter.Metadata, tl.FrontMatter.Metadata)
 	}
-	return copyList, nil
+	return &c
+}
+
+// cloneTasks deep-copies a task slice, including every nested slice.
+func cloneTasks(tasks []Task) []Task {
+	if tasks == nil {
+		return nil
+	}
+	out := make([]Task, len(tasks))
+	for i, t := range tasks {
+		t.Details = slices.Clone(t.Details)
+		t.References = slices.Clone(t.References)
+		t.Requirements = slices.Clone(t.Requirements)
+		t.BlockedBy = slices.Clone(t.BlockedBy)
+		t.Children = cloneTasks(t.Children)
+		out[i] = t
+	}
+	return out
 }
 
 // updateTaskDetailsAndReferences updates a task with details, references, and requirements if provided
@@ -721,37 +620,8 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 		})
 		return nil
 	case addOperation:
-		if op.Phase != "" {
-			// Phase-aware add operation
-			return addTaskWithPhaseMarkers(tl, op, phaseMarkers)
-		}
-		// Check for extended fields
-		hasExtendedFields := op.Stream != nil || len(op.BlockedBy) > 0 || op.Owner != nil
-		if hasExtendedFields {
-			opts := AddOptions{
-				Position: op.Position,
-			}
-			if op.Stream != nil {
-				opts.Stream = *op.Stream
-			}
-			if len(op.BlockedBy) > 0 {
-				opts.BlockedBy = op.BlockedBy
-			}
-			if op.Owner != nil {
-				opts.Owner = *op.Owner
-			}
-			newTaskID, err := tl.AddTaskWithOptions(op.Parent, op.Title, opts)
-			if err != nil {
-				return err
-			}
-			return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
-		}
-		// Regular add operation
-		newTaskID, err := tl.AddTask(op.Parent, op.Title, op.Position)
-		if err != nil {
-			return err
-		}
-		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
+		_, err := tl.AddTaskWithPhases(op, phaseMarkers)
+		return err
 	case removeOperation:
 		adjustPhaseMarkersForRemoval(op.ID, phaseMarkers)
 		_, err := tl.RemoveTaskWithDependents(op.ID)
@@ -818,11 +688,14 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 	}
 }
 
-// addTaskWithPhaseMarkers adds a task to a specific phase, updating phase markers as needed
-func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMarker) error {
+// addTaskWithPhaseMarkers appends a top-level task to the end of the phase
+// named by op.Phase, creating the phase at the end of the document if it does
+// not exist, and updates phaseMarkers for the shifted numbering. Subtasks are
+// handled by AddTaskWithPhases and never reach here. Returns the new task ID.
+func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMarker) (string, error) {
 	// Validate input
 	if err := validateTaskInput(op.Title); err != nil {
-		return err
+		return "", err
 	}
 
 	// Normalize the phase name so marker lookups compare (and any new marker
@@ -831,30 +704,45 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 	// header and silently create a duplicate phase.
 	phaseName, err := NormalizePhaseName(op.Phase)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Check resource limits
-	if err := tl.checkResourceLimits(op.Parent); err != nil {
-		return err
+	if err := tl.checkResourceLimits(""); err != nil {
+		return "", err
 	}
 
-	var insertPosition int
-	phaseFound := false
+	// Validate extended fields before touching the task list or the markers,
+	// so a failure leaves both unchanged.
+	if op.Stream != nil && *op.Stream < 0 {
+		return "", ErrInvalidStream
+	}
+	if op.Owner != nil {
+		if err := validateOwner(*op.Owner); err != nil {
+			return "", err
+		}
+	}
+	var blockedByStableIDs []string
+	if len(op.BlockedBy) > 0 {
+		blockedByStableIDs, err = tl.resolveToStableIDs(op.BlockedBy)
+		if err != nil {
+			return "", err
+		}
+	}
 
-	// Find the phase position
-	for _, marker := range *phaseMarkers {
+	// Find the target phase (first occurrence) and where it ends: the task
+	// after which the next phase starts, or the end of the list.
+	targetIdx := -1
+	for i, marker := range *phaseMarkers {
 		if marker.Name == phaseName {
-			phaseFound = true
+			targetIdx = i
 			break
 		}
 	}
 
-	if !phaseFound {
-		// Phase doesn't exist, create it at the end and add task there
-		insertPosition = len(tl.Tasks)
-
-		// Add phase marker to the list
+	insertPosition := len(tl.Tasks)
+	if targetIdx == -1 {
+		// Phase doesn't exist: create it at the end and add the task there
 		afterTaskID := ""
 		if len(tl.Tasks) > 0 {
 			afterTaskID = tl.Tasks[len(tl.Tasks)-1].ID
@@ -863,89 +751,25 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 			Name:        phaseName,
 			AfterTaskID: afterTaskID,
 		})
-	} else {
-		// Phase exists, find where to insert the task within this phase
-		phaseEndPos := len(tl.Tasks) // Default to end of list
-
-		// Look for the next phase marker in document order
-		for i, marker := range *phaseMarkers {
-			// Skip until we find our target phase
-			if marker.Name != phaseName {
-				continue
-			}
-
-			// Look for the next phase after this one
-			if i+1 < len(*phaseMarkers) {
-				nextMarker := (*phaseMarkers)[i+1]
-				if nextMarker.AfterTaskID != "" {
-					// Find where the next phase starts
-					for j, task := range tl.Tasks {
-						if task.ID == nextMarker.AfterTaskID {
-							phaseEndPos = j + 1
-							break
-						}
-					}
-				}
-			}
-			break
-		}
-
-		// Insert at the end of the current phase
-		insertPosition = phaseEndPos
-	}
-
-	// Handle parentID if specified
-	if op.Parent != "" {
-		// For subtasks, use existing AddTask logic (with extended fields if present)
-		hasExtendedFields := op.Stream != nil || len(op.BlockedBy) > 0 || op.Owner != nil
-		if hasExtendedFields {
-			opts := AddOptions{}
-			if op.Stream != nil {
-				opts.Stream = *op.Stream
-			}
-			if len(op.BlockedBy) > 0 {
-				opts.BlockedBy = op.BlockedBy
-			}
-			if op.Owner != nil {
-				opts.Owner = *op.Owner
-			}
-			newTaskID, err := tl.AddTaskWithOptions(op.Parent, op.Title, opts)
-			if err != nil {
-				return err
-			}
-			return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
-		}
-		newTaskID, err := tl.AddTask(op.Parent, op.Title, "")
-		if err != nil {
-			return err
-		}
-		return updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
-	}
-
-	// Resolve blocked-by references if present
-	var blockedByStableIDs []string
-	if len(op.BlockedBy) > 0 {
-		var err error
-		blockedByStableIDs, err = tl.resolveToStableIDs(op.BlockedBy)
-		if err != nil {
-			return err
+	} else if targetIdx+1 < len(*phaseMarkers) {
+		next := (*phaseMarkers)[targetIdx+1]
+		if next.AfterTaskID == "" {
+			insertPosition = 0
+		} else if n := getTaskNumber(next.AfterTaskID); n > 0 && n <= len(tl.Tasks) {
+			insertPosition = n
 		}
 	}
 
-	// Generate stable ID if extended fields are used
+	// Generate a stable ID only when extended fields are used, matching
+	// AddTask vs AddTaskWithOptions on the non-phase path.
 	var stableID string
-	hasExtendedFields := op.Stream != nil || len(op.BlockedBy) > 0 || op.Owner != nil
-	if hasExtendedFields {
-		existingIDs := tl.collectStableIDs()
-		idGen := NewStableIDGenerator(existingIDs)
-		var err error
-		stableID, err = idGen.Generate()
+	if op.Stream != nil || len(op.BlockedBy) > 0 || op.Owner != nil {
+		stableID, err = NewStableIDGenerator(tl.collectStableIDs()).Generate()
 		if err != nil {
-			return fmt.Errorf("generating stable ID: %w", err)
+			return "", fmt.Errorf("generating stable ID: %w", err)
 		}
 	}
 
-	// Insert task at the calculated position
 	newTask := Task{
 		ID:        tempTaskID, // Will be renumbered
 		Title:     op.Title,
@@ -960,48 +784,22 @@ func addTaskWithPhaseMarkers(tl *TaskList, op Operation, phaseMarkers *[]PhaseMa
 		newTask.Owner = *op.Owner
 	}
 
-	// Insert at position
-	if insertPosition >= len(tl.Tasks) {
-		tl.Tasks = append(tl.Tasks, newTask)
-	} else {
-		tl.Tasks = append(tl.Tasks[:insertPosition],
-			append([]Task{newTask}, tl.Tasks[insertPosition:]...)...)
-	}
-
-	// Renumber all tasks
+	tl.Tasks = slices.Insert(tl.Tasks, insertPosition, newTask)
 	tl.RenumberTasks()
+	tl.Modified = time.Now()
+	newTaskID := tl.Tasks[insertPosition].ID
 
-	// Update phase markers to account for the insertion
-	// IMPORTANT: Since we ALWAYS insert at the END of the phase (insertPosition = phaseEndPos),
-	// the newly inserted task becomes the last task in the current phase. Therefore, the next
-	// phase marker must be updated to point to this newly inserted task's ID.
-	// This maintains the invariant that phase markers always point to the last task in the
-	// preceding phase.
-	if phaseFound {
-		// Find the next phase marker after our target phase
-		for i, marker := range *phaseMarkers {
-			if marker.Name == phaseName {
-				// Update the immediate next marker to point to the newly inserted task
-				if i+1 < len(*phaseMarkers) && insertPosition < len(tl.Tasks) {
-					(*phaseMarkers)[i+1].AfterTaskID = tl.Tasks[insertPosition].ID
-				}
-				// Adjust all markers beyond the next one for the shifted task numbering
-				if i+2 < len(*phaseMarkers) {
-					remaining := (*phaseMarkers)[i+2:]
-					adjustPhaseMarkersForInsertion(insertPosition, &remaining)
-				}
-				break
-			}
+	// The new task is always the last task of its phase, so the next marker
+	// must point at it, and every marker after that shifts down by one.
+	if targetIdx != -1 {
+		if targetIdx+1 < len(*phaseMarkers) {
+			(*phaseMarkers)[targetIdx+1].AfterTaskID = newTaskID
+		}
+		if targetIdx+2 < len(*phaseMarkers) {
+			remaining := (*phaseMarkers)[targetIdx+2:]
+			adjustPhaseMarkersForInsertion(insertPosition, &remaining)
 		}
 	}
 
-	// If details, references, or requirements are provided, update the newly added task
-	if len(op.Details) > 0 || len(op.References) > 0 || len(op.Requirements) > 0 {
-		if insertPosition < len(tl.Tasks) {
-			newTaskID := tl.Tasks[insertPosition].ID
-			return tl.UpdateTask(newTaskID, "", op.Details, op.References, op.Requirements)
-		}
-	}
-
-	return nil
+	return newTaskID, updateTaskDetailsAndReferences(tl, newTaskID, op.Details, op.References, op.Requirements)
 }
