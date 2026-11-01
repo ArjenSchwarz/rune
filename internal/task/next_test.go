@@ -2,6 +2,8 @@ package task
 
 import (
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -1859,5 +1861,90 @@ func TestFindNextPhaseTasks_WithFrontMatter(t *testing.T) {
 
 	if result.Tasks[0].Title != "Pending task" {
 		t.Errorf("task title = %q, want %q", result.Tasks[0].Title, "Pending task")
+	}
+}
+
+func TestFindNextPhaseTasks_ExcludesCompletedDescendants(t *testing.T) {
+	tests := map[string]struct {
+		content    string
+		stream     int
+		wantIDs    []string // flattened IDs of returned tree, depth-first
+		notWantIDs []string
+	}{
+		"completed child dropped, pending sibling kept": {
+			content:    "## Planning\n\n- [ ] 1. Define requirements\n- [ ] 2. Create design\n  - [x] 2.1. Architecture diagrams\n  - [ ] 2.2. API specifications\n\n## Impl\n\n- [ ] 3. Build\n",
+			wantIDs:    []string{"1", "2", "2.2"},
+			notWantIDs: []string{"2.1"},
+		},
+		"completed grandchild dropped, completed child with pending grandchild kept": {
+			content:    "## P\n\n- [ ] 1. Parent\n  - [x] 1.1. Done child\n    - [x] 1.1.1. Done grandchild\n    - [ ] 1.1.2. Pending grandchild\n  - [x] 1.2. Fully done\n    - [x] 1.2.1. Done too\n",
+			wantIDs:    []string{"1", "1.1", "1.1.2"},
+			notWantIDs: []string{"1.1.1", "1.2", "1.2.1"},
+		},
+		"stream path drops completed descendants": {
+			content:    "## P\n\n- [ ] 1. Parent\n  - [x] 1.1. Done child\n  - [ ] 1.2. Pending child\n",
+			stream:     1,
+			notWantIDs: []string{"1.1"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "tasks.md")
+			if err := os.WriteFile(path, []byte(tc.content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			var result *PhaseTasksResult
+			var err error
+			if tc.stream > 0 {
+				result, err = FindNextPhaseTasksForStream(path, tc.stream)
+			} else {
+				result, err = FindNextPhaseTasks(path)
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if result == nil {
+				t.Fatal("expected result, got nil")
+			}
+
+			var got []string
+			var walk func([]Task)
+			walk = func(ts []Task) {
+				for _, tk := range ts {
+					got = append(got, tk.ID)
+					walk(tk.Children)
+				}
+			}
+			walk(result.Tasks)
+
+			if tc.wantIDs != nil && !slices.Equal(got, tc.wantIDs) {
+				t.Errorf("IDs = %v, want %v", got, tc.wantIDs)
+			}
+			for _, id := range tc.notWantIDs {
+				if slices.Contains(got, id) {
+					t.Errorf("result unexpectedly contains completed task %s (got %v)", id, got)
+				}
+			}
+		})
+	}
+}
+
+func TestWithIncompleteDescendantsDoesNotMutateInput(t *testing.T) {
+	original := Task{
+		ID:     "1",
+		Status: Pending,
+		Children: []Task{
+			{ID: "1.1", Status: Completed},
+			{ID: "1.2", Status: Pending},
+		},
+	}
+	pruned := withIncompleteDescendants(original)
+	if len(pruned.Children) != 1 || pruned.Children[0].ID != "1.2" {
+		t.Fatalf("pruned children = %+v, want only 1.2", pruned.Children)
+	}
+	if len(original.Children) != 2 || original.Children[0].ID != "1.1" {
+		t.Fatalf("original was mutated: %+v", original.Children)
 	}
 }

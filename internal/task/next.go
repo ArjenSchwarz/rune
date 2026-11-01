@@ -233,15 +233,44 @@ func extractPhasesWithTaskRanges(lines []string, allTasks []Task) []PhaseWithTas
 	return phases
 }
 
-// getAllPendingTasks recursively collects all tasks with pending work
+// getAllPendingTasks returns the tasks that have pending work, with each
+// task's descendant tree pruned to only the subtrees that still have
+// incomplete work. Completed descendants without incomplete work below them
+// are dropped so phase output only contains actionable work.
 func getAllPendingTasks(tasks []Task) []Task {
 	var pending []Task
 	for _, task := range tasks {
 		if hasIncompleteWork(&task) {
-			pending = append(pending, task)
+			pending = append(pending, withIncompleteDescendants(task))
 		}
 	}
 	return pending
+}
+
+// withIncompleteDescendants returns a copy of task whose Children (at every
+// depth) are limited to subtasks that have incomplete work. The original task
+// tree is not modified.
+func withIncompleteDescendants(task Task) Task {
+	return withIncompleteDescendantsDepth(task, 0, 100)
+}
+
+func withIncompleteDescendantsDepth(task Task, depth, maxDepth int) Task {
+	if len(task.Children) == 0 {
+		return task
+	}
+	if depth >= maxDepth {
+		// Prevent runaway recursion on malformed data
+		task.Children = nil
+		return task
+	}
+	var children []Task
+	for i := range task.Children {
+		if hasIncompleteWork(&task.Children[i]) {
+			children = append(children, withIncompleteDescendantsDepth(task.Children[i], depth+1, maxDepth))
+		}
+	}
+	task.Children = children
+	return task
 }
 
 // hasReadyTaskInStream checks if any task in the specified stream is ready.
@@ -316,7 +345,7 @@ func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult
 			var result []Task
 			for _, t := range streamTasks {
 				if t.Status != Completed {
-					result = append(result, t)
+					result = append(result, withIncompleteDescendants(t))
 				}
 			}
 			if len(result) == 0 {
