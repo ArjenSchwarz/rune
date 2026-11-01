@@ -782,3 +782,126 @@ func TestRenderMarkdownWithPhases_NilPhaseSource(t *testing.T) {
 		t.Errorf("Expected order: Start < Alpha < End < Beta, got:\n%s", got)
 	}
 }
+
+// jsonPhaseTask mirrors the subset of JSON task fields needed to check phase
+// propagation through nested children.
+type jsonPhaseTask struct {
+	ID       string          `json:"ID"`
+	Phase    *string         `json:"Phase"`
+	Children []jsonPhaseTask `json:"Children"`
+}
+
+func collectJSONPhases(tasks []jsonPhaseTask, out map[string]*string) {
+	for _, jt := range tasks {
+		out[jt.ID] = jt.Phase
+		collectJSONPhases(jt.Children, out)
+	}
+}
+
+// TestRenderJSONWithPhases_NestedChildrenInheritPhase is a regression test for
+// T-2342: nested children must carry their root task's phase in JSON output.
+func TestRenderJSONWithPhases_NestedChildrenInheritPhase(t *testing.T) {
+	str := func(s string) *string { return &s }
+
+	fullTL := &TaskList{
+		Title: "Demo",
+		Tasks: []Task{
+			{ID: "1", Title: "Parent", Status: Pending, Children: []Task{
+				{ID: "1.1", Title: "Child", Status: Pending, ParentID: "1", Children: []Task{
+					{ID: "1.1.1", Title: "Grandchild", Status: Pending, ParentID: "1.1"},
+				}},
+			}},
+			{ID: "2", Title: "Build parent", Status: Pending, Children: []Task{
+				{ID: "2.1", Title: "Build child", Status: Pending, ParentID: "2"},
+			}},
+		},
+	}
+	markers := []PhaseMarker{
+		{Name: "Planning", AfterTaskID: ""},
+		{Name: "Build", AfterTaskID: "1"},
+	}
+
+	tests := map[string]struct {
+		tl          *TaskList
+		markers     []PhaseMarker
+		phaseSource *TaskList
+		want        map[string]*string
+	}{
+		"nested children inherit phase": {
+			tl:      fullTL,
+			markers: markers,
+			want: map[string]*string{
+				"1": str("Planning"), "1.1": str("Planning"), "1.1.1": str("Planning"),
+				"2": str("Build"), "2.1": str("Build"),
+			},
+		},
+		"promoted children keep original phase": {
+			// Simulates filtering that removed parents 1 and 2 and promoted
+			// their children to the top level.
+			tl: &TaskList{
+				Title: "Demo",
+				Tasks: []Task{
+					{ID: "1.1", Title: "Child", Status: Pending, Children: []Task{
+						{ID: "1.1.1", Title: "Grandchild", Status: Pending, ParentID: "1.1"},
+					}},
+					{ID: "2.1", Title: "Build child", Status: Pending},
+				},
+			},
+			markers:     markers,
+			phaseSource: fullTL,
+			want: map[string]*string{
+				"1.1": str("Planning"), "1.1.1": str("Planning"),
+				"2.1": str("Build"),
+			},
+		},
+		"tasks before first phase have no phase field": {
+			tl:      fullTL,
+			markers: []PhaseMarker{{Name: "Build", AfterTaskID: "1"}},
+			want: map[string]*string{
+				"1": nil, "1.1": nil, "1.1.1": nil,
+				"2": str("Build"), "2.1": str("Build"),
+			},
+		},
+		"no phases omits phase field everywhere": {
+			tl: fullTL,
+			want: map[string]*string{
+				"1": nil, "1.1": nil, "1.1.1": nil, "2": nil, "2.1": nil,
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			data := RenderJSONWithPhases(tc.tl, tc.markers, tc.phaseSource)
+
+			var result struct {
+				Tasks []jsonPhaseTask `json:"Tasks"`
+			}
+			if err := json.Unmarshal(data, &result); err != nil {
+				t.Fatalf("Failed to unmarshal JSON: %v", err)
+			}
+
+			got := make(map[string]*string)
+			collectJSONPhases(result.Tasks, got)
+
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %d tasks, want %d: %v", len(got), len(tc.want), got)
+			}
+			for id, wantPhase := range tc.want {
+				gotPhase, ok := got[id]
+				if !ok {
+					t.Errorf("task %s missing from output", id)
+					continue
+				}
+				switch {
+				case wantPhase == nil && gotPhase != nil:
+					t.Errorf("task %s Phase = %q, want field omitted", id, *gotPhase)
+				case wantPhase != nil && gotPhase == nil:
+					t.Errorf("task %s Phase omitted, want %q", id, *wantPhase)
+				case wantPhase != nil && *gotPhase != *wantPhase:
+					t.Errorf("task %s Phase = %q, want %q", id, *gotPhase, *wantPhase)
+				}
+			}
+		})
+	}
+}
