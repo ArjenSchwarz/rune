@@ -29,15 +29,17 @@ The block-based approach matters because users may intentionally interleave remo
 
 `validateOperation` must validate ALL field content upfront (details, references, title, requirements, extended fields) so that `applyOperation` never fails on content validation. This is important because:
 
-1. `ExecuteBatch` uses a test-copy-first approach that protects the original list, but individual apply functions should still be correct
+1. `ExecuteBatch` and `ExecuteBatchWithPhases` share `runBatch`, which validates and applies every operation once to a deep copy (`deepCopy`/`cloneTasks`, a plain struct copy — not a render/parse round trip, which was lossy and slow). On success the copy and its phase markers replace the original (`*tl = *result`); on failure the original is untouched. Operations are never replayed against the original, so individual apply functions should still be correct but cannot partially mutate the caller's list
 2. `applyUpdateOperation` and `applyOperationWithPhases` must apply status AFTER other field updates to avoid partial mutation if validation fails
 3. When adding new validatable fields to `Operation`, update `validateOperation` to include content validation for both add and update cases
 
 The `validateDetailsAndReferences` helper in batch.go centralises detail/reference content validation for use in `validateOperation`.
 
+Cycle detection for `blocked_by` updates happens only when the update is applied (`UpdateTaskWithOptions`), not again in `validateOperation`; the error is reported the same way.
+
 ## Phase Marker Adjustment
 
-Phase-aware batch adds use `addTaskWithPhaseMarkers` in `internal/task/batch.go`. When inserting a top-level task into an earlier phase, the immediate next phase marker must move to the new task and every later marker must be shifted to account for renumbered top-level tasks. T-787 tracks a bug where the batch path only updates the immediate next marker, which can render later phase headers before the wrong task in files with three or more phases.
+All batch adds (with or without a phase) go through `TaskList.AddTaskWithPhases` in `internal/task/batch.go`, shared with the `add` command; see `streams-and-phases.md`. Phase adds update the immediate next marker and shift every later one, and positional root inserts now shift the markers too (they previously left them pointing at the pre-insertion numbering).
 
 ## Testing Gotcha: Cobra Flag State
 

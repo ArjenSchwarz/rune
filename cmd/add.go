@@ -103,8 +103,9 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to access file %s: %w", filename, err)
 	}
 
-	// Parse existing file
-	tl, err := task.ParseFile(filename)
+	// Parse existing file, keeping its phase markers so a positional insert
+	// can shift them along with the tasks
+	tl, phaseMarkers, err := task.ParseFileWithPhases(filename)
 	if err != nil {
 		return fmt.Errorf("failed to parse task file: %w", err)
 	}
@@ -128,6 +129,47 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Validate requirement IDs before anything is changed
+	var reqIDs []string
+	if addRequirements != "" {
+		reqIDs = parseRequirementIDs(addRequirements)
+		for _, reqID := range reqIDs {
+			if !task.IsValidID(reqID) {
+				return fmt.Errorf("invalid requirement ID format: %s", reqID)
+			}
+		}
+	}
+
+	// Every flag goes through the same add path, whether or not a phase is
+	// targeted, so none of them can be silently dropped
+	op := task.Operation{
+		Type:         "add",
+		Title:        addTitle,
+		Parent:       addParent,
+		Position:     addPosition,
+		Phase:        phaseName,
+		Requirements: reqIDs,
+	}
+	if addStream != 0 {
+		op.Stream = &addStream
+	}
+	if addBlockedBy != "" {
+		op.BlockedBy = parseRequirementIDs(addBlockedBy)
+	}
+	if addOwner != "" {
+		op.Owner = &addOwner
+	}
+
+	// Apply in memory. A dry run stops before writing, so its preview reports
+	// the ID the task would really get (including with --position or --phase).
+	newTaskID, err := tl.AddTaskWithPhases(op, &phaseMarkers)
+	if err != nil {
+		if phaseName != "" {
+			return fmt.Errorf("failed to add task to phase: %w", err)
+		}
+		return fmt.Errorf("failed to add task: %w", err)
+	}
+
 	// Dry run mode - just show what would be added
 	if dryRun {
 		fmt.Printf("Would add task to file: %s\n", filename)
@@ -145,111 +187,27 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		if phaseName != "" {
 			fmt.Printf("Phase: %s\n", phaseName)
 		}
-
-		// Calculate what the new task ID would be
-		var newID string
-		if addParent != "" {
-			if parent := tl.FindTask(addParent); parent != nil {
-				newID = fmt.Sprintf("%s.%d", addParent, len(parent.Children)+1)
-			}
-		} else {
-			newID = fmt.Sprintf("%d", len(tl.Tasks)+1)
-		}
-		fmt.Printf("New task ID would be: %s\n", newID)
+		fmt.Printf("New task ID would be: %s\n", newTaskID)
 		return nil
 	}
 
-	// Check if any extended options are provided
-	hasExtendedOptions := addStream != 0 || addBlockedBy != "" || addOwner != ""
+	// Set requirements file path if provided, otherwise use default
+	if addRequirementsFile != "" {
+		tl.RequirementsFile = addRequirementsFile
+	} else if tl.RequirementsFile == "" && len(reqIDs) > 0 {
+		tl.RequirementsFile = task.DefaultRequirementsFile
+	}
 
-	// Add the task - use phase-aware logic if phase is specified
-	var newTaskID string
-	switch {
-	case phaseName != "":
-		// Phase name already normalized and validated above (before the dry-run
-		// branch). Use phase-aware task addition.
-		newTaskID, err = task.AddTaskToPhase(filename, addParent, addTitle, phaseName)
-		if err != nil {
-			return fmt.Errorf("failed to add task to phase: %w", err)
-		}
-	case hasExtendedOptions:
-		// Use extended task addition with dependencies/streams support
-		opts := task.AddOptions{
-			Position: addPosition,
-			Stream:   addStream,
-			Owner:    addOwner,
-		}
-
-		// Parse blocked-by references
-		if addBlockedBy != "" {
-			opts.BlockedBy = parseRequirementIDs(addBlockedBy)
-		}
-
-		newTaskID, err = tl.AddTaskWithOptions(addParent, addTitle, opts)
-		if err != nil {
-			return fmt.Errorf("failed to add task: %w", err)
-		}
-
-		// Handle requirements if provided
-		if addRequirements != "" {
-			reqIDs := parseRequirementIDs(addRequirements)
-			for _, reqID := range reqIDs {
-				if !task.IsValidID(reqID) {
-					return fmt.Errorf("invalid requirement ID format: %s", reqID)
-				}
-			}
-			if newTask := tl.FindTask(newTaskID); newTask != nil {
-				newTask.Requirements = reqIDs
-			}
-		}
-
-		// Set requirements file path if provided, otherwise use default
-		if addRequirementsFile != "" {
-			tl.RequirementsFile = addRequirementsFile
-		} else if tl.RequirementsFile == "" && addRequirements != "" {
-			tl.RequirementsFile = task.DefaultRequirementsFile
-		}
-
-		// Write the updated file
-		if err := tl.WriteFile(filename); err != nil {
-			return fmt.Errorf("failed to write updated file: %w", err)
-		}
-	default:
-		// Use regular task addition
-		newTaskID, err = tl.AddTask(addParent, addTitle, addPosition)
-		if err != nil {
-			return fmt.Errorf("failed to add task: %w", err)
-		}
-
-		// Handle requirements if provided
-		if addRequirements != "" {
-			// Parse comma-separated IDs
-			reqIDs := parseRequirementIDs(addRequirements)
-
-			// Validate format using existing validation
-			for _, reqID := range reqIDs {
-				if !task.IsValidID(reqID) {
-					return fmt.Errorf("invalid requirement ID format: %s", reqID)
-				}
-			}
-
-			// Update task with requirements
-			if newTask := tl.FindTask(newTaskID); newTask != nil {
-				newTask.Requirements = reqIDs
-			}
-		}
-
-		// Set requirements file path if provided, otherwise use default
-		if addRequirementsFile != "" {
-			tl.RequirementsFile = addRequirementsFile
-		} else if tl.RequirementsFile == "" && addRequirements != "" {
-			tl.RequirementsFile = task.DefaultRequirementsFile
-		}
-
-		// Write the updated file
-		if err := tl.WriteFile(filename); err != nil {
-			return fmt.Errorf("failed to write updated file: %w", err)
-		}
+	// Write with the in-memory phase markers, which reflect the insertion.
+	// WriteFile would re-read the markers from disk, where they still point at
+	// the pre-insertion task numbers.
+	if len(phaseMarkers) > 0 {
+		err = task.WriteFileWithPhases(tl, phaseMarkers, filename)
+	} else {
+		err = tl.WriteFile(filename)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to write updated file: %w", err)
 	}
 
 	// Format-aware output
