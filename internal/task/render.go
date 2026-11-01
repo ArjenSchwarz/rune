@@ -21,6 +21,17 @@ type jsonTask struct {
 	BlockedBy    []string   `json:"blockedBy,omitempty"`
 	Stream       int        `json:"stream"`
 	Owner        string     `json:"owner,omitempty"`
+	// Phase is the phase the task belongs to. Children inherit the phase of
+	// their root task. Only populated when the file contains phases.
+	Phase string `json:"Phase,omitempty"`
+}
+
+// setJSONTaskPhase assigns phase to jt and, recursively, all of its descendants.
+func setJSONTaskPhase(jt *jsonTask, phase string) {
+	jt.Phase = phase
+	for i := range jt.Children {
+		setJSONTaskPhase(&jt.Children[i], phase)
+	}
 }
 
 // toJSONTasks converts a slice of Tasks to jsonTask representations,
@@ -74,19 +85,13 @@ type TaskListJSON struct {
 
 // TaskListJSONWithPhases represents a TaskList with phases and statistics for JSON output
 type TaskListJSONWithPhases struct {
-	Success      bool                `json:"success"`
-	Count        int                 `json:"count"`
-	Title        string              `json:"Title"`
-	Tasks        []jsonTaskWithPhase `json:"Tasks"`
-	Stats        Stats               `json:"Stats"`
-	FrontMatter  *FrontMatter        `json:"FrontMatter,omitempty"`
-	PhaseMarkers []PhaseMarker       `json:"PhaseMarkers,omitempty"`
-}
-
-// jsonTaskWithPhase represents a JSON task with its phase information
-type jsonTaskWithPhase struct {
-	jsonTask
-	Phase string `json:"Phase,omitempty"`
+	Success      bool          `json:"success"`
+	Count        int           `json:"count"`
+	Title        string        `json:"Title"`
+	Tasks        []jsonTask    `json:"Tasks"`
+	Stats        Stats         `json:"Stats"`
+	FrontMatter  *FrontMatter  `json:"FrontMatter,omitempty"`
+	PhaseMarkers []PhaseMarker `json:"PhaseMarkers,omitempty"`
 }
 
 // TaskWithPhase represents a task with its phase information (used for non-JSON rendering)
@@ -412,14 +417,14 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource 
 		phaseResolutionList = phaseSource
 	}
 
-	// Build tasks with phase information
-	tasksWithPhases := make([]jsonTaskWithPhase, 0, len(tl.Tasks))
-	for i := range tl.Tasks {
+	// Build tasks with phase information. The phase is applied recursively so
+	// nested children carry the same phase context as their root task (T-2342).
+	// GetTaskPhase resolves by root ID segment, so children promoted to the top
+	// level by filtering still resolve to their original root's phase.
+	tasksWithPhases := toJSONTasks(tl.Tasks, index)
+	for i := range tasksWithPhases {
 		phase := GetTaskPhase(phaseResolutionList, phaseMarkers, tl.Tasks[i].ID)
-		tasksWithPhases = append(tasksWithPhases, jsonTaskWithPhase{
-			jsonTask: toJSONTask(&tl.Tasks[i], index),
-			Phase:    phase,
-		})
+		setJSONTaskPhase(&tasksWithPhases[i], phase)
 	}
 
 	result := TaskListJSONWithPhases{

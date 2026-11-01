@@ -835,6 +835,50 @@ func TestFilteredJSONOutputPreservesPhaseBoundaries(t *testing.T) {
 			},
 			description: "No filters applied — baseline correctness check",
 		},
+		"nested children inherit phase": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Parent", Status: task.Pending, Children: []task.Task{
+					{ID: "1.1", Title: "Child", Status: task.Pending, ParentID: "1", Children: []task.Task{
+						{ID: "1.1.1", Title: "Grandchild", Status: task.Pending, ParentID: "1.1"},
+					}},
+				}},
+				{ID: "2", Title: "Build parent", Status: task.Pending, Children: []task.Task{
+					{ID: "2.1", Title: "Build child", Status: task.Pending, ParentID: "2"},
+				}},
+			},
+			phases: []task.PhaseMarker{
+				{Name: "Planning", AfterTaskID: ""},
+				{Name: "Build", AfterTaskID: "1"},
+			},
+			opts: listFilterOptions{},
+			wantPhases: map[string]string{
+				"1": "Planning", "1.1": "Planning", "1.1.1": "Planning",
+				"2": "Build", "2.1": "Build",
+			},
+			description: "Nested children must report their root's phase (T-2342)",
+		},
+		"promoted children keep original phase": {
+			tasks: []task.Task{
+				{ID: "1", Title: "Planning parent", Status: task.Pending, Children: []task.Task{
+					{ID: "1.1", Title: "Planning child", Status: task.Pending, ParentID: "1"},
+				}},
+				{ID: "2", Title: "Done build parent", Status: task.Completed, Children: []task.Task{
+					{ID: "2.1", Title: "Pending build child", Status: task.Pending, ParentID: "2", Children: []task.Task{
+						{ID: "2.1.1", Title: "Pending grandchild", Status: task.Pending, ParentID: "2.1"},
+					}},
+				}},
+			},
+			phases: []task.PhaseMarker{
+				{Name: "Planning", AfterTaskID: ""},
+				{Name: "Build", AfterTaskID: "1"},
+			},
+			opts: listFilterOptions{statusFilter: "pending"},
+			wantPhases: map[string]string{
+				"1": "Planning", "1.1": "Planning",
+				"2.1": "Build", "2.1.1": "Build",
+			},
+			description: "Children promoted past a filtered-out parent keep its phase (T-2342)",
+		},
 	}
 
 	for name, tc := range tests {
@@ -854,26 +898,43 @@ func TestFilteredJSONOutputPreservesPhaseBoundaries(t *testing.T) {
 			jsonData := task.RenderJSONWithPhases(filteredList, tc.phases, originalTL)
 
 			var result struct {
-				Tasks []struct {
-					ID    string `json:"ID"`
-					Phase string `json:"Phase"`
-				} `json:"Tasks"`
+				Tasks []phaseJSONTask `json:"Tasks"`
 			}
 			if err := json.Unmarshal(jsonData, &result); err != nil {
 				t.Fatalf("Failed to unmarshal JSON: %v", err)
 			}
 
-			for _, got := range result.Tasks {
-				wantPhase, ok := tc.wantPhases[got.ID]
+			// Walk nested children too: every task, not just roots, must
+			// carry its phase (T-2342).
+			gotPhases := make(map[string]string)
+			collectPhaseJSONTasks(result.Tasks, gotPhases)
+
+			for id, wantPhase := range tc.wantPhases {
+				gotPhase, ok := gotPhases[id]
 				if !ok {
-					continue // task not in our expectations
+					t.Errorf("%s: task %s missing from output", tc.description, id)
+					continue
 				}
-				if got.Phase != wantPhase {
+				if gotPhase != wantPhase {
 					t.Errorf("%s: task %s Phase = %q, want %q",
-						tc.description, got.ID, got.Phase, wantPhase)
+						tc.description, id, gotPhase, wantPhase)
 				}
 			}
 		})
+	}
+}
+
+// phaseJSONTask is the subset of a JSON task needed to check phase propagation.
+type phaseJSONTask struct {
+	ID       string          `json:"ID"`
+	Phase    string          `json:"Phase"`
+	Children []phaseJSONTask `json:"Children"`
+}
+
+func collectPhaseJSONTasks(tasks []phaseJSONTask, out map[string]string) {
+	for _, jt := range tasks {
+		out[jt.ID] = jt.Phase
+		collectPhaseJSONTasks(jt.Children, out)
 	}
 }
 
