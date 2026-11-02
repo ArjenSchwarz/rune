@@ -47,8 +47,8 @@ func init() {
 	rootCmd.AddCommand(createCmd)
 	createCmd.Flags().StringVarP(&createTitle, "title", "t", "", "title for the task list")
 	createCmd.MarkFlagRequired("title")
-	createCmd.Flags().StringSliceVar(&createReferences, "reference", []string{}, "add reference file (can be used multiple times)")
-	createCmd.Flags().StringSliceVar(&createMetadata, "meta", []string{}, "add metadata as key:value (can be used multiple times)")
+	createCmd.Flags().StringArrayVar(&createReferences, "reference", []string{}, "add reference file (can be used multiple times)")
+	createCmd.Flags().StringArrayVar(&createMetadata, "meta", []string{}, "add metadata as key:value (can be used multiple times)")
 }
 
 func runCreate(cmd *cobra.Command, args []string) error {
