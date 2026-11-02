@@ -205,26 +205,16 @@ func renderTask(buf *strings.Builder, task *Task, depth int, ctx *RenderContext)
 	}
 }
 
-// formatReferenceList joins task references with ", ", escaping commas inside
+// formatReferenceList joins task references with ", ", writing a comma inside
 // a reference as "\," so parseReferences reads each one back as a single
-// reference. A backslash is escaped as "\\" only where it would otherwise be
-// ambiguous (before a comma or backslash, or at the end of a reference), so
-// paths like docs\a.md are written unchanged.
+// reference. "\," is the only escape: every other backslash is written as is,
+// so Windows and UNC paths (docs\a.md, \\server\share) are unchanged.
+// validateReferences rejects a reference ending in a backslash when another
+// reference follows, since that backslash would run into the separator comma.
 func formatReferenceList(refs []string) string {
 	escaped := make([]string, len(refs))
 	for i, ref := range refs {
-		var b strings.Builder
-		for j := 0; j < len(ref); j++ {
-			switch {
-			case ref[j] == ',':
-				b.WriteString(`\,`)
-			case ref[j] == '\\' && (j == len(ref)-1 || ref[j+1] == ',' || ref[j+1] == '\\'):
-				b.WriteString(`\\`)
-			default:
-				b.WriteByte(ref[j])
-			}
-		}
-		escaped[i] = b.String()
+		escaped[i] = strings.ReplaceAll(ref, ",", `\,`)
 	}
 	return strings.Join(escaped, ", ")
 }

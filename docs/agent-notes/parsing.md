@@ -48,7 +48,7 @@ A bare `# ` line (empty H1) is deliberately rejected by the parser, so both rend
 
 Requirements lines are parsed strictly, link by link (T-1848, T-1907): the value must be only `[ID](path#anchor)` links separated by commas, since paths may contain commas. Anything else keeps the whole line as a plain detail, not a partial requirement list. `validateDetails` also rejects details that `parseTaskLine` would read as a task line or as malformed task syntax (T-1999).
 
-References use `\,` for a comma inside a reference and `\\` for a backslash where it would be ambiguous (`formatReferenceList` / `parseReferences`, T-1808). Any other backslash is literal, so Windows paths are written unchanged.
+References use `\,` for a comma inside a reference (`formatReferenceList` / `parseReferences`, T-1808). It is the ONLY escape: don't add `\\`, which made legacy UNC paths (`\\server\share`) lose a backslash on load. Every other backslash is literal, so parsing then rendering an existing line is text-identical. `validateReferences` rejects the one value this can't store: a reference ending in `\` that is followed by another.
 
 Invalid `Blocked-by` references produce a `WarnInvalidBlockedBy` entry in `TaskList.Warnings`, which `reportParseWarnings` in `cmd/format.go` prints to stderr (T-1998). A line with no valid ID stays a plain detail. `TaskList.Warnings` and `reportParseWarnings` are byte-identical to PR #113, which uses them for duplicate stable IDs.
 

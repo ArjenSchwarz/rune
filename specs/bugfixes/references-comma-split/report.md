@@ -24,20 +24,23 @@ A task reference containing a comma was read back as several references.
 ## Resolution for the Issue
 
 **Changes made:**
-- `internal/task/render.go` - new `formatReferenceList` writes a comma inside a reference as `\,`. A backslash is written as `\\` only where it would otherwise be ambiguous: before a comma or a backslash, or at the end of a reference.
-- `internal/task/parse.go` - `parseReferences` splits only on unescaped commas and turns `\,` and `\\` back into `,` and `\`. Any other backslash is kept as is.
+- `internal/task/render.go` - new `formatReferenceList` writes a comma inside a reference as `\,`. It is the only escape; backslashes are written as is.
+- `internal/task/parse.go` - `parseReferences` splits only on commas not preceded by a backslash and turns `\,` back into `,`. Every other backslash is literal.
+- `internal/task/operations.go` - `validateReferences` rejects a reference ending in a backslash when another reference follows it. That is the one value this format cannot store: the backslash would run into the separator comma and read back as `\,`. As the last reference it round-trips and is accepted.
 
-**Approach rationale:** References without commas, including Windows paths like `docs\a.md`, are written exactly as before, so existing files and output do not change.
+**Approach rationale:** References without commas, including Windows paths like `docs\a.md` and UNC paths like `\\server\share\file.md`, are written exactly as before. Because rendering only inserts a backslash before each comma, and parsing only removes it there, parsing and then rendering any existing `References:` line gives back the same text. A mutation never changes a line it doesn't touch.
+
+**Review follow-up (PR #120):** The first version also treated `\\` as an escape for a backslash. A legacy `References: \\server\share\file.md` line then loaded as `\server\share\file.md`, and any mutation wrote that changed path back. Dropping the `\\` escape fixes this. The only case it was needed for, a backslash at the end of a reference, is now rejected when ambiguous instead.
 
 **Alternatives considered:**
 - One `References:` line per reference - rejected: it changes the output of every file with more than one reference, and the parser currently keeps only the last `References:` line.
 - Percent-encoding commas - rejected: it changes the stored string for paths.
 
-**Compatibility note:** An existing file containing `\\`, or a backslash right before a comma, inside a `References:` line is now read with those escapes applied. A UNC-style `\\server\share` reference written by an older version would read back as `\server\share`.
+**Compatibility note:** An older file whose `References:` line has a reference ending in a backslash followed by another reference (`dir\, b.md`) now loads as one reference, `dir, b.md`. The line text is still written back unchanged.
 
 ## Regression Test
 
 **Test files:** `internal/task/references_comma_regression_test.go`, `cmd/batch_references_regression_test.go`
-**Test names:** `TestReferencesWithCommasRoundTrip`, `TestReferencesLegacyFormat`, `TestBatchReferencesWithCommaRoundTrip`, `TestBatchCommand_ReferenceWithCommaRoundTrip`
+**Test names:** `TestReferencesWithCommasRoundTrip` (including UNC paths), `TestReferencesLegacyFormat` (legacy Windows and UNC lines load unchanged and survive a mutation byte for byte), `TestReferencesTrailingBackslash`, `TestBatchReferencesWithCommaRoundTrip`, `TestBatchCommand_ReferenceWithCommaRoundTrip`
 
-**Run command:** `go test ./internal/task ./cmd -run 'ReferencesWithComma|ReferencesLegacy|ReferenceWithComma'`
+**Run command:** `go test ./internal/task ./cmd -run 'References|ReferenceWithComma'`

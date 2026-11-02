@@ -580,6 +580,12 @@ func validateReferences(refs []string) error {
 		if len(ref) > 500 {
 			return fmt.Errorf("reference %d exceeds maximum length of 500 characters", i+1)
 		}
+		// A trailing backslash on any reference but the last is written
+		// directly before the separator comma and read back as an escaped
+		// comma ("\,"), merging it with the next reference.
+		if i < len(refs)-1 && strings.HasSuffix(ref, `\`) {
+			return fmt.Errorf("reference %d ends with a backslash and is followed by another reference, which cannot be stored unambiguously: %q", i+1, ref)
+		}
 	}
 	return nil
 }
