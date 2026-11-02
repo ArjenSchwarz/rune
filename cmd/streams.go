@@ -63,6 +63,7 @@ func runStreams(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read task file: %w", err)
 	}
+	reportParseWarnings(taskList)
 
 	// Build dependency index and analyze streams
 	index := task.BuildDependencyIndex(taskList.Tasks)

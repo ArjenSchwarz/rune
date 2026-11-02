@@ -137,6 +137,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse task file: %w", err)
 	}
+	reportParseWarnings(tl)
 
 	// Find the task to verify it exists and get current values
 	targetTask := tl.FindTask(taskID)

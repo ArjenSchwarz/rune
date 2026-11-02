@@ -91,6 +91,7 @@ func runFind(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read task file: %w", err)
 	}
+	reportParseWarnings(taskList)
 
 	if verbose {
 		verboseStderr("Pattern: %s", findPattern)
