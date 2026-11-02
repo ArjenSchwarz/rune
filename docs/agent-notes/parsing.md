@@ -26,6 +26,10 @@ CRLF normalization happens at three levels:
 
 The closing delimiter matching also handles EOF without a trailing newline: `rest == "---"` for empty front matter at EOF, and `strings.HasSuffix(rest, "\n---")` for content front matter at EOF. In both cases, the remaining content is returned as an empty string.
 
+## Unknown Front-Matter Keys
+
+`FrontMatter.Extra` holds top-level keys other than `references`/`metadata` as raw `*yaml.Node` key/value pairs in source order, filled by `FrontMatter.UnmarshalYAML` and appended after the known keys by `MarshalYAML` (T-1845). Nodes, not decoded Go values, are deliberate: decoding into `map[string]any` drops YAML tags (`!vault x` became `x`), and an inline map re-sorts keys alphabetically, which can write an alias before its anchor and produce unparsable YAML. `ParseFrontMatter` does a trial marshal/unmarshal and rejects front matter that would not re-parse (e.g. an unknown key aliasing an anchor on `references`, which is re-encoded without the anchor). Use `FrontMatter.IsEmpty()` to decide whether to write front matter. If you add a field to `FrontMatter`, also add it to `knownFrontMatter`, the skip list in `UnmarshalYAML`, and `deepCopy` (batch.go). Comments are not preserved.
+
 ## Title Detection
 
 Title detection in `parseContent()` only considers the **first non-empty line** of the document (after front matter is stripped). If that line is an H1 (`# Title`), it is used as the document title and removed from the line array. If the first non-empty line is anything else (e.g., a task line), no title is set.

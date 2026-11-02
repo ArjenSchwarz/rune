@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Fixed
 
+- **Data Integrity**: Mutating commands no longer delete front-matter keys other than `references` and `metadata`. These keys were previously dropped on the next write; when they were the only front-matter keys, the whole front-matter block was removed. They are now preserved, including YAML tags, flow style, and anchors/aliases, and are written after the known keys in their original order. YAML comments are not kept. Front matter that could not be written back as valid YAML (an unknown key aliasing an anchor on `references` or `metadata`) is rejected when parsed, before any rewrite
 - **Batch Command**: A batch `add` operation with a `status` is now rejected. The status was ignored and the task was always created as pending, while the batch reported success. Add the task, then set its status with an `update` operation
 
 - **Batch Command**: A rejected batch now exits with status 1. The command printed `success: false` (or the text failure summary) but exited 0, so scripts and CI treated a failed batch as successful. The response is still printed in the requested format
