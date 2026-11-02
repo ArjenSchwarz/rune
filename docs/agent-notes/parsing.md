@@ -32,9 +32,13 @@ Title detection in `parseContent()` only considers the **first non-empty line** 
 
 A `# ` heading appearing later in the file (after tasks) is NOT treated as a title. It will be rejected by the task parser as unexpected content. This was fixed in T-448 — the previous implementation scanned all lines and took the first `# ` match anywhere.
 
+A bare `# ` line (empty H1) is deliberately rejected by the parser, so both renderers omit the H1 entirely when `TaskList.Title` is empty (T-2062). Don't reintroduce a placeholder heading.
+
 ## Detail Lines vs Metadata
 
 `applyDetailLine` in parse.go is the single place that decides whether a `- ` line under a task is read back as metadata (Blocked-by, Stream, Owner, Requirements, References) or as a plain detail. `validateDetails` calls it (through `detailMetadataField`) and rejects any detail that would be read back as metadata, because the renderer writes details as plain `- ` bullets and such a detail would silently turn into data on the next read. When adding a new metadata line type, add it to `applyDetailLine` only; validation picks it up automatically.
+
+`applyDetailLine` also returns a parse error when a task's requirement links name a different file than `TaskList.RequirementsFile` (or mix files within one line), because the renderer writes every link with that single path (T-1973). `detailMetadataField` ignores that error — it only needs the field name.
 
 ## CI Notes
 
