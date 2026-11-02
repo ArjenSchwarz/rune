@@ -50,6 +50,8 @@ Requirements lines are parsed strictly, link by link (T-1848, T-1907): the value
 
 References use `\,` for a comma inside a reference and `\\` for a backslash where it would be ambiguous (`formatReferenceList` / `parseReferences`, T-1808). Any other backslash is literal, so Windows paths are written unchanged.
 
+Invalid `Blocked-by` references produce a `WarnInvalidBlockedBy` entry in `TaskList.Warnings`, which `reportParseWarnings` in `cmd/format.go` prints to stderr (T-1998). A line with no valid ID stays a plain detail. `TaskList.Warnings` and `reportParseWarnings` are byte-identical to PR #113, which uses them for duplicate stable IDs.
+
 `applyDetailLine` also returns a parse error when a task's requirement links name a different file than `TaskList.RequirementsFile` (or mix files within one line), because the renderer writes every link with that single path (T-1973). `detailMetadataField` ignores that error — it only needs the field name.
 
 ## CI Notes

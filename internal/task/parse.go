@@ -38,11 +38,10 @@ var (
 	// ownerPattern matches the Owner metadata line (case-insensitive)
 	ownerPattern = regexp.MustCompile(`(?i)^owner:\s*(.+)$`)
 
-	// blockedByRefPattern extracts stable IDs from blocked-by references
-	// Matches IDs with optional title hints: abc1234 (Task Title) or just abc1234
-	// The ID must be followed by whitespace, parenthesis, comma, or end of string
-	// to avoid matching partial IDs (e.g., extracting "abc1234" from "abc12345")
-	blockedByRefPattern = regexp.MustCompile(`\b([a-z0-9]{7})(?:\s*\([^)]*\))?(?:$|[,\s])`)
+	// blockedByRefPattern matches one blocked-by reference: a stable ID with
+	// an optional title hint, e.g. "abc1234 (Task Title)". The hint is not
+	// required to close, because titles may contain unbalanced parentheses.
+	blockedByRefPattern = regexp.MustCompile(`^([a-z0-9]{7})(?:\s*\(.*)?$`)
 )
 
 // ParseMarkdown parses markdown content into a TaskList structure
@@ -291,9 +290,22 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 // write/read round trip, so the two can never disagree.
 func applyDetailLine(task *Task, v string, taskList *TaskList) (string, error) {
 	// Check for new metadata fields first (case-insensitive)
-	if blockedBy := parseBlockedByLine(v); blockedBy != nil {
-		task.BlockedBy = blockedBy
-		return "Blocked-by", nil
+	if blockedBy, invalid, ok := parseBlockedByLine(v); ok {
+		// Invalid references are ignored with a warning (requirement 2.11).
+		// A line without any valid reference stays a plain detail so its
+		// text is not lost on the next write.
+		if len(invalid) > 0 {
+			taskList.Warnings = append(taskList.Warnings, Warning{
+				Code: WarnInvalidBlockedBy,
+				Message: fmt.Sprintf("task %s: ignoring invalid blocked-by reference(s) %s: a reference must be a 7-character lowercase alphanumeric stable ID",
+					task.ID, strings.Join(invalid, ", ")),
+				TaskID: task.ID,
+			})
+		}
+		if len(blockedBy) > 0 {
+			task.BlockedBy = blockedBy
+			return "Blocked-by", nil
+		}
 	}
 	if stream := parseStreamLine(v); stream > 0 {
 		task.Stream = stream
@@ -484,32 +496,55 @@ func parseDetailLine(line string) string {
 	return ""
 }
 
-// parseBlockedByLine parses a Blocked-by metadata line and returns the stable IDs
-// Returns nil if the line is not a Blocked-by line or contains no valid IDs
-func parseBlockedByLine(line string) []string {
+// parseBlockedByLine parses a Blocked-by metadata line. It returns the valid
+// stable IDs, the references that are not valid, and whether the line is a
+// Blocked-by line at all.
+//
+// References are separated by commas outside parentheses, so commas in title
+// hints do not split a reference. If the parentheses do not balance (a title
+// with a stray "("), every comma is treated as a separator instead.
+func parseBlockedByLine(line string) (ids, invalid []string, ok bool) {
 	matches := blockedByPattern.FindStringSubmatch(line)
 	if len(matches) < 2 {
-		return nil
+		return nil, nil, false
 	}
 
-	// Extract stable IDs from the value (handles both "id (title)" and plain "id" formats)
-	value := matches[1]
-	idMatches := blockedByRefPattern.FindAllStringSubmatch(value, -1)
-	if len(idMatches) == 0 {
-		return nil
-	}
-
-	stableIDs := make([]string, 0, len(idMatches))
-	for _, m := range idMatches {
-		if len(m) >= 2 {
-			stableIDs = append(stableIDs, m[1])
+	for _, ref := range splitBlockedByRefs(matches[1]) {
+		ref = strings.TrimSpace(ref)
+		if ref == "" {
+			continue
+		}
+		if m := blockedByRefPattern.FindStringSubmatch(ref); m != nil {
+			ids = append(ids, m[1])
+		} else {
+			invalid = append(invalid, strconv.Quote(ref))
 		}
 	}
+	return ids, invalid, true
+}
 
-	if len(stableIDs) == 0 {
-		return nil
+// splitBlockedByRefs splits a Blocked-by value on commas that are not inside
+// a parenthesised title hint.
+func splitBlockedByRefs(value string) []string {
+	var refs []string
+	depth, start := 0, 0
+	for i, ch := range value {
+		switch ch {
+		case '(':
+			depth++
+		case ')':
+			depth = max(depth-1, 0)
+		case ',':
+			if depth == 0 {
+				refs = append(refs, value[start:i])
+				start = i + 1
+			}
+		}
 	}
-	return stableIDs
+	if depth != 0 {
+		return strings.Split(value, ",")
+	}
+	return append(refs, value[start:])
 }
 
 // parseStreamLine parses a Stream metadata line and returns the stream number
