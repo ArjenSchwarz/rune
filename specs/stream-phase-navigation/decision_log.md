@@ -169,3 +169,36 @@ Returning all stream tasks gives agents visibility into the full scope of work i
 - Claim operations must still filter to ready tasks only
 
 ---
+
+## Decision 6: Unphased Documents Fall Back to the Whole File
+
+**Date**: 2026-11-02
+**Status**: accepted (supersedes the original wording of requirement 1.7)
+
+### Context
+
+Requirement 1.7 made `next --phase --stream N` return "No ready tasks found in stream N" for a document without phase headers, on the basis that phases are required for phase-based navigation. `next --phase` without a stream already falls back to all pending tasks for such documents. T-1319 reported the stream variant's success-with-empty-result as misleading: a ready stream N task exists, and `--phase --stream N --claim` could not claim it either.
+
+### Decision
+
+A document without phase headers is treated as a single unnamed phase by `FindNextPhaseTasksForStream`, so `--phase --stream N` (and its `--claim` variant) returns the stream N tasks of the whole file.
+
+### Rationale
+
+`--phase` already treats unphased documents this way, so "phases are required" does not hold for the flag as a whole. Mirroring the fallback makes the stream variant consistent with it and gives agents the work that exists.
+
+### Alternatives Considered
+
+- **Reject `--phase --stream` on unphased files with an explicit error**: Removes the misleading success response - Rejected because `--phase` alone does not reject such files, so the two variants would still disagree
+- **Keep the empty success response**: Matches the original requirement - Rejected because the ticket shows it hides ready work
+
+### Consequences
+
+**Positive:**
+- `--phase` and `--phase --stream N` behave the same on unphased files
+- `--phase --stream N --claim` can claim work in unphased files
+
+**Negative:**
+- Changes the documented behavior of requirement 1.7
+
+---

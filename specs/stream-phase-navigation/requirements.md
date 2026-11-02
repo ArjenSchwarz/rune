@@ -31,7 +31,7 @@ The improved behavior finds the first phase that has **ready tasks in the specif
 4. <a name="1.4"></a>The system SHALL return tasks in document order within the selected phase
 5. <a name="1.5"></a>Stream filtering SHALL apply to individual tasks based on their assigned or effective stream (defaulting to stream 1 if unassigned)
 6. <a name="1.6"></a>Tasks that appear before the first phase header SHALL be excluded when `--phase` flag is used
-7. <a name="1.7"></a>WHEN the document has no phase headers, `--phase --stream N` SHALL return "No ready tasks found in stream N" (phases are required for phase-based navigation)
+7. <a name="1.7"></a>WHEN the document has no phase headers, `--phase --stream N` SHALL treat the whole document as a single unnamed phase, as `--phase` does (amended by T-1319, see Decision 6)
 
 ### 2. Backward Compatibility
 

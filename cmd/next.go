@@ -167,10 +167,11 @@ func runNextWithStream(filename string) error {
 		return outputNextStreamEmpty(streamFlag)
 	}
 
-	// Return the first ready task in the stream
+	// Return the first ready task in the stream, without subtasks from other streams
+	first := task.PruneToStream(streamTasks[0], streamFlag)
 	nextTask := &task.TaskWithContext{
-		Task:               &streamTasks[0],
-		IncompleteChildren: filterIncompleteChildren(streamTasks[0].Children),
+		Task:               &first,
+		IncompleteChildren: filterIncompleteChildren(first.Children),
 	}
 
 	switch format {
@@ -239,13 +240,7 @@ func runNextWithClaim(filename string) error {
 			return outputClaimEmpty(0)
 		}
 
-		// Filter to only ready tasks (pending, no owner, not blocked)
-		for i := range phaseResult.Tasks {
-			t := &phaseResult.Tasks[i]
-			if isTaskReady(t, index) {
-				taskIDsToClaim = append(taskIDsToClaim, t.ID)
-			}
-		}
+		taskIDsToClaim = readyPhaseTaskIDs(phaseResult.Tasks, index)
 	case streamFlag > 0:
 		// Claim all ready tasks in the specified stream (flat — readyTasks is already flattened)
 		readyTasks := getReadyTasks(taskList.Tasks, index)
@@ -346,6 +341,24 @@ func getReadyTasks(tasks []task.Task, index *task.DependencyIndex) []task.Task {
 
 	findReady(tasks)
 	return ready
+}
+
+// readyPhaseTaskIDs returns the IDs of ready tasks for a --phase claim. A ready
+// task is claimed as a whole; a completed task is looked through so its ready
+// subtasks can be claimed. Pending, in-progress and claimed tasks are not
+// looked through, so their subtasks stay with them.
+func readyPhaseTaskIDs(tasks []task.Task, index *task.DependencyIndex) []string {
+	var ids []string
+	for i := range tasks {
+		t := &tasks[i]
+		switch {
+		case isTaskReady(t, index):
+			ids = append(ids, t.ID)
+		case t.Status == task.Completed:
+			ids = append(ids, readyPhaseTaskIDs(t.Children, index)...)
+		}
+	}
+	return ids
 }
 
 // filterIncompleteChildren returns children that have incomplete work,
@@ -668,7 +681,7 @@ func runNextPhase(filename string) error {
 	// Create output based on format
 	switch format {
 	case formatJSON:
-		return outputPhaseTasksJSONWithStreams(phaseResult, taskList.FrontMatter, index, taskList.Tasks)
+		return outputPhaseTasksJSONWithStreams(phaseResult, taskList.FrontMatter, index)
 	case formatMarkdown:
 		return outputPhaseTasksMarkdown(phaseResult, taskList.FrontMatter, index)
 	default:
@@ -846,7 +859,7 @@ type PhaseOutputJSONWithStreams struct {
 }
 
 // outputPhaseTasksJSONWithStreams renders phase tasks with stream/dependency info
-func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter, index *task.DependencyIndex, allTasks []task.Task) error {
+func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter, index *task.DependencyIndex) error {
 	// Convert tasks with stream info
 	var convertTask func(t *task.Task) PhaseTaskJSONWithStreams
 	convertTask = func(t *task.Task) PhaseTaskJSONWithStreams {
@@ -885,8 +898,19 @@ func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMa
 		outputData.Tasks = append(outputData.Tasks, convertTask(&t))
 	}
 
-	// Calculate streams summary
-	streamsResult := task.AnalyzeStreams(allTasks, index)
+	// Calculate the streams summary for the selected phase only. The index
+	// still covers the whole file, so blockers in other phases resolve.
+	summaryTasks := phaseResult.Tasks
+	if streamFlag > 0 {
+		// The stream result is a flat list that also holds nested matches;
+		// drop children so each task is counted once.
+		summaryTasks = make([]task.Task, len(phaseResult.Tasks))
+		for i, t := range phaseResult.Tasks {
+			t.Children = nil
+			summaryTasks[i] = t
+		}
+	}
+	streamsResult := task.AnalyzeStreams(summaryTasks, index)
 	if len(streamsResult.Streams) > 0 {
 		outputData.StreamsSummary = make([]StreamsSummary, len(streamsResult.Streams))
 		for i, s := range streamsResult.Streams {

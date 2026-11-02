@@ -5,7 +5,8 @@
 - `FilterByStream(tasks, stream)` in `internal/task/streams.go` -- filters tasks by effective stream. Recurses into children (fixed in T-170). Use only with hierarchical input (e.g., phase tasks).
 - `FilterByStreamFlat(tasks, stream)` in `internal/task/streams.go` -- non-recursive stream filter. Use when input is already flattened (e.g., output of `getReadyTasks`). Added in T-347.
 - `AnalyzeStreams(tasks, index)` in `internal/task/streams.go` -- computes stream status (ready/blocked/active). Already recursive via its own `processTasks` closure.
-- `FindNextPhaseTasksForStream(filepath, stream)` in `internal/task/next.go` -- finds stream tasks in first phase with a ready task in that stream. Uses `FilterByStream` and `hasReadyTaskInStream`.
+- `FindNextPhaseTasksForStream(filepath, stream)` in `internal/task/next.go` -- finds stream tasks in first phase with a ready task in that stream. Uses `FilterByStream` and `hasReadyTaskInStream`. A file without phase headers is one unnamed phase (T-1319, mirrors `FindNextPhaseTasks`). Returned tasks have children pruned to the stream via `PruneToStream` (T-1705).
+- `PruneToStream(task, stream)` in `internal/task/streams.go` -- copy of a task with descendants limited to one stream. Use it before rendering any stream-filtered task that carries `Children`; every `next` renderer recurses into `Children` (T-1433, T-1705).
 - `hasReadyTaskInStream(tasks, stream, index)` in `internal/task/next.go` -- checks if any task in the stream is ready. Delegates to `FilterByStream`.
 - `extractPhasesWithTaskRanges(lines, allTasks)` in `internal/task/next.go` -- builds phase-to-task mapping. Only adds top-level tasks to phases, but those tasks carry their children.
 
@@ -16,6 +17,11 @@
 3. `hasReadyTaskInStream` checks each phase for ready tasks in the target stream
 4. `FilterByStream` collects all matching tasks (including nested) from the selected phase
 5. Non-completed matching tasks are returned
+
+## `next` Phase Output Scope
+
+- `streams_summary` in `next --phase --format json` is computed from `phaseResult.Tasks` (the selected phase), not the whole file, while the dependency index stays file-wide so cross-phase blockers resolve (T-2000). With `--stream`, `phaseResult.Tasks` is a flat list that also contains nested matches, so children are stripped before `AnalyzeStreams` to avoid counting a task twice.
+- `--phase --claim` (no stream) claims ready top-level phase tasks and looks through *completed* tasks to their ready subtasks (T-905). It does not look through pending/in-progress/claimed parents, matching `hasReadyWork`.
 
 ## Exported Functions
 
