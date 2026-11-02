@@ -15,6 +15,8 @@ func roundTrip(t *testing.T, tl *TaskList) *TaskList {
 	return got
 }
 
+// T-1848: a requirements file path containing a comma lost its requirement
+// semantics because the parser split the whole line on every comma.
 func TestRequirementsPathWithCommaRoundTrip(t *testing.T) {
 	tl := NewTaskList("T")
 	if _, err := tl.AddTask("", "Linked", ""); err != nil {
@@ -35,6 +37,9 @@ func TestRequirementsPathWithCommaRoundTrip(t *testing.T) {
 	}
 }
 
+// T-1907: requirement lines with any text besides comma-separated links were
+// accepted as requirements and the extra text was dropped on the next write.
+// Requirement 4.4: malformed requirement lines stay plain details, verbatim.
 func TestMalformedRequirementsLinesStayDetails(t *testing.T) {
 	tests := map[string]string{
 		"prefix and suffix":             "Requirements: prefix [1.1](requirements.md#1.1) suffix",
@@ -69,6 +74,7 @@ func TestMalformedRequirementsLinesStayDetails(t *testing.T) {
 	}
 }
 
+// Valid requirement lines must keep working (requirement 4.3).
 func TestValidRequirementsLinesStillParse(t *testing.T) {
 	tests := map[string]struct {
 		line string

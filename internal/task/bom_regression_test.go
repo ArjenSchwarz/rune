@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// T-2063: a leading UTF-8 byte-order mark prevented title and front matter
+// detection, so the file failed to parse at line 1.
 func TestParseMarkdownStripsUTF8BOM(t *testing.T) {
 	const bom = "\xef\xbb\xbf"
 	tests := map[string]struct {
@@ -46,6 +48,8 @@ func TestParseMarkdownStripsUTF8BOM(t *testing.T) {
 	}
 }
 
+// Phase markers are read from raw file bytes; a BOM must not hide the front
+// matter delimiter there either.
 func TestPhaseMarkersIgnoreUTF8BOM(t *testing.T) {
 	content := "\xef\xbb\xbf---\n## not a phase\nmetadata:\n  x: 1\n---\n# T\n\n## Real\n\n- [ ] 1. A\n"
 	markers := phaseMarkersFromContent([]byte(content))

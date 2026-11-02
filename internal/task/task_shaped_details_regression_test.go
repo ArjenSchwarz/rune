@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// T-1999: a detail that looks like a task line was written verbatim and read
+// back as a child task. Expected: such details are rejected before writing.
 func TestTaskShapedDetailsRejected(t *testing.T) {
 	tests := map[string]string{
 		"pending task":       "[ ] 99. Injected child",

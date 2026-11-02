@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// T-1998: malformed Blocked-by references were silently turned into a plain
+// detail. Requirement 2.11: warn and ignore the invalid reference.
 func TestMalformedBlockedByWarns(t *testing.T) {
 	tests := map[string]struct {
 		line        string
