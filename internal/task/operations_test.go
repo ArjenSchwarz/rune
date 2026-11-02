@@ -3,6 +3,7 @@ package task
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -422,6 +423,129 @@ func TestWriteFileAtomic(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestWriteFileAtomicThroughSymlink is a regression test for T-1796. Renaming
+// the temp file over a symlink path replaced the link with a regular file and
+// left the file it pointed to unchanged. Writing through an in-workspace
+// symlink must update the link's target and keep the link in place; a
+// dangling link has no validated target and must be rejected without changes.
+func TestWriteFileAtomicThroughSymlink(t *testing.T) {
+	const original = "# Original\n"
+	const replacement = "# Replacement\n"
+
+	tests := map[string]struct {
+		target     string // file the link points to, relative to the link
+		createDest bool   // whether the target exists
+		wantErr    string
+	}{
+		"link to sibling file": {
+			target:     "target.md",
+			createDest: true,
+		},
+		"relative link into a subdirectory": {
+			target:     filepath.Join("sub", "target.md"),
+			createDest: true,
+		},
+		"dangling link is rejected": {
+			target:  "missing.md",
+			wantErr: "resolving symlink",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			if err := os.MkdirAll("sub", 0755); err != nil {
+				t.Fatal(err)
+			}
+			if tc.createDest {
+				if err := os.WriteFile(tc.target, []byte(original), 0640); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.Symlink(tc.target, "link.md"); err != nil {
+				t.Fatal(err)
+			}
+
+			err := WriteFileAtomic("link.md", []byte(replacement))
+
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+				if _, statErr := os.Lstat(tc.target); !os.IsNotExist(statErr) {
+					t.Errorf("dangling target %q was created", tc.target)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("WriteFileAtomic failed: %v", err)
+				}
+				got, readErr := os.ReadFile(tc.target)
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+				if string(got) != replacement {
+					t.Errorf("target content = %q, want %q", got, replacement)
+				}
+				info, statErr := os.Stat(tc.target)
+				if statErr != nil {
+					t.Fatal(statErr)
+				}
+				if info.Mode().Perm() != 0640 {
+					t.Errorf("target permissions = %v, want 0640", info.Mode().Perm())
+				}
+			}
+
+			info, err := os.Lstat("link.md")
+			if err != nil {
+				t.Fatalf("link.md missing after write: %v", err)
+			}
+			if info.Mode()&os.ModeSymlink == 0 {
+				t.Errorf("link.md was replaced by a regular file")
+			}
+			for _, p := range []string{"link.md.tmp", tc.target + ".tmp"} {
+				if _, statErr := os.Lstat(p); !os.IsNotExist(statErr) {
+					t.Errorf("temp file %q was left behind", p)
+				}
+			}
+		})
+	}
+}
+
+// TestWriteFileThroughSymlink covers the reported T-1796 path: a task list
+// loaded and saved through a symlink (as `rune add link.md` does) must be
+// written to the link's target.
+func TestWriteFileThroughSymlink(t *testing.T) {
+	t.Chdir(t.TempDir())
+	if err := os.WriteFile("target.md", []byte("# Tasks\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("target.md", "link.md"); err != nil {
+		t.Fatal(err)
+	}
+
+	tl, err := ParseFile("link.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tl.AddTask("", "Added", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := tl.WriteFile("link.md"); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	got, err := os.ReadFile("target.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "- [ ] 1. Added") {
+		t.Errorf("target.md was not updated, content:\n%s", got)
+	}
+	if info, err := os.Lstat("link.md"); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("link.md is no longer a symlink (err=%v)", err)
 	}
 }
 

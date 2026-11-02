@@ -49,8 +49,8 @@ var (
 
 func init() {
 	rootCmd.AddCommand(addFrontMatterCmd)
-	addFrontMatterCmd.Flags().StringSliceVar(&addFMReferences, "reference", []string{}, "add reference file (can be used multiple times)")
-	addFrontMatterCmd.Flags().StringSliceVar(&addFMMetadata, "meta", []string{}, "add metadata as key:value (can be used multiple times)")
+	addFrontMatterCmd.Flags().StringArrayVar(&addFMReferences, "reference", []string{}, "add reference file (can be used multiple times)")
+	addFrontMatterCmd.Flags().StringArrayVar(&addFMMetadata, "meta", []string{}, "add metadata as key:value (can be used multiple times)")
 }
 
 func runAddFrontMatter(cmd *cobra.Command, args []string) error {
