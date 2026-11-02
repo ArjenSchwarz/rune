@@ -42,22 +42,23 @@ Error: failed to read task file: reading file: open specs/my-feature/tasks.md: n
 
 **Changes made:**
 - `internal/config/discovery.go` - Added exported `RepoRoot()`; documented that discovered paths are repo-relative.
-- `cmd/filename.go` - After a successful discovery, `resolveFilename` changes the working directory to the repo root, then returns the repo-relative path.
+- `cmd/filename.go` - After a successful discovery from a subdirectory, `resolveFilename` (via `discoveredPath`) changes the working directory to the repo root and returns the absolute path. From the repo root it returns the repo-relative path unchanged.
 
-**Approach rationale:** Running the command from the repo root makes the repo-relative path resolve for both reads and writes, without changing `ValidateFilePath`. Explicit file arguments are untouched and still resolve relative to the invoking directory.
+**Approach rationale:** Running the command from the repo root lets writes pass `ValidateFilePath` without changing it. Returning the absolute path means the filename commands report (`file` in JSON, "Using task file", dry-run text) can be passed back to rune from the caller's directory. A first version returned the repo-relative path after the chdir; review on PR #115 found that the reported path then could not be reused from the subdirectory. Explicit file arguments are untouched and still resolve relative to the invoking directory.
 
 **Alternatives considered:**
-- Return an absolute path - fixes reads only; writes fail the CWD containment check.
+- Return an absolute path without changing directory - fixes reads only; writes fail the CWD containment check.
+- Return a caller-relative path (`../specs/...`) - unusable internally after the chdir, and would need two paths threaded through every command.
 - Relax `ValidateFilePath` to allow anything under the repo root - a security-boundary change for all paths, out of scope.
 
 ## Regression Test
 
-**Test file:** `cmd/filename_test.go`
-**Test names:** `TestResolveFilenameFromSubdirectory`, `TestCompleteFromSubdirectoryWithDiscovery`
+**Test files:** `cmd/filename_test.go`, `cmd/integration_discovery_subdir_test.go`
+**Test names:** `TestResolveFilenameFromSubdirectory`, `TestCompleteFromSubdirectoryWithDiscovery`, `TestIntegrationDiscoveryFromSubdirectory`
 
-**What it verifies:** From a real git repo subdirectory, the path from `resolveFilename` can be parsed and written, and `runComplete` marks the task complete in the repo-root file.
+**What it verifies:** From a real git repo subdirectory, the path from `resolveFilename` can be parsed and written, and `runComplete` marks the task complete in the repo-root file. The integration test runs the built binary from `src/pkg`: `add-phase --format json` writes the repo-root file and its reported `file` is accepted by `list` from the same directory; `--dry-run` and `complete --verbose` report the same path; explicit `../../specs/...` reads still work and explicit writes outside the CWD are still rejected; from the repo root the reported path stays repo-relative.
 
-**Run command:** `go test ./cmd -run 'TestResolveFilenameFromSubdirectory|TestCompleteFromSubdirectoryWithDiscovery'`
+**Run command:** `go test ./cmd -run 'TestResolveFilenameFromSubdirectory|TestCompleteFromSubdirectoryWithDiscovery' && INTEGRATION=1 go test ./cmd -run TestIntegrationDiscoveryFromSubdirectory`
 
 ## Affected Files
 
@@ -66,6 +67,7 @@ Error: failed to read task file: reading file: open specs/my-feature/tasks.md: n
 | `cmd/filename.go` | Chdir to repo root after discovery |
 | `internal/config/discovery.go` | `RepoRoot()` helper, doc comment |
 | `cmd/filename_test.go` | Regression tests |
+| `cmd/integration_discovery_subdir_test.go` | CLI round trip from a subdirectory |
 
 ## Verification
 
@@ -76,10 +78,11 @@ Error: failed to read task file: reading file: open specs/my-feature/tasks.md: n
 
 **Manual verification:**
 - Ticket reproduction: `next --format json --verbose` and `complete 1 --verbose` from `src/pkg` now succeed and update `specs/my-feature/tasks.md`.
+- Review scenario: from `src/` on `feature/demo`, `add-phase Planning --format json` reports an absolute `file`, and `list` with the path reported by `add-phase --dry-run` succeeds from `src/`.
 
 ## Prevention
 
-- Test path-resolution fixes through a command entry point, not only the helper.
+- Test path-resolution fixes through a command entry point, not only the helper, and check that any path a command reports can be reused from the caller's directory.
 
 ## Related
 
