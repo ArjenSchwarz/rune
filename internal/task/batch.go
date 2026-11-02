@@ -567,7 +567,7 @@ func (tl *TaskList) deepCopy() *TaskList {
 		c.FrontMatter = &FrontMatter{
 			References: slices.Clone(tl.FrontMatter.References),
 			Metadata:   maps.Clone(tl.FrontMatter.Metadata),
-			Extra:      maps.Clone(tl.FrontMatter.Extra),
+			Extra:      slices.Clone(tl.FrontMatter.Extra),
 		}
 	}
 	return &c

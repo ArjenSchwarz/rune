@@ -43,9 +43,9 @@ Any mutating command (`complete`, `update`, `batch`, `add-frontmatter`, ...) rew
 ## Resolution for the Issue
 
 **Changes made:**
-- `internal/task/references.go` - Added `Extra map[string]any` with `yaml:",inline"` so unknown top-level keys are captured on parse and written back on serialize. It is tagged `json:"-"` so JSON output is unchanged. Added `(*FrontMatter).IsEmpty()`, which also counts `Extra`.
+- `internal/task/references.go` - Added `Extra []*yaml.Node` (`json:"-"`, so JSON output is unchanged), filled by a custom `UnmarshalYAML` with every top-level key/value pair other than `references`/`metadata`, in source order. A custom `MarshalYAML` writes the known keys, then those nodes. `ParseFrontMatter` does a trial marshal/unmarshal and rejects front matter that would not re-parse. Added `(*FrontMatter).IsEmpty()`, which also counts `Extra`.
 - `internal/task/operations.go` - `WriteFile` and `WriteFileWithPhases` now use `IsEmpty()`.
-- `internal/task/batch.go` - `deepCopy` also clones `Extra`. Batch operations never mutate it, so a shallow clone is enough.
+- `internal/task/batch.go` - `deepCopy` also clones `Extra`. Batch operations never mutate the nodes, so a shallow clone is enough.
 
 **Approach rationale:** Preserving the keys meets requirement 3.9 directly and leaves room for extensibility (3.10). Rejecting unknown keys would break existing files that are valid today.
 
@@ -53,22 +53,28 @@ Any mutating command (`complete`, `update`, `batch`, `add-frontmatter`, ...) rew
 - Reject unknown keys at parse time - Not chosen: it turns valid files that other tools have annotated into errors.
 - Write back the original front-matter text verbatim - Not chosen: `add-frontmatter` changes the modelled fields, so the YAML has to be regenerated anyway.
 
-**Known limitation:** The YAML is regenerated, not copied, so unknown keys are written after `references` and `metadata` in alphabetical order, and comments and original formatting (for example flow-style `[important]`) are not kept. The data is preserved; the exact layout is not.
+**Review follow-up (PR #111):** The first version stored unknown values in an inline `map[string]any`. Decoding into Go values dropped YAML tags, so `owner: !vault value` was written back as `owner: value`, changing its meaning for downstream tools. The inline map also re-sorted keys alphabetically, so an alias could be written before its anchor (`zz: &x ...` / `aa: *x`), producing unparsable YAML. Keeping the original nodes in source order fixes both.
+
+**Known limitations:**
+- The YAML is regenerated, not copied: unknown keys move after `references`/`metadata`, comments are lost, and indentation is normalised. Tags, flow style, anchors and aliases are kept.
+- Front matter where an unknown key aliases an anchor defined on `references` or `metadata` is now rejected at parse time, for every command, because rune re-encodes those keys without their anchors. Previously the alias was resolved to a plain value.
 
 ## Regression Test
 
 **Test file:** `internal/task/frontmatter_unknown_fields_test.go`
-**Test names:** `TestWriteFilePreservesUnknownFrontMatterFields`, `TestSerializeWithFrontMatterOnlyUnknownFields`
+**Test names:** `TestWriteFilePreservesUnknownFrontMatterFields`, `TestSerializeWithFrontMatterOnlyUnknownFields`, `TestWriteFilePreservesTaggedAndAliasedFrontMatterValues`, `TestParseFrontMatterRejectsUnpreservableAlias`
 
 **What it verifies:** Unknown keys survive parse → mutate → write → re-parse in four cases: only unknown keys, unknown keys alongside references, a file with phases (the `WriteFileWithPhases` path), and a batch operation (the `deepCopy` path).
 
-**Run command:** `go test ./internal/task -run 'UnknownFrontMatter|OnlyUnknownFields' -v`
+**Also verifies (review follow-up):** Custom tags (scalar, nested, and in sequences), an explicit core tag, and an alias whose key sorts before its anchor all survive two consecutive writes unchanged. An unknown key aliasing a `references` anchor is rejected when parsed.
+
+**Run command:** `go test ./internal/task -run 'UnknownFrontMatter|OnlyUnknownFields|TaggedAndAliased|UnpreservableAlias' -v`
 
 ## Affected Files
 
 | File | Change |
 |------|--------|
-| `internal/task/references.go` | `Extra` inline field, `IsEmpty()` helper |
+| `internal/task/references.go` | `Extra` node list, custom (un)marshalling, write-back check, `IsEmpty()` helper |
 | `internal/task/operations.go` | Use `IsEmpty()` in both write paths |
 | `internal/task/batch.go` | Clone `Extra` in `deepCopy` |
 | `internal/task/frontmatter_unknown_fields_test.go` | Regression tests |

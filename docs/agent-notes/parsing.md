@@ -28,7 +28,7 @@ The closing delimiter matching also handles EOF without a trailing newline: `res
 
 ## Unknown Front-Matter Keys
 
-`FrontMatter.Extra` (`yaml:",inline"`, `json:"-"`) holds top-level keys other than `references`/`metadata` so mutations don't drop them (T-1845). Use `FrontMatter.IsEmpty()` to decide whether to write front matter; it is nil-safe and accounts for `Extra`. If you add a field to `FrontMatter`, also clone it in `deepCopy` (batch.go). Re-serialization moves unknown keys after the known ones in alphabetical order and does not keep comments or flow style.
+`FrontMatter.Extra` holds top-level keys other than `references`/`metadata` as raw `*yaml.Node` key/value pairs in source order, filled by `FrontMatter.UnmarshalYAML` and appended after the known keys by `MarshalYAML` (T-1845). Nodes, not decoded Go values, are deliberate: decoding into `map[string]any` drops YAML tags (`!vault x` became `x`), and an inline map re-sorts keys alphabetically, which can write an alias before its anchor and produce unparsable YAML. `ParseFrontMatter` does a trial marshal/unmarshal and rejects front matter that would not re-parse (e.g. an unknown key aliasing an anchor on `references`, which is re-encoded without the anchor). Use `FrontMatter.IsEmpty()` to decide whether to write front matter. If you add a field to `FrontMatter`, also add it to `knownFrontMatter`, the skip list in `UnmarshalYAML`, and `deepCopy` (batch.go). Comments are not preserved.
 
 ## Title Detection
 
