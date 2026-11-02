@@ -141,18 +141,18 @@ func outputStreamsTable(result *task.StreamsResult) error {
 		}
 
 		tableData[i] = map[string]any{
-			"Stream":    stream.ID,
-			"Ready":     len(stream.Ready),
-			"Blocked":   len(stream.Blocked),
-			"Active":    len(stream.Active),
-			"Claimed":   len(stream.Claimed),
-			"Available": available,
+			columnStream: stream.ID,
+			"Ready":      len(stream.Ready),
+			"Blocked":    len(stream.Blocked),
+			"Active":     len(stream.Active),
+			"Claimed":    len(stream.Claimed),
+			"Available":  available,
 		}
 	}
 
 	// Create table output
 	doc := output.New().
-		Table("Stream Status", tableData, output.WithKeys("Stream", "Ready", "Blocked", "Active", "Claimed", "Available")).
+		Table("Stream Status", tableData, output.WithKeys(columnStream, "Ready", "Blocked", "Active", "Claimed", "Available")).
 		Build()
 
 	out := output.NewOutput(

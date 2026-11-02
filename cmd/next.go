@@ -754,12 +754,12 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 	// Add all tasks from the phase
 	for _, t := range phaseResult.Tasks {
 		taskRecord := map[string]any{
-			"ID":         t.ID,
-			columnTitle:  t.Title,
-			columnStatus: formatStatusWithBlocking(&t, index),
-			columnLevel:  getTaskLevel(t.ID),
-			"Stream":     task.GetEffectiveStream(&t),
-			"BlockedBy":  formatBlockedByForDisplay(&t, index),
+			"ID":            t.ID,
+			columnTitle:     t.Title,
+			columnStatus:    formatStatusWithBlocking(&t, index),
+			columnLevel:     getTaskLevel(t.ID),
+			columnStream:    task.GetEffectiveStream(&t),
+			columnBlockedBy: formatBlockedByForDisplay(&t, index),
 		}
 		if phaseResult.PhaseName != "" {
 			taskRecord["Phase"] = phaseResult.PhaseName
@@ -772,7 +772,7 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 
 	// Create table document. Stream and BlockedBy are shown for every task,
 	// as in the JSON output (T-2176).
-	keys := []string{"ID", columnTitle, columnStatus, columnLevel, "Stream", "BlockedBy"}
+	keys := []string{"ID", columnTitle, columnStatus, columnLevel, columnStream, columnBlockedBy}
 	if phaseResult.PhaseName != "" {
 		keys = append(keys, "Phase")
 	}
@@ -1022,12 +1022,12 @@ func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMa
 func addAllChildrenToData(parentTask *task.Task, taskData *[]map[string]any, phaseName string, index *task.DependencyIndex) {
 	for _, child := range parentTask.Children {
 		childRecord := map[string]any{
-			"ID":         child.ID,
-			columnTitle:  child.Title,
-			columnStatus: formatStatusWithBlocking(&child, index),
-			columnLevel:  getTaskLevel(child.ID),
-			"Stream":     task.GetEffectiveStream(&child),
-			"BlockedBy":  formatBlockedByForDisplay(&child, index),
+			"ID":            child.ID,
+			columnTitle:     child.Title,
+			columnStatus:    formatStatusWithBlocking(&child, index),
+			columnLevel:     getTaskLevel(child.ID),
+			columnStream:    task.GetEffectiveStream(&child),
+			columnBlockedBy: formatBlockedByForDisplay(&child, index),
 		}
 		if phaseName != "" {
 			childRecord["Phase"] = phaseName
@@ -1284,13 +1284,13 @@ func outputClaimTable(claimed []task.Task, frontMatter *task.FrontMatter) error 
 			columnTitle:  t.Title,
 			columnStatus: formatStatus(t.Status),
 			"Owner":      t.Owner,
-			"Stream":     task.GetEffectiveStream(&t),
+			columnStream: task.GetEffectiveStream(&t),
 		}
 		taskData = append(taskData, record)
 	}
 
 	builder := output.New().
-		Table(claimOutputTitle(), taskData, output.WithKeys("ID", columnTitle, columnStatus, "Owner", "Stream"))
+		Table(claimOutputTitle(), taskData, output.WithKeys("ID", columnTitle, columnStatus, "Owner", columnStream))
 
 	// Task context sections, as in the unclaimed next table output (T-2184)
 	var detailData, taskRefData []map[string]any

@@ -23,6 +23,8 @@ const (
 	columnField     = "Field"
 	columnValue     = "Value"
 	columnTask      = "Task"
+	columnStream    = "Stream"
+	columnBlockedBy = "BlockedBy"
 )
 
 // Status strings used in filters and JSON output
