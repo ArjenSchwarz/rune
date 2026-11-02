@@ -1504,6 +1504,75 @@ func TestExecuteBatchWithPhases_AddOperationPhaseNameGuard(t *testing.T) {
 	}
 }
 
+// TestExecuteBatchWithPhases_PhaseWithPositionRejected covers T-919 and T-973:
+// a top-level add with both phase and position used to ignore the position,
+// get hoisted ahead of the add-phase that creates its phase, create that
+// phase itself, and leave a duplicate empty header once add-phase ran. The
+// combination is now rejected and the file is left untouched.
+func TestExecuteBatchWithPhases_PhaseWithPositionRejected(t *testing.T) {
+	tests := map[string]struct {
+		content string
+		ops     []Operation
+	}{
+		"add-phase then positioned phase add (T-919)": {
+			content: "# Demo\n\n## Alpha\n\n- [ ] 1. First\n\n## Beta\n\n- [ ] 2. Second\n",
+			ops: []Operation{
+				{Type: "add-phase", Phase: "Planning"},
+				{Type: "add", Title: "Inserted", Phase: "Planning", Position: "1"},
+			},
+		},
+		"setup adds then positioned phase add (T-973)": {
+			content: "# Phase Pos Batch\n",
+			ops: []Operation{
+				{Type: "add", Title: "Task A"},
+				{Type: "add", Title: "Task B"},
+				{Type: "add-phase", Phase: "Build"},
+				{Type: "add", Title: "Inserted", Phase: "Build", Position: "2"},
+			},
+		},
+		"positioned add into existing phase": {
+			content: "# Demo\n\n## Alpha\n\n- [ ] 1. First\n\n## Beta\n\n- [ ] 2. Second\n",
+			ops: []Operation{
+				{Type: "add", Title: "Inserted", Phase: "Beta", Position: "1"},
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tempFile := fmt.Sprintf("test_batch_phase_position_%s.md", strings.ReplaceAll(name, " ", "_"))
+			if err := os.WriteFile(tempFile, []byte(tc.content), 0644); err != nil {
+				t.Fatalf("Failed to write temp file: %v", err)
+			}
+			t.Cleanup(func() { os.Remove(tempFile) })
+
+			tl, phaseMarkers, err := ParseFileWithPhases(tempFile)
+			if err != nil {
+				t.Fatalf("Failed to parse file: %v", err)
+			}
+
+			response, err := tl.ExecuteBatchWithPhases(tc.ops, false, phaseMarkers, tempFile)
+			if err != nil {
+				t.Fatalf("ExecuteBatchWithPhases returned error: %v", err)
+			}
+			if response.Success {
+				t.Fatalf("Expected batch to fail for phase + position, got success")
+			}
+			if len(response.Errors) != 1 || !strings.Contains(response.Errors[0], "position cannot be combined with phase") {
+				t.Errorf("Errors = %v, want a phase/position conflict error", response.Errors)
+			}
+
+			got, err := os.ReadFile(tempFile)
+			if err != nil {
+				t.Fatalf("Failed to read temp file: %v", err)
+			}
+			if string(got) != tc.content {
+				t.Errorf("File was modified despite failed batch; got:\n%s", got)
+			}
+		})
+	}
+}
+
 // TestExecuteBatch_PositionAddDoesNotRetargetEarlierOps is a regression test
 // for T-1874. Positioned adds used to be hoisted ahead of every other
 // operation, so an update listed before the add was applied to the newly
