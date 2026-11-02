@@ -396,6 +396,8 @@ func addTaskFromOperation(tl *TaskList, op Operation) (string, error) {
 //
 //   - With op.Phase set and no parent, the task is appended to the end of that
 //     phase, creating the phase at the end of the document if it does not exist.
+//     Combining this with op.Position is rejected: the two would place the
+//     task in conflicting spots (T-919, T-973).
 //   - A subtask (op.Parent set) stays under its parent, so op.Phase has no
 //     effect on where it goes and never creates a phase.
 //   - A positional insert at the root shifts every later top-level task down
@@ -406,6 +408,9 @@ func addTaskFromOperation(tl *TaskList, op Operation) (string, error) {
 // without phases. Returns the hierarchical ID of the new task.
 func (tl *TaskList) AddTaskWithPhases(op Operation, phaseMarkers *[]PhaseMarker) (string, error) {
 	if op.Phase != "" && op.Parent == "" {
+		if op.Position != "" {
+			return "", fmt.Errorf("position cannot be combined with phase for a top-level task")
+		}
 		return addTaskWithPhaseMarkers(tl, op, phaseMarkers)
 	}
 	if op.Phase != "" {

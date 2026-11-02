@@ -1,7 +1,7 @@
 # Bugfix Report: Phase-Aware Add Ignores Position
 
 **Date:** 2026-11-02
-**Status:** In progress
+**Status:** Fixed
 **Tickets:** T-919, T-973
 
 ## Description of the Issue
@@ -60,7 +60,15 @@ order-independent.
 
 ## Resolution for the Issue
 
-_To be filled in after the fix._
+**Changes made:**
+- `internal/task/batch.go` (`AddTaskWithPhases`) - reject a top-level add that sets both `Phase` and `Position` with `position cannot be combined with phase for a top-level task`. The CLI and the phase-aware batch path both call this function, so one check covers both; batches fail atomically and leave the file untouched.
+
+**Approach rationale:** Both tickets allow "support or reject explicitly". A position is a global hierarchical ID and a phase add means "end of this phase"; there is no existing definition of what both together mean (position relative to the phase? must the position fall inside the phase?). Rejecting removes the silent data loss and the duplicate headers without inventing semantics. Subtasks (`Parent` set) are unaffected: the phase is ignored there and the position applies within the parent.
+
+**Alternatives considered:**
+- Support position inside the phase - needs a design decision on position semantics and marker updates; out of scope for a bugfix.
+- Only change `sortOperationsForExecution` - PR #110 (T-1874) already does this. With it alone the T-919 batch no longer duplicates headers, but the position is still silently ignored, so T-973 would remain. This fix does not depend on #110: the check fails the batch whatever the execution order.
+
 
 ## Regression Test
 
@@ -73,6 +81,15 @@ an existing phase, and the CLI with and without `--dry-run` fail with a
 phase/position conflict error and leave the file unchanged.
 
 **Run command:** `go test ./internal/task -run PhaseWithPositionRejected && go test ./cmd -run TestRunAddPhaseWithPositionRejected`
+
+## Verification
+
+**Automated:**
+- [x] Regression tests pass
+- [x] Full unit suite passes, except `TestCreateBackup/error_handling_for_read_failures`, which also fails on main in this container (it runs as root, so a mode-0000 file is still readable)
+- [x] Integration suite passes, except `TestIntegrationRenumber/renumber_write_failure`, which fails on main for the same root-permission reason
+- [x] `make lint`: 0 issues
+
 
 ## Related
 

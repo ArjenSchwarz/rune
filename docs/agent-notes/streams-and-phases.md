@@ -27,7 +27,7 @@ When tasks are inserted or removed, phase markers (`PhaseMarker.AfterTaskID`) mu
 
 - **Removal**: `adjustPhaseMarkersForRemoval` decrements all markers referencing tasks after the removed task. If a marker references the removed task itself, it shifts to the previous task.
 - **Insertion**: every add (the `add` command, batch `add`, and the file-level `AddTaskToPhase` wrapper) goes through `TaskList.AddTaskWithPhases` in `internal/task/batch.go`, which keeps the markers in step:
-  - Into a phase (`op.Phase`, no parent): the task is appended to the end of that phase; the immediate next marker is set to the new task's ID and all markers beyond it are shifted via `adjustPhaseMarkersForInsertion`.
+  - Into a phase (`op.Phase`, no parent): the task is appended to the end of that phase; the immediate next marker is set to the new task's ID and all markers beyond it are shifted via `adjustPhaseMarkersForInsertion`. Combining `op.Phase` with `op.Position` (no parent) is rejected (T-919, T-973): position is a global ID, phase means "end of this phase", and in batches the positioned add used to be hoisted ahead of the `add-phase` it needed, producing duplicate headers.
   - At a root position (`op.Position`, no phase): markers at or after the insertion point are shifted via `adjustPhaseMarkersForInsertion`, so the new task joins the phase of the task that previously held its position.
   - Subtasks (`op.Parent` set) stay under their parent: `op.Phase` is ignored (but still validated) and never creates a phase.
 - Both adjustments only apply to top-level tasks (IDs without dots), since subtask changes don't affect phase marker numbering.
