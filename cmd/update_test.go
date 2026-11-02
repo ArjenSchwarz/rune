@@ -1212,3 +1212,89 @@ func TestUpdateCmdDependencyFlags(t *testing.T) {
 		t.Fatal("Release flag should have usage description")
 	}
 }
+
+// TestRunUpdateEmptyRequirementsClears verifies requirement 5.6 of
+// task-requirements-linking: an explicitly supplied empty --requirements
+// value clears the task's requirements (T-1974).
+func TestRunUpdateEmptyRequirementsClears(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-update-empty-requirements")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	filename := filepath.Join(tempDir, "tasks.md")
+
+	tl := task.NewTaskList("Test Tasks")
+	if _, err := tl.AddTask("", "Task", ""); err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
+	if err := tl.WriteFile(filename); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	tests := map[string]struct {
+		extraFlags map[string]string
+	}{
+		"empty requirements only":            {},
+		"empty requirements with owner flag": {extraFlags: map[string]string{"owner": "agent-1"}},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Restore the requirements before each case
+			tl, err := task.ParseFile(filename)
+			if err != nil {
+				t.Fatalf("Failed to parse file: %v", err)
+			}
+			tl.Tasks[0].Requirements = []string{"1.1", "1.2"}
+			if err := tl.WriteFile(filename); err != nil {
+				t.Fatalf("Failed to write file: %v", err)
+			}
+
+			resetUpdateFlags()
+			t.Cleanup(resetUpdateFlags)
+
+			cmd := &cobra.Command{}
+			cmd.Flags().StringVar(&updateRequirements, "requirements", "", "")
+			cmd.Flags().StringVar(&updateOwner, "owner", "", "")
+			if err := cmd.Flags().Set("requirements", ""); err != nil {
+				t.Fatalf("Failed to set flag: %v", err)
+			}
+			for flag, value := range tc.extraFlags {
+				if err := cmd.Flags().Set(flag, value); err != nil {
+					t.Fatalf("Failed to set flag %s: %v", flag, err)
+				}
+			}
+
+			if err := runUpdate(cmd, []string{filename, "1"}); err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			got, err := task.ParseFile(filename)
+			if err != nil {
+				t.Fatalf("Failed to parse file: %v", err)
+			}
+			if len(got.Tasks[0].Requirements) != 0 {
+				t.Fatalf("Expected requirements to be cleared, got %v", got.Tasks[0].Requirements)
+			}
+		})
+	}
+}
+
+func resetUpdateFlags() {
+	updateTitle = ""
+	updateDetails = ""
+	updateReferences = ""
+	updateRequirements = ""
+	clearDetails = false
+	clearReferences = false
+	clearRequirements = false
+	updateStream = 0
+	updateStreamSet = false
+	updateBlockedBy = ""
+	updateOwner = ""
+	updateOwnerSet = false
+	updateRelease = false
+	dryRun = false
+	format = formatTable
+}
