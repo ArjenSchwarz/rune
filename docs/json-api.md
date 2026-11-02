@@ -64,7 +64,7 @@ This document describes the JSON schema for the rune batch operations API.
         "status": {
           "type": "integer",
           "enum": [0, 1, 2],
-          "description": "Task status: 0=Pending, 1=InProgress, 2=Completed"
+          "description": "Task status for update operations: 0=Pending, 1=InProgress, 2=Completed. Rejected on add operations (new tasks are always pending)"
         },
         "details": {
           "type": "array",
