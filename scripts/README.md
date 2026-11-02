@@ -242,6 +242,15 @@ Running `./scripts/specs-overview.py --project-dirs ~/workspace` will find and a
    - **In Progress** (⚠): Some tasks completed, some pending
    - **Pending** (○): No tasks completed
    - **Empty** (−): No tasks in file
+   - **Error** (✗): `rune list` failed to read the file (e.g. an invalid status). A warning naming the spec is printed to stderr, JSON output includes an `error` field, and the script exits with status 1 after printing the overview.
+
+Specs without a known creation date (untracked or outside Git) sort before dated specs with `--sort date` (after them with `--reverse`).
+
+### Tests
+
+```bash
+python3 -m unittest discover -s scripts -p 'test_*.py'
+```
 
 ### Integration with Rune
 
