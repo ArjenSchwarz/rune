@@ -541,8 +541,9 @@ func ValidateTaskListTitle(title string) error {
 // dropping input is exactly the behaviour T-2041 removed from the parser, and
 // a detail without content carries no meaning to drop.
 //
-// Details that the parser would read back as metadata are rejected for the
-// same reason: they would not survive the round trip as details.
+// Details that the parser would read back as metadata or as a task line are
+// rejected for the same reason: they would not survive the round trip as
+// details.
 func validateDetails(details []string) error {
 	for i, detail := range details {
 		if strings.TrimSpace(detail) == "" {
@@ -559,6 +560,12 @@ func validateDetails(details []string) error {
 		// back as that metadata, silently turning the detail into data.
 		if field := detailMetadataField(detail); field != "" {
 			return fmt.Errorf("detail %d would be read back as %s metadata, not as a detail: %q", i+1, field, detail)
+		}
+		// A detail that looks like a task line ("[ ] 1. x") would be read back
+		// as a child task. The parser also rejects any other "- [..]" line as
+		// malformed task syntax, which would make the written file unreadable.
+		if _, isTask, err := parseTaskLine("- " + detail); isTask || err != nil {
+			return fmt.Errorf("detail %d would be read back as a task line, not as a detail: %q", i+1, detail)
 		}
 	}
 	return nil

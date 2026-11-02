@@ -46,7 +46,7 @@ A bare `# ` line (empty H1) is deliberately rejected by the parser, so both rend
 
 `applyDetailLine` in parse.go is the single place that decides whether a `- ` line under a task is read back as metadata (Blocked-by, Stream, Owner, Requirements, References) or as a plain detail. `validateDetails` calls it (through `detailMetadataField`) and rejects any detail that would be read back as metadata, because the renderer writes details as plain `- ` bullets and such a detail would silently turn into data on the next read. When adding a new metadata line type, add it to `applyDetailLine` only; validation picks it up automatically.
 
-Requirements lines are parsed strictly, link by link (T-1848, T-1907): the value must be only `[ID](path#anchor)` links separated by commas, since paths may contain commas. Anything else keeps the whole line as a plain detail, not a partial requirement list.
+Requirements lines are parsed strictly, link by link (T-1848, T-1907): the value must be only `[ID](path#anchor)` links separated by commas, since paths may contain commas. Anything else keeps the whole line as a plain detail, not a partial requirement list. `validateDetails` also rejects details that `parseTaskLine` would read as a task line or as malformed task syntax (T-1999).
 
 References use `\,` for a comma inside a reference and `\\` for a backslash where it would be ambiguous (`formatReferenceList` / `parseReferences`, T-1808). Any other backslash is literal, so Windows paths are written unchanged.
 
