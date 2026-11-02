@@ -1,7 +1,7 @@
 # Bugfix Report: complete-dry-run-auto-complete
 
 **Date:** 2026-11-02
-**Status:** Investigating
+**Status:** Fixed
 **Ticket:** T-1934
 
 ## Description of the Issue
@@ -34,7 +34,15 @@ The dry-run branch in `runComplete` returns before `UpdateStatus` and `AutoCompl
 
 ## Resolution for the Issue
 
-_To be filled in after the fix._
+**Changes made:**
+- `cmd/complete.go` (`runComplete`) — Moved `UpdateStatus` and `AutoCompleteParents` before the dry-run branch so they run in both modes; only `WriteFile` is skipped in dry-run. The current status is captured before mutation because `targetTask` points into the list. Dry-run JSON now sets `AutoCompleted`; markdown and table output add a line listing the parents that would be auto-completed.
+- `CHANGELOG.md` — Added a Fixed entry.
+
+**Approach rationale:** `tl` is parsed fresh from disk, so it is already an in-memory copy that is discarded unless written. Running the same mutation calls as the live path makes the preview identical to the real result by construction, with no separate simulation logic to drift out of sync.
+
+**Alternatives considered:**
+- Deep-copy the list (as batch dry-run does with `deepCopy`) before mutating — not needed; batch copies because it may keep the original on failure, while `complete` never writes `tl` in dry-run.
+- Compute would-be auto-completions without mutating — duplicates `AutoCompleteParents` logic and risks divergence.
 
 ## Regression Test
 
@@ -44,3 +52,32 @@ _To be filled in after the fix._
 **What it verifies:** For a parent whose last pending child is completed in dry-run, JSON output lists the parent in `auto_completed`, markdown and table output preview the auto-completion, and the file on disk is unchanged.
 
 **Run command:** `go test -run TestRunCompleteDryRunReportsAutoCompletedParents -v ./cmd`
+
+## Affected Files
+
+| File | Change |
+|------|--------|
+| `cmd/complete.go` | Simulate status update and parent auto-completion in dry-run; report them in all formats |
+| `cmd/complete_test.go` | Regression test across JSON, markdown and table formats |
+| `CHANGELOG.md` | Fixed entry |
+
+## Verification
+
+**Automated:**
+- [x] Regression test passes
+- [x] Full test suite passes, except `TestCreateBackup/error_handling_for_read_failures` and `TestIntegrationRenumber/renumber_write_failure`, which rely on file permissions and fail identically on `main` when run as root
+- [x] Linters/validators pass (`make lint`: 0 issues)
+
+**Manual verification:**
+- Ran the ticket's reproduction against `examples/simple.md`: dry-run JSON reports `"auto_completed": ["2"]`, matching the subsequent live run, and the file is byte-for-byte unchanged after dry-run. Table and markdown output list the auto-completion.
+
+## Prevention
+
+**Recommendations to avoid similar bugs:**
+- Implement dry-run as "run the operation, skip the write" rather than a separate descriptive branch, so new side effects of the live path show up in previews automatically.
+- `uncomplete` and `progress` have no cascading effects today; if one is added, follow the same pattern.
+
+## Related
+
+- T-1934
+- `specs/bugfixes/complete-dry-run-json/` (T-725) — earlier fix adding format-aware dry-run output to `complete`
