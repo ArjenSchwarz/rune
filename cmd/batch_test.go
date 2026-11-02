@@ -904,3 +904,43 @@ func TestBatchCommand_RejectsUnknownJSONFields(t *testing.T) {
 		})
 	}
 }
+
+// TestBatchCommand_AddWithStatusFails is a regression test for T-1996: a
+// batch add carrying a status must fail (non-zero exit) and write nothing,
+// instead of reporting success and persisting a pending task.
+func TestBatchCommand_AddWithStatusFails(t *testing.T) {
+	t.Cleanup(resetBatchFlags)
+
+	tmpDir := t.TempDir()
+	initialContent := "# Test Tasks\n\n- [ ] 1. First task\n"
+	taskFile := filepath.Join(tmpDir, "tasks.md")
+	if err := os.WriteFile(taskFile, []byte(initialContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	originalDir, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(originalDir) })
+	os.Chdir(tmpDir)
+
+	var stdout bytes.Buffer
+	rootCmd.SetOut(&stdout)
+	t.Cleanup(func() { rootCmd.SetOut(nil) })
+	rootCmd.SetArgs([]string{"batch", "tasks.md", "--input",
+		`{"operations":[{"type":"add","title":"Requested completed","status":2}]}`, "--format", "json"})
+
+	if err := rootCmd.Execute(); err == nil {
+		t.Fatal("expected batch add with status to fail")
+	}
+
+	var resp task.BatchResponse
+	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
+		t.Fatalf("expected JSON response, got %q: %v", stdout.String(), err)
+	}
+	if resp.Success || resp.Applied != 0 {
+		t.Errorf("unexpected response: %+v", resp)
+	}
+
+	got, _ := os.ReadFile(taskFile)
+	if string(got) != initialContent {
+		t.Errorf("file changed:\n%s", got)
+	}
+}
