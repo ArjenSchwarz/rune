@@ -3,6 +3,7 @@ package task
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -1501,4 +1502,111 @@ func TestExecuteBatchWithPhases_AddOperationPhaseNameGuard(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestExecuteBatch_PositionAddDoesNotRetargetEarlierOps is a regression test
+// for T-1874. Positioned adds used to be hoisted ahead of every other
+// operation, so an update listed before the add was applied to the newly
+// inserted task instead of the task the ID referred to when it was written.
+func TestExecuteBatch_PositionAddDoesNotRetargetEarlierOps(t *testing.T) {
+	ops := []Operation{
+		{Type: updateOperation, ID: "1", Title: "Alpha updated"},
+		{Type: addOperation, Title: "Inserted", Position: "1"},
+	}
+	want := []string{"Inserted", "Alpha updated", "Beta"}
+
+	t.Run("non-phased", func(t *testing.T) {
+		tl := NewTaskList("Batch Order Reproduction")
+		tl.AddTask("", "Alpha", "")
+		tl.AddTask("", "Beta", "")
+
+		resp, err := tl.ExecuteBatch(ops, false)
+		if err != nil || !resp.Success {
+			t.Fatalf("ExecuteBatch: %v %v", err, resp.Errors)
+		}
+		if got := topLevelTitles(tl); !slices.Equal(got, want) {
+			t.Errorf("titles = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("phased", func(t *testing.T) {
+		tl := NewTaskList("Batch Order Reproduction")
+		tl.AddTask("", "Alpha", "")
+		tl.AddTask("", "Beta", "")
+		markers := []PhaseMarker{{Name: "Phase", AfterTaskID: ""}}
+
+		resp, err := tl.ExecuteBatchWithPhases(ops, true, markers, "")
+		if err != nil || !resp.Success {
+			t.Fatalf("ExecuteBatchWithPhases: %v %v", err, resp.Errors)
+		}
+		parsed, err := ParseMarkdown([]byte(resp.Preview))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := topLevelTitles(parsed); !slices.Equal(got, want) {
+			t.Errorf("titles = %v, want %v", got, want)
+		}
+	})
+}
+
+// TestSortOperationsForExecution_PositionAddsStayInSequence verifies that
+// positioned adds are only reordered among adjacent positioned adds and never
+// moved across other operations (T-1874).
+func TestSortOperationsForExecution_PositionAddsStayInSequence(t *testing.T) {
+	describe := func(op Operation) string {
+		if op.Type == addOperation {
+			return "add:" + op.Position
+		}
+		return op.Type + ":" + op.ID
+	}
+
+	tests := map[string]struct {
+		input []Operation
+		want  []string
+	}{
+		"update before positioned add stays first": {
+			input: []Operation{
+				{Type: updateOperation, ID: "1"},
+				{Type: addOperation, Title: "x", Position: "1"},
+			},
+			want: []string{"update:1", "add:1"},
+		},
+		"contiguous positioned adds sorted in reverse": {
+			input: []Operation{
+				{Type: addOperation, Title: "a", Position: "2"},
+				{Type: addOperation, Title: "b", Position: "4"},
+				{Type: addOperation, Title: "c", Position: "1"},
+				{Type: updateOperation, ID: "3"},
+			},
+			want: []string{"add:4", "add:2", "add:1", "update:3"},
+		},
+		"positioned adds do not cross a remove": {
+			input: []Operation{
+				{Type: addOperation, Title: "a", Position: "1"},
+				{Type: removeOperation, ID: "2"},
+				{Type: addOperation, Title: "b", Position: "3"},
+			},
+			want: []string{"add:1", "remove:2", "add:3"},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			var got []string
+			for _, op := range sortOperationsForExecution(tc.input) {
+				got = append(got, describe(op))
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("order = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func topLevelTitles(tl *TaskList) []string {
+	titles := make([]string, 0, len(tl.Tasks))
+	for _, tk := range tl.Tasks {
+		titles = append(titles, tk.Title)
+	}
+	return titles
 }

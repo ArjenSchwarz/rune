@@ -32,58 +32,58 @@ func validateTaskIDFormat(id string) bool {
 	return IsValidID(id)
 }
 
-// sortOperationsForExecution sorts operations to ensure correct execution order:
-//  1. Position insertions are sorted in reverse order (highest position first) so position references remain valid
-//  2. Remove operations are sorted in reverse order (highest ID first) within contiguous blocks so users can
-//     specify original task IDs. Removes are never reordered across non-remove operations.
+// sortOperationsForExecution reorders operations only within contiguous runs
+// of the same reorderable kind, so that IDs inside a run refer to the state
+// before that run:
+//  1. Positioned adds (add ops with a Position) are sorted in reverse position
+//     order (highest first) so earlier insertions don't shift later positions.
+//  2. Remove operations are sorted in reverse ID order (highest first) so
+//     removing one task doesn't renumber the others in the run.
 //
-// The sorted operations maintain their relative order: position insertions first, then all other operations.
+// Operations are never moved across an operation of a different kind: doing
+// so would change which task an ID refers to (T-200, T-1874).
 func sortOperationsForExecution(ops []Operation) []Operation {
-	// Separate position insertions from other operations
-	var positionInsertions []Operation
-	var otherOps []Operation
+	result := slices.Clone(ops)
 
-	for _, op := range ops {
-		if strings.ToLower(op.Type) == addOperation && op.Position != "" {
-			positionInsertions = append(positionInsertions, op)
-		} else {
-			otherOps = append(otherOps, op)
-		}
-	}
-
-	// Sort position insertions in reverse order (higher positions first)
-	sort.Slice(positionInsertions, func(i, j int) bool {
-		return comparePositions(positionInsertions[i].Position, positionInsertions[j].Position) > 0
-	})
-
-	// Sort remove operations in reverse order (higher IDs first) within contiguous blocks only.
-	// This allows users to specify original task IDs when doing multiple removes - removing
-	// highest first preserves lower IDs. Sorting is restricted to contiguous blocks so that
-	// removes never cross non-remove operations, which would change execution semantics.
 	i := 0
-	for i < len(otherOps) {
-		if strings.ToLower(otherOps[i].Type) != removeOperation {
+	for i < len(result) {
+		kind := reorderKind(result[i])
+		if kind == "" {
 			i++
 			continue
 		}
-		// Found start of a contiguous remove block
 		blockStart := i
-		for i < len(otherOps) && strings.ToLower(otherOps[i].Type) == removeOperation {
+		for i < len(result) && reorderKind(result[i]) == kind {
 			i++
 		}
-		// Sort the block [blockStart, i) in reverse ID order
-		block := otherOps[blockStart:i]
-		sort.Slice(block, func(a, b int) bool {
-			return comparePositions(block[a].ID, block[b].ID) > 0
+		block := result[blockStart:i]
+		sort.SliceStable(block, func(a, b int) bool {
+			return comparePositions(reorderKey(block[a]), reorderKey(block[b])) > 0
 		})
 	}
 
-	// Combine: position insertions first (in reverse order), then other operations
-	result := make([]Operation, 0, len(ops))
-	result = append(result, positionInsertions...)
-	result = append(result, otherOps...)
-
 	return result
+}
+
+// reorderKind returns the run kind an operation belongs to for
+// sortOperationsForExecution, or "" if it is never reordered.
+func reorderKind(op Operation) string {
+	switch opType := strings.ToLower(op.Type); {
+	case opType == removeOperation:
+		return removeOperation
+	case opType == addOperation && op.Position != "":
+		return addOperation
+	default:
+		return ""
+	}
+}
+
+// reorderKey returns the hierarchical ID a reorderable operation targets.
+func reorderKey(op Operation) string {
+	if strings.ToLower(op.Type) == removeOperation {
+		return op.ID
+	}
+	return op.Position
 }
 
 // comparePositions compares two position strings numerically
