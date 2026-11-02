@@ -132,6 +132,7 @@ func TestStreamsCommand(t *testing.T) {
 			// Reset flags to defaults before each test
 			streamsAvailable = false
 			streamsJSON = false
+			format = formatTable
 
 			// Write test file if content provided
 			if tc.fileContent != "" {

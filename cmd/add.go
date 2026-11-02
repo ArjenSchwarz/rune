@@ -17,6 +17,7 @@ type AddResponse struct {
 	Title   string `json:"title"`
 	Parent  string `json:"parent,omitempty"`
 	Phase   string `json:"phase,omitempty"`
+	DryRun  bool   `json:"dry_run,omitempty"`
 }
 
 var addCmd = &cobra.Command{
@@ -177,6 +178,21 @@ func runAdd(cmd *cobra.Command, args []string) error {
 
 	// Dry run mode - just show what would be added
 	if dryRun {
+		switch format {
+		case formatJSON:
+			return outputJSON(AddResponse{
+				Success: true,
+				Message: fmt.Sprintf("Would add task %s", newTaskID),
+				TaskID:  newTaskID,
+				Title:   addTitle,
+				Parent:  addParent,
+				Phase:   phaseName,
+				DryRun:  true,
+			})
+		case formatMarkdown:
+			fmt.Printf("**Dry run:** Would add %s - %s\n", newTaskID, addTitle)
+			return nil
+		}
 		fmt.Printf("Would add task to file: %s\n", filename)
 		fmt.Printf("Title: %s\n", addTitle)
 		if addParent != "" {

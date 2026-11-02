@@ -382,6 +382,7 @@ func TestRunAddDryRun(t *testing.T) {
 	addTitle = "New task"
 	addParent = ""
 	dryRun = true
+	format = formatTable
 
 	// Capture output
 	oldStdout := os.Stdout
@@ -449,6 +450,7 @@ func TestRunAddDryRunWithParent(t *testing.T) {
 	addTitle = "Child task"
 	addParent = "1"
 	dryRun = true
+	format = formatTable
 
 	// Capture output
 	oldStdout := os.Stdout
@@ -512,6 +514,7 @@ func TestRunAddDryRunWithPosition(t *testing.T) {
 	addTitle = "Inserted task"
 	addPosition = "2"
 	dryRun = true
+	format = formatTable
 
 	// Capture output
 	oldStdout := os.Stdout
@@ -587,6 +590,7 @@ func TestRunAddDryRunWithPositionAndParent(t *testing.T) {
 	addParent = "1"
 	addPosition = "1.2"
 	dryRun = true
+	format = formatTable
 
 	// Capture output
 	oldStdout := os.Stdout
@@ -930,6 +934,7 @@ func TestRunAddWithPhaseDryRunRejectsNewline(t *testing.T) {
 	addParent = ""
 	addPosition = ""
 	dryRun = true
+	format = formatTable
 	t.Cleanup(func() {
 		addTitle = ""
 		addPhase = ""
@@ -1825,6 +1830,7 @@ func TestRunAddDryRunReportsRealID(t *testing.T) {
 			addPosition = tc.position
 			addPhase = tc.phase
 			dryRun = true
+			format = formatTable
 
 			oldStdout := os.Stdout
 			r, w, _ := os.Pipe()

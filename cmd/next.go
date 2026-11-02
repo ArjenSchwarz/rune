@@ -137,9 +137,9 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// Create output based on format
 	switch format {
 	case formatJSON:
-		return outputNextTaskJSON(nextTask, taskList.FrontMatter)
+		return outputNextTaskJSON(nextTask, taskList.FrontMatter, taskList.RequirementsFile)
 	case formatMarkdown:
-		return outputNextTaskMarkdown(nextTask, taskList.FrontMatter)
+		return outputNextTaskMarkdown(nextTask, taskList.FrontMatter, taskList.RequirementsFile)
 	default:
 		return outputNextTaskTable(nextTask, taskList.FrontMatter)
 	}
@@ -176,9 +176,9 @@ func runNextWithStream(filename string) error {
 
 	switch format {
 	case formatJSON:
-		return outputNextTaskJSONWithStream(nextTask, taskList.FrontMatter, index)
+		return outputNextTaskJSONWithStream(nextTask, taskList.FrontMatter, index, taskList.RequirementsFile)
 	case formatMarkdown:
-		return outputNextTaskMarkdown(nextTask, taskList.FrontMatter)
+		return outputNextTaskMarkdown(nextTask, taskList.FrontMatter, taskList.RequirementsFile)
 	default:
 		return outputNextTaskTable(nextTask, taskList.FrontMatter)
 	}
@@ -310,9 +310,9 @@ func runNextWithClaim(filename string) error {
 	// Output the claimed tasks
 	switch format {
 	case formatJSON:
-		return outputClaimJSON(claimedTasks, taskList.FrontMatter, index, streamFlag)
+		return outputClaimJSON(claimedTasks, taskList.FrontMatter, index, streamFlag, taskList.RequirementsFile)
 	case formatMarkdown:
-		return outputClaimMarkdown(claimedTasks, taskList.FrontMatter)
+		return outputClaimMarkdown(claimedTasks, taskList.FrontMatter, taskList.RequirementsFile)
 	default:
 		return outputClaimTable(claimedTasks, taskList.FrontMatter)
 	}
@@ -432,26 +432,20 @@ func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.Front
 	builder := output.New().
 		Table("Next Task", taskData, output.WithKeys("ID", columnTitle, columnStatus, columnLevel))
 
-	// Add task details if present
-	if len(nextTask.Details) > 0 {
-		detailData := make([]map[string]any, len(nextTask.Details))
-		for i, detail := range nextTask.Details {
-			detailData[i] = map[string]any{
-				"Detail": detail,
-			}
-		}
-		builder = builder.Table("Task Details", detailData, output.WithKeys("Detail"))
+	// Add details and task-level references of every listed task, the
+	// subtasks included (T-2022)
+	var detailData, taskRefData []map[string]any
+	addTaskMetadataToData(nextTask.Task, &detailData, &taskRefData)
+	for i := range nextTask.IncompleteChildren {
+		child := &nextTask.IncompleteChildren[i]
+		addTaskMetadataToData(child, &detailData, &taskRefData)
+		addIncompleteChildrenMetadataToData(child, &detailData, &taskRefData)
 	}
-
-	// Add task-level references if present
-	if len(nextTask.References) > 0 {
-		taskRefData := make([]map[string]any, len(nextTask.References))
-		for i, ref := range nextTask.References {
-			taskRefData[i] = map[string]any{
-				columnPath: ref,
-			}
-		}
-		builder = builder.Table("Task References", taskRefData, output.WithKeys(columnPath))
+	if len(detailData) > 0 {
+		builder = builder.Table("Task Details", detailData, output.WithKeys(columnTask, "Detail"))
+	}
+	if len(taskRefData) > 0 {
+		builder = builder.Table("Task References", taskRefData, output.WithKeys(columnTask, columnPath))
 	}
 
 	// Add front matter references if present
@@ -477,7 +471,7 @@ func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.Front
 }
 
 // outputNextTaskMarkdown renders the next task in markdown format
-func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter) error {
+func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter, reqFile string) error {
 	var result strings.Builder
 
 	// Add main task
@@ -492,9 +486,14 @@ func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.Fr
 		}
 	}
 
+	// Add requirement links if present (T-1994)
+	if len(nextTask.Requirements) > 0 {
+		fmt.Fprintf(&result, "  Requirements: %s\n", requirementLinks(nextTask.Requirements, reqFile))
+	}
+
 	// Add incomplete children
 	for _, child := range nextTask.IncompleteChildren {
-		result.WriteString(renderTaskMarkdown(&child, "  "))
+		result.WriteString(renderTaskMarkdown(&child, "  ", reqFile))
 	}
 
 	// Add task-level references if present
@@ -518,15 +517,16 @@ func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.Fr
 }
 
 // outputNextTaskJSON renders the next task in JSON format
-func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter) error {
+func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter, reqFile string) error {
 	// Create a simplified structure for JSON output
 	type TaskJSON struct {
-		ID         string     `json:"id"`
-		Title      string     `json:"title"`
-		Status     string     `json:"status"`
-		Details    []string   `json:"details,omitempty"`
-		References []string   `json:"references,omitempty"`
-		Children   []TaskJSON `json:"children,omitempty"`
+		ID           string     `json:"id"`
+		Title        string     `json:"title"`
+		Status       string     `json:"status"`
+		Details      []string   `json:"details,omitempty"`
+		Requirements []string   `json:"requirements,omitempty"`
+		References   []string   `json:"references,omitempty"`
+		Children     []TaskJSON `json:"children,omitempty"`
 	}
 
 	type OutputJSON struct {
@@ -534,6 +534,7 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 		NextTask              TaskJSON `json:"next_task"`
 		TaskReferences        []string `json:"task_references,omitempty"`
 		FrontMatterReferences []string `json:"front_matter_references,omitempty"`
+		RequirementsFile      string   `json:"requirements_file,omitempty"`
 	}
 
 	// Convert main task
@@ -547,6 +548,9 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 		if len(t.Details) > 0 {
 			tj.Details = t.Details
 		}
+		if len(t.Requirements) > 0 {
+			tj.Requirements = t.Requirements
+		}
 		if len(t.References) > 0 {
 			tj.References = t.References
 		}
@@ -557,8 +561,9 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 	}
 
 	output := OutputJSON{
-		Success:  true,
-		NextTask: convertTask(nextTask.Task),
+		Success:          true,
+		NextTask:         convertTask(nextTask.Task),
+		RequirementsFile: reqFile,
 	}
 
 	// Add task-level references if present
@@ -601,8 +606,44 @@ func addIncompleteChildrenToData(parentTask *task.Task, taskData *[]map[string]a
 	}
 }
 
+// addTaskMetadataToData adds a task's details and task-level references to
+// the table sections, labelled with the task ID.
+func addTaskMetadataToData(t *task.Task, detailData, refData *[]map[string]any) {
+	for _, detail := range t.Details {
+		*detailData = append(*detailData, map[string]any{columnTask: t.ID, "Detail": detail})
+	}
+	for _, ref := range t.References {
+		*refData = append(*refData, map[string]any{columnTask: t.ID, columnPath: ref})
+	}
+}
+
+// addIncompleteChildrenMetadataToData adds metadata for the same descendants
+// that addIncompleteChildrenToData lists as rows.
+func addIncompleteChildrenMetadataToData(parentTask *task.Task, detailData, refData *[]map[string]any) {
+	for i := range parentTask.Children {
+		child := &parentTask.Children[i]
+		if task.HasIncompleteWork(child) {
+			addTaskMetadataToData(child, detailData, refData)
+			addIncompleteChildrenMetadataToData(child, detailData, refData)
+		}
+	}
+}
+
+// requirementLinks formats requirement IDs as markdown links to reqFile, the
+// way they are written in the task file.
+func requirementLinks(reqs []string, reqFile string) string {
+	if reqFile == "" {
+		reqFile = task.DefaultRequirementsFile
+	}
+	links := make([]string, len(reqs))
+	for i, id := range reqs {
+		links[i] = fmt.Sprintf("[%s](%s#%s)", id, reqFile, id)
+	}
+	return strings.Join(links, ", ")
+}
+
 // renderTaskMarkdown recursively renders a task in markdown format
-func renderTaskMarkdown(t *task.Task, indent string) string {
+func renderTaskMarkdown(t *task.Task, indent, reqFile string) string {
 	var result strings.Builder
 	fmt.Fprintf(&result, "%s- %s %s. %s\n",
 		indent, formatStatusMarkdown(t.Status), t.ID, t.Title)
@@ -614,6 +655,10 @@ func renderTaskMarkdown(t *task.Task, indent string) string {
 		}
 	}
 
+	if len(t.Requirements) > 0 {
+		fmt.Fprintf(&result, "%s  Requirements: %s\n", indent, requirementLinks(t.Requirements, reqFile))
+	}
+
 	// Add task references if present (for individual tasks)
 	if len(t.References) > 0 {
 		refList := strings.Join(t.References, ", ")
@@ -622,7 +667,7 @@ func renderTaskMarkdown(t *task.Task, indent string) string {
 
 	for _, child := range t.Children {
 		if task.HasIncompleteWork(&child) {
-			result.WriteString(renderTaskMarkdown(&child, indent+"  "))
+			result.WriteString(renderTaskMarkdown(&child, indent+"  ", reqFile))
 		}
 	}
 
@@ -681,9 +726,9 @@ func runNextPhase(filename string) error {
 	// Create output based on format
 	switch format {
 	case formatJSON:
-		return outputPhaseTasksJSONWithStreams(phaseResult, taskList.FrontMatter, index)
+		return outputPhaseTasksJSONWithStreams(phaseResult, taskList.FrontMatter, index, taskList.RequirementsFile)
 	case formatMarkdown:
-		return outputPhaseTasksMarkdown(phaseResult, taskList.FrontMatter, index)
+		return outputPhaseTasksMarkdown(phaseResult, taskList.FrontMatter, index, taskList.RequirementsFile)
 	default:
 		return outputPhaseTasksTable(phaseResult, taskList.FrontMatter, index)
 	}
@@ -748,7 +793,7 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 }
 
 // outputPhaseTasksMarkdown renders phase tasks in markdown format
-func outputPhaseTasksMarkdown(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter, index *task.DependencyIndex) error {
+func outputPhaseTasksMarkdown(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter, index *task.DependencyIndex, reqFile string) error {
 	var result strings.Builder
 
 	// Add header
@@ -760,7 +805,7 @@ func outputPhaseTasksMarkdown(phaseResult *task.PhaseTasksResult, frontMatter *t
 
 	// Add all tasks from the phase
 	for _, t := range phaseResult.Tasks {
-		result.WriteString(renderPhaseTaskMarkdownWithBlocking(&t, "", index))
+		result.WriteString(renderPhaseTaskMarkdownWithBlocking(&t, "", index, reqFile))
 		result.WriteString("\n")
 	}
 
@@ -779,7 +824,7 @@ func outputPhaseTasksMarkdown(phaseResult *task.PhaseTasksResult, frontMatter *t
 }
 
 // renderPhaseTaskMarkdownWithBlocking renders a task with blocking info using strings.Builder
-func renderPhaseTaskMarkdownWithBlocking(t *task.Task, indent string, index *task.DependencyIndex) string {
+func renderPhaseTaskMarkdownWithBlocking(t *task.Task, indent string, index *task.DependencyIndex, reqFile string) string {
 	var b strings.Builder
 
 	b.WriteString(indent)
@@ -811,6 +856,13 @@ func renderPhaseTaskMarkdownWithBlocking(t *task.Task, indent string, index *tas
 		}
 	}
 
+	if len(t.Requirements) > 0 {
+		b.WriteString(indent)
+		b.WriteString("  Requirements: ")
+		b.WriteString(requirementLinks(t.Requirements, reqFile))
+		b.WriteString("\n")
+	}
+
 	if len(t.References) > 0 {
 		b.WriteString(indent)
 		b.WriteString("  References: ")
@@ -819,7 +871,7 @@ func renderPhaseTaskMarkdownWithBlocking(t *task.Task, indent string, index *tas
 	}
 
 	for i := range t.Children {
-		b.WriteString(renderPhaseTaskMarkdownWithBlocking(&t.Children[i], indent+"  ", index))
+		b.WriteString(renderPhaseTaskMarkdownWithBlocking(&t.Children[i], indent+"  ", index, reqFile))
 	}
 
 	return b.String()
@@ -827,16 +879,17 @@ func renderPhaseTaskMarkdownWithBlocking(t *task.Task, indent string, index *tas
 
 // PhaseTaskJSONWithStreams is a task with stream and dependency info for phase output
 type PhaseTaskJSONWithStreams struct {
-	ID         string                     `json:"id"`
-	Title      string                     `json:"title"`
-	Status     string                     `json:"status"`
-	Stream     int                        `json:"stream"`
-	Owner      string                     `json:"owner,omitempty"`
-	Blocked    bool                       `json:"blocked"`
-	BlockedBy  []string                   `json:"blockedBy,omitempty"`
-	Details    []string                   `json:"details,omitempty"`
-	References []string                   `json:"references,omitempty"`
-	Children   []PhaseTaskJSONWithStreams `json:"children,omitempty"`
+	ID           string                     `json:"id"`
+	Title        string                     `json:"title"`
+	Status       string                     `json:"status"`
+	Stream       int                        `json:"stream"`
+	Owner        string                     `json:"owner,omitempty"`
+	Blocked      bool                       `json:"blocked"`
+	BlockedBy    []string                   `json:"blockedBy,omitempty"`
+	Details      []string                   `json:"details,omitempty"`
+	Requirements []string                   `json:"requirements,omitempty"`
+	References   []string                   `json:"references,omitempty"`
+	Children     []PhaseTaskJSONWithStreams `json:"children,omitempty"`
 }
 
 // StreamsSummary provides summary info about streams in a phase
@@ -856,10 +909,11 @@ type PhaseOutputJSONWithStreams struct {
 	Tasks                 []PhaseTaskJSONWithStreams `json:"tasks"`
 	StreamsSummary        []StreamsSummary           `json:"streams_summary,omitempty"`
 	FrontMatterReferences []string                   `json:"front_matter_references,omitempty"`
+	RequirementsFile      string                     `json:"requirements_file,omitempty"`
 }
 
 // outputPhaseTasksJSONWithStreams renders phase tasks with stream/dependency info
-func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter, index *task.DependencyIndex) error {
+func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMatter *task.FrontMatter, index *task.DependencyIndex, reqFile string) error {
 	// Convert tasks with stream info
 	var convertTask func(t *task.Task) PhaseTaskJSONWithStreams
 	convertTask = func(t *task.Task) PhaseTaskJSONWithStreams {
@@ -875,6 +929,9 @@ func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMa
 		if len(t.Details) > 0 {
 			tj.Details = t.Details
 		}
+		if len(t.Requirements) > 0 {
+			tj.Requirements = t.Requirements
+		}
 		if len(t.References) > 0 {
 			tj.References = t.References
 		}
@@ -885,9 +942,10 @@ func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMa
 	}
 
 	outputData := PhaseOutputJSONWithStreams{
-		Success: true,
-		Count:   len(phaseResult.Tasks),
-		Tasks:   []PhaseTaskJSONWithStreams{},
+		Success:          true,
+		Count:            len(phaseResult.Tasks),
+		Tasks:            []PhaseTaskJSONWithStreams{},
+		RequirementsFile: reqFile,
 	}
 
 	if phaseResult.PhaseName != "" {
@@ -1092,25 +1150,27 @@ func outputClaimEmpty(stream int) error {
 
 // ClaimTaskJSON represents a claimed task in JSON output
 type ClaimTaskJSON struct {
-	ID        string   `json:"id"`
-	Title     string   `json:"title"`
-	Status    string   `json:"status"`
-	Stream    int      `json:"stream"`
-	Owner     string   `json:"owner"`
-	BlockedBy []string `json:"blockedBy,omitempty"`
+	ID           string   `json:"id"`
+	Title        string   `json:"title"`
+	Status       string   `json:"status"`
+	Stream       int      `json:"stream"`
+	Owner        string   `json:"owner"`
+	BlockedBy    []string `json:"blockedBy,omitempty"`
+	Requirements []string `json:"requirements,omitempty"`
 }
 
 // ClaimResponse is the JSON response after claiming tasks
 type ClaimResponse struct {
-	Success bool            `json:"success"`
-	Count   int             `json:"count"`
-	Stream  int             `json:"stream,omitempty"`
-	DryRun  bool            `json:"dry_run,omitempty"`
-	Claimed []ClaimTaskJSON `json:"claimed"`
+	Success          bool            `json:"success"`
+	Count            int             `json:"count"`
+	Stream           int             `json:"stream,omitempty"`
+	DryRun           bool            `json:"dry_run,omitempty"`
+	Claimed          []ClaimTaskJSON `json:"claimed"`
+	RequirementsFile string          `json:"requirements_file,omitempty"`
 }
 
 // outputClaimJSON outputs claimed tasks in JSON format
-func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *task.DependencyIndex, stream int) error {
+func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *task.DependencyIndex, stream int, reqFile string) error {
 	claimedJSON := make([]ClaimTaskJSON, len(claimed))
 	for i, t := range claimed {
 		claimedJSON[i] = ClaimTaskJSON{
@@ -1121,13 +1181,17 @@ func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *
 			Owner:     t.Owner,
 			BlockedBy: index.TranslateToHierarchical(t.BlockedBy),
 		}
+		if len(t.Requirements) > 0 {
+			claimedJSON[i].Requirements = t.Requirements
+		}
 	}
 
 	resp := ClaimResponse{
-		Success: true,
-		Count:   len(claimed),
-		DryRun:  dryRun,
-		Claimed: claimedJSON,
+		Success:          true,
+		Count:            len(claimed),
+		DryRun:           dryRun,
+		Claimed:          claimedJSON,
+		RequirementsFile: reqFile,
 	}
 	if stream > 0 {
 		resp.Stream = stream
@@ -1146,7 +1210,7 @@ func claimOutputTitle() string {
 }
 
 // outputClaimMarkdown outputs claimed tasks in markdown format
-func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter) error {
+func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter, reqFile string) error {
 	fmt.Printf("# %s\n", claimOutputTitle())
 	fmt.Println()
 	for _, t := range claimed {
@@ -1154,6 +1218,9 @@ func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter) error {
 		fmt.Printf("  - Owner: %s\n", t.Owner)
 		if t.Stream > 0 {
 			fmt.Printf("  - Stream: %d\n", t.Stream)
+		}
+		if len(t.Requirements) > 0 {
+			fmt.Printf("  - Requirements: %s\n", requirementLinks(t.Requirements, reqFile))
 		}
 	}
 	return nil
@@ -1190,23 +1257,25 @@ type NextTaskJSONWithStream struct {
 	Success               bool                   `json:"success"`
 	NextTask              TaskJSONWithStreamInfo `json:"next_task"`
 	FrontMatterReferences []string               `json:"front_matter_references,omitempty"`
+	RequirementsFile      string                 `json:"requirements_file,omitempty"`
 }
 
 // TaskJSONWithStreamInfo is a task with stream and dependency info
 type TaskJSONWithStreamInfo struct {
-	ID         string                   `json:"id"`
-	Title      string                   `json:"title"`
-	Status     string                   `json:"status"`
-	Stream     int                      `json:"stream"`
-	Owner      string                   `json:"owner,omitempty"`
-	BlockedBy  []string                 `json:"blockedBy,omitempty"`
-	Details    []string                 `json:"details,omitempty"`
-	References []string                 `json:"references,omitempty"`
-	Children   []TaskJSONWithStreamInfo `json:"children,omitempty"`
+	ID           string                   `json:"id"`
+	Title        string                   `json:"title"`
+	Status       string                   `json:"status"`
+	Stream       int                      `json:"stream"`
+	Owner        string                   `json:"owner,omitempty"`
+	BlockedBy    []string                 `json:"blockedBy,omitempty"`
+	Details      []string                 `json:"details,omitempty"`
+	Requirements []string                 `json:"requirements,omitempty"`
+	References   []string                 `json:"references,omitempty"`
+	Children     []TaskJSONWithStreamInfo `json:"children,omitempty"`
 }
 
 // outputNextTaskJSONWithStream outputs a single task with stream/dependency info
-func outputNextTaskJSONWithStream(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter, index *task.DependencyIndex) error {
+func outputNextTaskJSONWithStream(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter, index *task.DependencyIndex, reqFile string) error {
 	var convertTask func(t *task.Task) TaskJSONWithStreamInfo
 	convertTask = func(t *task.Task) TaskJSONWithStreamInfo {
 		tj := TaskJSONWithStreamInfo{
@@ -1220,6 +1289,9 @@ func outputNextTaskJSONWithStream(nextTask *task.TaskWithContext, frontMatter *t
 		if len(t.Details) > 0 {
 			tj.Details = t.Details
 		}
+		if len(t.Requirements) > 0 {
+			tj.Requirements = t.Requirements
+		}
 		if len(t.References) > 0 {
 			tj.References = t.References
 		}
@@ -1230,8 +1302,9 @@ func outputNextTaskJSONWithStream(nextTask *task.TaskWithContext, frontMatter *t
 	}
 
 	resp := NextTaskJSONWithStream{
-		Success:  true,
-		NextTask: convertTask(nextTask.Task),
+		Success:          true,
+		NextTask:         convertTask(nextTask.Task),
+		RequirementsFile: reqFile,
 	}
 
 	if frontMatter != nil && len(frontMatter.References) > 0 {

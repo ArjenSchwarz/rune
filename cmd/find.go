@@ -126,7 +126,7 @@ func runFind(cmd *cobra.Command, args []string) error {
 	// Output results based on format
 	switch format {
 	case formatJSON:
-		return outputSearchResultsJSON(results, findPattern)
+		return outputSearchResultsJSON(results, findPattern, taskList.RequirementsFile)
 	case formatMarkdown:
 		return outputSearchResultsMarkdown(results, findPattern)
 	default:
@@ -253,11 +253,13 @@ func outputSearchResultsTable(results []task.Task, pattern, title string) error 
 	return out.Render(context.Background(), doc)
 }
 
-func outputSearchResultsJSON(results []task.Task, pattern string) error {
-	// Use the existing JSON renderer from task package
+func outputSearchResultsJSON(results []task.Task, pattern, requirementsFile string) error {
+	// Use the existing JSON renderer from task package. The source file's
+	// requirements path is kept so requirement IDs can be resolved (T-1995).
 	jsonBytes, err := task.RenderJSON(&task.TaskList{
-		Title: fmt.Sprintf("Search Results for '%s'", pattern),
-		Tasks: results,
+		Title:            fmt.Sprintf("Search Results for '%s'", pattern),
+		Tasks:            results,
+		RequirementsFile: requirementsFile,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to render search results as JSON: %w", err)

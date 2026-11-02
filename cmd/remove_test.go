@@ -275,6 +275,7 @@ func TestRunRemoveDryRun(t *testing.T) {
 
 	// Set up dry run
 	dryRun = true
+	format = formatTable
 
 	// Capture output
 	oldStdout := os.Stdout
@@ -347,6 +348,7 @@ func TestRunRemoveDryRunSingleTask(t *testing.T) {
 	}
 
 	dryRun = true
+	format = formatTable
 
 	// Capture output
 	oldStdout := os.Stdout

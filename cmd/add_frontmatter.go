@@ -16,6 +16,7 @@ type AddFrontmatterResponse struct {
 	File            string `json:"file"`
 	ReferencesAdded int    `json:"references_added"`
 	MetadataMerged  int    `json:"metadata_merged"`
+	DryRun          bool   `json:"dry_run,omitempty"`
 }
 
 var addFrontMatterCmd = &cobra.Command{
@@ -107,6 +108,20 @@ func runAddFrontMatter(cmd *cobra.Command, args []string) error {
 
 	// Dry run mode - show what would be added
 	if dryRun {
+		switch format {
+		case formatJSON:
+			return outputJSON(AddFrontmatterResponse{
+				Success:         true,
+				Message:         fmt.Sprintf("Would update %s", filename),
+				File:            filename,
+				ReferencesAdded: newRefCount,
+				MetadataMerged:  len(parsedMeta),
+				DryRun:          true,
+			})
+		case formatMarkdown:
+			fmt.Printf("**Dry run:** Would update %s (%d reference(s), %d metadata field(s))\n", filename, newRefCount, len(parsedMeta))
+			return nil
+		}
 		fmt.Printf("Would update file: %s\n", filename)
 		if newRefCount > 0 {
 			fmt.Printf("Would add %d reference(s)\n", newRefCount)

@@ -89,8 +89,9 @@ troubleshooting purposes.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		versionInfo := GetVersionInfo()
 
-		switch versionOutputFormat {
-		case formatJSON:
+		// The global --format json is honoured as well as --output (T-1409)
+		switch {
+		case versionOutputFormat == formatJSON || format == formatJSON:
 			jsonData, err := json.MarshalIndent(versionInfo, "", "  ")
 			if err != nil {
 				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Error marshaling version info to JSON: %v\n", err)
