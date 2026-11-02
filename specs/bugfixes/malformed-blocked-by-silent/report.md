@@ -34,6 +34,17 @@
 
 **Overlap with PR #113:** PR #113 (T-1762 and others) adds the same `TaskList.Warnings` field and `reportParseWarnings` helper for duplicate stable IDs. These are copied byte-for-byte, with the call sites in `list`, `next` and `find` placed exactly where PR #113 puts them, so the two branches merge with no conflict or only a trivial one. PR #113 also reports warnings from mutating commands; this branch only covers the read commands the ticket names.
 
+**Merging with PR #113 (review follow-up):** #113 adds `taskList.Warnings = dropDuplicateStableIDs(taskList.Tasks)` to `parseContent`. That assignment replaces the warnings this fix appends while parsing lines, even when there are no duplicates. Without intervention, git auto-merged it and silently lost every invalid Blocked-by warning. This branch puts a comment stating the append-only rule at that exact spot, so the merge now conflicts in `internal/task/parse.go`. Resolve it as:
+
+```go
+	// taskList.Warnings already holds warnings found while parsing lines
+	// (invalid Blocked-by references). Checks that run on the parsed tasks
+	// must append to it, never assign it, or those warnings are lost.
+	taskList.Warnings = append(taskList.Warnings, dropDuplicateStableIDs(taskList.Tasks)...)
+```
+
+`TestInvalidBlockedByWarningSurvivesDuplicateStableIDs` (and `TestMalformedBlockedByWarns`) fail if the plain assignment is kept. `CHANGELOG.md` also conflicts under `[Unreleased] / Fixed`: keep both sides' entries. This was checked in a disposable local merge with #113 at `58b7085`. With this resolution the full suite passed (apart from the root-only `TestCreateBackup` failure), and `rune list` printed both the invalid-blocker and duplicate-ID warnings for a file with both problems.
+
 **Behaviour changes:**
 - In the reproduction, `next` still selects task 2: requirement 2.11 says the invalid reference is ignored, so it does not block. What changes is that every read command now warns about it.
 - Words inside a title hint are no longer taken as IDs.
@@ -43,6 +54,6 @@
 ## Regression Test
 
 **Test files:** `internal/task/blocked_by_warning_regression_test.go`, `cmd/blocked_by_warning_regression_test.go`
-**Test names:** `TestMalformedBlockedByWarns`, `TestValidBlockedByHasNoWarnings`, `TestReadCommands_WarnOnMalformedBlockedBy` (list JSON, list table, next JSON)
+**Test names:** `TestMalformedBlockedByWarns`, `TestValidBlockedByHasNoWarnings`, `TestInvalidBlockedByWarningSurvivesDuplicateStableIDs`, `TestReadCommands_WarnOnMalformedBlockedBy` (list JSON, list table, next JSON)
 
 **Run command:** `go test ./internal/task ./cmd -run 'BlockedByWarns|ValidBlockedByHasNoWarnings|WarnOnMalformedBlockedBy'`
