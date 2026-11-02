@@ -67,13 +67,19 @@ func TestInvalidBlockedByWarningSurvivesDuplicateStableIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := false
+	foundInvalid, foundDuplicate := false, false
 	for _, w := range tl.Warnings {
 		if w.Code == WarnInvalidBlockedBy && w.TaskID == "3" {
-			found = true
+			foundInvalid = true
+		}
+		if w.Code == WarnDuplicateStableID && w.TaskID == "2" {
+			foundDuplicate = true
 		}
 	}
-	if !found {
-		t.Errorf("invalid Blocked-by warning for task 3 missing from %+v", tl.Warnings)
+	if !foundInvalid || !foundDuplicate || len(tl.Warnings) != 2 {
+		t.Errorf("want both invalid-blocker and duplicate-ID warnings, got %+v", tl.Warnings)
+	}
+	if tl.Tasks[0].StableID != "aaaaaaa" || tl.Tasks[1].StableID != "" {
+		t.Errorf("duplicate-ID repair changed: first=%q duplicate=%q", tl.Tasks[0].StableID, tl.Tasks[1].StableID)
 	}
 }
