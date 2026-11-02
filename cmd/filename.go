@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/arjenschwarz/rune/internal/config"
 )
@@ -20,6 +21,17 @@ func resolveFilename(args []string) (string, error) {
 	}
 	if cfg.Discovery.Enabled {
 		if path, err := config.DiscoverFileFromBranch(cfg.Discovery.Template); err == nil {
+			// The discovered path is relative to the repo root. Run the command
+			// from there so it opens the right file and the file passes the
+			// working-directory containment check on write, even when rune is
+			// invoked from a subdirectory.
+			root, err := config.RepoRoot()
+			if err != nil {
+				return "", fmt.Errorf("finding repo root: %w", err)
+			}
+			if err := os.Chdir(root); err != nil {
+				return "", fmt.Errorf("changing to repo root: %w", err)
+			}
 			return path, nil
 		} else if verbose {
 			fmt.Printf("Git discovery failed: %v\n", err)
