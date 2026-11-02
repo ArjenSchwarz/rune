@@ -30,11 +30,14 @@ class SpecInfo:
     in_progress: int
     completed: int
     project: Optional[str] = None  # Project name for multi-project scanning
+    error: Optional[str] = None  # Set when rune could not read tasks.md
 
     @property
     def status(self) -> str:
         """Derive status from task counts."""
-        if self.total == 0:
+        if self.error:
+            return "Error"
+        elif self.total == 0:
             return "Empty"
         elif self.completed == self.total:
             return "Complete"
@@ -52,6 +55,8 @@ class SpecInfo:
             return "⚠"
         elif self.status == "Pending":
             return "○"
+        elif self.status == "Error":
+            return "✗"
         else:
             return "−"
 
@@ -157,8 +162,12 @@ def get_creation_date(spec_dir: Path) -> Optional[datetime]:
 
 
 def get_task_stats(spec_dir: Path, rune_path: str) -> dict:
-    """Get task statistics using rune list --format json."""
+    """Get task statistics using rune list --format json.
+
+    If rune fails, the returned dict has an "error" message and zero counts.
+    """
     tasks_file = spec_dir / "tasks.md"
+    stats = {"total": 0, "pending": 0, "in_progress": 0, "completed": 0, "error": None}
 
     try:
         result = subprocess.run(
@@ -170,19 +179,27 @@ def get_task_stats(spec_dir: Path, rune_path: str) -> dict:
 
         if result.returncode == 0:
             data = json.loads(result.stdout)
-            stats = data.get("Stats", {})
+            rune_stats = data.get("Stats", {})
             # Convert capitalized field names to lowercase for consistency
-            return {
-                "total": stats.get("Total", 0),
-                "pending": stats.get("Pending", 0),
-                "in_progress": stats.get("InProgress", 0),
-                "completed": stats.get("Completed", 0),
-            }
+            stats.update(
+                total=rune_stats.get("Total", 0),
+                pending=rune_stats.get("Pending", 0),
+                in_progress=rune_stats.get("InProgress", 0),
+                completed=rune_stats.get("Completed", 0),
+            )
+        else:
+            # rune prints the error first, followed by usage text
+            lines = result.stderr.strip().splitlines()
+            message = lines[0] if lines else ""
+            stats["error"] = message or f"rune exited with status {result.returncode}"
 
     except Exception as e:
-        print(f"Warning: Failed to get stats for {spec_dir}: {e}", file=sys.stderr)
+        stats["error"] = str(e)
 
-    return {"total": 0, "pending": 0, "in_progress": 0, "completed": 0}
+    if stats["error"]:
+        print(f"Warning: Failed to get stats for {spec_dir}: {stats['error']}", file=sys.stderr)
+
+    return stats
 
 
 def scan_specs(root_dirs: List[str], rune_path: str, project_name: Optional[str] = None) -> List[SpecInfo]:
@@ -219,6 +236,7 @@ def scan_specs(root_dirs: List[str], rune_path: str, project_name: Optional[str]
             in_progress=stats.get("in_progress", 0),
             completed=stats.get("completed", 0),
             project=project_name,
+            error=stats.get("error"),
         )
 
         specs.append(spec)
@@ -278,9 +296,11 @@ def sort_specs(specs: List[SpecInfo], sort_by: str, reverse: bool = False) -> Li
         # Sort by project name first (if present), then by spec name
         return sorted(specs, key=lambda s: (s.project or "", s.name), reverse=reverse)
     elif sort_by == "date":
+        # Unknown dates sort first. Known dates are compared as timestamps so
+        # timezone-aware values never meet a naive placeholder.
         return sorted(
             specs,
-            key=lambda s: s.created or datetime.min,
+            key=lambda s: (s.created is not None, s.created.timestamp() if s.created else 0.0),
             reverse=reverse,
         )
     elif sort_by == "completion":
@@ -394,6 +414,9 @@ def output_json(specs: List[SpecInfo]):
         if spec.project:
             spec_data["project"] = spec.project
 
+        if spec.error:
+            spec_data["error"] = spec.error
+
         data.append(spec_data)
 
     print(json.dumps(data, indent=2))
@@ -458,6 +481,11 @@ def main():
         output_markdown(specs)
     elif args.format == "json":
         output_json(specs)
+
+    failed = [s for s in specs if s.error]
+    if failed:
+        print(f"Error: rune failed to read {len(failed)} spec(s)", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

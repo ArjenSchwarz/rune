@@ -105,6 +105,7 @@ func runRenumber(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse task file: %w", err)
 	}
+	reportParseWarnings(taskList)
 
 	// Phase 3: Validate resource limits
 	totalTasks := taskList.CountTotalTasks()

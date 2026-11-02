@@ -218,18 +218,18 @@ Using cached rune 1.0.0
 
 When the cache is missed, the action will:
 1. Download the release archive from GitHub
-2. Verify the MD5 checksum
+2. Verify the SHA-256 checksum
 3. Extract the binary
 4. Cache it for future runs
 5. Add it to the PATH
 
 ## Integrity Verification
 
-The action verifies the integrity of downloaded binaries using MD5 checksums:
+The action verifies the integrity of downloaded binaries using SHA-256 checksums:
 
 1. Downloads the release archive (`.tar.gz` for Linux/macOS, `.zip` for Windows)
-2. Downloads the corresponding `.md5` checksum file
-3. Calculates the MD5 hash of the downloaded archive
+2. Downloads the corresponding `.sha256` checksum file (releases before v1.4.0 have no `.sha256` file; when it returns HTTP 404 the action uses the legacy `.md5` file instead)
+3. Calculates the SHA-256 (or, for those older releases, MD5) hash of the downloaded archive
 4. Compares with the expected checksum
 5. Fails the workflow if verification fails
 
@@ -261,7 +261,7 @@ Supported: linux/darwin/windows on amd64/arm64
 
 If you see an error like:
 ```
-MD5 checksum verification failed!
+SHA-256 checksum verification failed!
 Expected: abc123...
 Actual: def456...
 ```
