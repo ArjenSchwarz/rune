@@ -1,7 +1,7 @@
 # Bugfix Report: Filtered Markdown Places Promoted Children Under the Wrong Phase
 
 **Date:** 2026-11-02
-**Status:** In progress
+**Status:** Fixed
 **Ticket:** T-1352
 
 ## Description of the Issue
@@ -43,7 +43,14 @@ breaks that assumption.
 
 ## Resolution for the Issue
 
-_To be filled in after the fix._
+**Changes made:**
+- `internal/task/render.go` (`RenderMarkdownWithPhases`) - look up a rendered task's position by the top-level segment of its ID (`2.1` → `2`), so promoted children are placed with their top-level ancestor's phase.
+
+**Approach rationale:** One-line change at the faulty lookup. A task's top-level segment is exactly the top-level task it belongs to, which is what phase membership is defined by. `RenderJSONWithPhases` already reports the correct phase (`Build`) for this repro and was not changed.
+
+**Alternatives considered:**
+- Change the filter to not promote children - changes the output shape of `list --filter` for all formats; too broad.
+
 
 ## Regression Test
 
@@ -54,6 +61,15 @@ _To be filled in after the fix._
 `Build` phase, after the empty `Planning` header.
 
 **Run command:** `go test ./internal/task -run PromotedChildKeepsPhase`
+
+## Verification
+
+**Automated:**
+- [x] Regression tests pass
+- [x] Full unit suite passes, except `TestCreateBackup/error_handling_for_read_failures`, which also fails on main in this container (it runs as root, so a mode-0000 file is still readable)
+- [x] Integration suite passes, except `TestIntegrationRenumber/renumber_write_failure`, which fails on main for the same root-permission reason
+- [x] `make lint`: 0 issues
+
 
 ## Related
 
