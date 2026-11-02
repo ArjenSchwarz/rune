@@ -48,6 +48,8 @@ A bare `# ` line (empty H1) is deliberately rejected by the parser, so both rend
 
 Requirements lines are parsed strictly, link by link (T-1848, T-1907): the value must be only `[ID](path#anchor)` links separated by commas, since paths may contain commas. Anything else keeps the whole line as a plain detail, not a partial requirement list.
 
+References use `\,` for a comma inside a reference and `\\` for a backslash where it would be ambiguous (`formatReferenceList` / `parseReferences`, T-1808). Any other backslash is literal, so Windows paths are written unchanged.
+
 `applyDetailLine` also returns a parse error when a task's requirement links name a different file than `TaskList.RequirementsFile` (or mix files within one line), because the renderer writes every link with that single path (T-1973). `detailMetadataField` ignores that error — it only needs the field name.
 
 ## CI Notes

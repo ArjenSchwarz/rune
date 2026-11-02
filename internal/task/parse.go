@@ -543,16 +543,31 @@ func parseOwnerLine(line string) string {
 	return owner
 }
 
+// parseReferences splits a References value on commas. "\," and "\\" are
+// escapes for a literal comma and backslash (see formatReferenceList); any
+// other backslash is kept as is.
 func parseReferences(refs string) []string {
-	parts := strings.Split(refs, ",")
-	references := make([]string, 0, len(parts))
-
-	for _, part := range parts {
-		ref := strings.TrimSpace(part)
-		if ref != "" {
+	var references []string
+	var current strings.Builder
+	flush := func() {
+		if ref := strings.TrimSpace(current.String()); ref != "" {
 			references = append(references, ref)
 		}
+		current.Reset()
 	}
+
+	for i := 0; i < len(refs); i++ {
+		switch {
+		case refs[i] == '\\' && i+1 < len(refs) && (refs[i+1] == ',' || refs[i+1] == '\\'):
+			i++
+			current.WriteByte(refs[i])
+		case refs[i] == ',':
+			flush()
+		default:
+			current.WriteByte(refs[i])
+		}
+	}
+	flush()
 
 	return references
 }
