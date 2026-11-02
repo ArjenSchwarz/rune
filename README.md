@@ -374,7 +374,7 @@ rune next tasks.md --one --format json
 
 ### streams - Display Stream Status
 
-Display the status of all work streams, showing ready, blocked, and active task counts.
+Display the status of all work streams, showing ready, blocked, active and claimed task counts.
 
 ```bash
 rune streams [file] [options]
@@ -400,6 +400,7 @@ rune streams tasks.md --json
 - **Ready**: Tasks that can be started (dependencies met, not owned)
 - **Blocked**: Tasks waiting on dependencies to complete
 - **Active**: Tasks currently in progress
+- **Claimed**: Pending tasks that have an owner but are not started yet
 - **Available**: Whether the stream has any ready tasks
 
 ### add-phase - Add Phase Header

@@ -606,12 +606,7 @@ func flattenTasksWithFilters(taskList *task.TaskList, phaseMarkers []task.PhaseM
 
 			// Add blocked-by as hierarchical IDs if any task has dependencies
 			if hasBlockedBy {
-				blockedByHierarchical := depIndex.TranslateToHierarchical(t.BlockedBy)
-				if len(blockedByHierarchical) > 0 {
-					taskRecord["BlockedBy"] = strings.Join(blockedByHierarchical, ", ")
-				} else {
-					taskRecord["BlockedBy"] = ""
-				}
+				taskRecord["BlockedBy"] = formatBlockedByForDisplay(&t, depIndex)
 			}
 
 			// Add owner column if task has an owner

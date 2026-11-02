@@ -113,7 +113,8 @@ func filterEmptyStreams(result *task.StreamsResult) *task.StreamsResult {
 	}
 
 	for _, stream := range result.Streams {
-		if len(stream.Ready) > 0 || len(stream.Blocked) > 0 || len(stream.Active) > 0 {
+		// Claimed (owned, not started) tasks are pending work too (T-1626)
+		if len(stream.Ready) > 0 || len(stream.Blocked) > 0 || len(stream.Active) > 0 || len(stream.Claimed) > 0 {
 			filtered.Streams = append(filtered.Streams, stream)
 			if len(stream.Ready) > 0 {
 				filtered.Available = append(filtered.Available, stream.ID)
@@ -144,13 +145,14 @@ func outputStreamsTable(result *task.StreamsResult) error {
 			"Ready":     len(stream.Ready),
 			"Blocked":   len(stream.Blocked),
 			"Active":    len(stream.Active),
+			"Claimed":   len(stream.Claimed),
 			"Available": available,
 		}
 	}
 
 	// Create table output
 	doc := output.New().
-		Table("Stream Status", tableData, output.WithKeys("Stream", "Ready", "Blocked", "Active", "Available")).
+		Table("Stream Status", tableData, output.WithKeys("Stream", "Ready", "Blocked", "Active", "Claimed", "Available")).
 		Build()
 
 	out := output.NewOutput(
