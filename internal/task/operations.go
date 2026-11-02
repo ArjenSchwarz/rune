@@ -326,7 +326,7 @@ func (tl *TaskList) WriteFile(filePath string) error {
 
 	// Generate markdown content with front matter if present
 	var content []byte
-	if tl.FrontMatter != nil && (len(tl.FrontMatter.References) > 0 || len(tl.FrontMatter.Metadata) > 0) {
+	if !tl.FrontMatter.IsEmpty() {
 		// Render markdown without front matter
 		markdownContent := RenderMarkdown(tl)
 		// Combine with front matter
@@ -703,7 +703,7 @@ func WriteFileWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, filePath stri
 
 	// Generate markdown content with phases
 	var content []byte
-	if tl.FrontMatter != nil && (len(tl.FrontMatter.References) > 0 || len(tl.FrontMatter.Metadata) > 0) {
+	if !tl.FrontMatter.IsEmpty() {
 		// Render markdown with phases but without front matter
 		markdownContent := RenderMarkdownWithPhases(tl, phaseMarkers, nil)
 		// Combine with front matter

@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -110,9 +112,10 @@ func runBatch(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Parse JSON request
-	var req task.BatchRequest
-	if err := json.Unmarshal(jsonData, &req); err != nil {
+	// Parse JSON request. Unknown fields are rejected so a typo such as
+	// "dryRun" cannot silently change what the batch does.
+	req, err := decodeBatchRequest(jsonData)
+	if err != nil {
 		return fmt.Errorf("parsing JSON input: %w", err)
 	}
 
@@ -194,10 +197,42 @@ func runBatch(cmd *cobra.Command, args []string) error {
 	// at the top of runBatch, so this switch only maps the supported formats.
 	switch outputFormat {
 	case formatJSON:
-		return outputBatchJSON(cmd, response)
+		err = outputBatchJSON(cmd, response)
 	default: // formatTable, formatMarkdown
-		return outputBatchText(cmd, response, req.DryRun, req.File, taskList)
+		err = outputBatchText(cmd, response, req.DryRun, req.File, taskList)
 	}
+	if err != nil {
+		return err
+	}
+
+	// A rejected batch has already been reported in the requested format;
+	// return an error so the process exits non-zero, without cobra printing
+	// it (or the usage) a second time.
+	if !response.Success {
+		cmd.SilenceErrors = true
+		cmd.SilenceUsage = true
+		return errBatchFailed
+	}
+	return nil
+}
+
+// errBatchFailed is returned when a batch was rejected and its errors have
+// already been rendered.
+var errBatchFailed = errors.New("batch operation failed")
+
+// decodeBatchRequest strictly decodes a batch request: unknown fields and
+// trailing data after the JSON object are rejected.
+func decodeBatchRequest(data []byte) (task.BatchRequest, error) {
+	var req task.BatchRequest
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		return req, err
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return req, errors.New("unexpected trailing data after JSON object")
+	}
+	return req, nil
 }
 
 func outputBatchJSON(cmd *cobra.Command, response *task.BatchResponse) error {

@@ -40,8 +40,8 @@ func TestCreateCommand(t *testing.T) {
 			title:    "",
 			filename: "empty-tasks.md",
 			wantErr:  false,
+			// An empty title writes no H1: a bare "# " line is not parsable (T-2062)
 			wantContent: []string{
-				"# ",
 				"",
 			},
 		},
