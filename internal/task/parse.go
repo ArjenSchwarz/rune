@@ -1,6 +1,7 @@
 package task
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"regexp"
@@ -44,7 +45,16 @@ func ParseMarkdown(content []byte) (*TaskList, error) {
 	if len(content) > MaxFileSize {
 		return nil, fmt.Errorf("file exceeds maximum size of %d bytes", MaxFileSize)
 	}
-	return parseContent(string(content))
+	return parseContent(string(stripBOM(content)))
+}
+
+// utf8BOM is the UTF-8 byte-order mark some editors write at the start of a file.
+var utf8BOM = []byte("\xef\xbb\xbf")
+
+// stripBOM removes exactly one leading UTF-8 byte-order mark, which would
+// otherwise hide the H1 title or the front matter delimiter on line 1.
+func stripBOM(content []byte) []byte {
+	return bytes.TrimPrefix(content, utf8BOM)
 }
 
 // ParseFile reads and parses a markdown file
@@ -82,7 +92,7 @@ func ParseFileWithPhases(filepath string) (*TaskList, []PhaseMarker, error) {
 // skipping front matter first so YAML comment lines ("## ...") inside it are
 // not mistaken for phase headers.
 func phaseMarkersFromContent(content []byte) []PhaseMarker {
-	return ExtractPhaseMarkers(StripFrontMatterLines(splitLines(string(content))))
+	return ExtractPhaseMarkers(StripFrontMatterLines(splitLines(string(stripBOM(content)))))
 }
 
 // StripFrontMatterLines removes front matter lines from the beginning of a

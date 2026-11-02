@@ -20,6 +20,10 @@ CRLF normalization happens at three levels:
 
 **Gotcha:** Go's RE2 regex `$` matches end-of-text, and `.+` will match `\r`. So patterns like `^## (.+)$` appear to work on CRLF lines, but the captured group includes `\r`. Patterns using specific character classes at the end (like `(\d+)$` in `streamPattern`) will fail outright on untrimmed CRLF lines because `\d` does not match `\r`. Always normalize before matching.
 
+## UTF-8 BOM
+
+`ParseMarkdown` strips exactly one leading UTF-8 BOM after the size check, and `phaseMarkersFromContent` does the same for `ParseFileWithPhases` (T-2063). `splitLines` deliberately does NOT strip a BOM: it also runs on content `ParseMarkdown` has already stripped, so a second BOM would be removed too. Raw-content phase helpers in `next.go`/`phase.go` don't strip it; that only matters for a BOM file whose front matter has a `## ` YAML comment.
+
 ## Front Matter Delimiter Matching
 
 `ParseFrontMatter` uses hardcoded LF patterns (`"---\n"`, `"\n---\n"`) with fixed byte offsets. The CRLF normalization at the top of the function ensures these patterns work regardless of the input's line ending style.
