@@ -798,6 +798,9 @@ rune add tasks.md --title "Integration tests" --blocked-by "1,2,3"
 ```bash
 # Set dependencies on an existing task
 rune update tasks.md 4 --blocked-by "1,2"
+
+# Clear all dependencies from a task
+rune update tasks.md 4 --blocked-by ""
 ```
 
 **How Dependencies Work:**

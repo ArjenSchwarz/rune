@@ -134,6 +134,10 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	var reqIDs []string
 	if addRequirements != "" {
 		reqIDs = parseRequirementIDs(addRequirements)
+		// A non-empty value without any IDs (e.g. ",") is malformed (T-2023)
+		if len(reqIDs) == 0 {
+			return fmt.Errorf("invalid --requirements value %q: no requirement IDs found", addRequirements)
+		}
 		for _, reqID := range reqIDs {
 			if !task.IsValidID(reqID) {
 				return fmt.Errorf("invalid requirement ID format: %s", reqID)

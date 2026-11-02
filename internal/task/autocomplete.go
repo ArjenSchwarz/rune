@@ -49,6 +49,25 @@ func (tl *TaskList) AutoCompleteParents(taskID string) ([]string, error) {
 	return completedParents, nil
 }
 
+// ReopenCompletedAncestors sets every completed ancestor of taskID back to
+// pending, so a parent never stays completed while a descendant is not.
+// It is the counterpart of AutoCompleteParents for status rollbacks.
+// Returns the IDs of the reopened ancestors, nearest first.
+func (tl *TaskList) ReopenCompletedAncestors(taskID string) []string {
+	var reopened []string
+	for parentID := getParentID(taskID); parentID != ""; parentID = getParentID(parentID) {
+		parent := tl.FindTask(parentID)
+		if parent == nil {
+			break
+		}
+		if parent.Status == Completed {
+			parent.Status = Pending
+			reopened = append(reopened, parentID)
+		}
+	}
+	return reopened
+}
+
 // allChildrenComplete checks if all direct children of a task are complete
 func allChildrenComplete(task *Task) bool {
 	// A task without children is considered to have all children complete
