@@ -358,6 +358,19 @@ func (tl *TaskList) WriteFile(filePath string) error {
 // Callers are responsible for validating filePath (e.g. via ValidateFilePath)
 // before calling this.
 func WriteFileAtomic(filePath string, content []byte) error {
+	// The rename below replaces the directory entry at filePath. If that entry
+	// is a symlink, renaming over it would replace the link with a regular
+	// file and leave its target untouched (T-1796). Write to the resolved
+	// target instead, which is the path ValidateFilePath checked. A dangling
+	// link has no validated target, so it is rejected.
+	if info, err := os.Lstat(filePath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		resolved, err := filepath.EvalSymlinks(filePath)
+		if err != nil {
+			return fmt.Errorf("resolving symlink %s: %w", filePath, err)
+		}
+		filePath = resolved
+	}
+
 	// Get original file permissions if file exists, otherwise use default 0644
 	perm := os.FileMode(0644)
 	if fileInfo, err := os.Stat(filePath); err == nil {

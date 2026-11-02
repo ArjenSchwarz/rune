@@ -1,7 +1,7 @@
 # Bugfix Report: Atomic Write Replaces Symlink
 
 **Date:** 2026-11-02
-**Status:** Investigating
+**Status:** Fixed
 **Ticket:** T-1796
 
 ## Description of the Issue
@@ -34,7 +34,16 @@ Mutating a task file through a symlink that resolves inside the workspace destro
 
 ## Resolution for the Issue
 
-_To be filled in after the fix._
+**Changes made:**
+- `internal/task/operations.go` (`WriteFileAtomic`) - If `filePath` is itself a symlink (`os.Lstat`), resolve it with `filepath.EvalSymlinks` and perform the temp write, chmod and rename against the resolved target. A dangling link returns `resolving symlink ...` before anything is written.
+
+**Approach rationale:** `WriteFileAtomic` is the single writer used by `TaskList.WriteFile`, `WriteFileWithPhases` and `add-phase`, so one change covers every mutating command. The resolved path is the same one `ValidateFilePath` already checked for workspace containment, so this writes only to a validated target. The temp file now sits next to the target, so the rename stays within one directory and remains atomic. `tl.FilePath` keeps the user-supplied link path.
+
+**Alternatives considered:**
+- Reject symlinked paths before mutation - the ticket allows it, but it would break a workflow `ValidateFilePath` deliberately supports (in-workspace links) for no safety gain.
+- Write in place through the link (`os.WriteFile`) - follows the link but gives up the no-truncation guarantee the atomic write exists for.
+
+**Limitations:** Only the final path component is resolved. Symlinked parent directories were already handled correctly, since rename replaces only the last entry. Pre-existing `.tmp` symlink traversal (T-1773) and outside-workspace validation (T-685) are out of scope.
 
 ## Regression Test
 
@@ -44,3 +53,21 @@ _To be filled in after the fix._
 **What it verifies:** Writing through a sibling symlink and through a relative symlink into a subdirectory updates the target, keeps its permissions, keeps the link a symlink, and leaves no temp files. A dangling symlink is rejected without creating its target. `TestWriteFileThroughSymlink` covers the parse → add → `WriteFile` path used by `rune add`.
 
 **Run command:** `go test ./internal/task -run ThroughSymlink`
+
+## Verification
+
+**Automated:**
+- [x] Regression tests pass (`go test ./internal/task -run ThroughSymlink`)
+- [x] Full test suite passes, except two pre-existing failures that also fail on unmodified main because the container runs as root (`TestCreateBackup/error_handling_for_read_failures`, `TestIntegrationRenumber/renumber_write_failure`)
+- [x] `make lint`: 0 issues
+
+**Manual verification:**
+- Rebuilt CLI: `rune add link.md --title Added` leaves `link.md -> target.md` in place and adds the task to `target.md`.
+
+## Prevention
+
+- Atomic-replace helpers must resolve the final path component before renaming; the regression tests guard this.
+
+## Related
+
+- T-685 (outside-workspace symlink validation), T-1773 (`.tmp` symlink traversal)
