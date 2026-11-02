@@ -72,10 +72,11 @@ discovery:
 
 func TestLoadConfigFile(t *testing.T) {
 	tests := map[string]struct {
-		content     string
-		wantEnabled bool
-		wantErr     bool
-		wantErrMsg  string
+		content      string
+		wantEnabled  bool
+		wantTemplate string
+		wantErr      bool
+		wantErrMsg   string
 	}{
 		"valid YAML": {
 			content: `
@@ -94,8 +95,24 @@ discovery:
 			wantErr:    true,
 			wantErrMsg: "parsing config file",
 		},
+		// T-1065: a missing discovery.enabled must inherit the default (true)
 		"empty file uses defaults": {
 			content:     "",
+			wantEnabled: true,
+		},
+		"template only keeps discovery enabled": {
+			content: `
+discovery:
+  template: "docs/{branch}/tasks.md"
+`,
+			wantEnabled:  true,
+			wantTemplate: "docs/{branch}/tasks.md",
+		},
+		"explicit enabled false is respected": {
+			content: `
+discovery:
+  enabled: false
+`,
 			wantEnabled: false,
 		},
 		"partial config uses defaults": {
@@ -140,6 +157,9 @@ discovery:
 			}
 			if cfg.Discovery.Template == "" {
 				t.Error("Discovery.Template should have default value")
+			}
+			if tc.wantTemplate != "" && cfg.Discovery.Template != tc.wantTemplate {
+				t.Errorf("Discovery.Template = %q, want %q", cfg.Discovery.Template, tc.wantTemplate)
 			}
 		})
 	}

@@ -76,6 +76,7 @@ func runAddFrontMatter(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load file: %w", err)
 	}
+	reportParseWarnings(tl)
 
 	// Parse metadata flags if provided
 	var parsedMeta map[string]string

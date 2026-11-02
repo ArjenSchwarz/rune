@@ -18,12 +18,14 @@ The `--input` flag accepts `-` as a stdin marker. When `--input -` is passed, th
 
 ## Operation Sorting (sortOperationsForExecution)
 
-`sortOperationsForExecution` in `internal/task/batch.go` reorders operations before execution:
+`sortOperationsForExecution` in `internal/task/batch.go` only reorders operations within contiguous runs of the same kind:
 
-1. **Position insertions** (add ops with a `Position` field) are extracted and sorted in reverse position order, then placed first in the result.
-2. **Remove operations** within the remaining ops are sorted in reverse ID order (highest first) so that removing higher IDs first preserves the validity of lower IDs. This sorting is restricted to **contiguous blocks** of removes -- non-remove operations act as boundaries that removes cannot cross (fixed in T-200).
+1. **Positioned adds** (add ops with a `Position`) are sorted in reverse position order within a run.
+2. **Removes** are sorted in reverse ID order within a run, so removing higher IDs first keeps lower IDs valid.
 
-The block-based approach matters because users may intentionally interleave removes with adds/updates to achieve specific sequencing (e.g., remove a task, add a replacement, remove another task).
+Non-matching operations are boundaries that nothing crosses. Positioned adds used to be hoisted ahead of everything (T-1874), which retargeted IDs in earlier updates/removes; removes used to be sorted globally (T-200). Don't reintroduce cross-kind reordering.
+
+Note that `operation N` in error messages is the index in execution order, which can differ from input order inside a reordered run.
 
 ## Validation and Atomicity
 

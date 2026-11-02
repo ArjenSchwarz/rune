@@ -6,12 +6,14 @@ import (
 )
 
 // AutoCompleteParents checks and completes parent tasks when all children are done
+// and the parent is not blocked by an unresolved dependency.
 // Returns a slice of task IDs that were auto-completed
 func (tl *TaskList) AutoCompleteParents(taskID string) ([]string, error) {
 	var completedParents []string
 	visited := make(map[string]bool) // Prevent cycles
 	maxDepth := 100                  // Prevent infinite recursion
 	depth := 0
+	index := BuildDependencyIndex(tl.Tasks)
 
 	parentID := getParentID(taskID)
 	for parentID != "" && depth < maxDepth {
@@ -26,8 +28,10 @@ func (tl *TaskList) AutoCompleteParents(taskID string) ([]string, error) {
 			break
 		}
 
-		// Check if all children of this parent are complete
-		if allChildrenComplete(parent) && parent.Status != Completed {
+		// Complete the parent only when all its children are complete and its
+		// own dependencies are resolved; a blocked parent stays open so its
+		// dependents remain blocked.
+		if allChildrenComplete(parent) && parent.Status != Completed && !index.IsBlocked(parent) {
 			parent.Status = Completed
 			completedParents = append(completedParents, parentID)
 		}
@@ -43,6 +47,25 @@ func (tl *TaskList) AutoCompleteParents(taskID string) ([]string, error) {
 	}
 
 	return completedParents, nil
+}
+
+// ReopenCompletedAncestors sets every completed ancestor of taskID back to
+// pending, so a parent never stays completed while a descendant is not.
+// It is the counterpart of AutoCompleteParents for status rollbacks.
+// Returns the IDs of the reopened ancestors, nearest first.
+func (tl *TaskList) ReopenCompletedAncestors(taskID string) []string {
+	var reopened []string
+	for parentID := getParentID(taskID); parentID != ""; parentID = getParentID(parentID) {
+		parent := tl.FindTask(parentID)
+		if parent == nil {
+			break
+		}
+		if parent.Status == Completed {
+			parent.Status = Pending
+			reopened = append(reopened, parentID)
+		}
+	}
+	return reopened
 }
 
 // allChildrenComplete checks if all direct children of a task are complete

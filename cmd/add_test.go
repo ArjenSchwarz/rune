@@ -1847,3 +1847,35 @@ func TestRunAddDryRunReportsRealID(t *testing.T) {
 		})
 	}
 }
+
+// TestRunAddPhaseWithPositionRejected covers T-973: --position used to be
+// silently ignored when --phase was set. The combination is now rejected
+// without touching the file.
+func TestRunAddPhaseWithPositionRejected(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-add-phase-position")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	filename := filepath.Join(tempDir, "tasks.md")
+	if err := os.WriteFile(filename, []byte(addPhasedFixture), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, dry := range []bool{false, true} {
+		resetAddFlags(t)
+		addTitle = "new"
+		addPhase = "B"
+		addPosition = "1"
+		dryRun = dry
+		err := runAdd(&cobra.Command{}, []string{filename})
+		if err == nil || !strings.Contains(err.Error(), "position cannot be combined with phase") {
+			t.Errorf("dryRun=%v: err = %v, want phase/position conflict", dry, err)
+		}
+	}
+
+	got, _ := os.ReadFile(filename)
+	if string(got) != addPhasedFixture {
+		t.Errorf("file modified:\n%s", got)
+	}
+}

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/arjenschwarz/rune/internal/task"
 )
 
 // Format utility functions for consistent output across commands.
@@ -34,5 +36,13 @@ func outputMessage(message string) {
 func verboseStderr(formatStr string, args ...any) {
 	if verbose {
 		fmt.Fprintf(os.Stderr, formatStr+"\n", args...)
+	}
+}
+
+// reportParseWarnings writes non-fatal parse warnings (such as duplicate
+// stable IDs) to stderr so they never corrupt JSON output on stdout.
+func reportParseWarnings(tl *task.TaskList) {
+	for _, w := range tl.Warnings {
+		fmt.Fprintf(os.Stderr, "Warning: %s\n", w.Message)
 	}
 }

@@ -326,7 +326,7 @@ func (tl *TaskList) WriteFile(filePath string) error {
 
 	// Generate markdown content with front matter if present
 	var content []byte
-	if tl.FrontMatter != nil && (len(tl.FrontMatter.References) > 0 || len(tl.FrontMatter.Metadata) > 0) {
+	if !tl.FrontMatter.IsEmpty() {
 		// Render markdown without front matter
 		markdownContent := RenderMarkdown(tl)
 		// Combine with front matter
@@ -716,7 +716,7 @@ func WriteFileWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, filePath stri
 
 	// Generate markdown content with phases
 	var content []byte
-	if tl.FrontMatter != nil && (len(tl.FrontMatter.References) > 0 || len(tl.FrontMatter.Metadata) > 0) {
+	if !tl.FrontMatter.IsEmpty() {
 		// Render markdown with phases but without front matter
 		markdownContent := RenderMarkdownWithPhases(tl, phaseMarkers, nil)
 		// Combine with front matter
@@ -1122,41 +1122,53 @@ func (tl *TaskList) RemoveTaskWithDependents(taskID string) ([]string, error) {
 		return nil, fmt.Errorf("task %s not found", taskID)
 	}
 
-	var warnings []string
-
-	// If task has a stable ID, clean up all blocked-by references to it.
-	// The tree walk is cheap and catches all dependents regardless of whether
-	// they have their own StableID.
-	if task.StableID != "" {
-		count := tl.removeFromBlockedByLists(task.StableID)
-		if count > 0 {
-			warnings = append(warnings,
-				fmt.Sprintf("removed dependency references from %d task(s)", count))
+	// Collect the stable IDs of the task and all its descendants: the whole
+	// subtree is deleted, so references to any of them would be left dangling.
+	removedIDs := make(map[string]bool)
+	var collect func(t *Task)
+	collect = func(t *Task) {
+		if t.StableID != "" {
+			removedIDs[t.StableID] = true
+		}
+		for i := range t.Children {
+			collect(&t.Children[i])
 		}
 	}
+	collect(task)
 
-	// Remove the task using existing logic
-	if removed := tl.removeTaskRecursive(&tl.Tasks, taskID, ""); removed {
-		tl.RenumberTasks()
-		tl.Modified = time.Now()
-		return warnings, nil
+	if !tl.removeTaskRecursive(&tl.Tasks, taskID, "") {
+		return nil, fmt.Errorf("task %s not found", taskID)
 	}
 
-	return nil, fmt.Errorf("task %s not found", taskID)
+	// Clean up blocked-by references in the surviving tasks. The tree walk is
+	// cheap and catches all dependents regardless of whether they have their
+	// own StableID.
+	var warnings []string
+	if count := tl.removeFromBlockedByLists(removedIDs); count > 0 {
+		warnings = append(warnings,
+			fmt.Sprintf("removed dependency references from %d task(s)", count))
+	}
+
+	tl.RenumberTasks()
+	tl.Modified = time.Now()
+	return warnings, nil
 }
 
-// removeFromBlockedByLists removes a stable ID from all BlockedBy lists.
-// Returns the number of tasks that had the reference removed.
-func (tl *TaskList) removeFromBlockedByLists(stableID string) int {
+// removeFromBlockedByLists removes the given stable IDs from all BlockedBy
+// lists. Returns the number of tasks that had at least one reference removed.
+func (tl *TaskList) removeFromBlockedByLists(stableIDs map[string]bool) int {
+	if len(stableIDs) == 0 {
+		return 0
+	}
 	count := 0
 	var removeRecursive func(tasks []Task)
 	removeRecursive = func(tasks []Task) {
 		for i := range tasks {
 			task := &tasks[i]
-			// Remove the stable ID from BlockedBy if present
+			// Remove the stable IDs from BlockedBy if present
 			newBlockedBy := make([]string, 0, len(task.BlockedBy))
 			for _, blockerID := range task.BlockedBy {
-				if blockerID != stableID {
+				if !stableIDs[blockerID] {
 					newBlockedBy = append(newBlockedBy, blockerID)
 				}
 			}
