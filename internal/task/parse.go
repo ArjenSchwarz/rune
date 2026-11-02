@@ -164,7 +164,10 @@ func parseContent(content string) (*TaskList, error) {
 	}
 
 	taskList.Tasks = tasks
-	taskList.Warnings = dropDuplicateStableIDs(taskList.Tasks)
+	// taskList.Warnings already holds warnings found while parsing lines
+	// (invalid Blocked-by references). Checks that run on the parsed tasks
+	// must append to it, never assign it, or those warnings are lost.
+	taskList.Warnings = append(taskList.Warnings, dropDuplicateStableIDs(taskList.Tasks)...)
 	taskList.FilePath = "" // Will be set by ParseFile if used
 	return taskList, nil
 }

@@ -53,3 +53,27 @@ func TestValidBlockedByHasNoWarnings(t *testing.T) {
 		t.Errorf("BlockedBy = %q", tl.Tasks[1].BlockedBy)
 	}
 }
+
+// Warnings found while parsing lines must survive any check that runs on the
+// parsed tasks afterwards, such as duplicate stable ID detection (PR #113).
+// A file with both problems must still report the invalid Blocked-by
+// reference.
+func TestInvalidBlockedByWarningSurvivesDuplicateStableIDs(t *testing.T) {
+	content := "- [x] 1. A <!-- id:aaaaaaa -->\n" +
+		"- [ ] 2. B <!-- id:aaaaaaa -->\n" +
+		"- [ ] 3. C <!-- id:ccccccc -->\n" +
+		"  - Blocked-by: abc123\n"
+	tl, err := ParseMarkdown([]byte(content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, w := range tl.Warnings {
+		if w.Code == WarnInvalidBlockedBy && w.TaskID == "3" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("invalid Blocked-by warning for task 3 missing from %+v", tl.Warnings)
+	}
+}
