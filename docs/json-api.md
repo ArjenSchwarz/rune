@@ -316,6 +316,11 @@ This document describes the JSON schema for the rune batch operations API.
           },
           "description": "Array of hierarchical task IDs that must complete before this task"
         },
+        "unresolvedBlockedBy": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Blocker stable IDs that match no task in the file. They keep the task blocked. Omitted when empty"
+        },
         "stream": {
           "type": "integer",
           "minimum": 1,
@@ -522,9 +527,14 @@ Returned by `rune streams --json`:
           "type": "array",
           "items": {"type": "string"},
           "description": "Hierarchical IDs of tasks currently in progress"
+        },
+        "claimed": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Hierarchical IDs of pending tasks that have an owner but are not started. They do not make the stream available"
         }
       },
-      "required": ["id", "ready", "blocked", "active"]
+      "required": ["id", "ready", "blocked", "active", "claimed"]
     }
   }
 }
@@ -539,13 +549,15 @@ Returned by `rune streams --json`:
       "id": 1,
       "ready": ["1"],
       "blocked": ["2", "4"],
-      "active": []
+      "active": [],
+      "claimed": []
     },
     {
       "id": 2,
       "ready": [],
       "blocked": ["3"],
-      "active": []
+      "active": [],
+      "claimed": []
     }
   ],
   "available": [1]
@@ -585,6 +597,15 @@ Returned by `rune next --claim AGENT_ID --json`:
       "type": "array",
       "items": {"$ref": "#/definitions/ClaimedTask"},
       "description": "Tasks that would be claimed (dry run) or were claimed"
+    },
+    "requirements_file": {
+      "type": "string",
+      "description": "Requirements file the claimed tasks' requirement IDs refer to. Omitted when no task links requirements"
+    },
+    "front_matter_references": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "References from the task file's front matter. Omitted when empty"
     }
   },
   "required": ["success", "count", "claimed"],
@@ -616,6 +637,21 @@ Returned by `rune next --claim AGENT_ID --json`:
           "type": "array",
           "items": {"type": "string"},
           "description": "Hierarchical IDs of blocking tasks (should be empty for claimed tasks)"
+        },
+        "details": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Task details. Omitted when empty"
+        },
+        "requirements": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Requirement IDs. Omitted when empty"
+        },
+        "references": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Task-level references. Omitted when empty"
         }
       },
       "required": ["id", "title", "status", "stream", "owner"]

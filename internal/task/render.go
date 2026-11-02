@@ -19,8 +19,11 @@ type jsonTask struct {
 	Children     []jsonTask `json:"Children"`
 	ParentID     string     `json:"ParentID"`
 	BlockedBy    []string   `json:"blockedBy,omitempty"`
-	Stream       int        `json:"stream"`
-	Owner        string     `json:"owner,omitempty"`
+	// UnresolvedBlockedBy lists blocker stable IDs that match no task. They
+	// keep the task blocked but cannot be translated to hierarchical IDs.
+	UnresolvedBlockedBy []string `json:"unresolvedBlockedBy,omitempty"`
+	Stream              int      `json:"stream"`
+	Owner               string   `json:"owner,omitempty"`
 	// Phase is the phase the task belongs to. Children inherit the phase of
 	// their root task. Only populated when the file contains phases.
 	Phase string `json:"Phase,omitempty"`
@@ -62,6 +65,7 @@ func toJSONTask(t *Task, index *DependencyIndex) jsonTask {
 	// Translate BlockedBy stable IDs to hierarchical IDs
 	if len(t.BlockedBy) > 0 && index != nil {
 		jt.BlockedBy = index.TranslateToHierarchical(t.BlockedBy)
+		jt.UnresolvedBlockedBy = index.UnresolvedBlockers(t.BlockedBy)
 	}
 
 	// Recursively convert children
@@ -384,15 +388,21 @@ func GetTaskPhase(tl *TaskList, phaseMarkers []PhaseMarker, taskID string) strin
 }
 
 // RenderJSONWithPhases converts a TaskList to JSON format with phase information.
-// The optional phaseSource parameter, when non-nil, is used for resolving phase
-// boundaries instead of tl. This is needed when tl has been filtered and boundary
-// tasks (referenced by PhaseMarker.AfterTaskID) may no longer be present.
+// The optional phaseSource parameter is the original, unfiltered task list when
+// tl has been filtered. When non-nil it is used for resolving phase boundaries
+// (boundary tasks referenced by PhaseMarker.AfterTaskID may be filtered out)
+// and for translating Blocked-by references to tasks outside tl (T-1206).
 func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource *TaskList) []byte {
 	// Calculate statistics
 	stats := tl.CalculateStats()
 
-	// Build dependency index for BlockedBy translation
-	index := BuildDependencyIndex(tl.Tasks)
+	// Build dependency index for BlockedBy translation from the full list,
+	// so blockers that were filtered out still resolve
+	indexTasks := tl.Tasks
+	if phaseSource != nil {
+		indexTasks = phaseSource.Tasks
+	}
+	index := BuildDependencyIndex(indexTasks)
 
 	// Only include phase information if phases exist
 	if len(phaseMarkers) == 0 {

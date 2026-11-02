@@ -601,17 +601,12 @@ func flattenTasksWithFilters(taskList *task.TaskList, phaseMarkers []task.PhaseM
 
 			// Add stream column if non-default streams exist
 			if hasNonDefaultStreams {
-				taskRecord["Stream"] = task.GetEffectiveStream(&t)
+				taskRecord[columnStream] = task.GetEffectiveStream(&t)
 			}
 
 			// Add blocked-by as hierarchical IDs if any task has dependencies
 			if hasBlockedBy {
-				blockedByHierarchical := depIndex.TranslateToHierarchical(t.BlockedBy)
-				if len(blockedByHierarchical) > 0 {
-					taskRecord["BlockedBy"] = strings.Join(blockedByHierarchical, ", ")
-				} else {
-					taskRecord["BlockedBy"] = ""
-				}
+				taskRecord[columnBlockedBy] = formatBlockedByForDisplay(&t, depIndex)
 			}
 
 			// Add owner column if task has an owner
@@ -654,13 +649,13 @@ func outputTableWithFilters(taskList *task.TaskList, taskData []map[string]any, 
 
 	// Add Stream column conditionally
 	if hasNonDefaultStreams {
-		keys = append(keys, "Stream")
+		keys = append(keys, columnStream)
 	}
 
 	// Add BlockedBy column if any task has dependencies
 	hasBlockedBy := detectBlockedByExists(taskList.Tasks)
 	if hasBlockedBy {
-		keys = append(keys, "BlockedBy")
+		keys = append(keys, columnBlockedBy)
 	}
 
 	// Add Owner column if any task has owner (check task data for any owner)

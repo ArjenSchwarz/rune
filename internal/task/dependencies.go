@@ -182,3 +182,17 @@ func (idx *DependencyIndex) TranslateToHierarchical(stableIDs []string) []string
 	}
 	return result
 }
+
+// UnresolvedBlockers returns the stable IDs in stableIDs that do not match any
+// task in the index. TranslateToHierarchical drops these, but IsReady still
+// treats them as blocking, so callers report them to explain why a task is
+// blocked (T-1809).
+func (idx *DependencyIndex) UnresolvedBlockers(stableIDs []string) []string {
+	var unresolved []string
+	for _, stableID := range stableIDs {
+		if idx.GetTask(stableID) == nil {
+			unresolved = append(unresolved, stableID)
+		}
+	}
+	return unresolved
+}

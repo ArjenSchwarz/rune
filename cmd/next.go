@@ -85,8 +85,20 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--one flag cannot be combined with --phase or --stream")
 	}
 
-	// Handle claim mode (with or without phase/stream)
-	if claimFlag != "" {
+	// Handle claim mode (with or without phase/stream). An explicitly empty
+	// --claim is rejected rather than silently running the read-only path,
+	// which would leave the task unclaimed (T-2010).
+	claimRequested := cmd.Flags().Changed("claim") || claimFlag != ""
+	// Cobra keeps a flag's Changed bit across Execute calls in one process
+	// (as in the command tests), so clear it once read, alongside the reset
+	// those callers already do for the flag's value.
+	if f := cmd.Flags().Lookup("claim"); f != nil {
+		f.Changed = false
+	}
+	if claimRequested && strings.TrimSpace(claimFlag) == "" {
+		return fmt.Errorf("--claim requires a non-empty agent ID")
+	}
+	if claimRequested {
 		return runNextWithClaim(filename)
 	}
 
@@ -742,10 +754,12 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 	// Add all tasks from the phase
 	for _, t := range phaseResult.Tasks {
 		taskRecord := map[string]any{
-			"ID":         t.ID,
-			columnTitle:  t.Title,
-			columnStatus: formatStatusWithBlocking(&t, index),
-			columnLevel:  getTaskLevel(t.ID),
+			"ID":            t.ID,
+			columnTitle:     t.Title,
+			columnStatus:    formatStatusWithBlocking(&t, index),
+			columnLevel:     getTaskLevel(t.ID),
+			columnStream:    task.GetEffectiveStream(&t),
+			columnBlockedBy: formatBlockedByForDisplay(&t, index),
 		}
 		if phaseResult.PhaseName != "" {
 			taskRecord["Phase"] = phaseResult.PhaseName
@@ -756,8 +770,9 @@ func outputPhaseTasksTable(phaseResult *task.PhaseTasksResult, frontMatter *task
 		addAllChildrenToData(&t, &taskData, phaseResult.PhaseName, index)
 	}
 
-	// Create table document
-	keys := []string{"ID", columnTitle, columnStatus, columnLevel}
+	// Create table document. Stream and BlockedBy are shown for every task,
+	// as in the JSON output (T-2176).
+	keys := []string{"ID", columnTitle, columnStatus, columnLevel, columnStream, columnBlockedBy}
 	if phaseResult.PhaseName != "" {
 		keys = append(keys, "Phase")
 	}
@@ -846,6 +861,12 @@ func renderPhaseTaskMarkdownWithBlocking(t *task.Task, indent string, index *tas
 		}
 	}
 	b.WriteString("\n")
+
+	// Stream and dependencies for every task, as in the JSON output (T-2176)
+	fmt.Fprintf(&b, "%s  Stream: %d\n", indent, task.GetEffectiveStream(t))
+	if len(t.BlockedBy) > 0 && index != nil {
+		fmt.Fprintf(&b, "%s  Blocked-by: %s\n", indent, formatBlockedByForDisplay(t, index))
+	}
 
 	if len(t.Details) > 0 {
 		for _, detail := range t.Details {
@@ -1001,10 +1022,12 @@ func outputPhaseTasksJSONWithStreams(phaseResult *task.PhaseTasksResult, frontMa
 func addAllChildrenToData(parentTask *task.Task, taskData *[]map[string]any, phaseName string, index *task.DependencyIndex) {
 	for _, child := range parentTask.Children {
 		childRecord := map[string]any{
-			"ID":         child.ID,
-			columnTitle:  child.Title,
-			columnStatus: formatStatusWithBlocking(&child, index),
-			columnLevel:  getTaskLevel(child.ID),
+			"ID":            child.ID,
+			columnTitle:     child.Title,
+			columnStatus:    formatStatusWithBlocking(&child, index),
+			columnLevel:     getTaskLevel(child.ID),
+			columnStream:    task.GetEffectiveStream(&child),
+			columnBlockedBy: formatBlockedByForDisplay(&child, index),
 		}
 		if phaseName != "" {
 			childRecord["Phase"] = phaseName
@@ -1156,17 +1179,20 @@ type ClaimTaskJSON struct {
 	Stream       int      `json:"stream"`
 	Owner        string   `json:"owner"`
 	BlockedBy    []string `json:"blockedBy,omitempty"`
+	Details      []string `json:"details,omitempty"`
 	Requirements []string `json:"requirements,omitempty"`
+	References   []string `json:"references,omitempty"`
 }
 
 // ClaimResponse is the JSON response after claiming tasks
 type ClaimResponse struct {
-	Success          bool            `json:"success"`
-	Count            int             `json:"count"`
-	Stream           int             `json:"stream,omitempty"`
-	DryRun           bool            `json:"dry_run,omitempty"`
-	Claimed          []ClaimTaskJSON `json:"claimed"`
-	RequirementsFile string          `json:"requirements_file,omitempty"`
+	Success               bool            `json:"success"`
+	Count                 int             `json:"count"`
+	Stream                int             `json:"stream,omitempty"`
+	DryRun                bool            `json:"dry_run,omitempty"`
+	Claimed               []ClaimTaskJSON `json:"claimed"`
+	RequirementsFile      string          `json:"requirements_file,omitempty"`
+	FrontMatterReferences []string        `json:"front_matter_references,omitempty"`
 }
 
 // outputClaimJSON outputs claimed tasks in JSON format
@@ -1181,8 +1207,14 @@ func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *
 			Owner:     t.Owner,
 			BlockedBy: index.TranslateToHierarchical(t.BlockedBy),
 		}
+		if len(t.Details) > 0 {
+			claimedJSON[i].Details = t.Details
+		}
 		if len(t.Requirements) > 0 {
 			claimedJSON[i].Requirements = t.Requirements
+		}
+		if len(t.References) > 0 {
+			claimedJSON[i].References = t.References
 		}
 	}
 
@@ -1195,6 +1227,10 @@ func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *
 	}
 	if stream > 0 {
 		resp.Stream = stream
+	}
+	// Front matter references, as in the unclaimed next output (T-2184)
+	if frontMatter != nil && len(frontMatter.References) > 0 {
+		resp.FrontMatterReferences = frontMatter.References
 	}
 
 	return outputJSON(resp)
@@ -1210,7 +1246,7 @@ func claimOutputTitle() string {
 }
 
 // outputClaimMarkdown outputs claimed tasks in markdown format
-func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter, reqFile string) error {
+func outputClaimMarkdown(claimed []task.Task, frontMatter *task.FrontMatter, reqFile string) error {
 	fmt.Printf("# %s\n", claimOutputTitle())
 	fmt.Println()
 	for _, t := range claimed {
@@ -1222,12 +1258,25 @@ func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter, reqFile strin
 		if len(t.Requirements) > 0 {
 			fmt.Printf("  - Requirements: %s\n", requirementLinks(t.Requirements, reqFile))
 		}
+		// Task context, as in the unclaimed next output (T-2184)
+		for _, detail := range t.Details {
+			fmt.Printf("  - %s\n", detail)
+		}
+		if len(t.References) > 0 {
+			fmt.Printf("  - References: %s\n", strings.Join(t.References, ", "))
+		}
+	}
+	if frontMatter != nil && len(frontMatter.References) > 0 {
+		fmt.Printf("\n## References\n\n")
+		for _, ref := range frontMatter.References {
+			fmt.Printf("- %s\n", ref)
+		}
 	}
 	return nil
 }
 
 // outputClaimTable outputs claimed tasks in table format
-func outputClaimTable(claimed []task.Task, _ *task.FrontMatter) error {
+func outputClaimTable(claimed []task.Task, frontMatter *task.FrontMatter) error {
 	var taskData []map[string]any
 	for _, t := range claimed {
 		record := map[string]any{
@@ -1235,13 +1284,32 @@ func outputClaimTable(claimed []task.Task, _ *task.FrontMatter) error {
 			columnTitle:  t.Title,
 			columnStatus: formatStatus(t.Status),
 			"Owner":      t.Owner,
-			"Stream":     task.GetEffectiveStream(&t),
+			columnStream: task.GetEffectiveStream(&t),
 		}
 		taskData = append(taskData, record)
 	}
 
 	builder := output.New().
-		Table(claimOutputTitle(), taskData, output.WithKeys("ID", columnTitle, columnStatus, "Owner", "Stream"))
+		Table(claimOutputTitle(), taskData, output.WithKeys("ID", columnTitle, columnStatus, "Owner", columnStream))
+
+	// Task context sections, as in the unclaimed next table output (T-2184)
+	var detailData, taskRefData []map[string]any
+	for i := range claimed {
+		addTaskMetadataToData(&claimed[i], &detailData, &taskRefData)
+	}
+	if len(detailData) > 0 {
+		builder = builder.Table("Task Details", detailData, output.WithKeys(columnTask, "Detail"))
+	}
+	if len(taskRefData) > 0 {
+		builder = builder.Table("Task References", taskRefData, output.WithKeys(columnTask, columnPath))
+	}
+	if frontMatter != nil && len(frontMatter.References) > 0 {
+		refData := make([]map[string]any, len(frontMatter.References))
+		for i, ref := range frontMatter.References {
+			refData[i] = map[string]any{columnPath: ref}
+		}
+		builder = builder.Table("Reference Documents", refData, output.WithKeys(columnPath))
+	}
 
 	doc := builder.Build()
 	out := output.NewOutput(
