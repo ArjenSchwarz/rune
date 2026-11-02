@@ -205,6 +205,9 @@ describe('getPlatformAsset', () => {
   });
 });
 
+// SHA-256 of empty input
+const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
 describe('verifyChecksum', () => {
   const mockReadFile = fs.promises.readFile as jest.MockedFunction<typeof fs.promises.readFile>;
   const mockCreateReadStream = fs.createReadStream as jest.MockedFunction<typeof fs.createReadStream>;
@@ -213,16 +216,14 @@ describe('verifyChecksum', () => {
     jest.clearAllMocks();
   });
 
-  test('passes when checksums match', async () => {
-    const expectedChecksum = 'd41d8cd98f00b204e9800998ecf8427e';
-    mockReadFile.mockResolvedValue(expectedChecksum);
+  // T-1143: releases publish SHA-256 sidecars; the action must verify with SHA-256.
+  test('passes when SHA-256 checksums match', async () => {
+    mockReadFile.mockResolvedValue(`${EMPTY_SHA256}\n`);
 
-    // Mock stream that produces the expected MD5
+    // Mock stream that produces no data (SHA-256 of empty input)
     const mockStream: any = {
       on: jest.fn((event: string, handler: any) => {
-        if (event === 'data') {
-          // Empty data produces MD5: d41d8cd98f00b204e9800998ecf8427e
-        } else if (event === 'end') {
+        if (event === 'end') {
           handler();
         }
         return mockStream;
@@ -235,11 +236,42 @@ describe('verifyChecksum', () => {
       .toBeUndefined();
   });
 
+  test('accepts sha256sum format with a trailing filename', async () => {
+    mockReadFile.mockResolvedValue(`${EMPTY_SHA256}  rune-v1.0.0-linux-amd64.tar.gz\n`);
+    const mockStream: any = {
+      on: jest.fn((event: string, handler: any) => {
+        if (event === 'end') handler();
+        return mockStream;
+      })
+    };
+    mockCreateReadStream.mockReturnValue(mockStream);
+
+    await expect(verifyChecksum('/path/to/file', '/path/to/checksum'))
+      .resolves
+      .toBeUndefined();
+  });
+
+  test('rejects an MD5 digest even when it matches the archive', async () => {
+    // MD5 of empty input; must not be accepted now that verification uses SHA-256
+    mockReadFile.mockResolvedValue('d41d8cd98f00b204e9800998ecf8427e');
+    const mockStream: any = {
+      on: jest.fn((event: string, handler: any) => {
+        if (event === 'end') handler();
+        return mockStream;
+      })
+    };
+    mockCreateReadStream.mockReturnValue(mockStream);
+
+    await expect(verifyChecksum('/path/to/file', '/path/to/checksum'))
+      .rejects
+      .toThrow('SHA-256 checksum verification failed!');
+  });
+
   test('throws error when checksums do not match', async () => {
-    const expectedChecksum = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const expectedChecksum = 'a'.repeat(64);
     mockReadFile.mockResolvedValue(expectedChecksum);
 
-    // Mock stream that produces different MD5
+    // Mock stream that produces a different SHA-256
     const mockStream: any = {
       on: jest.fn((event: string, handler: any) => {
         if (event === 'data') {
@@ -254,7 +286,7 @@ describe('verifyChecksum', () => {
 
     await expect(verifyChecksum('/path/to/file', '/path/to/checksum'))
       .rejects
-      .toThrow('MD5 checksum verification failed!');
+      .toThrow('SHA-256 checksum verification failed!');
   });
 
   test('throws error when checksum file cannot be read', async () => {
@@ -267,7 +299,7 @@ describe('verifyChecksum', () => {
   });
 
   test('throws error when archive file cannot be read', async () => {
-    mockReadFile.mockResolvedValue('d41d8cd98f00b204e9800998ecf8427e');
+    mockReadFile.mockResolvedValue(EMPTY_SHA256);
 
     const mockStream: any = {
       on: jest.fn((event: string, handler: any) => {
@@ -326,6 +358,35 @@ describe('installRune', () => {
     expect(mockTc.downloadTool).not.toHaveBeenCalled();
   });
 
+  // T-2241: downloadTool's third argument is the full Authorization header value,
+  // so the token must be sent with a scheme (e.g. "Bearer ghs_..."), not raw.
+  test('sends a valid Authorization header for both downloads', async () => {
+    mockOctokit.rest.repos.getReleaseByTag.mockResolvedValue({
+      data: { tag_name: 'v1.0.0' }
+    });
+    mockTc.find.mockReturnValue('');
+    mockTc.downloadTool
+      .mockResolvedValueOnce('/tmp/archive')
+      .mockResolvedValueOnce('/tmp/checksum');
+    mockTc.extractTar.mockResolvedValue('/tmp/extracted');
+    mockTc.cacheDir.mockResolvedValue('/cache/rune/1.0.0/amd64');
+    mockReadFile.mockResolvedValue(EMPTY_SHA256);
+    const mockStream: any = {
+      on: jest.fn((event: string, handler: any) => {
+        if (event === 'end') handler();
+        return mockStream;
+      })
+    };
+    mockCreateReadStream.mockReturnValue(mockStream);
+
+    await installRune('1.0.0', 'ghs_example');
+
+    expect(mockTc.downloadTool).toHaveBeenCalledTimes(2);
+    for (const call of mockTc.downloadTool.mock.calls) {
+      expect(call[2]).toBe('Bearer ghs_example');
+    }
+  });
+
   test('downloads and caches on cache miss for Linux', async () => {
     mockOctokit.rest.repos.getReleaseByTag.mockResolvedValue({
       data: { tag_name: 'v1.0.0' }
@@ -338,7 +399,7 @@ describe('installRune', () => {
     mockTc.cacheDir.mockResolvedValue('/cache/rune/1.0.0/amd64');
 
     // Mock checksum verification
-    mockReadFile.mockResolvedValue('d41d8cd98f00b204e9800998ecf8427e');
+    mockReadFile.mockResolvedValue(EMPTY_SHA256);
     const mockStream: any = {
       on: jest.fn((event: string, handler: any) => {
         if (event === 'end') handler();
@@ -352,12 +413,12 @@ describe('installRune', () => {
     expect(mockTc.downloadTool).toHaveBeenCalledWith(
       'https://github.com/ArjenSchwarz/rune/releases/download/v1.0.0/rune-v1.0.0-linux-amd64.tar.gz',
       undefined,
-      'test-token'
+      'Bearer test-token'
     );
     expect(mockTc.downloadTool).toHaveBeenCalledWith(
-      'https://github.com/ArjenSchwarz/rune/releases/download/v1.0.0/rune-v1.0.0-linux-amd64.tar.gz.md5',
+      'https://github.com/ArjenSchwarz/rune/releases/download/v1.0.0/rune-v1.0.0-linux-amd64.tar.gz.sha256',
       undefined,
-      'test-token'
+      'Bearer test-token'
     );
     expect(mockTc.extractTar).toHaveBeenCalledWith('/tmp/archive');
     expect(mockExec.exec).toHaveBeenCalledWith('chmod', ['+x', '/tmp/extracted/rune']);
@@ -382,7 +443,7 @@ describe('installRune', () => {
     mockTc.cacheDir.mockResolvedValue('/cache/rune/1.0.0/amd64');
 
     // Mock checksum verification
-    mockReadFile.mockResolvedValue('d41d8cd98f00b204e9800998ecf8427e');
+    mockReadFile.mockResolvedValue(EMPTY_SHA256);
     const mockStream: any = {
       on: jest.fn((event: string, handler: any) => {
         if (event === 'end') handler();
@@ -396,7 +457,7 @@ describe('installRune', () => {
     expect(mockTc.downloadTool).toHaveBeenCalledWith(
       'https://github.com/ArjenSchwarz/rune/releases/download/v1.0.0/rune-v1.0.0-windows-amd64.zip',
       undefined,
-      'test-token'
+      'Bearer test-token'
     );
     expect(mockTc.extractZip).toHaveBeenCalledWith('/tmp/archive');
     expect(mockExec.exec).not.toHaveBeenCalled(); // No chmod on Windows
@@ -420,7 +481,7 @@ describe('installRune', () => {
     mockTc.cacheDir.mockResolvedValue('/cache/rune/1.0.0/arm64');
 
     // Mock checksum verification
-    mockReadFile.mockResolvedValue('d41d8cd98f00b204e9800998ecf8427e');
+    mockReadFile.mockResolvedValue(EMPTY_SHA256);
     const mockStream: any = {
       on: jest.fn((event: string, handler: any) => {
         if (event === 'end') handler();
@@ -435,7 +496,7 @@ describe('installRune', () => {
     expect(mockTc.downloadTool).toHaveBeenCalledWith(
       'https://github.com/ArjenSchwarz/rune/releases/download/v1.0.0/rune-v1.0.0-linux-arm64.tar.gz',
       undefined,
-      'test-token'
+      'Bearer test-token'
     );
     expect(mockTc.cacheDir).toHaveBeenCalledWith('/tmp/extracted', 'rune', '1.0.0', 'arm64');
     expect(result).toEqual({
@@ -456,7 +517,7 @@ describe('installRune', () => {
     mockTc.cacheDir.mockResolvedValue('/cache/rune/2.5.3/amd64');
 
     // Mock checksum verification
-    mockReadFile.mockResolvedValue('d41d8cd98f00b204e9800998ecf8427e');
+    mockReadFile.mockResolvedValue(EMPTY_SHA256);
     const mockStream: any = {
       on: jest.fn((event: string, handler: any) => {
         if (event === 'end') handler();
@@ -471,7 +532,7 @@ describe('installRune', () => {
     expect(mockTc.downloadTool).toHaveBeenCalledWith(
       'https://github.com/ArjenSchwarz/rune/releases/download/v2.5.3/rune-v2.5.3-linux-amd64.tar.gz',
       undefined,
-      'test-token'
+      'Bearer test-token'
     );
     expect(result.version).toBe('2.5.3');
   });

@@ -32831,9 +32831,9 @@ function getPlatformAsset(version) {
     return { assetName, isWindows: os === 'windows' };
 }
 async function verifyChecksum(filePath, checksumPath) {
-    const expected = (await fs.promises.readFile(checksumPath, 'utf8')).trim();
-    // Calculate MD5
-    const hash = crypto.createHash('md5');
+    // Sidecar contains the hex digest, optionally followed by a filename (sha256sum format)
+    const expected = (await fs.promises.readFile(checksumPath, 'utf8')).trim().split(/\s+/)[0].toLowerCase();
+    const hash = crypto.createHash('sha256');
     const stream = fs.createReadStream(filePath);
     await new Promise((resolve, reject) => {
         stream.on('data', data => hash.update(data));
@@ -32842,7 +32842,7 @@ async function verifyChecksum(filePath, checksumPath) {
     });
     const actual = hash.digest('hex');
     if (expected !== actual) {
-        throw new Error(`MD5 checksum verification failed!\n` +
+        throw new Error(`SHA-256 checksum verification failed!\n` +
             `Expected: ${expected}\n` +
             `Actual: ${actual}`);
     }
@@ -32868,8 +32868,10 @@ async function installRune(version, token) {
     // 4. Download
     const baseUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/v${resolvedVersion}`;
     core.info(`Downloading ${TOOL_NAME} ${resolvedVersion}...`);
-    const archivePath = await tc.downloadTool(`${baseUrl}/${assetName}`, undefined, token);
-    const checksumPath = await tc.downloadTool(`${baseUrl}/${assetName}.md5`, undefined, token);
+    // downloadTool's third argument is the full Authorization header value
+    const auth = token ? `Bearer ${token}` : undefined;
+    const archivePath = await tc.downloadTool(`${baseUrl}/${assetName}`, undefined, auth);
+    const checksumPath = await tc.downloadTool(`${baseUrl}/${assetName}.sha256`, undefined, auth);
     // 5. Verify checksum
     await verifyChecksum(archivePath, checksumPath);
     // 6. Extract
