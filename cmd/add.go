@@ -109,6 +109,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse task file: %w", err)
 	}
+	reportParseWarnings(tl)
 
 	// Validate parent ID if provided
 	if addParent != "" {

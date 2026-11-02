@@ -148,8 +148,41 @@ func parseContent(content string) (*TaskList, error) {
 	}
 
 	taskList.Tasks = tasks
+	taskList.Warnings = dropDuplicateStableIDs(taskList.Tasks)
 	taskList.FilePath = "" // Will be set by ParseFile if used
 	return taskList, nil
+}
+
+// dropDuplicateStableIDs keeps each stable ID on the first task (in document
+// order) that declares it and clears it from later tasks, so dependencies
+// always resolve to the first occurrence. It returns a warning for each
+// cleared duplicate.
+func dropDuplicateStableIDs(tasks []Task) []Warning {
+	var warnings []Warning
+	owners := make(map[string]string) // stable ID -> hierarchical ID of first owner
+
+	var walk func(tasks []Task)
+	walk = func(tasks []Task) {
+		for i := range tasks {
+			t := &tasks[i]
+			if t.StableID != "" {
+				if first, seen := owners[t.StableID]; seen {
+					warnings = append(warnings, Warning{
+						Code: WarnDuplicateStableID,
+						Message: fmt.Sprintf("duplicate stable ID %s on task %s is already used by task %s; ignoring the duplicate",
+							t.StableID, t.ID, first),
+						TaskID: t.ID,
+					})
+					t.StableID = ""
+				} else {
+					owners[t.StableID] = t.ID
+				}
+			}
+			walk(t.Children)
+		}
+	}
+	walk(tasks)
+	return warnings
 }
 
 func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID string, taskList *TaskList) ([]Task, int, error) {

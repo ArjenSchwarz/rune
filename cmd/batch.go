@@ -157,6 +157,7 @@ func runBatch(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("loading task file: %w", err)
 	}
+	reportParseWarnings(taskList)
 
 	// Set requirements file path
 	if req.RequirementsFile != "" {

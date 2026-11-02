@@ -6,12 +6,14 @@ import (
 )
 
 // AutoCompleteParents checks and completes parent tasks when all children are done
+// and the parent is not blocked by an unresolved dependency.
 // Returns a slice of task IDs that were auto-completed
 func (tl *TaskList) AutoCompleteParents(taskID string) ([]string, error) {
 	var completedParents []string
 	visited := make(map[string]bool) // Prevent cycles
 	maxDepth := 100                  // Prevent infinite recursion
 	depth := 0
+	index := BuildDependencyIndex(tl.Tasks)
 
 	parentID := getParentID(taskID)
 	for parentID != "" && depth < maxDepth {
@@ -26,8 +28,10 @@ func (tl *TaskList) AutoCompleteParents(taskID string) ([]string, error) {
 			break
 		}
 
-		// Check if all children of this parent are complete
-		if allChildrenComplete(parent) && parent.Status != Completed {
+		// Complete the parent only when all its children are complete and its
+		// own dependencies are resolved; a blocked parent stays open so its
+		// dependents remain blocked.
+		if allChildrenComplete(parent) && parent.Status != Completed && !index.IsBlocked(parent) {
 			parent.Status = Completed
 			completedParents = append(completedParents, parentID)
 		}

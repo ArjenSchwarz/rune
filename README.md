@@ -360,11 +360,11 @@ rune next tasks.md --one --format json
 **How it works:**
 - Finds the first task with incomplete work (task itself or any subtask not completed)
 - Uses depth-first traversal through the task hierarchy
-- Only returns "ready" tasks when dependencies exist (all blockers completed)
+- Only returns "ready" tasks when dependencies exist: tasks blocked by an incomplete dependency or claimed by an owner are skipped. A blocker counts as completed only when it and all of its subtasks are completed
 - With `--phase` flag, returns all pending tasks from the first phase containing incomplete work
 - With `--stream N` flag, filters to tasks assigned to stream N
 - With `--phase --stream N` together, finds the first phase with ready stream N tasks and returns all stream N tasks from that phase (including blocked tasks with blocking status)
-- With `--one` flag, shows only the first incomplete subtask at each level, creating a single path from parent to leaf
+- With `--one` flag, shows only the first subtask with ready work at each level, creating a single path from parent to leaf
 - With `--claim AGENT_ID` flag, claims the task by setting status to in-progress and owner
 - With `--stream N --claim AGENT_ID` together, claims ALL ready tasks in stream N
 - With `--phase --stream N --claim AGENT_ID` together, claims all ready stream N tasks from the appropriate phase

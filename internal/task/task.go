@@ -162,6 +162,9 @@ type TaskList struct {
 	FilePath         string
 	RequirementsFile string `json:"requirements_file,omitempty"`
 	Modified         time.Time
+	// Warnings holds non-fatal issues found while parsing, such as
+	// duplicate stable IDs. They are not part of the file content.
+	Warnings []Warning `json:"-"`
 }
 
 // Stats represents aggregate statistics for a task list
