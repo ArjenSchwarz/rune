@@ -43,6 +43,7 @@ Six commands dropped context from their output, or ignored the selected `--forma
 - `internal/task/render.go` - `TaskListJSONWithPhases` gains `requirements_file`, set from the task list.
 - `cmd/find.go` - The source file's `RequirementsFile` is passed into the search-result task list.
 - `cmd/next.go` - Each task in the JSON output (plain, `--stream`, `--phase`) gets a `requirements` field, and the response gets a top-level `requirements_file`, matching `list`. Markdown output (plain and `--phase`) gets a `Requirements:` line with `[id](file#id)` links, the format used in task files. The table's `Task Details` / `Task References` sections now cover every listed task and have a `Task` column.
+- `cmd/next.go` (claim output, review follow-up) - `next --claim` JSON (`ClaimResponse`) gets `requirements` per claimed task and a top-level `requirements_file`; claim markdown gets a `- Requirements:` line with links. This covers plain, `--stream`, `--phase` and `--phase --stream` claims, and their dry runs. Other claim context (details, references, front matter references) is scoped to T-2184.
 - `cmd/{add,update,remove,create,add_phase,add_frontmatter}.go` - Dry-run JSON reuses each command's normal response struct with a new `dry_run` field and a "Would ..." message. Dry-run markdown is a `**Dry run:**` line, as in `complete`. Table output is unchanged. In `update`, building the list of changed fields moved above the dry-run branch so both paths can use it.
 - `cmd/streams.go`, `cmd/version.go` - JSON is used when either the command flag or the global `--format json` asks for it.
 
@@ -62,11 +63,12 @@ Six commands dropped context from their output, or ignored the selected `--forma
 | `TestFindJSONIncludesRequirementsFile` | T-1995 |
 | `TestNextJSONIncludesRequirements` (plain, stream, phase) | T-1994 |
 | `TestNextMarkdownIncludesRequirements` (plain, phase) | T-1994 |
+| `TestNextClaimIncludesRequirements` (4 claim variants × real/dry-run × JSON/markdown) | T-1994 |
 | `TestNextTableIncludesSubtaskMetadata` (child and grandchild) | T-2022 |
 | `TestStreamsAndVersionHonourGlobalJSONFormat` | T-1409 |
 | `TestDryRunHonoursJSONFormat` (6 commands, also checks no file change), `TestDryRunHonoursMarkdownFormat` | T-1159 |
 
-All 8 failed on 80afbaf and pass after the fix.
+All 8 original tests failed on 80afbaf and pass after the fix. `TestNextClaimIncludesRequirements`, added after review, failed on 9723f37 in all 16 cases and passes after the claim fix.
 
 **Run command:** `go test ./cmd -run 'TestListJSONPhased|TestFindJSONIncludes|TestNextJSONIncludesReq|TestNextMarkdownIncludesReq|TestNextTableIncludesSub|TestStreamsAndVersion|TestDryRunHonours'`
 

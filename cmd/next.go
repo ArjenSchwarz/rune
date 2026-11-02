@@ -310,9 +310,9 @@ func runNextWithClaim(filename string) error {
 	// Output the claimed tasks
 	switch format {
 	case formatJSON:
-		return outputClaimJSON(claimedTasks, taskList.FrontMatter, index, streamFlag)
+		return outputClaimJSON(claimedTasks, taskList.FrontMatter, index, streamFlag, taskList.RequirementsFile)
 	case formatMarkdown:
-		return outputClaimMarkdown(claimedTasks, taskList.FrontMatter)
+		return outputClaimMarkdown(claimedTasks, taskList.FrontMatter, taskList.RequirementsFile)
 	default:
 		return outputClaimTable(claimedTasks, taskList.FrontMatter)
 	}
@@ -1150,25 +1150,27 @@ func outputClaimEmpty(stream int) error {
 
 // ClaimTaskJSON represents a claimed task in JSON output
 type ClaimTaskJSON struct {
-	ID        string   `json:"id"`
-	Title     string   `json:"title"`
-	Status    string   `json:"status"`
-	Stream    int      `json:"stream"`
-	Owner     string   `json:"owner"`
-	BlockedBy []string `json:"blockedBy,omitempty"`
+	ID           string   `json:"id"`
+	Title        string   `json:"title"`
+	Status       string   `json:"status"`
+	Stream       int      `json:"stream"`
+	Owner        string   `json:"owner"`
+	BlockedBy    []string `json:"blockedBy,omitempty"`
+	Requirements []string `json:"requirements,omitempty"`
 }
 
 // ClaimResponse is the JSON response after claiming tasks
 type ClaimResponse struct {
-	Success bool            `json:"success"`
-	Count   int             `json:"count"`
-	Stream  int             `json:"stream,omitempty"`
-	DryRun  bool            `json:"dry_run,omitempty"`
-	Claimed []ClaimTaskJSON `json:"claimed"`
+	Success          bool            `json:"success"`
+	Count            int             `json:"count"`
+	Stream           int             `json:"stream,omitempty"`
+	DryRun           bool            `json:"dry_run,omitempty"`
+	Claimed          []ClaimTaskJSON `json:"claimed"`
+	RequirementsFile string          `json:"requirements_file,omitempty"`
 }
 
 // outputClaimJSON outputs claimed tasks in JSON format
-func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *task.DependencyIndex, stream int) error {
+func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *task.DependencyIndex, stream int, reqFile string) error {
 	claimedJSON := make([]ClaimTaskJSON, len(claimed))
 	for i, t := range claimed {
 		claimedJSON[i] = ClaimTaskJSON{
@@ -1179,13 +1181,17 @@ func outputClaimJSON(claimed []task.Task, frontMatter *task.FrontMatter, index *
 			Owner:     t.Owner,
 			BlockedBy: index.TranslateToHierarchical(t.BlockedBy),
 		}
+		if len(t.Requirements) > 0 {
+			claimedJSON[i].Requirements = t.Requirements
+		}
 	}
 
 	resp := ClaimResponse{
-		Success: true,
-		Count:   len(claimed),
-		DryRun:  dryRun,
-		Claimed: claimedJSON,
+		Success:          true,
+		Count:            len(claimed),
+		DryRun:           dryRun,
+		Claimed:          claimedJSON,
+		RequirementsFile: reqFile,
 	}
 	if stream > 0 {
 		resp.Stream = stream
@@ -1204,7 +1210,7 @@ func claimOutputTitle() string {
 }
 
 // outputClaimMarkdown outputs claimed tasks in markdown format
-func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter) error {
+func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter, reqFile string) error {
 	fmt.Printf("# %s\n", claimOutputTitle())
 	fmt.Println()
 	for _, t := range claimed {
@@ -1212,6 +1218,9 @@ func outputClaimMarkdown(claimed []task.Task, _ *task.FrontMatter) error {
 		fmt.Printf("  - Owner: %s\n", t.Owner)
 		if t.Stream > 0 {
 			fmt.Printf("  - Stream: %d\n", t.Stream)
+		}
+		if len(t.Requirements) > 0 {
+			fmt.Printf("  - Requirements: %s\n", requirementLinks(t.Requirements, reqFile))
 		}
 	}
 	return nil

@@ -230,3 +230,65 @@ func TestDryRunHonoursMarkdownFormat(t *testing.T) {
 		t.Errorf("unexpected markdown dry-run output: %q", out)
 	}
 }
+
+// T-1994 (review follow-up): next --claim output includes the claimed task's
+// requirements and the requirements file, for every claim variant and for
+// dry runs, in JSON and markdown.
+func TestNextClaimIncludesRequirements(t *testing.T) {
+	const claimFile = `# Tasks
+
+## Phase A
+
+- [ ] 1. Linked
+  - Requirements: [1.1](specs/custom-requirements.md#1.1)
+`
+	variants := map[string][]string{
+		"plain":        {"next", "tasks.md", "--claim", "agent-1"},
+		"stream":       {"next", "tasks.md", "--stream", "1", "--claim", "agent-1"},
+		"phase":        {"next", "tasks.md", "--phase", "--claim", "agent-1"},
+		"phase-stream": {"next", "tasks.md", "--phase", "--stream", "1", "--claim", "agent-1"},
+	}
+	for name, base := range variants {
+		for _, dry := range []bool{false, true} {
+			args := base
+			label := name
+			if dry {
+				args = append(append([]string{}, base...), "--dry-run")
+				label += "-dry-run"
+			}
+			t.Run(label+"/json", func(t *testing.T) {
+				resetOutputContextFlags(t)
+				dir := t.TempDir()
+				writeTaskFile(t, dir, claimFile)
+
+				out := mustRun(t, dir, append(append([]string{}, args...), "--format", "json")...)
+				var got struct {
+					RequirementsFile string `json:"requirements_file"`
+					Claimed          []struct {
+						ID           string   `json:"id"`
+						Requirements []string `json:"requirements"`
+					} `json:"claimed"`
+				}
+				if err := json.Unmarshal([]byte(out), &got); err != nil {
+					t.Fatalf("parse claim JSON: %v\n%s", err, out)
+				}
+				if got.RequirementsFile != "specs/custom-requirements.md" {
+					t.Errorf("requirements_file = %q, want specs/custom-requirements.md\n%s", got.RequirementsFile, out)
+				}
+				if len(got.Claimed) != 1 || strings.Join(got.Claimed[0].Requirements, ",") != "1.1" {
+					t.Errorf("want task 1 claimed with requirements [1.1], got:\n%s", out)
+				}
+			})
+			t.Run(label+"/markdown", func(t *testing.T) {
+				resetOutputContextFlags(t)
+				dir := t.TempDir()
+				writeTaskFile(t, dir, claimFile)
+
+				out := mustRun(t, dir, append(append([]string{}, args...), "--format", "markdown")...)
+				if !strings.Contains(out, "Requirements: [1.1](specs/custom-requirements.md#1.1)") {
+					t.Errorf("markdown claim output is missing requirement links:\n%s", out)
+				}
+			})
+		}
+	}
+}
