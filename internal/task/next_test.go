@@ -583,14 +583,17 @@ func TestFindNextPhaseTasksForStream(t *testing.T) {
 			stream:  2,
 			wantNil: true,
 		},
+		// T-1319: a document without phases is one unnamed phase, as in FindNextPhaseTasks
 		"no phases in document": {
 			content: `- [ ] 1. Task 1
   - Stream: 2
 - [ ] 2. Task 2
   - Stream: 2
 `,
-			stream:  2,
-			wantNil: true,
+			stream:      2,
+			wantNil:     false,
+			wantPhase:   "",
+			wantTaskIDs: []string{"1", "2"},
 		},
 		"tasks before first phase excluded": {
 			content: `- [ ] 1. Orphan task

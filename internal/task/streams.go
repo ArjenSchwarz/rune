@@ -141,3 +141,17 @@ func FilterByStream(tasks []Task, stream int) []Task {
 	}
 	return result
 }
+
+// PruneToStream returns a copy of t whose descendants (at every depth) are
+// limited to tasks in the given stream. A descendant in another stream is
+// dropped along with its subtree. The original task tree is not modified.
+func PruneToStream(t Task, stream int) Task {
+	var children []Task
+	for i := range t.Children {
+		if GetEffectiveStream(&t.Children[i]) == stream {
+			children = append(children, PruneToStream(t.Children[i], stream))
+		}
+	}
+	t.Children = children
+	return t
+}

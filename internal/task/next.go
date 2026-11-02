@@ -367,9 +367,11 @@ func hasReadyTaskInStream(tasks []Task, stream int, index *DependencyIndex) bool
 // - Not blocked (all dependencies completed)
 //
 // Task return includes ALL stream N tasks from the phase (including blocked).
+// Each returned task's children are limited to stream N.
 //
-// Returns nil if no phase contains ready tasks in the specified stream,
-// or if the document has no phases.
+// A document without phase headers is treated as a single unnamed phase,
+// matching FindNextPhaseTasks. Returns nil if no phase contains ready tasks
+// in the specified stream.
 func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult, error) {
 	if stream <= 0 {
 		return nil, fmt.Errorf("stream must be positive, got %d", stream)
@@ -393,13 +395,11 @@ func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult
 	lines := splitLines(string(content))
 	lines = skipFrontMatter(string(content), lines)
 
-	// Check if document has phases
-	if !hasPhases(lines) {
-		return nil, nil
+	// Without phase headers the whole document is one unnamed phase
+	phases := []PhaseWithTasks{{Name: "", Tasks: taskList.Tasks}}
+	if hasPhases(lines) {
+		phases = extractPhasesWithTaskRanges(lines, taskList.Tasks)
 	}
-
-	// Extract phases with their tasks
-	phases := extractPhasesWithTaskRanges(lines, taskList.Tasks)
 
 	// Find the first phase with ready tasks in the specified stream
 	for _, phase := range phases {
@@ -412,7 +412,7 @@ func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult
 			var result []Task
 			for _, t := range streamTasks {
 				if t.Status != Completed {
-					result = append(result, withIncompleteDescendants(t))
+					result = append(result, PruneToStream(withIncompleteDescendants(t), stream))
 				}
 			}
 			if len(result) == 0 {
