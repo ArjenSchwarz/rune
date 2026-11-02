@@ -13,10 +13,15 @@ import (
 const MaxFileSize = 10 * 1024 * 1024
 
 var (
-	taskLinePattern        = regexp.MustCompile(`^(\s*)- (\[[ \-xX]\]) (\d+(?:\.\d+)*)\. (.+)$`)
-	detailLinePattern      = regexp.MustCompile(`^(\s*)- (.+)$`)
-	phaseHeaderPattern     = regexp.MustCompile(`^## (.+)$`)
-	requirementLinkPattern = regexp.MustCompile(`\[([^\]]+)\]\(([^#\)]+)#[^\)]+\)`)
+	taskLinePattern    = regexp.MustCompile(`^(\s*)- (\[[ \-xX]\]) (\d+(?:\.\d+)*)\. (.+)$`)
+	detailLinePattern  = regexp.MustCompile(`^(\s*)- (.+)$`)
+	phaseHeaderPattern = regexp.MustCompile(`^## (.+)$`)
+	// requirementLinkPattern matches one requirement link at the start of the
+	// remaining input. The path may contain commas, so links are consumed one
+	// at a time rather than by splitting the line on commas.
+	requirementLinkPattern = regexp.MustCompile(`^\[([^\]]+)\]\(([^#)]+)#[^)]+\)`)
+	// requirementSeparatorPattern matches the separator between two links.
+	requirementSeparatorPattern = regexp.MustCompile(`^\s*,\s*`)
 
 	// Patterns for new metadata fields (dependencies and streams)
 	// stableIDCommentPattern matches HTML comments with stable IDs: <!-- id:abc1234 -->
@@ -555,30 +560,47 @@ func parseReferences(refs string) []string {
 // parseRequirements extracts requirement IDs from markdown links
 // Input: "[1.1](requirements.md#1.1), [1.2](requirements.md#1.2)"
 // Returns: requirement IDs and the requirements file path
+//
+// The whole value must be a comma-separated list of links with valid IDs.
+// Anything else returns no IDs, so the caller keeps the line verbatim as a
+// plain detail (requirement 4.4) instead of dropping the extra text on the
+// next write.
 func parseRequirements(reqs string) ([]string, string, error) {
-	parts := strings.Split(reqs, ",")
-	requirements := make([]string, 0, len(parts))
+	var requirements []string
 	var reqFile string
+	var mixErr error
 
-	// Pattern matches: [ID](path#ID) or [ID](path#anchor)
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if matches := requirementLinkPattern.FindStringSubmatch(part); matches != nil {
-			reqID := strings.TrimSpace(matches[1])
-			if reqID != "" && IsValidID(reqID) {
-				requirements = append(requirements, reqID)
-				switch reqFile {
-				case "":
-					reqFile = matches[2]
-				case matches[2]:
-				default:
-					return requirements, reqFile, fmt.Errorf("requirements link to both %q and %q; all requirement links in a file must use the same requirements file", reqFile, matches[2])
-				}
+	rest := strings.TrimSpace(reqs)
+	for {
+		matches := requirementLinkPattern.FindStringSubmatch(rest)
+		if matches == nil {
+			return nil, "", nil
+		}
+		reqID := strings.TrimSpace(matches[1])
+		if !IsValidID(reqID) {
+			return nil, "", nil
+		}
+		requirements = append(requirements, reqID)
+		switch reqFile {
+		case "":
+			reqFile = matches[2]
+		case matches[2]:
+		default:
+			if mixErr == nil {
+				mixErr = fmt.Errorf("requirements link to both %q and %q; all requirement links in a file must use the same requirements file", reqFile, matches[2])
 			}
 		}
-	}
 
-	return requirements, reqFile, nil
+		rest = rest[len(matches[0]):]
+		if rest == "" {
+			return requirements, reqFile, mixErr
+		}
+		sep := requirementSeparatorPattern.FindString(rest)
+		if sep == "" {
+			return nil, "", nil
+		}
+		rest = rest[len(sep):]
+	}
 }
 
 // splitLines splits content on newline boundaries and trims trailing carriage

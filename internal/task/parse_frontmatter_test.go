@@ -37,10 +37,12 @@ func TestParseRequirements(t *testing.T) {
 			wantIDs:  []string{"1.1", "1.2"},
 			wantFile: "specs/requirements.md",
 		},
+		// A malformed fragment makes the whole line malformed, so it is kept
+		// verbatim as a plain detail (requirement 4.4, T-1907).
 		"mixed_valid_invalid": {
 			input:    "[1.1](requirements.md#1.1), invalid, [2.3](requirements.md#2.3)",
-			wantIDs:  []string{"1.1", "2.3"},
-			wantFile: "requirements.md",
+			wantIDs:  []string{},
+			wantFile: "",
 		},
 		"invalid_requirement_id_format": {
 			input:    "[abc](requirements.md#abc)",
