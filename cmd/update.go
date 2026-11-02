@@ -67,7 +67,7 @@ func init() {
 	updateCmd.Flags().StringVarP(&updateTitle, "title", "t", "", "new title for the task")
 	updateCmd.Flags().StringVarP(&updateDetails, "details", "d", "", "comma-separated list of details")
 	updateCmd.Flags().StringVarP(&updateReferences, "references", "r", "", "comma-separated list of references")
-	updateCmd.Flags().StringVar(&updateRequirements, "requirements", "", "comma-separated list of requirement IDs")
+	updateCmd.Flags().StringVar(&updateRequirements, "requirements", "", "comma-separated list of requirement IDs (empty value clears requirements)")
 	updateCmd.Flags().BoolVar(&clearDetails, "clear-details", false, "clear all details from the task")
 	updateCmd.Flags().BoolVar(&clearReferences, "clear-references", false, "clear all references from the task")
 	updateCmd.Flags().BoolVar(&clearRequirements, "clear-requirements", false, "clear all requirements from the task")
@@ -113,8 +113,12 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		updateOwnerSet = cmd.Flags().Changed("owner")
 	}
 
+	// An explicitly supplied --requirements flag counts as an update even when
+	// its value is empty: an empty value clears the requirements (T-1974).
+	requirementsSet := updateRequirements != "" || cmd.Flags().Changed("requirements")
+
 	// Validate that at least one update field is provided
-	if updateTitle == "" && updateDetails == "" && updateReferences == "" && updateRequirements == "" &&
+	if updateTitle == "" && updateDetails == "" && updateReferences == "" && !requirementsSet &&
 		!clearDetails && !clearReferences && !clearRequirements &&
 		!updateStreamSet && updateBlockedBy == "" && !updateOwnerSet && !updateRelease {
 		return fmt.Errorf("at least one update flag must be provided (--title, --details, --references, --requirements, --clear-details, --clear-references, --clear-requirements, --stream, --blocked-by, --owner, or --release)")
@@ -172,7 +176,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// Handle requirements
 	if clearRequirements {
 		newRequirements = []string{}
-	} else if updateRequirements != "" {
+	} else if requirementsSet {
 		// Parse comma-separated IDs
 		newRequirements = parseRequirementIDs(updateRequirements)
 
@@ -225,7 +229,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 		if clearRequirements {
 			fmt.Printf("New requirements: (cleared)\n")
-		} else if updateRequirements != "" {
+		} else if requirementsSet {
 			fmt.Printf("New requirements: %s\n", formatRequirementsForDisplay(newRequirements))
 		}
 		return nil
@@ -257,7 +261,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 
 		// Set requirements if updating
-		if clearRequirements || updateRequirements != "" {
+		if clearRequirements || requirementsSet {
 			opts.Requirements = newRequirements
 		}
 
@@ -302,7 +306,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if clearReferences || updateReferences != "" {
 		changes = append(changes, "references")
 	}
-	if clearRequirements || updateRequirements != "" {
+	if clearRequirements || requirementsSet {
 		changes = append(changes, "requirements")
 	}
 	if updateStreamSet {
@@ -350,7 +354,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 			}
 			if clearRequirements {
 				fmt.Printf("Requirements cleared\n")
-			} else if updateRequirements != "" {
+			} else if requirementsSet {
 				fmt.Printf("Requirements updated to: %s\n", formatRequirementsForDisplay(newRequirements))
 			}
 		} else {
