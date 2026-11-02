@@ -56,7 +56,7 @@ func TestParseRequirements(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			gotIDs, gotFile := parseRequirements(tc.input)
+			gotIDs, gotFile, _ := parseRequirements(tc.input)
 
 			if len(gotIDs) != len(tc.wantIDs) {
 				t.Errorf("parseRequirements() returned %d IDs, want %d", len(gotIDs), len(tc.wantIDs))

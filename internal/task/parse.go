@@ -148,8 +148,41 @@ func parseContent(content string) (*TaskList, error) {
 	}
 
 	taskList.Tasks = tasks
+	taskList.Warnings = dropDuplicateStableIDs(taskList.Tasks)
 	taskList.FilePath = "" // Will be set by ParseFile if used
 	return taskList, nil
+}
+
+// dropDuplicateStableIDs keeps each stable ID on the first task (in document
+// order) that declares it and clears it from later tasks, so dependencies
+// always resolve to the first occurrence. It returns a warning for each
+// cleared duplicate.
+func dropDuplicateStableIDs(tasks []Task) []Warning {
+	var warnings []Warning
+	owners := make(map[string]string) // stable ID -> hierarchical ID of first owner
+
+	var walk func(tasks []Task)
+	walk = func(tasks []Task) {
+		for i := range tasks {
+			t := &tasks[i]
+			if t.StableID != "" {
+				if first, seen := owners[t.StableID]; seen {
+					warnings = append(warnings, Warning{
+						Code: WarnDuplicateStableID,
+						Message: fmt.Sprintf("duplicate stable ID %s on task %s is already used by task %s; ignoring the duplicate",
+							t.StableID, t.ID, first),
+						TaskID: t.ID,
+					})
+					t.StableID = ""
+				} else {
+					owners[t.StableID] = t.ID
+				}
+			}
+			walk(t.Children)
+		}
+	}
+	walk(tasks)
+	return warnings
 }
 
 func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID string, taskList *TaskList) ([]Task, int, error) {
@@ -209,7 +242,9 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 				case Task:
 					task.Children = append(task.Children, v)
 				case string:
-					applyDetailLine(&task, v, taskList)
+					if _, err := applyDetailLine(&task, v, taskList); err != nil {
+						return nil, i, err
+					}
 				}
 			}
 
@@ -239,44 +274,53 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 // This is the only place that decides how such a line is read back, and
 // validateDetails uses it to reject details that would not survive a
 // write/read round trip, so the two can never disagree.
-func applyDetailLine(task *Task, v string, taskList *TaskList) string {
+func applyDetailLine(task *Task, v string, taskList *TaskList) (string, error) {
 	// Check for new metadata fields first (case-insensitive)
 	if blockedBy := parseBlockedByLine(v); blockedBy != nil {
 		task.BlockedBy = blockedBy
-		return "Blocked-by"
+		return "Blocked-by", nil
 	}
 	if stream := parseStreamLine(v); stream > 0 {
 		task.Stream = stream
-		return "Stream"
+		return "Stream", nil
 	}
 	if owner := parseOwnerLine(v); owner != "" {
 		task.Owner = owner
-		return "Owner"
+		return "Owner", nil
 	}
 	if reqs, ok := strings.CutPrefix(v, "Requirements: "); ok {
-		reqIDs, reqFile := parseRequirements(reqs)
+		reqIDs, reqFile, err := parseRequirements(reqs)
 		// Only treat as requirements if we successfully parsed at least one;
 		// a malformed requirements line falls through to a plain detail
 		if len(reqIDs) > 0 {
 			task.Requirements = reqIDs
-			// Store requirements file path in TaskList if not already set
-			if reqFile != "" && taskList.RequirementsFile == "" {
+			// A task list has a single requirements file (it is the only path
+			// rendered), so links to another file would be silently retargeted
+			// on the next write. Reject them instead.
+			switch {
+			case err != nil:
+				err = fmt.Errorf("task %s: %w", task.ID, err)
+			case taskList.RequirementsFile == "":
 				taskList.RequirementsFile = reqFile
+			case taskList.RequirementsFile != reqFile:
+				err = fmt.Errorf("task %s: requirements link to %q, but other tasks link to %q; all requirement links in a file must use the same requirements file",
+					task.ID, reqFile, taskList.RequirementsFile)
 			}
-			return "Requirements"
+			return "Requirements", err
 		}
 	} else if refs, ok := strings.CutPrefix(v, "References: "); ok {
 		task.References = parseReferences(refs)
-		return "References"
+		return "References", nil
 	}
 	task.Details = append(task.Details, v)
-	return ""
+	return "", nil
 }
 
 // detailMetadataField returns the metadata field a detail would be read back
 // as once written to a file, or "" if it would be read back as a detail.
 func detailMetadataField(detail string) string {
-	return applyDetailLine(&Task{}, detail, &TaskList{})
+	field, _ := applyDetailLine(&Task{}, detail, &TaskList{})
+	return field
 }
 
 func parseDetailsAndChildren(lines []string, startIdx, expectedIndent int, parentID string, taskList *TaskList) ([]any, int, error) {
@@ -501,7 +545,7 @@ func parseReferences(refs string) []string {
 // parseRequirements extracts requirement IDs from markdown links
 // Input: "[1.1](requirements.md#1.1), [1.2](requirements.md#1.2)"
 // Returns: requirement IDs and the requirements file path
-func parseRequirements(reqs string) ([]string, string) {
+func parseRequirements(reqs string) ([]string, string, error) {
 	parts := strings.Split(reqs, ",")
 	requirements := make([]string, 0, len(parts))
 	var reqFile string
@@ -513,15 +557,18 @@ func parseRequirements(reqs string) ([]string, string) {
 			reqID := strings.TrimSpace(matches[1])
 			if reqID != "" && IsValidID(reqID) {
 				requirements = append(requirements, reqID)
-				// Extract file path from first valid link
-				if reqFile == "" {
+				switch reqFile {
+				case "":
 					reqFile = matches[2]
+				case matches[2]:
+				default:
+					return requirements, reqFile, fmt.Errorf("requirements link to both %q and %q; all requirement links in a file must use the same requirements file", reqFile, matches[2])
 				}
 			}
 		}
 	}
 
-	return requirements, reqFile
+	return requirements, reqFile, nil
 }
 
 // splitLines splits content on newline boundaries and trims trailing carriage

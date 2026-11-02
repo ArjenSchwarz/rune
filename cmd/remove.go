@@ -83,6 +83,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse task file: %w", err)
 	}
+	reportParseWarnings(tl)
 	tl.FilePath = filename
 
 	// Find the task to verify it exists and get info for output
