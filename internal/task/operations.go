@@ -541,8 +541,9 @@ func ValidateTaskListTitle(title string) error {
 // dropping input is exactly the behaviour T-2041 removed from the parser, and
 // a detail without content carries no meaning to drop.
 //
-// Details that the parser would read back as metadata are rejected for the
-// same reason: they would not survive the round trip as details.
+// Details that the parser would read back as metadata or as a task line are
+// rejected for the same reason: they would not survive the round trip as
+// details.
 func validateDetails(details []string) error {
 	for i, detail := range details {
 		if strings.TrimSpace(detail) == "" {
@@ -560,6 +561,12 @@ func validateDetails(details []string) error {
 		if field := detailMetadataField(detail); field != "" {
 			return fmt.Errorf("detail %d would be read back as %s metadata, not as a detail: %q", i+1, field, detail)
 		}
+		// A detail that looks like a task line ("[ ] 1. x") would be read back
+		// as a child task. The parser also rejects any other "- [..]" line as
+		// malformed task syntax, which would make the written file unreadable.
+		if _, isTask, err := parseTaskLine("- " + detail); isTask || err != nil {
+			return fmt.Errorf("detail %d would be read back as a task line, not as a detail: %q", i+1, detail)
+		}
 	}
 	return nil
 }
@@ -572,6 +579,12 @@ func validateReferences(refs []string) error {
 		}
 		if len(ref) > 500 {
 			return fmt.Errorf("reference %d exceeds maximum length of 500 characters", i+1)
+		}
+		// A trailing backslash on any reference but the last is written
+		// directly before the separator comma and read back as an escaped
+		// comma ("\,"), merging it with the next reference.
+		if i < len(refs)-1 && strings.HasSuffix(ref, `\`) {
+			return fmt.Errorf("reference %d ends with a backslash and is followed by another reference, which cannot be stored unambiguously: %q", i+1, ref)
 		}
 	}
 	return nil

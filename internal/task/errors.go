@@ -61,4 +61,8 @@ const (
 
 	// WarnDependentsExist indicates a task being removed has other tasks depending on it
 	WarnDependentsExist = "dependents_exist"
+
+	// WarnInvalidBlockedBy indicates a Blocked-by line contains a reference
+	// that is not a valid stable ID; the reference is ignored
+	WarnInvalidBlockedBy = "invalid_blocked_by"
 )

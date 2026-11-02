@@ -64,8 +64,10 @@ func runHasPhases(cmd *cobra.Command, args []string) error {
 	}
 
 	// Extract phase markers, stripping front matter first so YAML
-	// content (which may contain "## " lines) is not counted as phases.
-	lines := task.StripFrontMatterLines(strings.Split(string(content), "\n"))
+	// content (which may contain "## " lines) is not counted as phases. A
+	// leading UTF-8 BOM would hide both the front matter and a phase header
+	// on line 1.
+	lines := task.StripFrontMatterLines(strings.Split(string(task.StripBOM(content)), "\n"))
 	markers := task.ExtractPhaseMarkers(lines)
 
 	// Build result

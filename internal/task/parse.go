@@ -1,6 +1,7 @@
 package task
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"regexp"
@@ -12,10 +13,15 @@ import (
 const MaxFileSize = 10 * 1024 * 1024
 
 var (
-	taskLinePattern        = regexp.MustCompile(`^(\s*)- (\[[ \-xX]\]) (\d+(?:\.\d+)*)\. (.+)$`)
-	detailLinePattern      = regexp.MustCompile(`^(\s*)- (.+)$`)
-	phaseHeaderPattern     = regexp.MustCompile(`^## (.+)$`)
-	requirementLinkPattern = regexp.MustCompile(`\[([^\]]+)\]\(([^#\)]+)#[^\)]+\)`)
+	taskLinePattern    = regexp.MustCompile(`^(\s*)- (\[[ \-xX]\]) (\d+(?:\.\d+)*)\. (.+)$`)
+	detailLinePattern  = regexp.MustCompile(`^(\s*)- (.+)$`)
+	phaseHeaderPattern = regexp.MustCompile(`^## (.+)$`)
+	// requirementLinkPattern matches one requirement link at the start of the
+	// remaining input. The path may contain commas, so links are consumed one
+	// at a time rather than by splitting the line on commas.
+	requirementLinkPattern = regexp.MustCompile(`^\[([^\]]+)\]\(([^#)]+)#[^)]+\)`)
+	// requirementSeparatorPattern matches the separator between two links.
+	requirementSeparatorPattern = regexp.MustCompile(`^\s*,\s*`)
 
 	// Patterns for new metadata fields (dependencies and streams)
 	// stableIDCommentPattern matches HTML comments with stable IDs: <!-- id:abc1234 -->
@@ -32,11 +38,10 @@ var (
 	// ownerPattern matches the Owner metadata line (case-insensitive)
 	ownerPattern = regexp.MustCompile(`(?i)^owner:\s*(.+)$`)
 
-	// blockedByRefPattern extracts stable IDs from blocked-by references
-	// Matches IDs with optional title hints: abc1234 (Task Title) or just abc1234
-	// The ID must be followed by whitespace, parenthesis, comma, or end of string
-	// to avoid matching partial IDs (e.g., extracting "abc1234" from "abc12345")
-	blockedByRefPattern = regexp.MustCompile(`\b([a-z0-9]{7})(?:\s*\([^)]*\))?(?:$|[,\s])`)
+	// blockedByRefPattern matches one blocked-by reference: a stable ID with
+	// an optional title hint, e.g. "abc1234 (Task Title)". The hint is not
+	// required to close, because titles may contain unbalanced parentheses.
+	blockedByRefPattern = regexp.MustCompile(`^([a-z0-9]{7})(?:\s*\(.*)?$`)
 )
 
 // ParseMarkdown parses markdown content into a TaskList structure
@@ -44,7 +49,18 @@ func ParseMarkdown(content []byte) (*TaskList, error) {
 	if len(content) > MaxFileSize {
 		return nil, fmt.Errorf("file exceeds maximum size of %d bytes", MaxFileSize)
 	}
-	return parseContent(string(content))
+	return parseContent(string(StripBOM(content)))
+}
+
+// utf8BOM is the UTF-8 byte-order mark some editors write at the start of a file.
+var utf8BOM = []byte("\xef\xbb\xbf")
+
+// StripBOM removes exactly one leading UTF-8 byte-order mark, which would
+// otherwise hide the H1 title, the front matter delimiter or a phase header
+// on line 1. Code that scans raw file content for phase headers must call it
+// before splitting the content into lines.
+func StripBOM(content []byte) []byte {
+	return bytes.TrimPrefix(content, utf8BOM)
 }
 
 // ParseFile reads and parses a markdown file
@@ -82,7 +98,7 @@ func ParseFileWithPhases(filepath string) (*TaskList, []PhaseMarker, error) {
 // skipping front matter first so YAML comment lines ("## ...") inside it are
 // not mistaken for phase headers.
 func phaseMarkersFromContent(content []byte) []PhaseMarker {
-	return ExtractPhaseMarkers(StripFrontMatterLines(splitLines(string(content))))
+	return ExtractPhaseMarkers(StripFrontMatterLines(splitLines(string(StripBOM(content)))))
 }
 
 // StripFrontMatterLines removes front matter lines from the beginning of a
@@ -148,7 +164,10 @@ func parseContent(content string) (*TaskList, error) {
 	}
 
 	taskList.Tasks = tasks
-	taskList.Warnings = dropDuplicateStableIDs(taskList.Tasks)
+	// taskList.Warnings already holds warnings found while parsing lines
+	// (invalid Blocked-by references). Checks that run on the parsed tasks
+	// must append to it, never assign it, or those warnings are lost.
+	taskList.Warnings = append(taskList.Warnings, dropDuplicateStableIDs(taskList.Tasks)...)
 	taskList.FilePath = "" // Will be set by ParseFile if used
 	return taskList, nil
 }
@@ -276,9 +295,22 @@ func parseTasksAtLevel(lines []string, startIdx, expectedIndent int, parentID st
 // write/read round trip, so the two can never disagree.
 func applyDetailLine(task *Task, v string, taskList *TaskList) (string, error) {
 	// Check for new metadata fields first (case-insensitive)
-	if blockedBy := parseBlockedByLine(v); blockedBy != nil {
-		task.BlockedBy = blockedBy
-		return "Blocked-by", nil
+	if blockedBy, invalid, ok := parseBlockedByLine(v); ok {
+		// Invalid references are ignored with a warning (requirement 2.11).
+		// A line without any valid reference stays a plain detail so its
+		// text is not lost on the next write.
+		if len(invalid) > 0 {
+			taskList.Warnings = append(taskList.Warnings, Warning{
+				Code: WarnInvalidBlockedBy,
+				Message: fmt.Sprintf("task %s: ignoring invalid blocked-by reference(s) %s: a reference must be a 7-character lowercase alphanumeric stable ID",
+					task.ID, strings.Join(invalid, ", ")),
+				TaskID: task.ID,
+			})
+		}
+		if len(blockedBy) > 0 {
+			task.BlockedBy = blockedBy
+			return "Blocked-by", nil
+		}
 	}
 	if stream := parseStreamLine(v); stream > 0 {
 		task.Stream = stream
@@ -469,32 +501,55 @@ func parseDetailLine(line string) string {
 	return ""
 }
 
-// parseBlockedByLine parses a Blocked-by metadata line and returns the stable IDs
-// Returns nil if the line is not a Blocked-by line or contains no valid IDs
-func parseBlockedByLine(line string) []string {
+// parseBlockedByLine parses a Blocked-by metadata line. It returns the valid
+// stable IDs, the references that are not valid, and whether the line is a
+// Blocked-by line at all.
+//
+// References are separated by commas outside parentheses, so commas in title
+// hints do not split a reference. If the parentheses do not balance (a title
+// with a stray "("), every comma is treated as a separator instead.
+func parseBlockedByLine(line string) (ids, invalid []string, ok bool) {
 	matches := blockedByPattern.FindStringSubmatch(line)
 	if len(matches) < 2 {
-		return nil
+		return nil, nil, false
 	}
 
-	// Extract stable IDs from the value (handles both "id (title)" and plain "id" formats)
-	value := matches[1]
-	idMatches := blockedByRefPattern.FindAllStringSubmatch(value, -1)
-	if len(idMatches) == 0 {
-		return nil
-	}
-
-	stableIDs := make([]string, 0, len(idMatches))
-	for _, m := range idMatches {
-		if len(m) >= 2 {
-			stableIDs = append(stableIDs, m[1])
+	for _, ref := range splitBlockedByRefs(matches[1]) {
+		ref = strings.TrimSpace(ref)
+		if ref == "" {
+			continue
+		}
+		if m := blockedByRefPattern.FindStringSubmatch(ref); m != nil {
+			ids = append(ids, m[1])
+		} else {
+			invalid = append(invalid, strconv.Quote(ref))
 		}
 	}
+	return ids, invalid, true
+}
 
-	if len(stableIDs) == 0 {
-		return nil
+// splitBlockedByRefs splits a Blocked-by value on commas that are not inside
+// a parenthesised title hint.
+func splitBlockedByRefs(value string) []string {
+	var refs []string
+	depth, start := 0, 0
+	for i, ch := range value {
+		switch ch {
+		case '(':
+			depth++
+		case ')':
+			depth = max(depth-1, 0)
+		case ',':
+			if depth == 0 {
+				refs = append(refs, value[start:i])
+				start = i + 1
+			}
+		}
 	}
-	return stableIDs
+	if depth != 0 {
+		return strings.Split(value, ",")
+	}
+	return append(refs, value[start:])
 }
 
 // parseStreamLine parses a Stream metadata line and returns the stream number
@@ -528,16 +583,31 @@ func parseOwnerLine(line string) string {
 	return owner
 }
 
+// parseReferences splits a References value on commas. "\," is an escaped
+// comma inside a reference (see formatReferenceList); any other backslash is
+// literal, so references written before escaping existed keep their meaning.
 func parseReferences(refs string) []string {
-	parts := strings.Split(refs, ",")
-	references := make([]string, 0, len(parts))
-
-	for _, part := range parts {
-		ref := strings.TrimSpace(part)
-		if ref != "" {
+	var references []string
+	var current strings.Builder
+	flush := func() {
+		if ref := strings.TrimSpace(current.String()); ref != "" {
 			references = append(references, ref)
 		}
+		current.Reset()
 	}
+
+	for i := 0; i < len(refs); i++ {
+		switch {
+		case refs[i] == '\\' && i+1 < len(refs) && refs[i+1] == ',':
+			i++
+			current.WriteByte(',')
+		case refs[i] == ',':
+			flush()
+		default:
+			current.WriteByte(refs[i])
+		}
+	}
+	flush()
 
 	return references
 }
@@ -545,30 +615,47 @@ func parseReferences(refs string) []string {
 // parseRequirements extracts requirement IDs from markdown links
 // Input: "[1.1](requirements.md#1.1), [1.2](requirements.md#1.2)"
 // Returns: requirement IDs and the requirements file path
+//
+// The whole value must be a comma-separated list of links with valid IDs.
+// Anything else returns no IDs, so the caller keeps the line verbatim as a
+// plain detail (requirement 4.4) instead of dropping the extra text on the
+// next write.
 func parseRequirements(reqs string) ([]string, string, error) {
-	parts := strings.Split(reqs, ",")
-	requirements := make([]string, 0, len(parts))
+	var requirements []string
 	var reqFile string
+	var mixErr error
 
-	// Pattern matches: [ID](path#ID) or [ID](path#anchor)
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if matches := requirementLinkPattern.FindStringSubmatch(part); matches != nil {
-			reqID := strings.TrimSpace(matches[1])
-			if reqID != "" && IsValidID(reqID) {
-				requirements = append(requirements, reqID)
-				switch reqFile {
-				case "":
-					reqFile = matches[2]
-				case matches[2]:
-				default:
-					return requirements, reqFile, fmt.Errorf("requirements link to both %q and %q; all requirement links in a file must use the same requirements file", reqFile, matches[2])
-				}
+	rest := strings.TrimSpace(reqs)
+	for {
+		matches := requirementLinkPattern.FindStringSubmatch(rest)
+		if matches == nil {
+			return nil, "", nil
+		}
+		reqID := strings.TrimSpace(matches[1])
+		if !IsValidID(reqID) {
+			return nil, "", nil
+		}
+		requirements = append(requirements, reqID)
+		switch reqFile {
+		case "":
+			reqFile = matches[2]
+		case matches[2]:
+		default:
+			if mixErr == nil {
+				mixErr = fmt.Errorf("requirements link to both %q and %q; all requirement links in a file must use the same requirements file", reqFile, matches[2])
 			}
 		}
-	}
 
-	return requirements, reqFile, nil
+		rest = rest[len(matches[0]):]
+		if rest == "" {
+			return requirements, reqFile, mixErr
+		}
+		sep := requirementSeparatorPattern.FindString(rest)
+		if sep == "" {
+			return nil, "", nil
+		}
+		rest = rest[len(sep):]
+	}
 }
 
 // splitLines splits content on newline boundaries and trims trailing carriage

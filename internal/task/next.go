@@ -236,7 +236,10 @@ func FindNextPhaseTasks(filepath string) (*PhaseTasksResult, error) {
 		return nil, err
 	}
 
-	// Also parse the raw content to extract phase information
+	// Also parse the raw content to extract phase information.
+	// ParseMarkdown strips a leading BOM from its own copy; do the same here
+	// so a phase header or front matter delimiter on line 1 is recognised.
+	content = StripBOM(content)
 	lines := splitLines(string(content))
 	lines = skipFrontMatter(string(content), lines)
 
@@ -391,7 +394,10 @@ func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult
 	// Build dependency index for blocking checks
 	index := BuildDependencyIndex(taskList.Tasks)
 
-	// Parse raw content to extract phase information
+	// Parse raw content to extract phase information.
+	// ParseMarkdown strips a leading BOM from its own copy; do the same here
+	// so a phase header or front matter delimiter on line 1 is recognised.
+	content = StripBOM(content)
 	lines := splitLines(string(content))
 	lines = skipFrontMatter(string(content), lines)
 

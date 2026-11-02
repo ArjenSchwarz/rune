@@ -20,6 +20,10 @@ CRLF normalization happens at three levels:
 
 **Gotcha:** Go's RE2 regex `$` matches end-of-text, and `.+` will match `\r`. So patterns like `^## (.+)$` appear to work on CRLF lines, but the captured group includes `\r`. Patterns using specific character classes at the end (like `(\d+)$` in `streamPattern`) will fail outright on untrimmed CRLF lines because `\d` does not match `\r`. Always normalize before matching.
 
+## UTF-8 BOM
+
+`ParseMarkdown` strips exactly one leading UTF-8 BOM after the size check (T-2063). Any code that scans raw file bytes for phase headers must call `StripBOM` first: `phaseMarkersFromContent`, `FindNextPhaseTasks`/`FindNextPhaseTasksForStream` in `next.go`, and `cmd/has_phases.go` all do. Without it, a phase header or `---` on line 1 is missed. `splitLines` deliberately does NOT strip a BOM: it also runs on content `ParseMarkdown` has already stripped, so a second BOM would be removed too.
+
 ## Front Matter Delimiter Matching
 
 `ParseFrontMatter` uses hardcoded LF patterns (`"---\n"`, `"\n---\n"`) with fixed byte offsets. The CRLF normalization at the top of the function ensures these patterns work regardless of the input's line ending style.
@@ -41,6 +45,12 @@ A bare `# ` line (empty H1) is deliberately rejected by the parser, so both rend
 ## Detail Lines vs Metadata
 
 `applyDetailLine` in parse.go is the single place that decides whether a `- ` line under a task is read back as metadata (Blocked-by, Stream, Owner, Requirements, References) or as a plain detail. `validateDetails` calls it (through `detailMetadataField`) and rejects any detail that would be read back as metadata, because the renderer writes details as plain `- ` bullets and such a detail would silently turn into data on the next read. When adding a new metadata line type, add it to `applyDetailLine` only; validation picks it up automatically.
+
+Requirements lines are parsed strictly, link by link (T-1848, T-1907): the value must be only `[ID](path#anchor)` links separated by commas, since paths may contain commas. Anything else keeps the whole line as a plain detail, not a partial requirement list. `validateDetails` also rejects details that `parseTaskLine` would read as a task line or as malformed task syntax (T-1999).
+
+References use `\,` for a comma inside a reference (`formatReferenceList` / `parseReferences`, T-1808). It is the ONLY escape: don't add `\\`, which made legacy UNC paths (`\\server\share`) lose a backslash on load. Every other backslash is literal, so parsing then rendering an existing line is text-identical. `validateReferences` rejects the one value this can't store: a reference ending in `\` that is followed by another.
+
+Invalid `Blocked-by` references produce a `WarnInvalidBlockedBy` entry in `TaskList.Warnings`, which `reportParseWarnings` in `cmd/format.go` prints to stderr (T-1998). A line with no valid ID stays a plain detail. `TaskList.Warnings` and `reportParseWarnings` are byte-identical to PR #113, which uses them for duplicate stable IDs.
 
 `applyDetailLine` also returns a parse error when a task's requirement links name a different file than `TaskList.RequirementsFile` (or mix files within one line), because the renderer writes every link with that single path (T-1973). `detailMetadataField` ignores that error — it only needs the field name.
 

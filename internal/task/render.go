@@ -196,13 +196,27 @@ func renderTask(buf *strings.Builder, task *Task, depth int, ctx *RenderContext)
 	// Render references if present (last in metadata order)
 	if len(task.References) > 0 {
 		fmt.Fprintf(buf, "%s  - References: %s\n",
-			indent, strings.Join(task.References, ", "))
+			indent, formatReferenceList(task.References))
 	}
 
 	// Recursively render children
 	for _, child := range task.Children {
 		renderTask(buf, &child, depth+1, ctx)
 	}
+}
+
+// formatReferenceList joins task references with ", ", writing a comma inside
+// a reference as "\," so parseReferences reads each one back as a single
+// reference. "\," is the only escape: every other backslash is written as is,
+// so Windows and UNC paths (docs\a.md, \\server\share) are unchanged.
+// validateReferences rejects a reference ending in a backslash when another
+// reference follows, since that backslash would run into the separator comma.
+func formatReferenceList(refs []string) string {
+	escaped := make([]string, len(refs))
+	for i, ref := range refs {
+		escaped[i] = strings.ReplaceAll(ref, ",", `\,`)
+	}
+	return strings.Join(escaped, ", ")
 }
 
 // formatBlockedByRefs formats stable IDs with current title hints

@@ -687,7 +687,7 @@ rune generates consistent markdown with the following structure:
 - Status indicators: `[ ]` pending, `[-]` in-progress, `[x]` completed
 - 2-space indentation per hierarchy level
 - Details as indented bullet points
-- References with "References: " prefix, comma-separated
+- References with "References: " prefix, comma-separated (a comma inside a reference is written as `\,`)
 
 ### Extended Format with YAML Front Matter
 
