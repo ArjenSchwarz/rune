@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Fixed
 
+- **Batch Command**: A batch `add` operation with a `status` is now rejected. The status was ignored and the task was always created as pending, while the batch reported success. Add the task, then set its status with an `update` operation
+
 - **Batch Command**: A rejected batch now exits with status 1. The command printed `success: false` (or the text failure summary) but exited 0, so scripts and CI treated a failed batch as successful. The response is still printed in the requested format
 - **Batch Command**: Batch JSON is now decoded strictly. Unknown request or operation fields are rejected before anything is read or written; previously they were ignored, so a misspelled `"dryRun": true` silently ran the batch for real and saved it
 - **Batch Command**: An `add` with a `position` is no longer moved ahead of the operations listed before it. Hoisting it changed which task earlier IDs pointed at, so `update 1` followed by `add at position 1` renamed the newly inserted task instead of the original task 1. Positioned adds are now only reordered among adjacent positioned adds, the same way adjacent removes are

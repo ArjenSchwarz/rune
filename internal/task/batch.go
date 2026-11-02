@@ -237,6 +237,11 @@ func validateOperation(tl *TaskList, op Operation) error {
 		if op.Parent != "" && tl.FindTask(op.Parent) == nil {
 			return fmt.Errorf("parent task %s not found", op.Parent)
 		}
+		// New tasks are always created pending; reject a status rather than
+		// report success while silently ignoring it (T-1996).
+		if hasStatusField(op) {
+			return fmt.Errorf("add operation does not support status; add the task, then use an update operation to set its status")
+		}
 		if op.Position != "" {
 			if !validateTaskIDFormat(op.Position) {
 				return fmt.Errorf("invalid position format: %s", op.Position)
