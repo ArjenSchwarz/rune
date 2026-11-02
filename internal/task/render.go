@@ -111,11 +111,10 @@ type RenderContext struct {
 func RenderMarkdown(tl *TaskList) []byte {
 	var buf strings.Builder
 
-	// Write title as H1 header
+	// Write title as H1 header. An empty title writes no heading: the parser
+	// rejects a bare "# " line, so emitting one would make the file unparsable.
 	if tl.Title != "" {
 		fmt.Fprintf(&buf, "# %s\n\n", tl.Title)
-	} else {
-		buf.WriteString("# \n\n")
 	}
 
 	// Determine requirements file (default if not set)
@@ -231,11 +230,10 @@ func formatBlockedByRefs(stableIDs []string, index *DependencyIndex) string {
 func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource *TaskList) []byte {
 	var buf strings.Builder
 
-	// Write title as H1 header
+	// Write title as H1 header. An empty title writes no heading: the parser
+	// rejects a bare "# " line, so emitting one would make the file unparsable.
 	if tl.Title != "" {
 		fmt.Fprintf(&buf, "# %s\n\n", tl.Title)
-	} else {
-		buf.WriteString("# \n\n")
 	}
 
 	// Determine requirements file (default if not set)

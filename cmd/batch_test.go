@@ -195,7 +195,7 @@ func TestBatchCommand_ValidationFailures(t *testing.T) {
 					{Type: "remove", ID: "999"}, // Non-existent task
 				},
 			},
-			wantErr: false, // Should succeed but with validation errors
+			wantErr: true, // Validation errors make the command fail (T-1789)
 		},
 	}
 
@@ -783,5 +783,164 @@ func TestBatchCommand_UnsupportedFormatRejectedBeforeFileAccess(t *testing.T) {
 	// The command must not have created the missing file either.
 	if _, statErr := os.Stat(filepath.Join(tmpDir, "does_not_exist.md")); !os.IsNotExist(statErr) {
 		t.Errorf("Expected file to remain absent, stat returned: %v", statErr)
+	}
+}
+
+// TestBatchCommand_FailedBatchReturnsNonZero is a regression test for T-1789.
+// A rejected batch used to render success:false but return nil, so the
+// process exited 0. The structured output must still be rendered, but the
+// command must return an error (without cobra printing it again) so the
+// process exits non-zero.
+func TestBatchCommand_FailedBatchReturnsNonZero(t *testing.T) {
+	for _, outFormat := range []string{"json", "table"} {
+		t.Run(outFormat, func(t *testing.T) {
+			t.Cleanup(resetBatchFlags)
+
+			tmpDir := t.TempDir()
+			initialContent := "# Test Tasks\n\n- [ ] 1. First task\n"
+			if err := os.WriteFile(filepath.Join(tmpDir, "tasks.md"), []byte(initialContent), 0644); err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+			originalDir, _ := os.Getwd()
+			t.Cleanup(func() { os.Chdir(originalDir) })
+			os.Chdir(tmpDir)
+
+			var stdout, stderr bytes.Buffer
+			rootCmd.SetOut(&stdout)
+			rootCmd.SetErr(&stderr)
+			t.Cleanup(func() {
+				rootCmd.SetOut(nil)
+				rootCmd.SetErr(nil)
+			})
+			rootCmd.SetArgs([]string{"batch", "tasks.md", "--input",
+				`{"operations":[{"type":"remove","id":"999"}]}`, "--format", outFormat})
+
+			err := rootCmd.Execute()
+			if err == nil {
+				t.Fatal("expected an error for a failed batch so the process exits non-zero")
+			}
+
+			if outFormat == "json" {
+				var resp task.BatchResponse
+				if jsonErr := json.Unmarshal(stdout.Bytes(), &resp); jsonErr != nil {
+					t.Fatalf("expected structured JSON output, got %q: %v", stdout.String(), jsonErr)
+				}
+				if resp.Success || resp.Applied != 0 || len(resp.Errors) == 0 {
+					t.Errorf("unexpected response: %+v", resp)
+				}
+			} else if !strings.Contains(stdout.String(), "task 999 not found") {
+				t.Errorf("expected failure details in output, got %q", stdout.String())
+			}
+
+			if stderr.Len() != 0 {
+				t.Errorf("expected cobra not to print the error or usage, got stderr %q", stderr.String())
+			}
+
+			got, _ := os.ReadFile(filepath.Join(tmpDir, "tasks.md"))
+			if string(got) != initialContent {
+				t.Errorf("file changed after failed batch:\n%s", got)
+			}
+		})
+	}
+}
+
+// TestBatchCommand_RejectsUnknownJSONFields is a regression test for T-1844.
+// Unknown fields used to be silently ignored, so a misspelled "dryRun" turned
+// a dry run into a live write.
+func TestBatchCommand_RejectsUnknownJSONFields(t *testing.T) {
+	tests := map[string]struct {
+		input   string
+		wantErr string
+	}{
+		"misspelled dry_run": {
+			input:   `{"file":"tasks.md","dryRun":true,"operations":[{"type":"add","title":"Unexpected live write"}]}`,
+			wantErr: `unknown field "dryRun"`,
+		},
+		"misspelled operation field": {
+			input:   `{"file":"tasks.md","operations":[{"type":"add","title":"Unexpected live write","parnet":"1"}]}`,
+			wantErr: `unknown field "parnet"`,
+		},
+		"trailing JSON data": {
+			input:   `{"file":"tasks.md","operations":[{"type":"add","title":"Unexpected live write"}]} {"dry_run":true}`,
+			wantErr: "trailing data",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Cleanup(resetBatchFlags)
+
+			tmpDir := t.TempDir()
+			initialContent := "# Test Tasks\n\n- [ ] 1. First task\n"
+			taskFile := filepath.Join(tmpDir, "tasks.md")
+			if err := os.WriteFile(taskFile, []byte(initialContent), 0644); err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+			originalDir, _ := os.Getwd()
+			t.Cleanup(func() { os.Chdir(originalDir) })
+			os.Chdir(tmpDir)
+
+			var output bytes.Buffer
+			rootCmd.SetOut(&output)
+			rootCmd.SetErr(&output)
+			t.Cleanup(func() {
+				rootCmd.SetOut(nil)
+				rootCmd.SetErr(nil)
+			})
+			rootCmd.SetArgs([]string{"batch", "--input", tc.input, "--format", "json"})
+
+			err := rootCmd.Execute()
+			if err == nil {
+				t.Fatal("expected strict JSON decoding to reject the request")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("expected error containing %q, got %v", tc.wantErr, err)
+			}
+
+			got, _ := os.ReadFile(taskFile)
+			if string(got) != initialContent {
+				t.Errorf("file was mutated despite rejected request:\n%s", got)
+			}
+		})
+	}
+}
+
+// TestBatchCommand_AddWithStatusFails is a regression test for T-1996: a
+// batch add carrying a status must fail (non-zero exit) and write nothing,
+// instead of reporting success and persisting a pending task.
+func TestBatchCommand_AddWithStatusFails(t *testing.T) {
+	t.Cleanup(resetBatchFlags)
+
+	tmpDir := t.TempDir()
+	initialContent := "# Test Tasks\n\n- [ ] 1. First task\n"
+	taskFile := filepath.Join(tmpDir, "tasks.md")
+	if err := os.WriteFile(taskFile, []byte(initialContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+	originalDir, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(originalDir) })
+	os.Chdir(tmpDir)
+
+	var stdout bytes.Buffer
+	rootCmd.SetOut(&stdout)
+	t.Cleanup(func() { rootCmd.SetOut(nil) })
+	rootCmd.SetArgs([]string{"batch", "tasks.md", "--input",
+		`{"operations":[{"type":"add","title":"Requested completed","status":2}]}`, "--format", "json"})
+
+	if err := rootCmd.Execute(); err == nil {
+		t.Fatal("expected batch add with status to fail")
+	}
+
+	var resp task.BatchResponse
+	if err := json.Unmarshal(stdout.Bytes(), &resp); err != nil {
+		t.Fatalf("expected JSON response, got %q: %v", stdout.String(), err)
+	}
+	if resp.Success || resp.Applied != 0 {
+		t.Errorf("unexpected response: %+v", resp)
+	}
+
+	got, _ := os.ReadFile(taskFile)
+	if string(got) != initialContent {
+		t.Errorf("file changed:\n%s", got)
 	}
 }

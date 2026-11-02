@@ -105,21 +105,26 @@ func runNext(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read task file: %w", err)
 	}
+	reportParseWarnings(taskList)
 
 	if verbose {
 		verboseStderr("Title: %s", taskList.Title)
 		verboseStderr("Total tasks: %d", countAllTasks(taskList.Tasks))
 	}
 
-	// Find the next incomplete task
-	nextTask := task.FindNextIncompleteTask(taskList.Tasks)
+	// Find the next task with ready work, skipping blocked and claimed tasks
+	index := task.BuildDependencyIndex(taskList.Tasks)
+	nextTask := task.FindNextReadyTask(taskList.Tasks, index)
 	if nextTask == nil {
+		if task.FindNextIncompleteTask(taskList.Tasks) != nil {
+			return outputNextEmpty("No ready tasks: remaining tasks are blocked or claimed")
+		}
 		return outputNextEmpty("All tasks are complete!")
 	}
 
 	// Apply --one filter if requested
 	if oneFlag {
-		task.FilterToFirstIncompletePath(nextTask)
+		task.FilterToFirstReadyPath(nextTask, index)
 		// Replace Task.Children with filtered IncompleteChildren for consistent output
 		nextTask.Children = nextTask.IncompleteChildren
 	}
@@ -147,6 +152,7 @@ func runNextWithStream(filename string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read task file: %w", err)
 	}
+	reportParseWarnings(taskList)
 
 	// Build dependency index
 	index := task.BuildDependencyIndex(taskList.Tasks)
@@ -196,6 +202,7 @@ func runNextWithClaim(filename string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read task file: %w", err)
 	}
+	reportParseWarnings(taskList)
 
 	// Build dependency index
 	index := task.BuildDependencyIndex(taskList.Tasks)
@@ -641,6 +648,7 @@ func runNextPhase(filename string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read task file for front matter: %w", err)
 	}
+	reportParseWarnings(taskList)
 
 	// Build dependency index
 	index := task.BuildDependencyIndex(taskList.Tasks)
