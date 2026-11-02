@@ -113,6 +113,8 @@ func runProgress(cmd *cobra.Command, args []string) error {
 	if err := tl.UpdateStatus(taskID, task.InProgress); err != nil {
 		return fmt.Errorf("failed to update task status: %w", err)
 	}
+	// A completed parent must not keep an incomplete descendant (T-1456)
+	tl.ReopenCompletedAncestors(taskID)
 
 	// Write the updated file
 	if err := tl.WriteFile(filename); err != nil {
