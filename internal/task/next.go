@@ -52,18 +52,35 @@ func evaluateTaskForNext(task *Task) *TaskWithContext {
 
 // FindNextReadyTask finds the first top-level task that has ready work,
 // skipping tasks whose remaining work is blocked by unresolved dependencies
-// or claimed by an owner. The returned context keeps all incomplete children,
-// as FindNextIncompleteTask does.
+// or claimed by an owner. The returned task is a copy without its
+// unavailable subtasks (incomplete work that is blocked or claimed), so they
+// are never presented as available. Fully completed subtasks are kept as
+// context, as next-task-workflow requirement 1.6 asks.
 func FindNextReadyTask(tasks []Task, index *DependencyIndex) *TaskWithContext {
 	for i := range tasks {
 		if hasReadyWork(&tasks[i], index) {
+			pruned := pruneToReadyWork(tasks[i], index)
 			return &TaskWithContext{
-				Task:               &tasks[i],
-				IncompleteChildren: filterIncompleteChildren(tasks[i].Children),
+				Task:               &pruned,
+				IncompleteChildren: filterIncompleteChildren(pruned.Children),
 			}
 		}
 	}
 	return nil
+}
+
+// pruneToReadyWork returns a copy of task keeping only descendants that are
+// fully completed or have ready work.
+func pruneToReadyWork(task Task, index *DependencyIndex) Task {
+	var children []Task
+	for i := range task.Children {
+		child := &task.Children[i]
+		if !hasIncompleteWork(child) || hasReadyWork(child, index) {
+			children = append(children, pruneToReadyWork(task.Children[i], index))
+		}
+	}
+	task.Children = children
+	return task
 }
 
 // hasReadyWork reports whether a task, or a descendant reachable without

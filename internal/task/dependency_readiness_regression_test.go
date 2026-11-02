@@ -219,3 +219,47 @@ func TestIsReadyRequiresBlockerSubtreeComplete(t *testing.T) {
 		t.Error("dependent is not ready after the blocker subtree completed")
 	}
 }
+
+// T-1777 (review follow-up): the returned subtree must not contain claimed
+// or blocked subtasks. Fully completed subtasks stay as context
+// (next-task-workflow 1.6), and a completed subtask that leads to ready work
+// is kept with only its available descendants.
+func TestFindNextReadyTaskPrunesUnavailableDescendants(t *testing.T) {
+	tasks := []Task{
+		{ID: "1", Title: "Parent", Status: Pending, Children: []Task{
+			{ID: "1.1", Title: "Claimed", Status: Pending, ParentID: "1", Owner: "agent-a"},
+			{ID: "1.2", Title: "Blocked", Status: Pending, ParentID: "1", BlockedBy: []string{"ccc0003"}},
+			{ID: "1.3", Title: "Done leaf", Status: Completed, ParentID: "1"},
+			{ID: "1.4", Title: "Done with work", Status: Completed, ParentID: "1", Children: []Task{
+				{ID: "1.4.1", Title: "Claimed grandchild", Status: Pending, ParentID: "1.4", Owner: "agent-b"},
+				{ID: "1.4.2", Title: "Free grandchild", Status: Pending, ParentID: "1.4"},
+			}},
+			{ID: "1.5", Title: "Free", Status: Pending, ParentID: "1"},
+		}},
+		{ID: "2", Title: "Blocker", Status: Pending, StableID: "ccc0003"},
+	}
+
+	next := FindNextReadyTask(tasks, BuildDependencyIndex(tasks))
+	if next == nil {
+		t.Fatal("FindNextReadyTask returned nil")
+	}
+
+	var got []string
+	var walk func(ts []Task)
+	walk = func(ts []Task) {
+		for _, c := range ts {
+			got = append(got, c.ID)
+			walk(c.Children)
+		}
+	}
+	walk(next.Children)
+	if want := []string{"1.3", "1.4", "1.4.2", "1.5"}; !slices.Equal(got, want) {
+		t.Errorf("returned descendants = %v, want %v", got, want)
+	}
+	if len(next.IncompleteChildren) != 2 {
+		t.Errorf("IncompleteChildren has %d entries, want 2 (1.4, 1.5)", len(next.IncompleteChildren))
+	}
+	if len(tasks[0].Children) != 5 {
+		t.Error("FindNextReadyTask modified the original task list")
+	}
+}

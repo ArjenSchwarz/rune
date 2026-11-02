@@ -181,6 +181,44 @@ func TestPlainNextSkipsBlockedTask(t *testing.T) {
 	}
 }
 
+// T-1777 (review follow-up): plain next must not present claimed or blocked
+// subtasks as part of the available work, in any output format.
+func TestPlainNextOmitsClaimedAndBlockedSubtasks(t *testing.T) {
+	dir := t.TempDir()
+	writeTaskFile(t, dir, `# T
+- [ ] 1. Parent
+  - [ ] 1.1. Claimed child
+    - Owner: agent-a
+  - [ ] 1.2. Blocked child
+    - Blocked-by: ccc0003 (Blocker)
+  - [ ] 1.3. Free child
+    - [ ] 1.3.1. Claimed grandchild
+      - Owner: agent-b
+    - [ ] 1.3.2. Free grandchild
+  - [x] 1.4. Done child
+- [ ] 2. Blocker <!-- id:ccc0003 -->
+`)
+
+	// Completed subtasks stay in JSON as context (next-task-workflow 1.6).
+	if out, _ := runRuneCLI(t, dir, "next", "tasks.md", "--format", "json"); !strings.Contains(out, "Done child") {
+		t.Errorf("json output dropped completed context subtask:\n%s", out)
+	}
+
+	for _, f := range []string{"json", "table", "markdown"} {
+		out, _ := runRuneCLI(t, dir, "next", "tasks.md", "--format", f)
+		for _, hidden := range []string{"Claimed child", "Blocked child", "Claimed grandchild"} {
+			if strings.Contains(out, hidden) {
+				t.Errorf("%s output includes unavailable subtask %q:\n%s", f, hidden, out)
+			}
+		}
+		for _, shown := range []string{"Parent", "Free child", "Free grandchild"} {
+			if !strings.Contains(out, shown) {
+				t.Errorf("%s output is missing %q:\n%s", f, shown, out)
+			}
+		}
+	}
+}
+
 // T-1777: when work remains but none of it is ready, plain next says so
 // rather than claiming everything is complete.
 func TestPlainNextNoReadyWork(t *testing.T) {
