@@ -26,6 +26,10 @@ CRLF normalization happens at three levels:
 
 The closing delimiter matching also handles EOF without a trailing newline: `rest == "---"` for empty front matter at EOF, and `strings.HasSuffix(rest, "\n---")` for content front matter at EOF. In both cases, the remaining content is returned as an empty string.
 
+## Unknown Front-Matter Keys
+
+`FrontMatter.Extra` (`yaml:",inline"`, `json:"-"`) holds top-level keys other than `references`/`metadata` so mutations don't drop them (T-1845). Use `FrontMatter.IsEmpty()` to decide whether to write front matter; it is nil-safe and accounts for `Extra`. If you add a field to `FrontMatter`, also clone it in `deepCopy` (batch.go). Re-serialization moves unknown keys after the known ones in alphabetical order and does not keep comments or flow style.
+
 ## Title Detection
 
 Title detection in `parseContent()` only considers the **first non-empty line** of the document (after front matter is stripped). If that line is an H1 (`# Title`), it is used as the document title and removed from the line array. If the first non-empty line is anything else (e.g., a task line), no title is set.

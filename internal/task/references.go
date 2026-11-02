@@ -11,6 +11,14 @@ import (
 type FrontMatter struct {
 	References []string          `yaml:"references,omitempty"`
 	Metadata   map[string]string `yaml:"metadata,omitempty"`
+	// Extra holds top-level keys rune does not model, so they survive a
+	// parse/write round trip instead of being dropped on the next mutation.
+	Extra map[string]any `yaml:",inline" json:"-"`
+}
+
+// IsEmpty reports whether there is no front matter content to write.
+func (fm *FrontMatter) IsEmpty() bool {
+	return fm == nil || (len(fm.References) == 0 && len(fm.Metadata) == 0 && len(fm.Extra) == 0)
 }
 
 // ParseFrontMatter extracts YAML front matter from markdown content
@@ -78,7 +86,7 @@ func ParseFrontMatter(content string) (*FrontMatter, string, error) {
 // SerializeWithFrontMatter combines front matter and content
 func SerializeWithFrontMatter(fm *FrontMatter, content string) string {
 	// If no front matter data, return content as-is
-	if fm == nil || (len(fm.References) == 0 && len(fm.Metadata) == 0) {
+	if fm.IsEmpty() {
 		return content
 	}
 
