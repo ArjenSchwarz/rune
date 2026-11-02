@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Fixed
 
+- **Data Integrity**: A task file whose requirement links point at different requirements files is now rejected when parsed, with an error naming both files. Previously every link was silently rewritten to the first file's path on the next write. A task list uses a single requirements file
+- **Data Integrity**: Task files without an H1 title stay valid after a write. The renderers wrote a bare `# ` line for an empty title, which the parser rejects, so any mutation (`progress`, `update`, `batch`, ...) left the file unparsable. No heading is written now when the title is empty
 - **Data Integrity**: Mutating commands no longer delete front-matter keys other than `references` and `metadata`. These keys were previously dropped on the next write; when they were the only front-matter keys, the whole front-matter block was removed. They are now preserved, including YAML tags, flow style, and anchors/aliases, and are written after the known keys in their original order. YAML comments are not kept. Front matter that could not be written back as valid YAML (an unknown key aliasing an anchor on `references` or `metadata`) is rejected when parsed, before any rewrite
 - **Batch Command**: A batch `add` operation with a `status` is now rejected. The status was ignored and the task was always created as pending, while the batch reported success. Add the task, then set its status with an `update` operation
 
