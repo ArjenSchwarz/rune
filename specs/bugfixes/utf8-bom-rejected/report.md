@@ -35,11 +35,14 @@ A task file starting with a UTF-8 byte-order mark (`EF BB BF`), as written by so
 
 **Behaviour note:** Files are written back without the BOM.
 
-**Not changed:** A few phase helpers re-read raw file bytes themselves (`internal/task/next.go`, `internal/task/phase.go`). Their phase detection already works on BOM files (tested with `next --phase` and `add --phase`). Only a BOM file whose front matter contains a `## ` YAML comment could still have that comment read as a phase header by those helpers.
+**Review follow-up (PR #120):** Three production paths re-read raw file bytes to find phase headers: `FindNextPhaseTasks` and `FindNextPhaseTasksForStream` (`internal/task/next.go`, used by `next --phase` with and without `--stream`) and `has-phases` (`cmd/has_phases.go`). With a BOM directly before `## First`, they missed that header, so `next --phase` skipped to the second phase. A BOM before front matter stopped them skipping it, so a `## ` YAML comment counted as a phase. These paths now call the exported `task.StripBOM` before splitting lines. In `next.go` the strip happens after `ParseMarkdown`, which strips its own copy, so only one BOM is ever removed. The `phase.go` helpers `getTaskPhase`, `getNextPhaseTasks` and `findPhasePosition` also read raw bytes, but only tests call them, so they are unchanged.
 
 ## Regression Test
 
 **Test file:** `internal/task/bom_regression_test.go`
 **Test names:** `TestParseMarkdownStripsUTF8BOM` (H1, CRLF H1, front matter, CRLF front matter, no title, doubled BOM), `TestPhaseMarkersIgnoreUTF8BOM`
 
-**Run command:** `go test ./internal/task -run BOM`
+**Test file:** `cmd/bom_phase_regression_test.go`
+**Test names:** `TestNextPhase_UTF8BOM` (BOM before the first phase, with and without `--stream`; BOM before front matter), `TestHasPhases_UTF8BOM`
+
+**Run command:** `go test ./internal/task ./cmd -run BOM`

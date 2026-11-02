@@ -22,7 +22,7 @@ CRLF normalization happens at three levels:
 
 ## UTF-8 BOM
 
-`ParseMarkdown` strips exactly one leading UTF-8 BOM after the size check, and `phaseMarkersFromContent` does the same for `ParseFileWithPhases` (T-2063). `splitLines` deliberately does NOT strip a BOM: it also runs on content `ParseMarkdown` has already stripped, so a second BOM would be removed too. Raw-content phase helpers in `next.go`/`phase.go` don't strip it; that only matters for a BOM file whose front matter has a `## ` YAML comment.
+`ParseMarkdown` strips exactly one leading UTF-8 BOM after the size check (T-2063). Any code that scans raw file bytes for phase headers must call `StripBOM` first: `phaseMarkersFromContent`, `FindNextPhaseTasks`/`FindNextPhaseTasksForStream` in `next.go`, and `cmd/has_phases.go` all do. Without it, a phase header or `---` on line 1 is missed. `splitLines` deliberately does NOT strip a BOM: it also runs on content `ParseMarkdown` has already stripped, so a second BOM would be removed too.
 
 ## Front Matter Delimiter Matching
 
