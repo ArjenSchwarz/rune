@@ -37,9 +37,11 @@ Two defects in the Setup Rune GitHub Action's download path (`github-action/src/
 
 **Changes made:**
 - `github-action/src/install.ts` `verifyChecksum` – hash with SHA-256. Parse the first whitespace-separated field of the sidecar (accepts both a bare digest and `sha256sum` `<digest>  <file>` format), lower-cased. The error message now says `SHA-256 checksum verification failed!`.
-- `github-action/src/install.ts` `installRune` – download `${assetName}.sha256`. Pass `Bearer ${token}` as the Authorization header to both `downloadTool` calls (or `undefined` when there's no token).
+- `github-action/src/install.ts` `installRune` – download `${assetName}.sha256`. If that download fails with `tc.HTTPError` status 404 (releases before v1.4.0 have no `.sha256`), download `${assetName}.md5` and verify with MD5 instead. Any other error, including 401/403/5xx, network errors and a SHA-256 mismatch, stays fatal. `verifyChecksum` takes the algorithm as a parameter (default `sha256`). Pass `Bearer ${token}` as the Authorization header to both `downloadTool` calls (or `undefined` when there's no token).
 - `github-action/dist/index.js`, `dist/index.js.map` – rebuilt with `npm run build`.
 - `github-action/README.md` – integrity section and troubleshooting message now say SHA-256 / `.sha256`.
+
+**Legacy fallback (added after review):** `.sha256` sidecars exist only from v1.4.0. v1.0.0–v1.3.0 return 404 for `.sha256` but serve `.md5`, and `test.yml` pins `1.0.0`. Without a fallback, the SHA-256 switch broke those supported pins. The fallback triggers only on a confirmed-missing sidecar (404, which tool-cache doesn't retry), so a corrupt or tampered `.sha256`, auth failures and server errors can't downgrade verification to MD5.
 
 **Approach rationale:** Each change follows its ticket directly. Keeping authentication (instead of omitting it) matches the ticket's preferred option and keeps the same behaviour if the repo or assets are ever private.
 
@@ -56,6 +58,7 @@ Two defects in the Setup Rune GitHub Action's download path (`github-action/src/
 - `verifyChecksum › rejects an MD5 digest even when it matches the archive`
 - `verifyChecksum › throws error when checksums do not match`
 - `installRune › sends a valid Authorization header for both downloads` (asserts the full value `Bearer ghs_example`)
+- `installRune › checksum sidecar selection`: SHA-256 is preferred when present (no `.md5` request); 404 falls back to `.md5` with Bearer auth on all three downloads; a legacy MD5 mismatch is fatal; a SHA-256 mismatch is fatal with no fallback; 401/403/500/network errors on the `.sha256` download are fatal with no fallback. These use the real `HTTPError` class.
 - The existing `installRune` cache-miss tests now assert the `.sha256` URL and the `Bearer test-token` header.
 
 **Run command:** `cd github-action && npx jest`
@@ -73,12 +76,14 @@ Two defects in the Setup Rune GitHub Action's download path (`github-action/src/
 
 **Automated:**
 - [x] Regression tests fail before the fix (9 failed / 17 passed) and pass after (26/26)
+- [x] Fallback tests fail against the SHA-256-only version (2 failed / 32 passed) and pass after (34/34)
 - [x] Full action test suite passes (`npx jest`)
 - [x] Type check passes (`npm run lint`, i.e. `tsc --noEmit`)
 - [x] Bundle rebuilt (`npm run build`)
 
 **Manual verification:**
-- Ran the compiled `verifyChecksum` against the real v1.4.0 `linux-amd64` archive and sidecars: the `.sha256` sidecar verifies, and the `.md5` sidecar is rejected.
+- Ran the compiled `verifyChecksum` against the real v1.4.0 `linux-amd64` archive and sidecars: the `.sha256` sidecar verifies, and the `.md5` sidecar is rejected under SHA-256.
+- Against the live releases: `tc.downloadTool` on v1.0.0's `.sha256` throws `tc.HTTPError` with `httpStatusCode` 404. v1.0.0 `linux-amd64` verifies via its `.md5`, and v1.4.0 via its `.sha256`.
 
 ## Prevention
 

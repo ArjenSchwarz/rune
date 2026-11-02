@@ -32830,10 +32830,10 @@ function getPlatformAsset(version) {
     const assetName = `${TOOL_NAME}-v${version}-${os}-${arch}.${ext}`;
     return { assetName, isWindows: os === 'windows' };
 }
-async function verifyChecksum(filePath, checksumPath) {
+async function verifyChecksum(filePath, checksumPath, algorithm = 'sha256') {
     // Sidecar contains the hex digest, optionally followed by a filename (sha256sum format)
     const expected = (await fs.promises.readFile(checksumPath, 'utf8')).trim().split(/\s+/)[0].toLowerCase();
-    const hash = crypto.createHash('sha256');
+    const hash = crypto.createHash(algorithm);
     const stream = fs.createReadStream(filePath);
     await new Promise((resolve, reject) => {
         stream.on('data', data => hash.update(data));
@@ -32842,7 +32842,7 @@ async function verifyChecksum(filePath, checksumPath) {
     });
     const actual = hash.digest('hex');
     if (expected !== actual) {
-        throw new Error(`SHA-256 checksum verification failed!\n` +
+        throw new Error(`${algorithm === 'md5' ? 'MD5' : 'SHA-256'} checksum verification failed!\n` +
             `Expected: ${expected}\n` +
             `Actual: ${actual}`);
     }
@@ -32871,9 +32871,23 @@ async function installRune(version, token) {
     // downloadTool's third argument is the full Authorization header value
     const auth = token ? `Bearer ${token}` : undefined;
     const archivePath = await tc.downloadTool(`${baseUrl}/${assetName}`, undefined, auth);
-    const checksumPath = await tc.downloadTool(`${baseUrl}/${assetName}.sha256`, undefined, auth);
+    // Releases before v1.4.0 only publish .md5 sidecars. Fall back to MD5 only
+    // when the .sha256 sidecar does not exist (HTTP 404); any other error is fatal.
+    let checksumPath;
+    let algorithm = 'sha256';
+    try {
+        checksumPath = await tc.downloadTool(`${baseUrl}/${assetName}.sha256`, undefined, auth);
+    }
+    catch (error) {
+        if (!(error instanceof tc.HTTPError && error.httpStatusCode === 404)) {
+            throw error;
+        }
+        core.info('No SHA-256 checksum published for this release; using legacy MD5 checksum');
+        algorithm = 'md5';
+        checksumPath = await tc.downloadTool(`${baseUrl}/${assetName}.md5`, undefined, auth);
+    }
     // 5. Verify checksum
-    await verifyChecksum(archivePath, checksumPath);
+    await verifyChecksum(archivePath, checksumPath, algorithm);
     // 6. Extract
     const extractedPath = isWindows
         ? await tc.extractZip(archivePath)

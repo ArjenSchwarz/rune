@@ -1,11 +1,16 @@
 import { resolveVersion, getPlatformAsset, verifyChecksum, installRune } from '../src/install';
 import { getOctokit } from '@actions/github';
 import * as fs from 'fs';
+import { HTTPError } from '@actions/tool-cache';
 
 // Mock dependencies
 jest.mock('@actions/github');
 jest.mock('@actions/core');
-jest.mock('@actions/tool-cache');
+// Keep the real HTTPError so the 404 fallback check exercises actual instanceof/status logic
+jest.mock('@actions/tool-cache', () => ({
+  ...jest.createMockFromModule<typeof import('@actions/tool-cache')>('@actions/tool-cache'),
+  HTTPError: jest.requireActual<typeof import('@actions/tool-cache')>('@actions/tool-cache').HTTPError
+}));
 jest.mock('@actions/exec');
 
 // Mock fs with proper promises support
@@ -207,6 +212,8 @@ describe('getPlatformAsset', () => {
 
 // SHA-256 of empty input
 const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+// MD5 of empty input
+const EMPTY_MD5 = 'd41d8cd98f00b204e9800998ecf8427e';
 
 describe('verifyChecksum', () => {
   const mockReadFile = fs.promises.readFile as jest.MockedFunction<typeof fs.promises.readFile>;
@@ -385,6 +392,94 @@ describe('installRune', () => {
     for (const call of mockTc.downloadTool.mock.calls) {
       expect(call[2]).toBe('Bearer ghs_example');
     }
+  });
+
+  describe('checksum sidecar selection', () => {
+    const base = 'https://github.com/ArjenSchwarz/rune/releases/download/v1.3.0/rune-v1.3.0-linux-amd64.tar.gz';
+
+    beforeEach(() => {
+      mockOctokit.rest.repos.getReleaseByTag.mockResolvedValue({ data: { tag_name: 'v1.3.0' } });
+      mockTc.find.mockReturnValue('');
+      mockTc.extractTar.mockResolvedValue('/tmp/extracted');
+      mockTc.cacheDir.mockResolvedValue('/cache/rune/1.3.0/amd64');
+      const mockStream: any = {
+        on: jest.fn((event: string, handler: any) => {
+          if (event === 'end') handler();
+          return mockStream;
+        })
+      };
+      mockCreateReadStream.mockReturnValue(mockStream);
+    });
+
+    const downloadedUrls = () => mockTc.downloadTool.mock.calls.map((c: any[]) => c[0]);
+
+    test('prefers the SHA-256 sidecar when it exists', async () => {
+      mockTc.downloadTool
+        .mockResolvedValueOnce('/tmp/archive')
+        .mockResolvedValueOnce('/tmp/checksum');
+      mockReadFile.mockResolvedValue(EMPTY_SHA256);
+
+      await installRune('1.3.0', 'ghs_example');
+
+      expect(downloadedUrls()).toEqual([base, `${base}.sha256`]);
+    });
+
+    // Releases before v1.4.0 publish only .md5 sidecars
+    test('falls back to the legacy MD5 sidecar when SHA-256 returns 404', async () => {
+      mockTc.downloadTool
+        .mockResolvedValueOnce('/tmp/archive')
+        .mockRejectedValueOnce(new HTTPError(404))
+        .mockResolvedValueOnce('/tmp/checksum.md5');
+      mockReadFile.mockResolvedValue(EMPTY_MD5);
+
+      const result = await installRune('1.3.0', 'ghs_example');
+
+      expect(downloadedUrls()).toEqual([base, `${base}.sha256`, `${base}.md5`]);
+      for (const call of mockTc.downloadTool.mock.calls) {
+        expect(call[2]).toBe('Bearer ghs_example');
+      }
+      expect(mockReadFile).toHaveBeenCalledWith('/tmp/checksum.md5', 'utf8');
+      expect(result.path).toBe('/cache/rune/1.3.0/amd64');
+    });
+
+    test('legacy MD5 mismatch is fatal', async () => {
+      mockTc.downloadTool
+        .mockResolvedValueOnce('/tmp/archive')
+        .mockRejectedValueOnce(new HTTPError(404))
+        .mockResolvedValueOnce('/tmp/checksum.md5');
+      mockReadFile.mockResolvedValue('0'.repeat(32));
+
+      await expect(installRune('1.3.0', 'ghs_example'))
+        .rejects.toThrow('MD5 checksum verification failed!');
+      expect(mockTc.extractTar).not.toHaveBeenCalled();
+    });
+
+    test('SHA-256 mismatch is fatal and does not fall back to MD5', async () => {
+      mockTc.downloadTool
+        .mockResolvedValueOnce('/tmp/archive')
+        .mockResolvedValueOnce('/tmp/checksum');
+      mockReadFile.mockResolvedValue('a'.repeat(64));
+
+      await expect(installRune('1.3.0', 'ghs_example'))
+        .rejects.toThrow('SHA-256 checksum verification failed!');
+      expect(downloadedUrls()).toEqual([base, `${base}.sha256`]);
+      expect(mockTc.extractTar).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      ['401 Unauthorized', new HTTPError(401)],
+      ['403 Forbidden', new HTTPError(403)],
+      ['500 Server Error', new HTTPError(500)],
+      ['network error', new Error('ECONNRESET')]
+    ])('SHA-256 sidecar download failure (%s) is fatal and does not fall back', async (_name, error) => {
+      mockTc.downloadTool
+        .mockResolvedValueOnce('/tmp/archive')
+        .mockRejectedValueOnce(error);
+
+      await expect(installRune('1.3.0', 'ghs_example')).rejects.toBe(error);
+      expect(downloadedUrls()).toEqual([base, `${base}.sha256`]);
+      expect(mockTc.extractTar).not.toHaveBeenCalled();
+    });
   });
 
   test('downloads and caches on cache miss for Linux', async () => {

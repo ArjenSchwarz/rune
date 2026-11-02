@@ -228,8 +228,8 @@ When the cache is missed, the action will:
 The action verifies the integrity of downloaded binaries using SHA-256 checksums:
 
 1. Downloads the release archive (`.tar.gz` for Linux/macOS, `.zip` for Windows)
-2. Downloads the corresponding `.sha256` checksum file
-3. Calculates the SHA-256 hash of the downloaded archive
+2. Downloads the corresponding `.sha256` checksum file (releases before v1.4.0 have no `.sha256` file; when it returns HTTP 404 the action uses the legacy `.md5` file instead)
+3. Calculates the SHA-256 (or, for those older releases, MD5) hash of the downloaded archive
 4. Compares with the expected checksum
 5. Fails the workflow if verification fails
 
