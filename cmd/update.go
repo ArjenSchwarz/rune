@@ -17,6 +17,7 @@ type UpdateResponse struct {
 	TaskID        string   `json:"task_id"`
 	Title         string   `json:"title"`
 	FieldsUpdated []string `json:"fields_updated"`
+	DryRun        bool     `json:"dry_run,omitempty"`
 }
 
 var updateCmd = &cobra.Command{
@@ -271,9 +272,50 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Collect changes for output
+	changes := []string{}
+	if updateTitle != "" {
+		changes = append(changes, "title")
+	}
+	if clearDetails || updateDetails != "" {
+		changes = append(changes, "details")
+	}
+	if clearReferences || updateReferences != "" {
+		changes = append(changes, "references")
+	}
+	if clearRequirements || requirementsSet {
+		changes = append(changes, "requirements")
+	}
+	if updateStreamSet {
+		changes = append(changes, "stream")
+	}
+	if blockedBySet {
+		changes = append(changes, "blocked-by")
+	}
+	if updateOwnerSet {
+		changes = append(changes, "owner")
+	}
+	if updateRelease {
+		changes = append(changes, "release")
+	}
+
 	// Dry run mode - the update was applied (and validated) in memory only;
 	// show what would change without writing (T-1381, T-1750)
 	if dryRun {
+		switch format {
+		case formatJSON:
+			return outputJSON(UpdateResponse{
+				Success:       true,
+				Message:       fmt.Sprintf("Would update task %s", taskID),
+				TaskID:        taskID,
+				Title:         targetTask.Title,
+				FieldsUpdated: changes,
+				DryRun:        true,
+			})
+		case formatMarkdown:
+			fmt.Printf("**Dry run:** Would update %s - %s (%s)\n", taskID, targetTask.Title, strings.Join(changes, ", "))
+			return nil
+		}
 		fmt.Printf("Would update task in file: %s\n", filename)
 		fmt.Printf("Task ID: %s\n", taskID)
 		fmt.Printf("Current title: %s\n", currentTitle)
@@ -321,33 +363,6 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// Write the updated file
 	if err := tl.WriteFile(filename); err != nil {
 		return fmt.Errorf("failed to write updated file: %w", err)
-	}
-
-	// Collect changes for output
-	changes := []string{}
-	if updateTitle != "" {
-		changes = append(changes, "title")
-	}
-	if clearDetails || updateDetails != "" {
-		changes = append(changes, "details")
-	}
-	if clearReferences || updateReferences != "" {
-		changes = append(changes, "references")
-	}
-	if clearRequirements || requirementsSet {
-		changes = append(changes, "requirements")
-	}
-	if updateStreamSet {
-		changes = append(changes, "stream")
-	}
-	if blockedBySet {
-		changes = append(changes, "blocked-by")
-	}
-	if updateOwnerSet {
-		changes = append(changes, "owner")
-	}
-	if updateRelease {
-		changes = append(changes, "release")
 	}
 
 	// Format-aware output

@@ -18,6 +18,7 @@ const (
 	columnPath      = "Path"
 	columnField     = "Field"
 	columnValue     = "Value"
+	columnTask      = "Task"
 )
 
 // Status strings used in filters and JSON output

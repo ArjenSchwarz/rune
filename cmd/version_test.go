@@ -29,6 +29,8 @@ import (
 )
 
 func TestVersionCommand(t *testing.T) {
+	// The global --format also selects JSON output (T-1409); start from the default
+	format = formatTable
 	// Save original values
 	originalVersion := Version
 	originalBuildTime := BuildTime
@@ -310,6 +312,8 @@ func TestVersionHelperFunctions(t *testing.T) {
 	})
 }
 func TestVersionCommandIntegration(t *testing.T) {
+	// The global --format also selects JSON output (T-1409); start from the default
+	format = formatTable
 	// Save original values
 	originalVersion := Version
 	originalBuildTime := BuildTime
@@ -387,6 +391,8 @@ func TestVersionCommandIntegration(t *testing.T) {
 }
 
 func TestVersionCommandConsistency(t *testing.T) {
+	// The global --format also selects JSON output (T-1409); start from the default
+	format = formatTable
 	// Save original values
 	originalVersion := Version
 	originalBuildTime := BuildTime

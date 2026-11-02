@@ -2124,7 +2124,7 @@ func TestRenderTaskMarkdownWithGrandchildren(t *testing.T) {
 		},
 	}
 
-	result := renderTaskMarkdown(parent, "")
+	result := renderTaskMarkdown(parent, "", "")
 
 	// The output should include the pending grandchild via the completed child
 	if !strings.Contains(result, "1.1.1") {

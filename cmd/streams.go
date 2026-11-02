@@ -77,8 +77,9 @@ func runStreams(cmd *cobra.Command, args []string) error {
 		result = filterAvailableStreams(result)
 	}
 
-	// Output based on format
-	if streamsJSON {
+	// Output based on format. The global --format json is honoured as well as
+	// the command's own --json flag (T-1409).
+	if streamsJSON || format == formatJSON {
 		return outputJSON(result)
 	}
 

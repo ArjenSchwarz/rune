@@ -85,13 +85,14 @@ type TaskListJSON struct {
 
 // TaskListJSONWithPhases represents a TaskList with phases and statistics for JSON output
 type TaskListJSONWithPhases struct {
-	Success      bool          `json:"success"`
-	Count        int           `json:"count"`
-	Title        string        `json:"Title"`
-	Tasks        []jsonTask    `json:"Tasks"`
-	Stats        Stats         `json:"Stats"`
-	FrontMatter  *FrontMatter  `json:"FrontMatter,omitempty"`
-	PhaseMarkers []PhaseMarker `json:"PhaseMarkers,omitempty"`
+	Success          bool          `json:"success"`
+	Count            int           `json:"count"`
+	Title            string        `json:"Title"`
+	Tasks            []jsonTask    `json:"Tasks"`
+	Stats            Stats         `json:"Stats"`
+	FrontMatter      *FrontMatter  `json:"FrontMatter,omitempty"`
+	PhaseMarkers     []PhaseMarker `json:"PhaseMarkers,omitempty"`
+	RequirementsFile string        `json:"requirements_file,omitempty"`
 }
 
 // TaskWithPhase represents a task with its phase information (used for non-JSON rendering)
@@ -428,13 +429,14 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource 
 	}
 
 	result := TaskListJSONWithPhases{
-		Success:      true,
-		Count:        len(tasksWithPhases),
-		Title:        tl.Title,
-		Tasks:        tasksWithPhases,
-		Stats:        stats,
-		FrontMatter:  tl.FrontMatter,
-		PhaseMarkers: phaseMarkers,
+		Success:          true,
+		Count:            len(tasksWithPhases),
+		Title:            tl.Title,
+		Tasks:            tasksWithPhases,
+		Stats:            stats,
+		FrontMatter:      tl.FrontMatter,
+		PhaseMarkers:     phaseMarkers,
+		RequirementsFile: tl.RequirementsFile,
 	}
 
 	data, _ := json.MarshalIndent(result, "", "  ")
