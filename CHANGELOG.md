@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Fixed
 
+- **Dry Run**: `complete --dry-run` now previews parent tasks that the live command would auto-complete. The preview previously stopped at the targeted task, so completing the last pending child of a parent showed one change when the real run made two. JSON output now includes `auto_completed`, and markdown and table output list the parents that would be auto-completed. The file is still left unchanged
 - **GitHub Action**: Prefer SHA-256 checksums, fall back to verified MD5 only when an older release has no SHA-256 sidecar, and send release-download credentials with the Bearer scheme (T-1143, T-2241).
 - **Batch Command**: Exit unsuccessfully for rejected batches, reject unknown JSON fields before writes, and preserve operation order around positioned additions (T-1789, T-1844, T-1874).
 - **Batch Command**: Reject a `status` field on an `add` operation instead of silently creating a pending task; use a subsequent `update` to set status (T-1996).
