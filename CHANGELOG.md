@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **File Writes and Flags**: Write through validated symlinks without replacing the link, and preserve literal commas in repeated `--reference` and `--meta` values (T-1796, T-1804).
 - **Parsing**: Handle UTF-8 BOMs in task and phase parsing; preserve comma-containing reference and requirements paths, legacy UNC references, and malformed requirements text (T-1808, T-1848, T-1907, T-2063).
 - **Parsing**: Warn about malformed blocker references and reject details that would be interpreted as task lines on the next read (T-1998, T-1999).
+- **Parsing**: Report parse error line numbers relative to the source file, including front matter and the title line, and warn about malformed `Stream:` values while treating them as unset (T-1879, T-2197).
 - **Update and Add Commands**: Validate and preview extended updates during dry runs, clear dependencies when `--blocked-by` is explicitly empty, and reject comma-only requirements values in `add` and `update` without modifying the file (T-1381, T-1750, T-1493, T-2023).
 - **Task Status**: Reopen completed ancestors when `uncomplete` or `progress` changes a descendant (T-1456).
 - **Output Formats**: Retain requirements context in phased list, find and next output, including claim and dry-run paths; include descendant details and references in next tables (T-1129, T-1994, T-1995, T-2022).
