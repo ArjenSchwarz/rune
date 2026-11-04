@@ -46,3 +46,11 @@ func reportParseWarnings(tl *task.TaskList) {
 		fmt.Fprintf(os.Stderr, "Warning: %s\n", w.Message)
 	}
 }
+
+// printWarnings writes operation warnings to stderr for table and markdown
+// output; JSON output carries them in a "warnings" array instead.
+func printWarnings(warnings []task.Warning) {
+	for _, w := range warnings {
+		fmt.Fprintf(os.Stderr, "Warning: %s\n", w.Message)
+	}
+}

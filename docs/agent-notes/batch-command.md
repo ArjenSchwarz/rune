@@ -20,12 +20,16 @@ The `--input` flag accepts `-` as a stdin marker. When `--input -` is passed, th
 
 `sortOperationsForExecution` in `internal/task/batch.go` only reorders operations within contiguous runs of the same kind:
 
-1. **Positioned adds** (add ops with a `Position`) are sorted in reverse position order within a run.
+1. **Positioned adds** (add ops with a `Position`) are sorted in reverse position order within a run. Equal positions run in reverse request order so they land in request order (T-1933).
 2. **Removes** are sorted in reverse ID order within a run, so removing higher IDs first keeps lower IDs valid.
 
 Non-matching operations are boundaries that nothing crosses. Positioned adds used to be hoisted ahead of everything (T-1874), which retargeted IDs in earlier updates/removes; removes used to be sorted globally (T-200). Don't reintroduce cross-kind reordering.
 
-Note that `operation N` in error messages is the index in execution order, which can differ from input order inside a reordered run.
+It returns `indexedOperation`s carrying each op's request index; `operation N` in error messages uses that index, not the execution position (T-1780).
+
+## Auto-Completed Reporting
+
+`runBatch` (not the apply functions) auto-completes parents after each completing update and flags them with the unexported `Task.autoCompleted` field, so the flag follows the task through renumbering. `collectAutoCompleted` reports flagged tasks that are still complete with complete descendants and clears every flag before the result is adopted. An explicit status update clears the target's own flag (T-1776).
 
 ## Validation and Atomicity
 

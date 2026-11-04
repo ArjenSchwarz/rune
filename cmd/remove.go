@@ -10,12 +10,13 @@ import (
 
 // RemoveResponse is the JSON response for the remove command
 type RemoveResponse struct {
-	Success         bool   `json:"success"`
-	Message         string `json:"message"`
-	TaskID          string `json:"task_id"`
-	Title           string `json:"title"`
-	ChildrenRemoved int    `json:"children_removed"`
-	DryRun          bool   `json:"dry_run,omitempty"`
+	Success         bool           `json:"success"`
+	Message         string         `json:"message"`
+	TaskID          string         `json:"task_id"`
+	Title           string         `json:"title"`
+	ChildrenRemoved int            `json:"children_removed"`
+	DryRun          bool           `json:"dry_run,omitempty"`
+	Warnings        []task.Warning `json:"warnings,omitempty"`
 }
 
 var removeCmd = &cobra.Command{
@@ -127,8 +128,12 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	// Remove the task (phase-aware - handles both phase and non-phase files)
-	if err := tl.RemoveTaskWithPhases(taskID, content); err != nil {
+	warnings, err := tl.RemoveTaskWithPhases(taskID, content)
+	if err != nil {
 		return fmt.Errorf("failed to remove task: %w", err)
+	}
+	if format != formatJSON {
+		printWarnings(warnings)
 	}
 
 	// Format-aware output (uses captured values, not the now-stale pointer)
@@ -140,6 +145,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 			TaskID:          taskID,
 			Title:           removedTitle,
 			ChildrenRemoved: childCount,
+			Warnings:        warnings,
 		})
 	case formatMarkdown:
 		if childCount > 0 {

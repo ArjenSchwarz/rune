@@ -154,7 +154,17 @@ This document describes the JSON schema for the rune batch operations API.
     },
     "preview": {
       "type": "string",
-      "description": "Preview of resulting markdown (only in dry_run mode)"
+      "description": "Preview of the resulting file, including front matter (only in dry_run mode)"
+    },
+    "auto_completed": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "IDs of parent tasks the batch auto-completed that are still complete in the final result"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/Warning"},
+      "description": "Non-fatal issues, such as dependency references removed with a deleted task"
     }
   },
   "required": ["success", "applied", "errors"]

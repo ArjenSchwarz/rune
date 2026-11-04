@@ -751,29 +751,29 @@ func WriteFileWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, filePath stri
 
 // Phase-aware operation wrappers that preserve phase markers
 
-// RemoveTaskWithPhases removes a task while preserving phase structure
-func (tl *TaskList) RemoveTaskWithPhases(taskID string, originalContent []byte) error {
+// RemoveTaskWithPhases removes a task while preserving phase structure and
+// writes the file. Returns warnings about dependents whose blocked-by
+// references were cleaned up.
+func (tl *TaskList) RemoveTaskWithPhases(taskID string, originalContent []byte) ([]Warning, error) {
 	// Extract phase markers from the original content
 	phaseMarkers := phaseMarkersFromContent(originalContent)
 
-	// If no phases, just use regular operations
-	if len(phaseMarkers) == 0 {
-		if _, err := tl.RemoveTaskWithDependents(taskID); err != nil {
-			return err
-		}
-		return tl.WriteFile(tl.FilePath)
+	// Remove the task (cleans up stale BlockedBy references)
+	warnings, err := tl.removeTaskWithWarnings(taskID)
+	if err != nil {
+		return nil, err
 	}
 
-	// Remove the task (cleans up stale BlockedBy references)
-	if _, err := tl.RemoveTaskWithDependents(taskID); err != nil {
-		return err
+	// If no phases, just use regular operations
+	if len(phaseMarkers) == 0 {
+		return warnings, tl.WriteFile(tl.FilePath)
 	}
 
 	// Adjust phase markers for the removed task
 	adjustPhaseMarkersForRemoval(taskID, &phaseMarkers)
 
 	// Write with phases preserved
-	return WriteFileWithPhases(tl, phaseMarkers, tl.FilePath)
+	return warnings, WriteFileWithPhases(tl, phaseMarkers, tl.FilePath)
 }
 
 // UpdateTaskWithPhases updates a task while preserving phase structure
@@ -1164,6 +1164,20 @@ func (tl *TaskList) RemoveTaskWithDependents(taskID string) ([]string, error) {
 
 	tl.RenumberTasks()
 	tl.Modified = time.Now()
+	return warnings, nil
+}
+
+// removeTaskWithWarnings calls RemoveTaskWithDependents and reports its
+// dependency cleanup messages as dependents_removed warnings for taskID.
+func (tl *TaskList) removeTaskWithWarnings(taskID string) ([]Warning, error) {
+	messages, err := tl.RemoveTaskWithDependents(taskID)
+	if err != nil {
+		return nil, err
+	}
+	warnings := make([]Warning, 0, len(messages))
+	for _, msg := range messages {
+		warnings = append(warnings, Warning{Code: WarnDependentsRemoved, Message: msg, TaskID: taskID})
+	}
 	return warnings, nil
 }
 
