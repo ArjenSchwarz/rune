@@ -39,6 +39,18 @@ references:
 - [ ] 1. Task
 `
 
+const commentOnlyFrontMatterFile = "---\n# Project handoff notes\n---\n# Tasks\n- [ ] 1. First\n"
+
+const emptyCommentedFieldsFile = "---\nreferences: [] # filled in later\n# metadata note\nmetadata: {}\n---\n# Tasks\n- [ ] 1. First\n"
+
+func updateAndWrite(t *testing.T, tl *TaskList, path string) string {
+	t.Helper()
+	if err := tl.UpdateStatus("1", Completed); err != nil {
+		t.Fatal(err)
+	}
+	return writeAndRead(t, tl, path)
+}
+
 func TestMutationsPreserveFrontMatterComments(t *testing.T) {
 	completed := Completed
 	tests := map[string]struct {
@@ -67,6 +79,51 @@ func TestMutationsPreserveFrontMatterComments(t *testing.T) {
 				return writeAndRead(t, tl, path)
 			},
 			want: []string{"# detached head", "owner: me", "# detached foot"},
+		},
+		"comment-only front matter": {
+			content: commentOnlyFrontMatterFile,
+			mutate:  updateAndWrite,
+			want:    []string{"---\n# Project handoff notes\n---\n"},
+		},
+		"comment-only front matter, batch": {
+			content: commentOnlyFrontMatterFile,
+			mutate: func(t *testing.T, tl *TaskList, path string) string {
+				t.Helper()
+				resp, err := tl.ExecuteBatch([]Operation{{Type: "update", ID: "1", Status: &completed}}, false)
+				if err != nil || !resp.Success {
+					t.Fatalf("batch failed: %v %v", err, resp.Errors)
+				}
+				return writeAndRead(t, tl, path)
+			},
+			want: []string{"---\n# Project handoff notes\n---\n"},
+		},
+		"comment-only front matter, adding metadata": {
+			content: commentOnlyFrontMatterFile,
+			mutate: func(t *testing.T, tl *TaskList, path string) string {
+				t.Helper()
+				if err := tl.AddFrontMatterContent(nil, map[string]string{"owner": "me"}); err != nil {
+					t.Fatal(err)
+				}
+				return writeAndRead(t, tl, path)
+			},
+			want: []string{"---\n# Project handoff notes\n", "owner: me"},
+		},
+		"commented empty references and metadata": {
+			content: emptyCommentedFieldsFile,
+			mutate:  updateAndWrite,
+			want:    []string{"references: [] # filled in later", "# metadata note", "metadata: {}"},
+		},
+		"commented empty references and metadata, batch dry-run preview": {
+			content: emptyCommentedFieldsFile,
+			mutate: func(t *testing.T, tl *TaskList, _ string) string {
+				t.Helper()
+				resp, err := tl.ExecuteBatch([]Operation{{Type: "update", ID: "1", Status: &completed}}, true)
+				if err != nil || !resp.Success {
+					t.Fatalf("batch failed: %v %v", err, resp.Errors)
+				}
+				return resp.Preview
+			},
+			want: []string{"references: [] # filled in later", "# metadata note", "metadata: {}"},
 		},
 		"phase file, WriteFileWithPhases path": {
 			content: commentedFrontMatterPhasesFile,

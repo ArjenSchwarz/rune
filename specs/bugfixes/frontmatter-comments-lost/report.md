@@ -31,6 +31,7 @@ Any mutating command rewrote YAML front matter from decoded values, so comments 
 
 **Changes made:**
 - `internal/task/references.go`: `FrontMatter` keeps the parsed top-level mapping node (`source`) and the values it decoded to (`parsed`). `MarshalYAML` writes from the source mapping and replaces the `references` or `metadata` value with a fresh encoding only when that value has changed. A modelled key that is newly added goes at the end, and one that is now empty is dropped. Unknown keys keep their source nodes as before. Comments that yaml.v3 attaches to the document (separated by a blank line) are moved onto the mapping at parse time so they are written back too.
+- Front matter that contains only comments has no YAML node, so its raw text is kept (`comments`) and written back verbatim, ahead of any keys added later. `IsEmpty` no longer reports parsed front matter as empty just because its values are empty, so commented keys such as `references: []` are written back too (review finding on PR #131).
 - `ParseFrontMatter`'s check that unknown keys can be written back still validates the fresh encoding, so files rejected before (aliases of anchors on a modelled key) are still rejected.
 - `internal/task/batch.go`: `deepCopy` uses the new `FrontMatter.clone()`, so batch writes and dry-run previews keep the source. The source node is never modified, so copies can share it.
 
@@ -43,7 +44,7 @@ Any mutating command rewrote YAML front matter from decoded values, so comments 
 **Test file:** `internal/task/frontmatter_comments_test.go`
 **Test name:** `TestMutationsPreserveFrontMatterComments`
 
-**What it verifies:** Head, line and unknown-key comments survive `WriteFile`, the phase-aware write, batch execution, batch dry-run previews, and adding metadata or a reference. Blank-line-separated document comments survive too, and the output parses back to the same values.
+**What it verifies:** Head, line and unknown-key comments survive `WriteFile`, the phase-aware write, batch execution, batch dry-run previews, and adding metadata or a reference. Blank-line-separated document comments survive too. Comment-only front matter survives ordinary writes, batch writes and added metadata, and commented empty `references`/`metadata` survive ordinary writes and batch previews. The output parses back to the same values.
 
 `TestFrontMatterPreservation` now expects `tags: "important,test"` exactly as written in its source, rather than the previously normalised unquoted form.
 
@@ -52,7 +53,7 @@ Any mutating command rewrote YAML front matter from decoded values, so comments 
 ## Verification
 
 **Automated:**
-- [x] Regression test passes (all 7 cases fail without the fix)
+- [x] Regression test passes (all 12 cases fail without the fix)
 - [x] Full test suite passes, except two pre-existing permission tests (`TestCreateBackup`, `TestIntegrationRenumber` write-failure case) that fail only when run as root, identically on the base branch
 - [x] `make lint`: 0 issues
 
