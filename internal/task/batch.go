@@ -2,7 +2,6 @@ package task
 
 import (
 	"fmt"
-	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -612,11 +611,7 @@ func (tl *TaskList) deepCopy() *TaskList {
 	c := *tl
 	c.Tasks = cloneTasks(tl.Tasks)
 	if tl.FrontMatter != nil {
-		c.FrontMatter = &FrontMatter{
-			References: slices.Clone(tl.FrontMatter.References),
-			Metadata:   maps.Clone(tl.FrontMatter.Metadata),
-			Extra:      slices.Clone(tl.FrontMatter.Extra),
-		}
+		c.FrontMatter = tl.FrontMatter.clone()
 	}
 	return &c
 }
