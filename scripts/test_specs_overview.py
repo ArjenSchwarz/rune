@@ -118,5 +118,39 @@ class TestSortByDate(unittest.TestCase):
         self.assertEqual([s.name for s in result], ["later", "earlier", "unknown"])
 
 
+class TestOverlappingRoots(unittest.TestCase):
+    """T-2011: a spec reachable from several --dirs roots must be listed once."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        for name in ("alpha", "beta"):
+            spec_dir = self.root / "specs" / name
+            spec_dir.mkdir(parents=True)
+            (spec_dir / "tasks.md").write_text("# T\n\n- [ ] 1. Task\n")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def assert_found_once(self, roots):
+        found = specs_overview.find_spec_directories([str(r) for r in roots])
+        self.assertEqual(sorted(p.resolve().name for p in found), ["alpha", "beta"])
+
+    def test_nested_root(self):
+        specs = self.root / "specs"
+        self.assert_found_once([specs, specs / "alpha"])
+
+    def test_same_root_spelled_differently(self):
+        specs = self.root / "specs"
+        self.assert_found_once([specs, self.root / "specs" / ".." / "specs"])
+
+    def test_scan_specs_keeps_name_from_first_root(self):
+        specs = self.root / "specs"
+        with mock.patch.object(specs_overview, "get_creation_date", return_value=None), \
+             mock.patch.object(specs_overview, "get_task_stats", return_value={}):
+            result = specs_overview.scan_specs([str(specs), str(specs / "alpha")], "rune")
+        self.assertEqual(sorted(s.name for s in result), ["alpha", "beta"])
+
+
 if __name__ == "__main__":
     unittest.main()
