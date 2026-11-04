@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependencies**: Warn when removing a task cleans up other tasks' blocked-by references, on stderr for table and Markdown output and in a `warnings` array for `remove` and `batch` JSON (T-1860).
 - **Batch Command**: Reject a `status` field on an `add` operation instead of silently creating a pending task; use a subsequent `update` to set status (T-1996).
 - **Data Integrity**: Preserve unknown YAML front-matter values and tags during writes, rejecting unsupported alias relationships before rewriting (T-1845).
+- **Data Integrity**: Preserve YAML front-matter comments when a mutation does not change the commented key, including batch writes and dry-run previews; unchanged keys also keep their order and scalar style (T-2079).
 - **Data Integrity**: Reject mixed requirements-file paths before rewriting and preserve files without an H1 title (T-1973, T-2062).
 - **Dependencies**: Warn on duplicate stable IDs, retain the first occurrence, and remove stale dependencies when deleting task subtrees (T-1762, T-1772).
 - **Task Readiness**: Respect owners and blockers when selecting work, keep blocked parents from being auto-completed, and require a completed blocker’s descendants to be complete before unlocking dependents (T-1777, T-2126, T-2161).

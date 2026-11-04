@@ -135,7 +135,7 @@ metadata:
 		"./specs/design.md",
 		"project: test-project",
 		`version: "1.0"`,
-		"tags: important,test",
+		`tags: "important,test"`,
 	}
 	for _, item := range expectedItems {
 		if !strings.Contains(contentStr, item) {

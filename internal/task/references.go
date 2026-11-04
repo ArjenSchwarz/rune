@@ -2,6 +2,8 @@ package task
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -16,6 +18,22 @@ type FrontMatter struct {
 	// Go values) preserves tags, anchors and aliases, so these keys survive a
 	// parse/write round trip unchanged in meaning.
 	Extra []*yaml.Node `yaml:"-" json:"-"`
+
+	// source is the parsed top-level mapping and parsed holds the values it
+	// decoded to. A write reuses the source key/value nodes, and with them
+	// their comments, for every key whose value has not changed. Neither is
+	// ever modified, so copies of a FrontMatter may share them.
+	source *yaml.Node
+	parsed knownFrontMatter
+}
+
+// clone returns a copy that shares no mutable state with fm.
+func (fm *FrontMatter) clone() *FrontMatter {
+	c := *fm
+	c.References = slices.Clone(fm.References)
+	c.Metadata = maps.Clone(fm.Metadata)
+	c.Extra = slices.Clone(fm.Extra)
+	return &c
 }
 
 // knownFrontMatter is the part of FrontMatter that rune models.
@@ -33,6 +51,8 @@ func (fm *FrontMatter) UnmarshalYAML(value *yaml.Node) error {
 	}
 	fm.References = known.References
 	fm.Metadata = known.Metadata
+	fm.source = value
+	fm.parsed = knownFrontMatter{References: slices.Clone(known.References), Metadata: maps.Clone(known.Metadata)}
 	fm.Extra = nil
 	for i := 0; i+1 < len(value.Content); i += 2 {
 		switch value.Content[i].Value {
@@ -45,17 +65,70 @@ func (fm *FrontMatter) UnmarshalYAML(value *yaml.Node) error {
 }
 
 // MarshalYAML writes the modelled keys followed by the unknown keys in their
-// original order, so an alias is never written before its anchor.
+// original order, so an alias is never written before its anchor. Parsed
+// front matter is written from its source nodes instead, keeping comments.
 func (fm FrontMatter) MarshalYAML() (any, error) {
 	node := &yaml.Node{}
 	if err := node.Encode(knownFrontMatter{References: fm.References, Metadata: fm.Metadata}); err != nil {
 		return nil, err
+	}
+	if fm.source != nil {
+		return fm.fromSource(node), nil
 	}
 	// An empty mapping encodes in flow style ({}); use block style so the
 	// appended keys are written one per line.
 	node.Style = 0
 	node.Content = append(node.Content, fm.Extra...)
 	return node, nil
+}
+
+// fromSource returns the source mapping with the references and metadata
+// values replaced by their encoding in fresh only where they changed since
+// parsing. Unchanged keys and the unknown keys keep their source nodes,
+// comments included. A modelled key that is new is appended at the end.
+func (fm FrontMatter) fromSource(fresh *yaml.Node) *yaml.Node {
+	changed := map[string]bool{
+		"references": !slices.Equal(fm.References, fm.parsed.References),
+		"metadata":   !maps.Equal(fm.Metadata, fm.parsed.Metadata),
+	}
+	freshValue := func(key string) *yaml.Node {
+		for i := 0; i+1 < len(fresh.Content); i += 2 {
+			if fresh.Content[i].Value == key {
+				return fresh.Content[i+1]
+			}
+		}
+		return nil // empty values are omitted from fresh
+	}
+
+	out := *fm.source
+	out.Content = nil
+	seen := map[string]bool{}
+	for i := 0; i+1 < len(fm.source.Content); i += 2 {
+		key, value := fm.source.Content[i], fm.source.Content[i+1]
+		if isChanged, modelled := changed[key.Value]; modelled {
+			seen[key.Value] = true
+			if isChanged {
+				value = freshValue(key.Value)
+				if value == nil {
+					continue
+				}
+			}
+		}
+		out.Content = append(out.Content, key, value)
+	}
+	for _, key := range []string{"references", "metadata"} {
+		if value := freshValue(key); value != nil && !seen[key] {
+			out.Content = append(out.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: key}, value)
+		}
+	}
+	return &out
+}
+
+func joinComments(a, b string) string {
+	if a == "" || b == "" {
+		return a + b
+	}
+	return a + "\n\n" + b
 }
 
 // IsEmpty reports whether there is no front matter content to write.
@@ -116,15 +189,29 @@ func ParseFrontMatter(content string) (*FrontMatter, string, error) {
 
 	// Parse YAML
 	var fm FrontMatter
-	if err := yaml.Unmarshal([]byte(frontMatterYAML), &fm); err != nil {
+	var doc yaml.Node
+	err := yaml.Unmarshal([]byte(frontMatterYAML), &doc)
+	if err == nil && len(doc.Content) > 0 {
+		err = doc.Content[0].Decode(&fm)
+	}
+	if err != nil {
 		return nil, content, fmt.Errorf("parsing front matter: %w", err)
+	}
+	// A comment separated from the first or last key by a blank line belongs
+	// to the document rather than the mapping; move it onto the mapping so
+	// it is written back too.
+	if fm.source != nil {
+		fm.source.HeadComment = joinComments(doc.HeadComment, fm.source.HeadComment)
+		fm.source.FootComment = joinComments(fm.source.FootComment, doc.FootComment)
 	}
 
 	// Reject unknown keys rune could not write back as a parsable document
 	// (for example an alias of an anchor on a modelled key, which is
 	// re-encoded without its anchor), before any command rewrites the file.
 	if len(fm.Extra) > 0 {
-		out, err := yaml.Marshal(&fm)
+		fresh := fm
+		fresh.source = nil // check the encoding used once a modelled key changes
+		out, err := yaml.Marshal(&fresh)
 		if err == nil {
 			err = yaml.Unmarshal(out, &FrontMatter{})
 		}
