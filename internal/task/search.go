@@ -37,16 +37,18 @@ func (tl *TaskList) Find(pattern string, opts QueryOptions) []Task {
 	// is not already in the results. Parents are inserted directly before
 	// their first child to maintain tree order.
 	if opts.IncludeParent {
-		results = tl.insertParents(results)
+		results = tl.InsertParents(results)
 	}
 
 	return results
 }
 
-// insertParents adds parent tasks for every result that has a ParentID, as
+// InsertParents adds parent tasks for every result that has a ParentID, as
 // long as the parent is not already present. Parents are placed immediately
-// before the first child that references them.
-func (tl *TaskList) insertParents(results []Task) []Task {
+// before the first child that references them. Callers that filter search
+// results should filter first and call this afterwards, so context is only
+// added for matches that survive the filters (T-2070).
+func (tl *TaskList) InsertParents(results []Task) []Task {
 	// Build a set of IDs already in the results.
 	present := make(map[string]bool, len(results))
 	for _, t := range results {
