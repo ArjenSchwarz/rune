@@ -7,7 +7,7 @@ rune is a Go command-line tool for managing hierarchical markdown task lists, op
 ## Working Effectively
 
 ### Environment Setup and Dependencies
-- **Go Version Required**: Go 1.25.0+ (validated working)
+- **Go Version Required**: Go 1.27.3+ (validated working)
 - **Make**: Available at `/usr/bin/make` (validated working)
 - **Missing Tools** (document as failures):
   - `golangci-lint` - NOT available in environment, `make lint` will fail
@@ -176,7 +176,7 @@ After making changes, ALWAYS run through these complete end-to-end scenarios:
 - Integration tests fail without the binary in PATH - ensure `export PATH=$PATH:/home/runner/work/rune/rune`
 
 ### Build Issues
-- If build fails, ensure Go 1.25.0+ is available
+- If build fails, ensure Go 1.27.3+ is available
 - If tests fail to find `rune` executable, ensure binary is built and in PATH
 - Path traversal errors occur when using `/tmp` or absolute paths - use relative paths within project
 

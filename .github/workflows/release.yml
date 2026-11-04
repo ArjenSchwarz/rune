@@ -37,6 +37,7 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         goos: ${{ matrix.goos }}
         goarch: ${{ matrix.goarch }}
+        goversion: go.mod
         binary_name: "rune"
         ldflags: "-w -s -X 'github.com/arjenschwarz/rune/cmd.Version=${{ env.APP_VERSION }}' -X 'github.com/arjenschwarz/rune/cmd.BuildTime=${{ env.BUILD_TIME }}' -X 'github.com/arjenschwarz/rune/cmd.GitCommit=${{ env.GIT_COMMIT }}'"
         extra_files: "LICENSE README.md"

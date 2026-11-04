@@ -6,7 +6,7 @@ Thanks for your interest in contributing to rune. This guide covers what you nee
 
 **Prerequisites:**
 
-- Go 1.25 or later
+- Go 1.27.3 or later
 - [golangci-lint](https://golangci-lint.run/welcome/install/)
 
 **Setup:**

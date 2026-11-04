@@ -939,7 +939,7 @@ See the [`examples/`](examples/) directory for sample task files and common usag
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.27.3+
 - Make
 - golangci-lint (for linting)
 

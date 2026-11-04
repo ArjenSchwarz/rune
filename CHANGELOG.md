@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+
+- **Build**: Require Go 1.27.3, the latest stable release, for the module and CI (T-2515).
+
 ### Fixed
 
 - **Dry Run**: `complete --dry-run` now previews parent tasks that the live command would auto-complete. The preview previously stopped at the targeted task, so completing the last pending child of a parent showed one change when the real run made two. JSON output now includes `auto_completed`, and markdown and table output list the parents that would be auto-completed. The file is still left unchanged
