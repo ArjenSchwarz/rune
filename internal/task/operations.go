@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // Resource limits for security
@@ -515,7 +516,7 @@ func validateTaskInput(input string) error {
 		return fmt.Errorf("input contains null bytes or control characters")
 	}
 
-	if len(input) > MaxTitleLength {
+	if utf8.RuneCountInString(input) > MaxTitleLength {
 		return fmt.Errorf("task title exceeds %d characters", MaxTitleLength)
 	}
 
@@ -552,7 +553,7 @@ func validateDetails(details []string) error {
 		if containsNullByte(detail) {
 			return fmt.Errorf("detail %d contains null bytes or control characters", i+1)
 		}
-		if len(detail) > MaxDetailLength {
+		if utf8.RuneCountInString(detail) > MaxDetailLength {
 			return fmt.Errorf("detail %d exceeds maximum length of %d characters", i+1, MaxDetailLength)
 		}
 		// A detail that looks like a metadata line ("Stream: 3", "Owner: x",
@@ -577,7 +578,7 @@ func validateReferences(refs []string) error {
 		if containsNullByte(ref) {
 			return fmt.Errorf("reference %d contains null bytes or control characters", i+1)
 		}
-		if len(ref) > 500 {
+		if utf8.RuneCountInString(ref) > 500 {
 			return fmt.Errorf("reference %d exceeds maximum length of 500 characters", i+1)
 		}
 		// A trailing backslash on any reference but the last is written
@@ -1282,6 +1283,12 @@ func ValidateOwner(owner string) error {
 func validateOwner(owner string) error {
 	if owner == "" {
 		return nil // Empty owner is valid
+	}
+
+	// The parser trims the Owner value, so a blank owner would be read back
+	// as a plain detail and surrounding whitespace would be lost (T-1782).
+	if strings.TrimSpace(owner) != owner {
+		return fmt.Errorf("%w: owner cannot be blank or have leading or trailing whitespace", ErrInvalidOwner)
 	}
 
 	for _, r := range owner {

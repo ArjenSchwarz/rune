@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub Action**: Prefer SHA-256 checksums, fall back to verified MD5 only when an older release has no SHA-256 sidecar, and send release-download credentials with the Bearer scheme (T-1143, T-2241).
 - **GitHub Action**: Run the setup action on the `node24` runtime instead of the deprecated `node20` (T-1471).
 - **Batch Command**: Exit unsuccessfully for rejected batches, reject unknown JSON fields before writes, and preserve operation order around positioned additions (T-1789, T-1844, T-1874).
+- **Input Validation**: Reject unsupported `--format` values on every command (case-insensitively, as `batch` already did), owners that are blank or have leading or trailing whitespace, `add --requirements-file` without `--requirements`, and comma-only `add --blocked-by` values, instead of silently dropping or reinterpreting them (T-1243, T-1782, T-2145, T-2325).
+- **Input Validation**: Count title, detail and reference length limits in characters rather than UTF-8 bytes (T-1793).
+- **Add Command**: Stop reporting the requested `--phase` for a subtask, which always stays under its parent (T-1754).
 - **Batch Command**: Report `auto_completed` from the batch's final state, name the request's own operation number in errors, keep equal-position insertions in request order, and include front matter in dry-run previews (T-1776, T-1780, T-1933, T-1888).
 - **Dependencies**: Warn when removing a task cleans up other tasks' blocked-by references, on stderr for table and Markdown output and in a `warnings` array for `remove` and `batch` JSON (T-1860).
 - **Batch Command**: Reject a `status` field on an `add` operation instead of silently creating a pending task; use a subsequent `update` to set status (T-1996).
