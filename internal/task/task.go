@@ -117,6 +117,11 @@ type Task struct {
 	BlockedBy []string `json:"blockedBy,omitempty"` // Stable IDs of blocking tasks
 	Stream    int      `json:"stream,omitempty"`    // Stream assignment (0 = not explicitly set)
 	Owner     string   `json:"owner,omitempty"`     // Agent identifier
+
+	// autoCompleted marks a task a batch auto-completed. It lets the batch
+	// report the task under its final ID after later operations renumber
+	// it, and is cleared before the batch returns.
+	autoCompleted bool
 }
 
 // GetEffectiveStream returns the stream for a task (1 if not explicitly set)

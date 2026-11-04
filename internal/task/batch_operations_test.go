@@ -1137,7 +1137,7 @@ func TestSortOperationsForExecution_RemoveBlockBoundaries(t *testing.T) {
 				t.Fatalf("expected %d ops, got %d", len(tc.expected), len(result))
 			}
 			for i, op := range result {
-				got := describeOp(op)
+				got := describeOp(op.Operation)
 				if got != tc.expected[i] {
 					t.Errorf("index %d: expected %s, got %s", i, tc.expected[i], got)
 				}
@@ -1663,7 +1663,7 @@ func TestSortOperationsForExecution_PositionAddsStayInSequence(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var got []string
 			for _, op := range sortOperationsForExecution(tc.input) {
-				got = append(got, describe(op))
+				got = append(got, describe(op.Operation))
 			}
 			if !slices.Equal(got, tc.want) {
 				t.Errorf("order = %v, want %v", got, tc.want)

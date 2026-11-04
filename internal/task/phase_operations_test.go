@@ -167,7 +167,7 @@ func TestRemoveTaskPreservesPhaseHeaders(t *testing.T) {
 			defer os.Remove(tempFile) // Clean up
 
 			// Remove the task using phase-aware method
-			err = taskList.RemoveTaskWithPhases(tc.taskToRemove, []byte(tc.content))
+			_, err = taskList.RemoveTaskWithPhases(tc.taskToRemove, []byte(tc.content))
 			if err != nil {
 				t.Fatalf("Failed to remove task %s: %v", tc.taskToRemove, err)
 			}
@@ -741,7 +741,7 @@ func TestPhasePreservationDuringOperations(t *testing.T) {
 		op   func(*TaskList) error
 	}{
 		{"add_task", func(tl *TaskList) error { _, err := tl.AddTask("", "New task", ""); return err }},
-		{"remove_task", func(tl *TaskList) error { return tl.RemoveTaskWithPhases("2", []byte(content)) }},
+		{"remove_task", func(tl *TaskList) error { _, err := tl.RemoveTaskWithPhases("2", []byte(content)); return err }},
 		{"update_task", func(tl *TaskList) error { return tl.UpdateTaskWithPhases("1", "Updated", nil, nil, []byte(content)) }},
 		{"update_status", func(tl *TaskList) error { return tl.UpdateStatusWithPhases("3", InProgress, []byte(content)) }},
 	}

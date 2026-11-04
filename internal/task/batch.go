@@ -40,29 +40,47 @@ func validateTaskIDFormat(id string) bool {
 //  2. Remove operations are sorted in reverse ID order (highest first) so
 //     removing one task doesn't renumber the others in the run.
 //
+// Positioned adds that target the same position run in reverse request order,
+// so they end up in request order in the list (T-1933).
+//
 // Operations are never moved across an operation of a different kind: doing
 // so would change which task an ID refers to (T-200, T-1874).
-func sortOperationsForExecution(ops []Operation) []Operation {
-	result := slices.Clone(ops)
+//
+// Each result keeps the operation's index in ops so errors can name the
+// operation the caller sent (T-1780).
+func sortOperationsForExecution(ops []Operation) []indexedOperation {
+	result := make([]indexedOperation, len(ops))
+	for i, op := range ops {
+		result[i] = indexedOperation{Operation: op, index: i}
+	}
 
 	i := 0
 	for i < len(result) {
-		kind := reorderKind(result[i])
+		kind := reorderKind(result[i].Operation)
 		if kind == "" {
 			i++
 			continue
 		}
 		blockStart := i
-		for i < len(result) && reorderKind(result[i]) == kind {
+		for i < len(result) && reorderKind(result[i].Operation) == kind {
 			i++
 		}
 		block := result[blockStart:i]
 		sort.SliceStable(block, func(a, b int) bool {
-			return comparePositions(reorderKey(block[a]), reorderKey(block[b])) > 0
+			if c := comparePositions(reorderKey(block[a].Operation), reorderKey(block[b].Operation)); c != 0 {
+				return c > 0
+			}
+			return kind == addOperation && block[a].index > block[b].index
 		})
 	}
 
 	return result
+}
+
+// indexedOperation is an operation with its 0-based index in the request.
+type indexedOperation struct {
+	Operation
+	index int
 }
 
 // reorderKind returns the run kind an operation belongs to for
@@ -149,16 +167,17 @@ type BatchRequest struct {
 
 // BatchResponse represents the response from a batch operation
 type BatchResponse struct {
-	Success       bool     `json:"success"`
-	Applied       int      `json:"applied"`
-	Errors        []string `json:"errors,omitempty"`
-	Preview       string   `json:"preview,omitempty"`
-	AutoCompleted []string `json:"auto_completed,omitempty"`
+	Success       bool      `json:"success"`
+	Applied       int       `json:"applied"`
+	Errors        []string  `json:"errors,omitempty"`
+	Preview       string    `json:"preview,omitempty"`
+	AutoCompleted []string  `json:"auto_completed,omitempty"`
+	Warnings      []Warning `json:"warnings,omitempty"`
 }
 
 // batchApplyFunc applies a single validated operation to a task list,
-// recording auto-completed parents and updating phase markers as needed.
-type batchApplyFunc func(tl *TaskList, op Operation, autoCompleted map[string]bool, phaseMarkers *[]PhaseMarker) error
+// updating phase markers as needed, and returns any warnings it produced.
+type batchApplyFunc func(tl *TaskList, op Operation, phaseMarkers *[]PhaseMarker) ([]Warning, error)
 
 // runBatch validates and applies ops, in execution order, to a deep copy of
 // tl. The original is never touched, so a failing operation leaves it
@@ -179,27 +198,71 @@ func (tl *TaskList) runBatch(ops []Operation, phaseMarkers []PhaseMarker, apply 
 
 	work := tl.deepCopy()
 	markers := slices.Clone(phaseMarkers)
-	autoCompleted := make(map[string]bool)
+	var warnings []Warning
 
-	for i, op := range sortedOps {
-		if err := validateOperation(work, op); err != nil {
+	for _, op := range sortedOps {
+		if err := validateOperation(work, op.Operation); err != nil {
 			response.Success = false
-			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
+			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", op.index+1, err))
 			return response, nil, nil
 		}
-		if err := apply(work, op, autoCompleted, &markers); err != nil {
+		opWarnings, err := apply(work, op.Operation, &markers)
+		if err != nil {
 			response.Success = false
-			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", i+1, err))
+			response.Errors = append(response.Errors, fmt.Sprintf("operation %d: %v", op.index+1, err))
 			return response, nil, nil
 		}
+		warnings = append(warnings, opWarnings...)
+		markAutoCompletedParents(work, op.Operation)
 	}
 
-	for taskID := range autoCompleted {
-		response.AutoCompleted = append(response.AutoCompleted, taskID)
-	}
+	response.AutoCompleted = collectAutoCompleted(work.Tasks, response.AutoCompleted)
 	sort.Strings(response.AutoCompleted)
+	response.Warnings = warnings
 	response.Applied = len(sortedOps)
 	return response, work, markers
+}
+
+// markAutoCompletedParents auto-completes the parents of a task that an
+// update operation just completed, and marks them so the batch can report
+// them. The marker travels with the task through later renumbering. A status
+// the operation set explicitly clears the task's own marker, since its
+// completion state is no longer automatic.
+func markAutoCompletedParents(tl *TaskList, op Operation) {
+	if strings.ToLower(op.Type) != updateOperation || !hasStatusField(op) {
+		return
+	}
+	if task := tl.FindTask(op.ID); task != nil {
+		task.autoCompleted = false
+	}
+	if *op.Status != Completed {
+		return
+	}
+	completed, err := tl.AutoCompleteParents(op.ID)
+	if err != nil {
+		// Auto-completion is a bonus feature, not critical to the operation
+		return
+	}
+	for _, id := range completed {
+		if task := tl.FindTask(id); task != nil {
+			task.autoCompleted = true
+		}
+	}
+}
+
+// collectAutoCompleted appends the final IDs of marked tasks that are still
+// complete, with every descendant complete, and clears every marker so none
+// leaks into the adopted task list (T-1776).
+func collectAutoCompleted(tasks []Task, ids []string) []string {
+	for i := range tasks {
+		task := &tasks[i]
+		if task.autoCompleted && task.Status == Completed && allChildrenComplete(task) {
+			ids = append(ids, task.ID)
+		}
+		task.autoCompleted = false
+		ids = collectAutoCompleted(task.Children, ids)
+	}
+	return ids
 }
 
 // ExecuteBatch validates and executes a batch of operations atomically:
@@ -208,15 +271,15 @@ func (tl *TaskList) runBatch(ops []Operation, phaseMarkers []PhaseMarker, apply 
 // and the response carries a preview of the result.
 func (tl *TaskList) ExecuteBatch(ops []Operation, dryRun bool) (*BatchResponse, error) {
 	response, result, _ := tl.runBatch(ops, nil,
-		func(l *TaskList, op Operation, autoCompleted map[string]bool, _ *[]PhaseMarker) error {
-			return applyOperationWithAutoComplete(l, op, autoCompleted)
+		func(l *TaskList, op Operation, _ *[]PhaseMarker) ([]Warning, error) {
+			return applyOperation(l, op)
 		})
 	if result == nil {
 		return response, nil
 	}
 
 	if dryRun {
-		response.Preview = string(RenderMarkdown(result))
+		response.Preview = SerializeWithFrontMatter(result.FrontMatter, string(RenderMarkdown(result)))
 		return response, nil
 	}
 
@@ -355,19 +418,19 @@ func validateExtendedFields(tl *TaskList, op Operation) error {
 	return nil
 }
 
-// applyOperation executes a single operation
-func applyOperation(tl *TaskList, op Operation) error {
+// applyOperation executes a single operation and returns any warnings it
+// produced, such as dependency references cleaned up by a remove.
+func applyOperation(tl *TaskList, op Operation) ([]Warning, error) {
 	switch strings.ToLower(op.Type) {
 	case addOperation:
 		_, err := tl.AddTaskWithPhases(op, &[]PhaseMarker{})
-		return err
+		return nil, err
 	case removeOperation:
-		_, err := tl.RemoveTaskWithDependents(op.ID)
-		return err
+		return tl.removeTaskWithWarnings(op.ID)
 	case updateOperation:
-		return applyUpdateOperation(tl, op)
+		return nil, applyUpdateOperation(tl, op)
 	default:
-		return fmt.Errorf("unknown operation type: %s", op.Type)
+		return nil, fmt.Errorf("unknown operation type: %s", op.Type)
 	}
 }
 
@@ -497,32 +560,6 @@ func applyUpdateOperation(tl *TaskList, op Operation) error {
 	return nil
 }
 
-// applyOperationWithAutoComplete executes a single operation and tracks auto-completed tasks
-func applyOperationWithAutoComplete(tl *TaskList, op Operation, autoCompleted map[string]bool) error {
-	// Apply the operation
-	if err := applyOperation(tl, op); err != nil {
-		return err
-	}
-
-	// Check for auto-completion on update operations that mark tasks as completed
-	if strings.ToLower(op.Type) == updateOperation && hasStatusField(op) && *op.Status == Completed {
-		// Check and auto-complete parent tasks
-		completed, err := tl.AutoCompleteParents(op.ID)
-		if err != nil {
-			// Log error but don't fail the operation
-			// Auto-completion is a bonus feature, not critical to the operation
-			return nil
-		}
-
-		// Track auto-completed tasks (avoid duplicates)
-		for _, taskID := range completed {
-			autoCompleted[taskID] = true
-		}
-	}
-
-	return nil
-}
-
 // ExecuteBatchWithPhases validates and executes a batch of operations atomically
 // with phase support, keeping phaseMarkers in step with the operations, and
 // writes the result to filePath (unless dryRun). Falls back to ExecuteBatch
@@ -556,7 +593,7 @@ func (tl *TaskList) ExecuteBatchWithPhases(ops []Operation, dryRun bool, phaseMa
 	}
 
 	if dryRun {
-		response.Preview = string(RenderMarkdownWithPhases(result, resultMarkers, nil))
+		response.Preview = SerializeWithFrontMatter(result.FrontMatter, string(RenderMarkdownWithPhases(result, resultMarkers, nil)))
 		return response, nil
 	}
 
@@ -610,14 +647,15 @@ func updateTaskDetailsAndReferences(tl *TaskList, taskID string, details []strin
 	return nil
 }
 
-// applyOperationWithPhases executes a single operation with phase support and tracks auto-completed tasks
-func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[string]bool, phaseMarkers *[]PhaseMarker) error {
+// applyOperationWithPhases executes a single operation with phase support and
+// returns any warnings it produced.
+func applyOperationWithPhases(tl *TaskList, op Operation, phaseMarkers *[]PhaseMarker) ([]Warning, error) {
 	switch strings.ToLower(op.Type) {
 	case addPhaseOperation:
 		// Create a new phase at the end of the document
 		phaseName, err := NormalizePhaseName(op.Phase)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		// Determine the AfterTaskID - if there are tasks, use the last one's ID
 		afterTaskID := ""
@@ -629,14 +667,13 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 			Name:        phaseName,
 			AfterTaskID: afterTaskID,
 		})
-		return nil
+		return nil, nil
 	case addOperation:
 		_, err := tl.AddTaskWithPhases(op, phaseMarkers)
-		return err
+		return nil, err
 	case removeOperation:
 		adjustPhaseMarkersForRemoval(op.ID, phaseMarkers)
-		_, err := tl.RemoveTaskWithDependents(op.ID)
-		return err
+		return tl.removeTaskWithWarnings(op.ID)
 	case updateOperation:
 		// Apply field updates BEFORE status to avoid partial mutation if
 		// UpdateTask/UpdateTaskWithOptions rejects invalid content.
@@ -667,35 +704,23 @@ func applyOperationWithPhases(tl *TaskList, op Operation, autoCompleted map[stri
 				opts.Owner = op.Owner
 			}
 			if err := tl.UpdateTaskWithOptions(op.ID, opts); err != nil {
-				return err
+				return nil, err
 			}
 		} else {
 			// Handle other field updates (title, details, references, requirements) if provided
 			if err := tl.UpdateTask(op.ID, op.Title, op.Details, op.References, op.Requirements); err != nil {
-				return err
+				return nil, err
 			}
 		}
 
-		// Apply status after other fields have been validated and applied
+		// Apply status after other fields have been validated and applied.
+		// Parent auto-completion is handled by runBatch.
 		if hasStatusField(op) {
-			if err := tl.UpdateStatus(op.ID, *op.Status); err != nil {
-				return err
-			}
-
-			// Check for auto-completion on update operations that mark tasks as completed
-			if *op.Status == Completed {
-				completed, err := tl.AutoCompleteParents(op.ID)
-				if err == nil {
-					// Track auto-completed tasks (avoid duplicates)
-					for _, taskID := range completed {
-						autoCompleted[taskID] = true
-					}
-				}
-			}
+			return nil, tl.UpdateStatus(op.ID, *op.Status)
 		}
-		return nil
+		return nil, nil
 	default:
-		return fmt.Errorf("unknown operation type: %s", op.Type)
+		return nil, fmt.Errorf("unknown operation type: %s", op.Type)
 	}
 }
 

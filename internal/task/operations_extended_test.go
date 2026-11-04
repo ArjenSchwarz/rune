@@ -798,7 +798,7 @@ func TestRemoveTaskWithPhases_CleansBlockedBy(t *testing.T) {
 	tl.FilePath = "t806_test_phases.md"
 
 	// Remove the blocker via the phase-aware path (no actual phases)
-	if err := tl.RemoveTaskWithPhases(blockerID, md); err != nil {
+	if _, err := tl.RemoveTaskWithPhases(blockerID, md); err != nil {
 		t.Fatalf("RemoveTaskWithPhases failed: %v", err)
 	}
 

@@ -199,6 +199,7 @@ func runBatch(cmd *cobra.Command, args []string) error {
 	case formatJSON:
 		err = outputBatchJSON(cmd, response)
 	default: // formatTable, formatMarkdown
+		printWarnings(response.Warnings)
 		err = outputBatchText(cmd, response, req.DryRun, req.File, taskList)
 	}
 	if err != nil {
