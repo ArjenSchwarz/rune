@@ -144,7 +144,7 @@ rune add [file] --title [title] [options]
 - `--details [text,...]` - Comma-separated detail points
 - `--references [ref,...]` - Comma-separated references
 - `--requirements [id,...]` - Comma-separated requirement IDs (e.g., "1.1,1.2,2.3")
-- `--requirements-file [path]` - Path to requirements file (default: requirements.md)
+- `--requirements-file [path]` - Path to requirements file (default: requirements.md); requires `--requirements`
 - `--stream [N]` - Assign to stream N for parallel execution
 - `--blocked-by [ids]` - Comma-separated task IDs that must complete first
 - `--owner [AGENT_ID]` - Claim the task for an agent

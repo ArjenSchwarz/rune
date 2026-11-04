@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -294,7 +295,7 @@ func validateOperation(tl *TaskList, op Operation) error {
 		if op.Title == "" {
 			return fmt.Errorf("add operation requires title")
 		}
-		if len(op.Title) > MaxTitleLength {
+		if utf8.RuneCountInString(op.Title) > MaxTitleLength {
 			return fmt.Errorf("task title exceeds %d characters", MaxTitleLength)
 		}
 		if op.Parent != "" && tl.FindTask(op.Parent) == nil {
@@ -339,7 +340,7 @@ func validateOperation(tl *TaskList, op Operation) error {
 		if tl.FindTask(op.ID) == nil {
 			return fmt.Errorf("task %s not found", op.ID)
 		}
-		if op.Title != "" && len(op.Title) > MaxTitleLength {
+		if op.Title != "" && utf8.RuneCountInString(op.Title) > MaxTitleLength {
 			return fmt.Errorf("task title exceeds %d characters", MaxTitleLength)
 		}
 		// Validate status only when status field is provided
