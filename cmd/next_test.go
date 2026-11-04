@@ -2076,7 +2076,7 @@ func TestAddIncompleteChildrenToDataWithGrandchildren(t *testing.T) {
 	}
 
 	var taskData []map[string]any
-	addIncompleteChildrenToData(parent, &taskData)
+	addIncompleteChildrenToData(parent, &taskData, nil)
 
 	// Should include both the completed child (because it has incomplete work)
 	// and the pending grandchild
@@ -2124,7 +2124,7 @@ func TestRenderTaskMarkdownWithGrandchildren(t *testing.T) {
 		},
 	}
 
-	result := renderTaskMarkdown(parent, "", "")
+	result := renderTaskMarkdown(parent, "", "", nil)
 
 	// The output should include the pending grandchild via the completed child
 	if !strings.Contains(result, "1.1.1") {

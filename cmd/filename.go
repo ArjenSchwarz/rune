@@ -23,8 +23,9 @@ func resolveFilename(args []string) (string, error) {
 	if cfg.Discovery.Enabled {
 		if path, err := config.DiscoverFileFromBranch(cfg.Discovery.Template); err == nil {
 			return discoveredPath(path)
-		} else if verbose {
-			fmt.Printf("Git discovery failed: %v\n", err)
+		} else {
+			// stderr keeps stdout clean for JSON output (T-2127)
+			verboseStderr("Git discovery failed: %v", err)
 		}
 		// Fall through to require explicit file
 	}
