@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependencies**: Warn on duplicate stable IDs, retain the first occurrence, and remove stale dependencies when deleting task subtrees (T-1762, T-1772).
 - **Task Readiness**: Respect owners and blockers when selecting work, keep blocked parents from being auto-completed, and require a completed blocker’s descendants to be complete before unlocking dependents (T-1777, T-2126, T-2161).
 - **Specs Overview**: Report parse failures instead of presenting empty results, and handle unknown and timezone-aware dates when sorting (T-1884, T-1885).
-- **Specs Overview**: List each spec once when `--dirs` roots overlap or name the same directory differently (T-2011).
+- **Specs Overview**: List each spec once when `--dirs` or `--project-dirs` entries overlap or name the same directory differently (T-2011).
 - **File Discovery**: Resolve discovered files from repository subdirectories, report paths reusable for reads, and retain default-enabled discovery while respecting an explicit false setting (T-959, T-1065).
 - **Phases**: Reject conflicting top-level phase and position options while retaining positioned subtask insertion, and preserve phase membership for promoted children in filtered Markdown (T-919, T-973, T-1352).
 - **Next Command**: Select ready descendants of completed parents, apply phase and stream filters consistently, treat unphased files consistently when phase and stream options are combined, and scope phase summaries correctly (T-905, T-1319, T-1433, T-1705, T-2000).

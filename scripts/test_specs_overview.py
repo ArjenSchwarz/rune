@@ -151,6 +151,28 @@ class TestOverlappingRoots(unittest.TestCase):
             result = specs_overview.scan_specs([str(specs), str(specs / "alpha")], "rune")
         self.assertEqual(sorted(s.name for s in result), ["alpha", "beta"])
 
+    def test_multi_project_overlapping_workspaces(self):
+        workspace = self.root / "workspace"
+        for project in ("proj", "other"):
+            spec_dir = workspace / project / "specs" / "alpha"
+            spec_dir.mkdir(parents=True)
+            (spec_dir / "tasks.md").write_text("# T\n\n- [ ] 1. Task\n")
+        link = self.root / "workspace-link"
+        link.symlink_to(workspace, target_is_directory=True)
+
+        with mock.patch.object(specs_overview, "get_creation_date", return_value=None), \
+             mock.patch.object(specs_overview, "get_task_stats", return_value={}):
+            result = specs_overview.scan_multi_project(
+                [str(workspace), str(workspace), str(link)], ["specs"], "rune"
+            )
+        # Distinct projects stay; the repeated and symlinked workspace add nothing.
+        self.assertEqual(
+            sorted((s.project, s.name) for s in result),
+            [("other", "alpha"), ("proj", "alpha")],
+        )
+        # First-seen spelling is kept.
+        self.assertTrue(all(str(s.path).startswith(str(workspace.resolve())) for s in result))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -73,13 +73,15 @@ class SpecInfo:
         return self.total - self.completed
 
 
-def find_spec_directories(root_dirs: List[str]) -> List[Path]:
+def find_spec_directories(root_dirs: List[str], seen: Optional[set] = None) -> List[Path]:
     """Find all directories containing tasks.md files.
 
     Each resolved directory is returned once, even when several roots overlap.
+    Pass a shared ``seen`` set to also skip directories found by earlier calls.
     """
     spec_dirs = []
-    seen = set()
+    if seen is None:
+        seen = set()
 
     for root in root_dirs:
         root_path = Path(root)
@@ -210,9 +212,11 @@ def get_task_stats(spec_dir: Path, rune_path: str) -> dict:
     return stats
 
 
-def scan_specs(root_dirs: List[str], rune_path: str, project_name: Optional[str] = None) -> List[SpecInfo]:
+def scan_specs(
+    root_dirs: List[str], rune_path: str, project_name: Optional[str] = None, seen: Optional[set] = None
+) -> List[SpecInfo]:
     """Scan all spec directories and gather information."""
-    spec_dirs = find_spec_directories(root_dirs)
+    spec_dirs = find_spec_directories(root_dirs, seen)
     specs = []
 
     for spec_dir in spec_dirs:
@@ -264,6 +268,7 @@ def scan_multi_project(project_dirs: List[str], spec_dirs: List[str], rune_path:
         List of SpecInfo for all specs found across all projects
     """
     all_specs = []
+    seen = set()  # resolved spec directories, shared so overlapping project dirs add nothing
 
     for project_base in project_dirs:
         project_base_path = Path(project_base).expanduser().resolve()
@@ -292,7 +297,7 @@ def scan_multi_project(project_dirs: List[str], spec_dirs: List[str], rune_path:
 
             # If this project has any spec directories, scan them
             if project_spec_dirs:
-                project_specs = scan_specs(project_spec_dirs, rune_path, project_name)
+                project_specs = scan_specs(project_spec_dirs, rune_path, project_name, seen)
                 all_specs.extend(project_specs)
 
     return all_specs
