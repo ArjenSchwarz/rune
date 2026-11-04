@@ -35,6 +35,10 @@ var (
 	// Only matches positive integers
 	streamPattern = regexp.MustCompile(`(?i)^stream:\s*(\d+)$`)
 
+	// streamPrefixPattern matches any line that starts like Stream metadata,
+	// so a malformed value can be warned about instead of silently ignored
+	streamPrefixPattern = regexp.MustCompile(`(?i)^stream:`)
+
 	// ownerPattern matches the Owner metadata line (case-insensitive)
 	ownerPattern = regexp.MustCompile(`(?i)^owner:\s*(.+)$`)
 
@@ -136,8 +140,13 @@ func parseContent(content string) (*TaskList, error) {
 	}
 	taskList.FrontMatter = frontMatter
 
-	// Now parse the remaining content, normalizing CRLF line endings
-	lines := splitLines(remainingContent)
+	// Now parse the remaining content, normalizing CRLF line endings.
+	// Front matter lines are replaced by blank lines (which the parser skips)
+	// so that line indices, and the line numbers in parse errors, match the
+	// source file.
+	normalized := strings.ReplaceAll(content, "\r\n", "\n")
+	frontMatterLines := strings.Count(normalized[:len(normalized)-len(remainingContent)], "\n")
+	lines := append(make([]string, frontMatterLines), splitLines(remainingContent)...)
 
 	// Extract title if present — only consider the first non-empty line.
 	// A title is only valid at the top of the file, before any tasks.
@@ -151,8 +160,9 @@ func parseContent(content string) (*TaskList, error) {
 			if title != "" {
 				taskList.Title = title
 			}
-			// Remove the heading line from the line array
-			lines = append(lines[:i], lines[i+1:]...)
+			// Blank the heading line rather than removing it, so line
+			// numbers in parse errors still match the source file
+			lines[i] = ""
 		}
 		break
 	}
@@ -312,9 +322,18 @@ func applyDetailLine(task *Task, v string, taskList *TaskList) (string, error) {
 			return "Blocked-by", nil
 		}
 	}
-	if stream := parseStreamLine(v); stream > 0 {
-		task.Stream = stream
-		return "Stream", nil
+	if stream, ok := parseStreamLine(v); ok {
+		if stream > 0 {
+			task.Stream = stream
+			return "Stream", nil
+		}
+		// A malformed value is treated as unset and the line stays a plain
+		// detail so its text is not lost on the next write.
+		taskList.Warnings = append(taskList.Warnings, Warning{
+			Code:    WarnInvalidStreamValue,
+			Message: fmt.Sprintf("task %s: ignoring invalid stream value in %q: a stream must be a positive integer", task.ID, v),
+			TaskID:  task.ID,
+		})
 	}
 	if owner := parseOwnerLine(v); owner != "" {
 		task.Owner = owner
@@ -552,22 +571,25 @@ func splitBlockedByRefs(value string) []string {
 	return append(refs, value[start:])
 }
 
-// parseStreamLine parses a Stream metadata line and returns the stream number
-// Returns 0 if the line is not a Stream line or contains an invalid value
-func parseStreamLine(line string) int {
+// parseStreamLine parses a Stream metadata line. It returns the stream
+// number, or 0 if the value is not a valid positive integer, and whether the
+// line is a Stream line at all.
+func parseStreamLine(line string) (int, bool) {
+	if !streamPrefixPattern.MatchString(line) {
+		return 0, false
+	}
 	matches := streamPattern.FindStringSubmatch(line)
 	if len(matches) < 2 {
-		return 0
+		return 0, true
 	}
 
-	// Parse the stream number (pattern already ensures it's a positive integer)
-	var stream int
-	_, err := fmt.Sscanf(matches[1], "%d", &stream)
+	// The pattern ensures digits only; Atoi rejects values that overflow
+	stream, err := strconv.Atoi(matches[1])
 	if err != nil || stream <= 0 {
-		return 0
+		return 0, true
 	}
 
-	return stream
+	return stream, true
 }
 
 // parseOwnerLine parses an Owner metadata line and returns the owner string
