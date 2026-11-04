@@ -151,9 +151,9 @@ func runNext(cmd *cobra.Command, args []string) error {
 	case formatJSON:
 		return outputNextTaskJSON(nextTask, taskList.FrontMatter, taskList.RequirementsFile)
 	case formatMarkdown:
-		return outputNextTaskMarkdown(nextTask, taskList.FrontMatter, taskList.RequirementsFile)
+		return outputNextTaskMarkdown(nextTask, taskList.FrontMatter, taskList.RequirementsFile, nil)
 	default:
-		return outputNextTaskTable(nextTask, taskList.FrontMatter)
+		return outputNextTaskTable(nextTask, taskList.FrontMatter, nil)
 	}
 }
 
@@ -190,9 +190,9 @@ func runNextWithStream(filename string) error {
 	case formatJSON:
 		return outputNextTaskJSONWithStream(nextTask, taskList.FrontMatter, index, taskList.RequirementsFile)
 	case formatMarkdown:
-		return outputNextTaskMarkdown(nextTask, taskList.FrontMatter, taskList.RequirementsFile)
+		return outputNextTaskMarkdown(nextTask, taskList.FrontMatter, taskList.RequirementsFile, index)
 	default:
-		return outputNextTaskTable(nextTask, taskList.FrontMatter)
+		return outputNextTaskTable(nextTask, taskList.FrontMatter, index)
 	}
 }
 
@@ -412,37 +412,32 @@ func findDeepestTask(taskCtx *task.TaskWithContext) *task.Task {
 	return findDeepestTask(childCtx)
 }
 
-// outputNextTaskTable renders the next task in table format
-func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter) error {
+// outputNextTaskTable renders the next task in table format. When index is
+// non-nil (next --stream), Stream and BlockedBy columns are added for every
+// row, as in the stream JSON output (T-2274).
+func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter, index *task.DependencyIndex) error {
 	// Build task data for display
 	var taskData []map[string]any
 
 	// Add the main task
-	taskRecord := map[string]any{
-		"ID":         nextTask.ID,
-		columnTitle:  nextTask.Title,
-		columnStatus: formatStatus(nextTask.Status),
-		columnLevel:  getTaskLevel(nextTask.ID),
-	}
-	taskData = append(taskData, taskRecord)
+	taskData = append(taskData, nextTaskRecord(nextTask.Task, index))
 
 	// Add incomplete children
 	for _, child := range nextTask.IncompleteChildren {
-		childRecord := map[string]any{
-			"ID":         child.ID,
-			columnTitle:  child.Title,
-			columnStatus: formatStatus(child.Status),
-			columnLevel:  getTaskLevel(child.ID),
-		}
-		taskData = append(taskData, childRecord)
+		taskData = append(taskData, nextTaskRecord(&child, index))
 
 		// Recursively add incomplete grandchildren
-		addIncompleteChildrenToData(&child, &taskData)
+		addIncompleteChildrenToData(&child, &taskData, index)
+	}
+
+	keys := []string{"ID", columnTitle, columnStatus, columnLevel}
+	if index != nil {
+		keys = append(keys, columnStream, columnBlockedBy)
 	}
 
 	// Create table document
 	builder := output.New().
-		Table("Next Task", taskData, output.WithKeys("ID", columnTitle, columnStatus, columnLevel))
+		Table("Next Task", taskData, output.WithKeys(keys...))
 
 	// Add details and task-level references of every listed task, the
 	// subtasks included (T-2022)
@@ -482,14 +477,17 @@ func outputNextTaskTable(nextTask *task.TaskWithContext, frontMatter *task.Front
 	return out.Render(context.Background(), doc)
 }
 
-// outputNextTaskMarkdown renders the next task in markdown format
-func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter, reqFile string) error {
+// outputNextTaskMarkdown renders the next task in markdown format. When index
+// is non-nil (next --stream), each task also shows its stream and Blocked-by
+// IDs, as in the stream JSON output (T-2274).
+func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.FrontMatter, reqFile string, index *task.DependencyIndex) error {
 	var result strings.Builder
 
 	// Add main task
 	result.WriteString("# Next Task\n\n")
 	fmt.Fprintf(&result, "- %s %s. %s\n",
 		formatStatusMarkdown(nextTask.Status), nextTask.ID, nextTask.Title)
+	writeStreamMetadataMarkdown(&result, nextTask.Task, "", index)
 
 	// Add task details if present
 	if len(nextTask.Details) > 0 {
@@ -505,7 +503,7 @@ func outputNextTaskMarkdown(nextTask *task.TaskWithContext, frontMatter *task.Fr
 
 	// Add incomplete children
 	for _, child := range nextTask.IncompleteChildren {
-		result.WriteString(renderTaskMarkdown(&child, "  ", reqFile))
+		result.WriteString(renderTaskMarkdown(&child, "  ", reqFile, index))
 	}
 
 	// Add task-level references if present
@@ -599,21 +597,43 @@ func outputNextTaskJSON(nextTask *task.TaskWithContext, frontMatter *task.FrontM
 
 // Helper functions
 
+// nextTaskRecord builds a table row for next output. Stream and BlockedBy
+// are included when index is non-nil.
+func nextTaskRecord(t *task.Task, index *task.DependencyIndex) map[string]any {
+	record := map[string]any{
+		"ID":         t.ID,
+		columnTitle:  t.Title,
+		columnStatus: formatStatus(t.Status),
+		columnLevel:  getTaskLevel(t.ID),
+	}
+	if index != nil {
+		record[columnStream] = task.GetEffectiveStream(t)
+		record[columnBlockedBy] = formatBlockedByForDisplay(t, index)
+	}
+	return record
+}
+
+// writeStreamMetadataMarkdown writes a task's stream and Blocked-by lines
+// when index is non-nil.
+func writeStreamMetadataMarkdown(b *strings.Builder, t *task.Task, indent string, index *task.DependencyIndex) {
+	if index == nil {
+		return
+	}
+	fmt.Fprintf(b, "%s  Stream: %d\n", indent, task.GetEffectiveStream(t))
+	if len(t.BlockedBy) > 0 {
+		fmt.Fprintf(b, "%s  Blocked-by: %s\n", indent, formatBlockedByForDisplay(t, index))
+	}
+}
+
 // addIncompleteChildrenToData recursively adds children with incomplete work to table data.
 // This includes completed children that have incomplete descendants.
-func addIncompleteChildrenToData(parentTask *task.Task, taskData *[]map[string]any) {
+func addIncompleteChildrenToData(parentTask *task.Task, taskData *[]map[string]any, index *task.DependencyIndex) {
 	for _, child := range parentTask.Children {
 		if task.HasIncompleteWork(&child) {
-			childRecord := map[string]any{
-				"ID":         child.ID,
-				columnTitle:  child.Title,
-				columnStatus: formatStatus(child.Status),
-				columnLevel:  getTaskLevel(child.ID),
-			}
-			*taskData = append(*taskData, childRecord)
+			*taskData = append(*taskData, nextTaskRecord(&child, index))
 
 			// Recursively add its incomplete children
-			addIncompleteChildrenToData(&child, taskData)
+			addIncompleteChildrenToData(&child, taskData, index)
 		}
 	}
 }
@@ -655,10 +675,11 @@ func requirementLinks(reqs []string, reqFile string) string {
 }
 
 // renderTaskMarkdown recursively renders a task in markdown format
-func renderTaskMarkdown(t *task.Task, indent, reqFile string) string {
+func renderTaskMarkdown(t *task.Task, indent, reqFile string, index *task.DependencyIndex) string {
 	var result strings.Builder
 	fmt.Fprintf(&result, "%s- %s %s. %s\n",
 		indent, formatStatusMarkdown(t.Status), t.ID, t.Title)
+	writeStreamMetadataMarkdown(&result, t, indent, index)
 
 	// Add task details if present
 	if len(t.Details) > 0 {
@@ -679,7 +700,7 @@ func renderTaskMarkdown(t *task.Task, indent, reqFile string) string {
 
 	for _, child := range t.Children {
 		if task.HasIncompleteWork(&child) {
-			result.WriteString(renderTaskMarkdown(&child, indent+"  ", reqFile))
+			result.WriteString(renderTaskMarkdown(&child, indent+"  ", reqFile, index))
 		}
 	}
 

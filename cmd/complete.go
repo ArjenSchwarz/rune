@@ -88,7 +88,22 @@ func runComplete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("task %s not found", taskID)
 	}
 
-	// Dry run mode - just show what would be completed
+	// Capture the status before mutating; targetTask points into tl.
+	currentStatus := statusToString(targetTask.Status)
+
+	// Apply the change to the parsed in-memory list. In dry-run mode the
+	// list is never written, so this simulates exactly what the live command does.
+	if err := tl.UpdateStatus(taskID, task.Completed); err != nil {
+		return fmt.Errorf("failed to update task status: %w", err)
+	}
+
+	// Auto-complete parent tasks if all their children are now complete
+	autoCompleted, err := tl.AutoCompleteParents(taskID)
+	if err != nil {
+		return fmt.Errorf("failed to auto-complete parent tasks: %w", err)
+	}
+
+	// Dry run mode - show what would change without writing
 	if dryRun {
 		switch format {
 		case formatJSON:
@@ -98,30 +113,26 @@ func runComplete(cmd *cobra.Command, args []string) error {
 				TaskID:        taskID,
 				Title:         targetTask.Title,
 				DryRun:        true,
-				CurrentStatus: statusToString(targetTask.Status),
+				CurrentStatus: currentStatus,
+				AutoCompleted: autoCompleted,
 			})
 		case formatMarkdown:
-			fmt.Printf("**Dry run:** Would mark %s - %s as completed (currently %s)\n", taskID, targetTask.Title, statusToString(targetTask.Status))
+			fmt.Printf("**Dry run:** Would mark %s - %s as completed (currently %s)\n", taskID, targetTask.Title, currentStatus)
+			if len(autoCompleted) > 0 {
+				fmt.Printf("**Dry run:** Would auto-complete: %s\n", strings.Join(autoCompleted, ", "))
+			}
 			return nil
 		default: // table
 			fmt.Printf("Would mark task as completed in file: %s\n", filename)
 			fmt.Printf("Task ID: %s\n", taskID)
-			fmt.Printf("Current status: %s\n", statusToString(targetTask.Status))
+			fmt.Printf("Current status: %s\n", currentStatus)
 			fmt.Printf("New status: completed\n")
 			fmt.Printf("Title: %s\n", targetTask.Title)
+			if len(autoCompleted) > 0 {
+				fmt.Printf("Would auto-complete parent tasks: %s\n", strings.Join(autoCompleted, ", "))
+			}
 			return nil
 		}
-	}
-
-	// Update the task status
-	if err := tl.UpdateStatus(taskID, task.Completed); err != nil {
-		return fmt.Errorf("failed to update task status: %w", err)
-	}
-
-	// Auto-complete parent tasks if all their children are now complete
-	autoCompleted, err := tl.AutoCompleteParents(taskID)
-	if err != nil {
-		return fmt.Errorf("failed to auto-complete parent tasks: %w", err)
 	}
 
 	// Write the updated file

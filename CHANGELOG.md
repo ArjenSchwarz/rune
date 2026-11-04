@@ -8,7 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Fixed
 
+- **Dry Run**: `complete --dry-run` now previews parent tasks that the live command would auto-complete. The preview previously stopped at the targeted task, so completing the last pending child of a parent showed one change when the real run made two. JSON output now includes `auto_completed`, and markdown and table output list the parents that would be auto-completed. The file is still left unchanged
 - **GitHub Action**: Prefer SHA-256 checksums, fall back to verified MD5 only when an older release has no SHA-256 sidecar, and send release-download credentials with the Bearer scheme (T-1143, T-2241).
+- **GitHub Action**: Run the setup action on the `node24` runtime instead of the deprecated `node20` (T-1471).
 - **Batch Command**: Exit unsuccessfully for rejected batches, reject unknown JSON fields before writes, and preserve operation order around positioned additions (T-1789, T-1844, T-1874).
 - **Input Validation**: Reject unsupported `--format` values on every command (case-insensitively, as `batch` already did), owners that are blank or have leading or trailing whitespace, `add --requirements-file` without `--requirements`, and comma-only `add --blocked-by` values, instead of silently dropping or reinterpreting them (T-1243, T-1782, T-2145, T-2325).
 - **Input Validation**: Count title, detail and reference length limits in characters rather than UTF-8 bytes (T-1793).
@@ -21,12 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependencies**: Warn on duplicate stable IDs, retain the first occurrence, and remove stale dependencies when deleting task subtrees (T-1762, T-1772).
 - **Task Readiness**: Respect owners and blockers when selecting work, keep blocked parents from being auto-completed, and require a completed blocker’s descendants to be complete before unlocking dependents (T-1777, T-2126, T-2161).
 - **Specs Overview**: Report parse failures instead of presenting empty results, and handle unknown and timezone-aware dates when sorting (T-1884, T-1885).
+- **Specs Overview**: List each spec once when `--dirs` or `--project-dirs` entries overlap or name the same directory differently (T-2011).
 - **File Discovery**: Resolve discovered files from repository subdirectories, report paths reusable for reads, and retain default-enabled discovery while respecting an explicit false setting (T-959, T-1065).
 - **Phases**: Reject conflicting top-level phase and position options while retaining positioned subtask insertion, and preserve phase membership for promoted children in filtered Markdown (T-919, T-973, T-1352).
 - **Next Command**: Select ready descendants of completed parents, apply phase and stream filters consistently, treat unphased files consistently when phase and stream options are combined, and scope phase summaries correctly (T-905, T-1319, T-1433, T-1705, T-2000).
 - **File Writes and Flags**: Write through validated symlinks without replacing the link, and preserve literal commas in repeated `--reference` and `--meta` values (T-1796, T-1804).
 - **Parsing**: Handle UTF-8 BOMs in task and phase parsing; preserve comma-containing reference and requirements paths, legacy UNC references, and malformed requirements text (T-1808, T-1848, T-1907, T-2063).
 - **Parsing**: Warn about malformed blocker references and reject details that would be interpreted as task lines on the next read (T-1998, T-1999).
+- **Parsing**: Report parse error line numbers relative to the source file, including front matter and the title line, and warn about malformed `Stream:` values while treating them as unset (T-1879, T-2197).
 - **Update and Add Commands**: Validate and preview extended updates during dry runs, clear dependencies when `--blocked-by` is explicitly empty, and reject comma-only requirements values in `add` and `update` without modifying the file (T-1381, T-1750, T-1493, T-2023).
 - **Task Status**: Reopen completed ancestors when `uncomplete` or `progress` changes a descendant (T-1456).
 - **Output Formats**: Retain requirements context in phased list, find and next output, including claim and dry-run paths; include descendant details and references in next tables (T-1129, T-1994, T-1995, T-2022).
@@ -34,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependency Output**: Resolve filtered list/find blockers against the full file and expose valid but unresolved blocker IDs without making the task available (T-1206, T-1809).
 - **Streams and Phases**: Keep owned pending tasks visible in a `claimed` category while unavailable, and include stream and blocker metadata in phase table and Markdown output (T-1626, T-2176).
 - **Claim Output**: Include task details, task references and front-matter references, and reject explicitly empty or whitespace-only claim identifiers without writing (T-2184, T-2010).
+- **Find Command**: Attach `--include-parent` context only to matches that survive `--status`, `--max-depth` and `--parent` filters, and show stream, owner, blocker and requirement metadata in table and Markdown results (T-2070, T-2242).
+- **List Command**: Keep the document title and front matter in empty JSON and Markdown results, and include front-matter references in Markdown output without `--all` (T-2100, T-2182).
+- **Next Command**: Show stream and blocker IDs in `next --stream` table and Markdown output (T-2274).
+- **File Discovery**: Write the verbose discovery-failure diagnostic to stderr so JSON stdout stays clean (T-2127).
 
 - **List Command**: `list --format json` on a file with phases now includes `Phase` on every task, not just top-level tasks. Nested children previously had no `Phase` field, so consumers had to infer it from ancestry; they now carry their root task's phase, matching table output. Children promoted to the top level by `--filter`, `--stream` or `--owner` keep their original phase. Files without phases are unchanged
 - **Phases**: Phase membership is now determined the same way the parser nests tasks, by indentation. Previously the phase scanners treated any task line whose raw ID had no dot as a top-level task, so a subtask hand-written as `  - [ ] 1. child` shifted every later task into the wrong phase in `list`, `next --phase` and `next --phase --stream`, and `add --phase` then wrote that wrong layout back to the file, moving tasks between phases. Front matter is also stripped before phase headers are detected on every write path, so a YAML `## comment` line is no longer mistaken for a phase

@@ -98,12 +98,13 @@ func runFind(cmd *cobra.Command, args []string) error {
 		verboseStderr("Total tasks: %d", countAllTasks(taskList.Tasks))
 	}
 
-	// Set up query options
+	// Set up query options. Parent context is not requested here: it is
+	// added after filtering, so a filter cannot remove the match while
+	// keeping its context (T-2070).
 	opts := task.QueryOptions{
 		CaseSensitive: caseSensitive,
 		SearchDetails: searchDetails,
 		SearchRefs:    searchRefs,
-		IncludeParent: includeParent,
 	}
 
 	// Perform the search
@@ -115,6 +116,17 @@ func runFind(cmd *cobra.Command, args []string) error {
 		results = applyAdditionalFilters(results, statusFilter, maxDepth, parentIDFilter, parentFilterSet)
 	}
 
+	if includeParent {
+		// The filters re-point a ParentID past a filtered-out parent; restore
+		// the source parent so it is added back as context.
+		for i := range results {
+			if src := taskList.FindTask(results[i].ID); src != nil {
+				results[i].ParentID = src.ParentID
+			}
+		}
+		results = taskList.InsertParents(results)
+	}
+
 	if len(results) == 0 {
 		return outputFindEmpty(fmt.Sprintf("No matching tasks found for pattern: %s", findPattern))
 	}
@@ -123,14 +135,15 @@ func runFind(cmd *cobra.Command, args []string) error {
 		verboseStderr("Found %d matching tasks", len(results))
 	}
 
-	// Output results based on format
+	// Output results based on format. The dependency index covers the whole
+	// file so Blocked-by references outside the results still translate.
 	switch format {
 	case formatJSON:
 		return outputSearchResultsJSON(results, findPattern, taskList)
 	case formatMarkdown:
-		return outputSearchResultsMarkdown(results, findPattern)
+		return outputSearchResultsMarkdown(results, findPattern, task.BuildDependencyIndex(taskList.Tasks), taskList.RequirementsFile)
 	default:
-		return outputSearchResultsTable(results, findPattern, taskList.Title)
+		return outputSearchResultsTable(results, findPattern, taskList.Title, task.BuildDependencyIndex(taskList.Tasks))
 	}
 }
 
@@ -201,7 +214,17 @@ func applyAdditionalFilters(results []task.Task, statusFilter string, maxDepth i
 	return filtered
 }
 
-func outputSearchResultsTable(results []task.Task, pattern, title string) error {
+func outputSearchResultsTable(results []task.Task, pattern, title string, depIndex *task.DependencyIndex) error {
+	// Scheduling and requirement columns are shown only when some result
+	// has that metadata, as in list output (T-2242).
+	hasStream := detectNonDefaultStreams(results)
+	hasBlockedBy := detectBlockedByExists(results)
+	var hasOwner, hasRequirements bool
+	for _, t := range results {
+		hasOwner = hasOwner || t.Owner != ""
+		hasRequirements = hasRequirements || len(t.Requirements) > 0
+	}
+
 	// Convert results to table data
 	tableData := make([]map[string]any, 0, len(results))
 
@@ -234,13 +257,33 @@ func outputSearchResultsTable(results []task.Task, pattern, title string) error 
 			record["References"] = ""
 		}
 
+		record[columnStream] = task.GetEffectiveStream(&t)
+		record[columnBlockedBy] = formatBlockedByForDisplay(&t, depIndex)
+		record["Owner"] = t.Owner
+		record["Requirements"] = strings.Join(t.Requirements, ", ")
+
 		tableData = append(tableData, record)
 	}
+
+	keys := []string{"ID", columnTitle, columnStatus, columnLevel, "Parent"}
+	if hasStream {
+		keys = append(keys, columnStream)
+	}
+	if hasBlockedBy {
+		keys = append(keys, columnBlockedBy)
+	}
+	if hasOwner {
+		keys = append(keys, "Owner")
+	}
+	if hasRequirements {
+		keys = append(keys, "Requirements")
+	}
+	keys = append(keys, "Details", "References")
 
 	// Create document using go-output/v2
 	doc := output.New().
 		Table(fmt.Sprintf("Search Results for '%s' in %s", pattern, title), tableData,
-			output.WithKeys("ID", columnTitle, columnStatus, columnLevel, "Parent", "Details", "References")).
+			output.WithKeys(keys...)).
 		Build()
 
 	// Create output renderer
@@ -268,7 +311,7 @@ func outputSearchResultsJSON(results []task.Task, pattern string, source *task.T
 	return nil
 }
 
-func outputSearchResultsMarkdown(results []task.Task, pattern string) error {
+func outputSearchResultsMarkdown(results []task.Task, pattern string, depIndex *task.DependencyIndex, reqFile string) error {
 	var sb strings.Builder
 
 	fmt.Fprintf(&sb, "# Search Results for '%s'\n\n", pattern)
@@ -295,6 +338,20 @@ func outputSearchResultsMarkdown(results []task.Task, pattern string) error {
 		// Add details if present
 		for _, detail := range t.Details {
 			fmt.Fprintf(&sb, "  - %s\n", detail)
+		}
+
+		// Scheduling and requirement metadata, in task-file order (T-2242)
+		if len(t.BlockedBy) > 0 {
+			fmt.Fprintf(&sb, "  - Blocked-by: %s\n", formatBlockedByForDisplay(&t, depIndex))
+		}
+		if t.Stream > 0 {
+			fmt.Fprintf(&sb, "  - Stream: %d\n", t.Stream)
+		}
+		if t.Owner != "" {
+			fmt.Fprintf(&sb, "  - Owner: %s\n", t.Owner)
+		}
+		if len(t.Requirements) > 0 {
+			fmt.Fprintf(&sb, "  - Requirements: %s\n", requirementLinks(t.Requirements, reqFile))
 		}
 
 		// Add references if present
