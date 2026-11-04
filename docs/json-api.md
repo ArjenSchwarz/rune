@@ -64,7 +64,7 @@ This document describes the JSON schema for the rune batch operations API.
         "status": {
           "type": "integer",
           "enum": [0, 1, 2],
-          "description": "Task status: 0=Pending, 1=InProgress, 2=Completed"
+          "description": "Task status for update operations: 0=Pending, 1=InProgress, 2=Completed. Rejected on add operations (new tasks are always pending)"
         },
         "details": {
           "type": "array",
@@ -316,6 +316,11 @@ This document describes the JSON schema for the rune batch operations API.
           },
           "description": "Array of hierarchical task IDs that must complete before this task"
         },
+        "unresolvedBlockedBy": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Blocker stable IDs that match no task in the file. They keep the task blocked. Omitted when empty"
+        },
         "stream": {
           "type": "integer",
           "minimum": 1,
@@ -434,9 +439,16 @@ This document describes the JSON schema for the rune batch operations API.
 - `requirements_file` - Path to requirements file for all operations (default: "requirements.md")
 - `requirements` - Array of requirement IDs that link to acceptance criteria in the requirements file
 
+## Request Parsing and Execution Order
+
+- Requests are decoded strictly: unknown fields (for example `dryRun` instead of `dry_run`, or a misspelled operation field) and trailing data after the JSON object are rejected before the task file is read.
+- Operations run in the order given. The only reordering is within a contiguous run of `remove` operations (highest ID first) or of `add` operations with a `position` (highest position first), so IDs inside such a run refer to the state before the run. Operations are never moved across an operation of a different kind.
+
 ## Error Response Examples
 
 ### Validation Error
+
+A rejected batch still prints its response (JSON or text), and the command exits with status 1.
 
 ```json
 {
@@ -515,9 +527,14 @@ Returned by `rune streams --json`:
           "type": "array",
           "items": {"type": "string"},
           "description": "Hierarchical IDs of tasks currently in progress"
+        },
+        "claimed": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Hierarchical IDs of pending tasks that have an owner but are not started. They do not make the stream available"
         }
       },
-      "required": ["id", "ready", "blocked", "active"]
+      "required": ["id", "ready", "blocked", "active", "claimed"]
     }
   }
 }
@@ -532,13 +549,15 @@ Returned by `rune streams --json`:
       "id": 1,
       "ready": ["1"],
       "blocked": ["2", "4"],
-      "active": []
+      "active": [],
+      "claimed": []
     },
     {
       "id": 2,
       "ready": [],
       "blocked": ["3"],
-      "active": []
+      "active": [],
+      "claimed": []
     }
   ],
   "available": [1]
@@ -578,6 +597,15 @@ Returned by `rune next --claim AGENT_ID --json`:
       "type": "array",
       "items": {"$ref": "#/definitions/ClaimedTask"},
       "description": "Tasks that would be claimed (dry run) or were claimed"
+    },
+    "requirements_file": {
+      "type": "string",
+      "description": "Requirements file the claimed tasks' requirement IDs refer to. Omitted when no task links requirements"
+    },
+    "front_matter_references": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "References from the task file's front matter. Omitted when empty"
     }
   },
   "required": ["success", "count", "claimed"],
@@ -609,6 +637,21 @@ Returned by `rune next --claim AGENT_ID --json`:
           "type": "array",
           "items": {"type": "string"},
           "description": "Hierarchical IDs of blocking tasks (should be empty for claimed tasks)"
+        },
+        "details": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Task details. Omitted when empty"
+        },
+        "requirements": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Requirement IDs. Omitted when empty"
+        },
+        "references": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Task-level references. Omitted when empty"
         }
       },
       "required": ["id", "title", "status", "stream", "owner"]

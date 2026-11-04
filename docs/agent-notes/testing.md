@@ -6,6 +6,8 @@ Command tests share package-level globals from `cmd/root.go` (`format`, `dryRun`
 
 `resetBatchFlags()` in `cmd/batch_test.go` resets both `batchInput` and `format` (back to `"table"`) along with the `Changed` bits on the corresponding flags. Any batch test that uses `--format json` should register `t.Cleanup(resetBatchFlags)` so the global doesn't leak. Tests that depend on the default `format == "table"` (e.g. `TestRunCompleteDryRun`) get protected indirectly by that cleanup.
 
+Every dry-run path and the `streams`/`version` commands read the global `format` (T-1159, T-1409), so their table-output tests set `format = formatTable` first. Command-specific flag variables (`streamFlag`, `oneFlag`, `statusFilter`, `listFilter`, …) also persist between `Execute` calls; several older `next` tests don't reset them, so the `cmd` suite is not order-independent (`go test -shuffle=on ./cmd` fails on main too). New tests should reset every flag they depend on before running (see `resetOutputContextFlags` in `cmd/output_context_regressions_test.go`).
+
 ## Config / Git Discovery in Tests
 
 `config.LoadConfig` caches the loaded config under a `sync.Once`, so the first call wins for the lifetime of the test process. `internal/config` exposes `ResetConfigCache()` for tests that need to install a different config or chdir into a different repo.

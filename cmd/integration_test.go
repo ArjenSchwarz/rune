@@ -115,10 +115,10 @@ func TestIntegrationWorkflows(t *testing.T) {
 			description: "Test --phase --stream --claim only claims ready tasks",
 			workflow:    testClaimWithPhaseAndStream,
 		},
-		"no_phases_returns_error": {
-			name:        "No Phases Returns Error",
-			description: "Test --phase --stream with no H2 headers returns error",
-			workflow:    testNoPhasesReturnsError,
+		"no_phases_falls_back_to_file": {
+			name:        "No Phases Falls Back To File",
+			description: "Test --phase --stream with no H2 headers uses the whole file",
+			workflow:    testNoPhasesFallsBackToFile,
 		},
 		"verify_existing_phase_behavior": {
 			name:        "Verify Existing Phase Behavior",
@@ -1989,8 +1989,8 @@ func testClaimWithPhaseAndStream(t *testing.T, tempDir string) {
 	t.Logf("Claim with phase and stream test passed")
 }
 
-// testNoPhasesReturnsError tests --phase --stream with no H2 headers returns error
-func testNoPhasesReturnsError(t *testing.T, tempDir string) {
+// testNoPhasesFallsBackToFile tests --phase --stream with no H2 headers uses the whole file
+func testNoPhasesFallsBackToFile(t *testing.T, tempDir string) {
 	filename := "tasks.md"
 
 	// Create file without phases (no H2 headers)
@@ -2003,14 +2003,15 @@ func testNoPhasesReturnsError(t *testing.T, tempDir string) {
 		t.Fatalf("failed to write file: %v", err)
 	}
 
-	// Test --phase --stream should return error message
-	output := runGoCommandWithError(t, "next", filename, "--phase", "--stream", "2")
+	// T-1319: without phase headers the whole file is one phase, as with --phase
+	output := runGoCommand(t, "next", filename, "--phase", "--stream", "2", "--format", "json")
 
-	if !strings.Contains(output, "No ready tasks found in stream 2") {
-		t.Errorf("expected 'No ready tasks found in stream 2' error, got: %s", output)
+	if strings.Contains(output, "No ready tasks found") ||
+		!strings.Contains(output, `"id": "1"`) || !strings.Contains(output, `"id": "2"`) {
+		t.Errorf("expected tasks 1 and 2 from the unphased file, got: %s", output)
 	}
 
-	t.Logf("No phases returns error test passed")
+	t.Logf("No phases falls back to whole file test passed")
 }
 
 // testVerifyExistingPhaseBehavior verifies --phase alone returns first phase with any pending tasks

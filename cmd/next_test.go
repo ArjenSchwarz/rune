@@ -2124,7 +2124,7 @@ func TestRenderTaskMarkdownWithGrandchildren(t *testing.T) {
 		},
 	}
 
-	result := renderTaskMarkdown(parent, "")
+	result := renderTaskMarkdown(parent, "", "")
 
 	// The output should include the pending grandchild via the completed child
 	if !strings.Contains(result, "1.1.1") {
@@ -2818,6 +2818,67 @@ func TestNextCommandClaimRejectsInvalidOwner(t *testing.T) {
 				if _, err := task.ParseFile(fileName); err != nil {
 					t.Errorf("task file is no longer parseable after a rejected claim: %v", err)
 				}
+			}
+		})
+	}
+}
+
+func TestNextCommandPhaseExcludesCompletedDescendants(t *testing.T) {
+	content := `# Simple Phases Test
+
+## Planning
+
+- [ ] 1. Define requirements
+- [ ] 2. Create design documents
+  - [x] 2.1. Architecture diagrams
+  - [ ] 2.2. API specifications
+
+## Implementation
+
+- [ ] 3. Set up project structure
+`
+
+	for _, fmtName := range []string{"json", "table", "markdown"} {
+		t.Run(fmtName, func(t *testing.T) {
+			tempDir := t.TempDir()
+			oldDir, _ := os.Getwd()
+			os.Chdir(tempDir)
+			defer os.Chdir(oldDir)
+
+			streamFlag = 0
+			claimFlag = ""
+			phaseFlag = false
+
+			const taskFile = "tasks.md"
+			if err := os.WriteFile(taskFile, []byte(content), 0o644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			var buf bytes.Buffer
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			rootCmd.SetArgs([]string{"next", taskFile, "--phase", "--format", fmtName})
+			err := rootCmd.Execute()
+
+			w.Close()
+			os.Stdout = oldStdout
+			buf.ReadFrom(r)
+			output := buf.String()
+			rootCmd.SetArgs([]string{})
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if strings.Contains(output, "Architecture diagrams") {
+				t.Errorf("output contains completed descendant 2.1:\n%s", output)
+			}
+			if !strings.Contains(output, "API specifications") {
+				t.Errorf("output missing pending descendant 2.2:\n%s", output)
+			}
+			if fmtName == "json" && strings.Contains(output, `"Completed"`) {
+				t.Errorf("JSON output contains a Completed task:\n%s", output)
 			}
 		})
 	}

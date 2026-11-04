@@ -82,13 +82,15 @@ func loadConfigFile(path string) (*Config, error) {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
 
-	var cfg Config
+	// Decode on top of the defaults so keys the file omits (including
+	// discovery.enabled) keep their default values.
+	cfg := *defaultConfig()
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&cfg); err != nil {
-		// Empty file — treat as zero-value config with defaults applied below
+		// Empty file — keep the defaults
 		if errors.Is(err, io.EOF) {
-			cfg = Config{}
+			cfg = *defaultConfig()
 		} else {
 			return nil, fmt.Errorf("parsing config file %s: %w", path, err)
 		}

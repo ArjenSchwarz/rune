@@ -15,6 +15,7 @@ type RemoveResponse struct {
 	TaskID          string `json:"task_id"`
 	Title           string `json:"title"`
 	ChildrenRemoved int    `json:"children_removed"`
+	DryRun          bool   `json:"dry_run,omitempty"`
 }
 
 var removeCmd = &cobra.Command{
@@ -83,6 +84,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse task file: %w", err)
 	}
+	reportParseWarnings(tl)
 	tl.FilePath = filename
 
 	// Find the task to verify it exists and get info for output
@@ -98,6 +100,20 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 	// Dry run mode - show what would be removed
 	if dryRun {
+		switch format {
+		case formatJSON:
+			return outputJSON(RemoveResponse{
+				Success:         true,
+				Message:         fmt.Sprintf("Would remove task %s", taskID),
+				TaskID:          taskID,
+				Title:           removedTitle,
+				ChildrenRemoved: childCount,
+				DryRun:          true,
+			})
+		case formatMarkdown:
+			fmt.Printf("**Dry run:** Would remove %s - %s (and %d subtask(s))\n", taskID, removedTitle, childCount)
+			return nil
+		}
 		fmt.Printf("Would remove task from file: %s\n", filename)
 		fmt.Printf("Task ID: %s\n", taskID)
 		fmt.Printf("Title: %s\n", removedTitle)

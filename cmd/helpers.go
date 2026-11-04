@@ -1,6 +1,10 @@
 package cmd
 
-import "github.com/arjenschwarz/rune/internal/task"
+import (
+	"strings"
+
+	"github.com/arjenschwarz/rune/internal/task"
+)
 
 // Checkbox markers for markdown status formatting
 const (
@@ -18,6 +22,9 @@ const (
 	columnPath      = "Path"
 	columnField     = "Field"
 	columnValue     = "Value"
+	columnTask      = "Task"
+	columnStream    = "Stream"
+	columnBlockedBy = "BlockedBy"
 )
 
 // Status strings used in filters and JSON output
@@ -77,4 +84,16 @@ func countAllTasks(tasks []task.Task) int {
 		count += countAllTasks(t.Children)
 	}
 	return count
+}
+
+// formatBlockedByForDisplay returns a task's blockers as hierarchical IDs for
+// human-readable output. Blocker stable IDs that match no task still block
+// the task, so they are listed as "<id> (unresolved)" instead of being
+// dropped (T-1809).
+func formatBlockedByForDisplay(t *task.Task, index *task.DependencyIndex) string {
+	ids := index.TranslateToHierarchical(t.BlockedBy)
+	for _, id := range index.UnresolvedBlockers(t.BlockedBy) {
+		ids = append(ids, id+" (unresolved)")
+	}
+	return strings.Join(ids, ", ")
 }

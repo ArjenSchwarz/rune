@@ -21,6 +21,9 @@ import (
 //
 // It tries multiple candidate paths: first the stripped branch name, then the
 // full branch name. If both paths exist, the stripped path takes precedence.
+//
+// The returned path is relative to the repository root (see RepoRoot), not
+// to the current working directory.
 func DiscoverFileFromBranch(template string) (string, error) {
 	branch, err := getCurrentBranch()
 	if err != nil {
@@ -61,6 +64,12 @@ func DiscoverFileFromBranch(template string) (string, error) {
 
 	return "", fmt.Errorf("task file not found for branch %q (tried: %s)",
 		branch, strings.Join(candidates, ", "))
+}
+
+// RepoRoot returns the root directory of the current git repository.
+// Paths returned by DiscoverFileFromBranch are relative to this directory.
+func RepoRoot() (string, error) {
+	return getRepoRoot()
 }
 
 // getCurrentBranch is a variable that points to the function for getting current git branch

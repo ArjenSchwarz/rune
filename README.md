@@ -360,11 +360,12 @@ rune next tasks.md --one --format json
 **How it works:**
 - Finds the first task with incomplete work (task itself or any subtask not completed)
 - Uses depth-first traversal through the task hierarchy
-- Only returns "ready" tasks when dependencies exist (all blockers completed)
+- Only returns "ready" tasks when dependencies exist: tasks blocked by an incomplete dependency or claimed by an owner are skipped. A blocker counts as completed only when it and all of its subtasks are completed
 - With `--phase` flag, returns all pending tasks from the first phase containing incomplete work
-- With `--stream N` flag, filters to tasks assigned to stream N
-- With `--phase --stream N` together, finds the first phase with ready stream N tasks and returns all stream N tasks from that phase (including blocked tasks with blocking status)
-- With `--one` flag, shows only the first incomplete subtask at each level, creating a single path from parent to leaf
+- With `--stream N` flag, filters to tasks assigned to stream N (subtasks in other streams are left out)
+- With `--phase --stream N` together, finds the first phase with ready stream N tasks and returns all stream N tasks from that phase (including blocked tasks with blocking status). A file without phase headers is treated as one phase, as with `--phase`
+- With `--phase --format json`, the `streams_summary` covers only the selected phase
+- With `--one` flag, shows only the first subtask with ready work at each level, creating a single path from parent to leaf
 - With `--claim AGENT_ID` flag, claims the task by setting status to in-progress and owner
 - With `--stream N --claim AGENT_ID` together, claims ALL ready tasks in stream N
 - With `--phase --stream N --claim AGENT_ID` together, claims all ready stream N tasks from the appropriate phase
@@ -373,7 +374,7 @@ rune next tasks.md --one --format json
 
 ### streams - Display Stream Status
 
-Display the status of all work streams, showing ready, blocked, and active task counts.
+Display the status of all work streams, showing ready, blocked, active and claimed task counts.
 
 ```bash
 rune streams [file] [options]
@@ -399,6 +400,7 @@ rune streams tasks.md --json
 - **Ready**: Tasks that can be started (dependencies met, not owned)
 - **Blocked**: Tasks waiting on dependencies to complete
 - **Active**: Tasks currently in progress
+- **Claimed**: Pending tasks that have an owner but are not started yet
 - **Available**: Whether the stream has any ready tasks
 
 ### add-phase - Add Phase Header
@@ -685,7 +687,7 @@ rune generates consistent markdown with the following structure:
 - Status indicators: `[ ]` pending, `[-]` in-progress, `[x]` completed
 - 2-space indentation per hierarchy level
 - Details as indented bullet points
-- References with "References: " prefix, comma-separated
+- References with "References: " prefix, comma-separated (a comma inside a reference is written as `\,`)
 
 ### Extended Format with YAML Front Matter
 
@@ -798,6 +800,9 @@ rune add tasks.md --title "Integration tests" --blocked-by "1,2,3"
 ```bash
 # Set dependencies on an existing task
 rune update tasks.md 4 --blocked-by "1,2"
+
+# Clear all dependencies from a task
+rune update tasks.md 4 --blocked-by ""
 ```
 
 **How Dependencies Work:**

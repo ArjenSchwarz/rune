@@ -382,6 +382,7 @@ func TestRunAddDryRun(t *testing.T) {
 	addTitle = "New task"
 	addParent = ""
 	dryRun = true
+	format = formatTable
 
 	// Capture output
 	oldStdout := os.Stdout
@@ -449,6 +450,7 @@ func TestRunAddDryRunWithParent(t *testing.T) {
 	addTitle = "Child task"
 	addParent = "1"
 	dryRun = true
+	format = formatTable
 
 	// Capture output
 	oldStdout := os.Stdout
@@ -512,6 +514,7 @@ func TestRunAddDryRunWithPosition(t *testing.T) {
 	addTitle = "Inserted task"
 	addPosition = "2"
 	dryRun = true
+	format = formatTable
 
 	// Capture output
 	oldStdout := os.Stdout
@@ -587,6 +590,7 @@ func TestRunAddDryRunWithPositionAndParent(t *testing.T) {
 	addParent = "1"
 	addPosition = "1.2"
 	dryRun = true
+	format = formatTable
 
 	// Capture output
 	oldStdout := os.Stdout
@@ -930,6 +934,7 @@ func TestRunAddWithPhaseDryRunRejectsNewline(t *testing.T) {
 	addParent = ""
 	addPosition = ""
 	dryRun = true
+	format = formatTable
 	t.Cleanup(func() {
 		addTitle = ""
 		addPhase = ""
@@ -1825,6 +1830,7 @@ func TestRunAddDryRunReportsRealID(t *testing.T) {
 			addPosition = tc.position
 			addPhase = tc.phase
 			dryRun = true
+			format = formatTable
 
 			oldStdout := os.Stdout
 			r, w, _ := os.Pipe()
@@ -1845,5 +1851,37 @@ func TestRunAddDryRunReportsRealID(t *testing.T) {
 				t.Error("dry run modified the file")
 			}
 		})
+	}
+}
+
+// TestRunAddPhaseWithPositionRejected covers T-973: --position used to be
+// silently ignored when --phase was set. The combination is now rejected
+// without touching the file.
+func TestRunAddPhaseWithPositionRejected(t *testing.T) {
+	tempDir := filepath.Join(".", "test-tmp-add-phase-position")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	filename := filepath.Join(tempDir, "tasks.md")
+	if err := os.WriteFile(filename, []byte(addPhasedFixture), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, dry := range []bool{false, true} {
+		resetAddFlags(t)
+		addTitle = "new"
+		addPhase = "B"
+		addPosition = "1"
+		dryRun = dry
+		err := runAdd(&cobra.Command{}, []string{filename})
+		if err == nil || !strings.Contains(err.Error(), "position cannot be combined with phase") {
+			t.Errorf("dryRun=%v: err = %v, want phase/position conflict", dry, err)
+		}
+	}
+
+	got, _ := os.ReadFile(filename)
+	if string(got) != addPhasedFixture {
+		t.Errorf("file modified:\n%s", got)
 	}
 }

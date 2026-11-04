@@ -19,8 +19,11 @@ type jsonTask struct {
 	Children     []jsonTask `json:"Children"`
 	ParentID     string     `json:"ParentID"`
 	BlockedBy    []string   `json:"blockedBy,omitempty"`
-	Stream       int        `json:"stream"`
-	Owner        string     `json:"owner,omitempty"`
+	// UnresolvedBlockedBy lists blocker stable IDs that match no task. They
+	// keep the task blocked but cannot be translated to hierarchical IDs.
+	UnresolvedBlockedBy []string `json:"unresolvedBlockedBy,omitempty"`
+	Stream              int      `json:"stream"`
+	Owner               string   `json:"owner,omitempty"`
 	// Phase is the phase the task belongs to. Children inherit the phase of
 	// their root task. Only populated when the file contains phases.
 	Phase string `json:"Phase,omitempty"`
@@ -62,6 +65,7 @@ func toJSONTask(t *Task, index *DependencyIndex) jsonTask {
 	// Translate BlockedBy stable IDs to hierarchical IDs
 	if len(t.BlockedBy) > 0 && index != nil {
 		jt.BlockedBy = index.TranslateToHierarchical(t.BlockedBy)
+		jt.UnresolvedBlockedBy = index.UnresolvedBlockers(t.BlockedBy)
 	}
 
 	// Recursively convert children
@@ -85,13 +89,14 @@ type TaskListJSON struct {
 
 // TaskListJSONWithPhases represents a TaskList with phases and statistics for JSON output
 type TaskListJSONWithPhases struct {
-	Success      bool          `json:"success"`
-	Count        int           `json:"count"`
-	Title        string        `json:"Title"`
-	Tasks        []jsonTask    `json:"Tasks"`
-	Stats        Stats         `json:"Stats"`
-	FrontMatter  *FrontMatter  `json:"FrontMatter,omitempty"`
-	PhaseMarkers []PhaseMarker `json:"PhaseMarkers,omitempty"`
+	Success          bool          `json:"success"`
+	Count            int           `json:"count"`
+	Title            string        `json:"Title"`
+	Tasks            []jsonTask    `json:"Tasks"`
+	Stats            Stats         `json:"Stats"`
+	FrontMatter      *FrontMatter  `json:"FrontMatter,omitempty"`
+	PhaseMarkers     []PhaseMarker `json:"PhaseMarkers,omitempty"`
+	RequirementsFile string        `json:"requirements_file,omitempty"`
 }
 
 // TaskWithPhase represents a task with its phase information (used for non-JSON rendering)
@@ -111,11 +116,10 @@ type RenderContext struct {
 func RenderMarkdown(tl *TaskList) []byte {
 	var buf strings.Builder
 
-	// Write title as H1 header
+	// Write title as H1 header. An empty title writes no heading: the parser
+	// rejects a bare "# " line, so emitting one would make the file unparsable.
 	if tl.Title != "" {
 		fmt.Fprintf(&buf, "# %s\n\n", tl.Title)
-	} else {
-		buf.WriteString("# \n\n")
 	}
 
 	// Determine requirements file (default if not set)
@@ -192,13 +196,27 @@ func renderTask(buf *strings.Builder, task *Task, depth int, ctx *RenderContext)
 	// Render references if present (last in metadata order)
 	if len(task.References) > 0 {
 		fmt.Fprintf(buf, "%s  - References: %s\n",
-			indent, strings.Join(task.References, ", "))
+			indent, formatReferenceList(task.References))
 	}
 
 	// Recursively render children
 	for _, child := range task.Children {
 		renderTask(buf, &child, depth+1, ctx)
 	}
+}
+
+// formatReferenceList joins task references with ", ", writing a comma inside
+// a reference as "\," so parseReferences reads each one back as a single
+// reference. "\," is the only escape: every other backslash is written as is,
+// so Windows and UNC paths (docs\a.md, \\server\share) are unchanged.
+// validateReferences rejects a reference ending in a backslash when another
+// reference follows, since that backslash would run into the separator comma.
+func formatReferenceList(refs []string) string {
+	escaped := make([]string, len(refs))
+	for i, ref := range refs {
+		escaped[i] = strings.ReplaceAll(ref, ",", `\,`)
+	}
+	return strings.Join(escaped, ", ")
 }
 
 // formatBlockedByRefs formats stable IDs with current title hints
@@ -231,11 +249,10 @@ func formatBlockedByRefs(stableIDs []string, index *DependencyIndex) string {
 func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource *TaskList) []byte {
 	var buf strings.Builder
 
-	// Write title as H1 header
+	// Write title as H1 header. An empty title writes no heading: the parser
+	// rejects a bare "# " line, so emitting one would make the file unparsable.
 	if tl.Title != "" {
 		fmt.Fprintf(&buf, "# %s\n\n", tl.Title)
-	} else {
-		buf.WriteString("# \n\n")
 	}
 
 	// Determine requirements file (default if not set)
@@ -299,9 +316,11 @@ func RenderMarkdownWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSou
 	}
 
 	for i := range tl.Tasks {
-		// positionOf is keyed by resolutionList task IDs.
-		// Every task in tl must exist in resolutionList when phaseSource != nil.
-		taskPos := positionOf[tl.Tasks[i].ID]
+		// positionOf is keyed by the top-level IDs of resolutionList. A filter
+		// can promote a child (e.g. "2.1") to the top level, so resolve every
+		// task through its top-level ancestor's ID (T-1352).
+		rootID, _, _ := strings.Cut(tl.Tasks[i].ID, ".")
+		taskPos := positionOf[rootID]
 
 		// Emit phase headers that start at or before this task's position.
 		emitHeaders(taskPos)
@@ -383,15 +402,21 @@ func GetTaskPhase(tl *TaskList, phaseMarkers []PhaseMarker, taskID string) strin
 }
 
 // RenderJSONWithPhases converts a TaskList to JSON format with phase information.
-// The optional phaseSource parameter, when non-nil, is used for resolving phase
-// boundaries instead of tl. This is needed when tl has been filtered and boundary
-// tasks (referenced by PhaseMarker.AfterTaskID) may no longer be present.
+// The optional phaseSource parameter is the original, unfiltered task list when
+// tl has been filtered. When non-nil it is used for resolving phase boundaries
+// (boundary tasks referenced by PhaseMarker.AfterTaskID may be filtered out)
+// and for translating Blocked-by references to tasks outside tl (T-1206).
 func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource *TaskList) []byte {
 	// Calculate statistics
 	stats := tl.CalculateStats()
 
-	// Build dependency index for BlockedBy translation
-	index := BuildDependencyIndex(tl.Tasks)
+	// Build dependency index for BlockedBy translation from the full list,
+	// so blockers that were filtered out still resolve
+	indexTasks := tl.Tasks
+	if phaseSource != nil {
+		indexTasks = phaseSource.Tasks
+	}
+	index := BuildDependencyIndex(indexTasks)
 
 	// Only include phase information if phases exist
 	if len(phaseMarkers) == 0 {
@@ -428,13 +453,14 @@ func RenderJSONWithPhases(tl *TaskList, phaseMarkers []PhaseMarker, phaseSource 
 	}
 
 	result := TaskListJSONWithPhases{
-		Success:      true,
-		Count:        len(tasksWithPhases),
-		Title:        tl.Title,
-		Tasks:        tasksWithPhases,
-		Stats:        stats,
-		FrontMatter:  tl.FrontMatter,
-		PhaseMarkers: phaseMarkers,
+		Success:          true,
+		Count:            len(tasksWithPhases),
+		Title:            tl.Title,
+		Tasks:            tasksWithPhases,
+		Stats:            stats,
+		FrontMatter:      tl.FrontMatter,
+		PhaseMarkers:     phaseMarkers,
+		RequirementsFile: tl.RequirementsFile,
 	}
 
 	data, _ := json.MarshalIndent(result, "", "  ")

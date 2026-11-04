@@ -50,6 +50,73 @@ func evaluateTaskForNext(task *Task) *TaskWithContext {
 	return nil
 }
 
+// FindNextReadyTask finds the first top-level task that has ready work,
+// skipping tasks whose remaining work is blocked by unresolved dependencies
+// or claimed by an owner. The returned task is a copy without its
+// unavailable subtasks (incomplete work that is blocked or claimed), so they
+// are never presented as available. Fully completed subtasks are kept as
+// context, as next-task-workflow requirement 1.6 asks.
+func FindNextReadyTask(tasks []Task, index *DependencyIndex) *TaskWithContext {
+	for i := range tasks {
+		if hasReadyWork(&tasks[i], index) {
+			pruned := pruneToReadyWork(tasks[i], index)
+			return &TaskWithContext{
+				Task:               &pruned,
+				IncompleteChildren: filterIncompleteChildren(pruned.Children),
+			}
+		}
+	}
+	return nil
+}
+
+// pruneToReadyWork returns a copy of task keeping only descendants that are
+// fully completed or have ready work.
+func pruneToReadyWork(task Task, index *DependencyIndex) Task {
+	var children []Task
+	for i := range task.Children {
+		child := &task.Children[i]
+		if !hasIncompleteWork(child) || hasReadyWork(child, index) {
+			children = append(children, pruneToReadyWork(task.Children[i], index))
+		}
+	}
+	task.Children = children
+	return task
+}
+
+// hasReadyWork reports whether a task, or a descendant reachable without
+// passing through a blocked or claimed task, is incomplete and available.
+func hasReadyWork(task *Task, index *DependencyIndex) bool {
+	if task.Status != Completed {
+		return task.Owner == "" && !index.IsBlocked(task)
+	}
+	for i := range task.Children {
+		if hasReadyWork(&task.Children[i], index) {
+			return true
+		}
+	}
+	return false
+}
+
+// FilterToFirstReadyPath is like FilterToFirstIncompletePath but follows the
+// first child with ready work at each level.
+func FilterToFirstReadyPath(taskCtx *TaskWithContext, index *DependencyIndex) {
+	if taskCtx == nil {
+		return
+	}
+	taskCtx.IncompleteChildren = filterToFirstReadyPath(taskCtx.IncompleteChildren, index)
+}
+
+func filterToFirstReadyPath(children []Task, index *DependencyIndex) []Task {
+	for i := range children {
+		if hasReadyWork(&children[i], index) {
+			filtered := children[i]
+			filtered.Children = filterToFirstReadyPath(filtered.Children, index)
+			return []Task{filtered}
+		}
+	}
+	return []Task{}
+}
+
 // HasIncompleteWork checks if task or any subtask is incomplete.
 // A task has incomplete work if its own status is not Completed,
 // or if any descendant has incomplete work (recursive).
@@ -169,7 +236,10 @@ func FindNextPhaseTasks(filepath string) (*PhaseTasksResult, error) {
 		return nil, err
 	}
 
-	// Also parse the raw content to extract phase information
+	// Also parse the raw content to extract phase information.
+	// ParseMarkdown strips a leading BOM from its own copy; do the same here
+	// so a phase header or front matter delimiter on line 1 is recognised.
+	content = StripBOM(content)
 	lines := splitLines(string(content))
 	lines = skipFrontMatter(string(content), lines)
 
@@ -233,15 +303,44 @@ func extractPhasesWithTaskRanges(lines []string, allTasks []Task) []PhaseWithTas
 	return phases
 }
 
-// getAllPendingTasks recursively collects all tasks with pending work
+// getAllPendingTasks returns the tasks that have pending work, with each
+// task's descendant tree pruned to only the subtrees that still have
+// incomplete work. Completed descendants without incomplete work below them
+// are dropped so phase output only contains actionable work.
 func getAllPendingTasks(tasks []Task) []Task {
 	var pending []Task
 	for _, task := range tasks {
 		if hasIncompleteWork(&task) {
-			pending = append(pending, task)
+			pending = append(pending, withIncompleteDescendants(task))
 		}
 	}
 	return pending
+}
+
+// withIncompleteDescendants returns a copy of task whose Children (at every
+// depth) are limited to subtasks that have incomplete work. The original task
+// tree is not modified.
+func withIncompleteDescendants(task Task) Task {
+	return withIncompleteDescendantsDepth(task, 0, 100)
+}
+
+func withIncompleteDescendantsDepth(task Task, depth, maxDepth int) Task {
+	if len(task.Children) == 0 {
+		return task
+	}
+	if depth >= maxDepth {
+		// Prevent runaway recursion on malformed data
+		task.Children = nil
+		return task
+	}
+	var children []Task
+	for i := range task.Children {
+		if hasIncompleteWork(&task.Children[i]) {
+			children = append(children, withIncompleteDescendantsDepth(task.Children[i], depth+1, maxDepth))
+		}
+	}
+	task.Children = children
+	return task
 }
 
 // hasReadyTaskInStream checks if any task in the specified stream is ready.
@@ -271,9 +370,11 @@ func hasReadyTaskInStream(tasks []Task, stream int, index *DependencyIndex) bool
 // - Not blocked (all dependencies completed)
 //
 // Task return includes ALL stream N tasks from the phase (including blocked).
+// Each returned task's children are limited to stream N.
 //
-// Returns nil if no phase contains ready tasks in the specified stream,
-// or if the document has no phases.
+// A document without phase headers is treated as a single unnamed phase,
+// matching FindNextPhaseTasks. Returns nil if no phase contains ready tasks
+// in the specified stream.
 func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult, error) {
 	if stream <= 0 {
 		return nil, fmt.Errorf("stream must be positive, got %d", stream)
@@ -293,17 +394,18 @@ func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult
 	// Build dependency index for blocking checks
 	index := BuildDependencyIndex(taskList.Tasks)
 
-	// Parse raw content to extract phase information
+	// Parse raw content to extract phase information.
+	// ParseMarkdown strips a leading BOM from its own copy; do the same here
+	// so a phase header or front matter delimiter on line 1 is recognised.
+	content = StripBOM(content)
 	lines := splitLines(string(content))
 	lines = skipFrontMatter(string(content), lines)
 
-	// Check if document has phases
-	if !hasPhases(lines) {
-		return nil, nil
+	// Without phase headers the whole document is one unnamed phase
+	phases := []PhaseWithTasks{{Name: "", Tasks: taskList.Tasks}}
+	if hasPhases(lines) {
+		phases = extractPhasesWithTaskRanges(lines, taskList.Tasks)
 	}
-
-	// Extract phases with their tasks
-	phases := extractPhasesWithTaskRanges(lines, taskList.Tasks)
 
 	// Find the first phase with ready tasks in the specified stream
 	for _, phase := range phases {
@@ -316,7 +418,7 @@ func FindNextPhaseTasksForStream(filepath string, stream int) (*PhaseTasksResult
 			var result []Task
 			for _, t := range streamTasks {
 				if t.Status != Completed {
-					result = append(result, t)
+					result = append(result, PruneToStream(withIncompleteDescendants(t), stream))
 				}
 			}
 			if len(result) == 0 {

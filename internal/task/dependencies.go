@@ -29,8 +29,9 @@ func BuildDependencyIndex(tasks []Task) *DependencyIndex {
 				idx.byHierarchical[task.ID] = task
 			}
 
-			// Index by stable ID (only if present)
-			if task.StableID != "" {
+			// Index by stable ID (only if present). The first task with a
+			// given stable ID wins so a duplicate cannot rebind dependencies.
+			if _, exists := idx.byStableID[task.StableID]; task.StableID != "" && !exists {
 				idx.byStableID[task.StableID] = task
 			}
 
@@ -85,8 +86,8 @@ func (idx *DependencyIndex) GetDependents(stableID string) []string {
 	return deps
 }
 
-// IsReady returns true if all blockers are completed
-// A task with no blockers is always ready
+// IsReady returns true if all blockers are completed, including all of
+// their descendants. A task with no blockers is always ready.
 func (idx *DependencyIndex) IsReady(task *Task) bool {
 	if task == nil || len(task.BlockedBy) == 0 {
 		return true
@@ -99,14 +100,16 @@ func (idx *DependencyIndex) IsReady(task *Task) bool {
 			// (conservative approach for invalid references)
 			return false
 		}
-		if blocker.Status != Completed {
+		// A blocker counts as done only when it and its whole subtree are
+		// completed; a checked parent with pending children is not done.
+		if hasIncompleteWork(blocker) {
 			return false
 		}
 	}
 	return true
 }
 
-// IsBlocked returns true if any blocker is not completed
+// IsBlocked returns true if any blocker (or a blocker's descendant) is not completed
 func (idx *DependencyIndex) IsBlocked(task *Task) bool {
 	return !idx.IsReady(task)
 }
@@ -178,4 +181,18 @@ func (idx *DependencyIndex) TranslateToHierarchical(stableIDs []string) []string
 		}
 	}
 	return result
+}
+
+// UnresolvedBlockers returns the stable IDs in stableIDs that do not match any
+// task in the index. TranslateToHierarchical drops these, but IsReady still
+// treats them as blocking, so callers report them to explain why a task is
+// blocked (T-1809).
+func (idx *DependencyIndex) UnresolvedBlockers(stableIDs []string) []string {
+	var unresolved []string
+	for _, stableID := range stableIDs {
+		if idx.GetTask(stableID) == nil {
+			unresolved = append(unresolved, stableID)
+		}
+	}
+	return unresolved
 }

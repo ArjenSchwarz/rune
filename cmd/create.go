@@ -16,6 +16,7 @@ type CreateResponse struct {
 	Title      string `json:"title"`
 	References int    `json:"references,omitempty"`
 	Metadata   int    `json:"metadata,omitempty"`
+	DryRun     bool   `json:"dry_run,omitempty"`
 }
 
 var createCmd = &cobra.Command{
@@ -47,8 +48,8 @@ func init() {
 	rootCmd.AddCommand(createCmd)
 	createCmd.Flags().StringVarP(&createTitle, "title", "t", "", "title for the task list")
 	createCmd.MarkFlagRequired("title")
-	createCmd.Flags().StringSliceVar(&createReferences, "reference", []string{}, "add reference file (can be used multiple times)")
-	createCmd.Flags().StringSliceVar(&createMetadata, "meta", []string{}, "add metadata as key:value (can be used multiple times)")
+	createCmd.Flags().StringArrayVar(&createReferences, "reference", []string{}, "add reference file (can be used multiple times)")
+	createCmd.Flags().StringArrayVar(&createMetadata, "meta", []string{}, "add metadata as key:value (can be used multiple times)")
 }
 
 func runCreate(cmd *cobra.Command, args []string) error {
@@ -88,6 +89,25 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 	// Dry run mode - just show what would be created
 	if dryRun {
+		refCount, metaCount := 0, 0
+		if fm != nil {
+			refCount, metaCount = len(fm.References), len(fm.Metadata)
+		}
+		switch format {
+		case formatJSON:
+			return outputJSON(CreateResponse{
+				Success:    true,
+				Message:    fmt.Sprintf("Would create %s", filename),
+				Path:       filename,
+				Title:      createTitle,
+				References: refCount,
+				Metadata:   metaCount,
+				DryRun:     true,
+			})
+		case formatMarkdown:
+			fmt.Printf("**Dry run:** Would create %s - %s\n", filename, createTitle)
+			return nil
+		}
 		fmt.Printf("Would create file: %s\n", filename)
 		fmt.Printf("Title: %s\n", createTitle)
 		if fm != nil {

@@ -63,6 +63,7 @@ func runStreams(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read task file: %w", err)
 	}
+	reportParseWarnings(taskList)
 
 	// Build dependency index and analyze streams
 	index := task.BuildDependencyIndex(taskList.Tasks)
@@ -76,8 +77,9 @@ func runStreams(cmd *cobra.Command, args []string) error {
 		result = filterAvailableStreams(result)
 	}
 
-	// Output based on format
-	if streamsJSON {
+	// Output based on format. The global --format json is honoured as well as
+	// the command's own --json flag (T-1409).
+	if streamsJSON || format == formatJSON {
 		return outputJSON(result)
 	}
 
@@ -111,7 +113,8 @@ func filterEmptyStreams(result *task.StreamsResult) *task.StreamsResult {
 	}
 
 	for _, stream := range result.Streams {
-		if len(stream.Ready) > 0 || len(stream.Blocked) > 0 || len(stream.Active) > 0 {
+		// Claimed (owned, not started) tasks are pending work too (T-1626)
+		if len(stream.Ready) > 0 || len(stream.Blocked) > 0 || len(stream.Active) > 0 || len(stream.Claimed) > 0 {
 			filtered.Streams = append(filtered.Streams, stream)
 			if len(stream.Ready) > 0 {
 				filtered.Available = append(filtered.Available, stream.ID)
@@ -138,17 +141,18 @@ func outputStreamsTable(result *task.StreamsResult) error {
 		}
 
 		tableData[i] = map[string]any{
-			"Stream":    stream.ID,
-			"Ready":     len(stream.Ready),
-			"Blocked":   len(stream.Blocked),
-			"Active":    len(stream.Active),
-			"Available": available,
+			columnStream: stream.ID,
+			"Ready":      len(stream.Ready),
+			"Blocked":    len(stream.Blocked),
+			"Active":     len(stream.Active),
+			"Claimed":    len(stream.Claimed),
+			"Available":  available,
 		}
 	}
 
 	// Create table output
 	doc := output.New().
-		Table("Stream Status", tableData, output.WithKeys("Stream", "Ready", "Blocked", "Active", "Available")).
+		Table("Stream Status", tableData, output.WithKeys(columnStream, "Ready", "Blocked", "Active", "Claimed", "Available")).
 		Build()
 
 	out := output.NewOutput(

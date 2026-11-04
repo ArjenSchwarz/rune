@@ -905,3 +905,37 @@ func TestRenderJSONWithPhases_NestedChildrenInheritPhase(t *testing.T) {
 		})
 	}
 }
+
+// TestRenderMarkdownWithPhases_PromotedChildKeepsPhase covers T-1352: when a
+// filter drops a parent but keeps its child, the child is promoted to the top
+// level of the filtered list with its original ID (e.g. "2.1"). That ID is not
+// a top-level ID in the phase source, so it used to resolve to position 0 and
+// render under the first phase instead of its parent's phase.
+func TestRenderMarkdownWithPhases_PromotedChildKeepsPhase(t *testing.T) {
+	originalTL := &TaskList{
+		Title: "Project",
+		Tasks: []Task{
+			{ID: "1", Title: "Done planning", Status: Completed},
+			{ID: "2", Title: "Done parent", Status: Completed, Children: []Task{
+				{ID: "2.1", Title: "Pending child in build", Status: Pending, ParentID: "2"},
+			}},
+		},
+	}
+	phaseMarkers := []PhaseMarker{
+		{Name: "Planning", AfterTaskID: ""},
+		{Name: "Build", AfterTaskID: "1"},
+	}
+	filteredTL := &TaskList{
+		Title: "Project",
+		Tasks: []Task{
+			{ID: "2.1", Title: "Pending child in build", Status: Pending, ParentID: "2"},
+		},
+	}
+
+	got := string(RenderMarkdownWithPhases(filteredTL, phaseMarkers, originalTL))
+
+	want := "# Project\n\n## Planning\n\n## Build\n\n- [ ] 2.1. Pending child in build\n"
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

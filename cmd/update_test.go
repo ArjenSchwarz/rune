@@ -326,6 +326,7 @@ func TestRunUpdateDryRun(t *testing.T) {
 	updateDetails = "New detail"
 	updateReferences = "new.md"
 	dryRun = true
+	format = formatTable
 
 	// Capture output
 	oldStdout := os.Stdout

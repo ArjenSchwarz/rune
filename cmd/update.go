@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/arjenschwarz/rune/internal/task"
@@ -16,6 +17,7 @@ type UpdateResponse struct {
 	TaskID        string   `json:"task_id"`
 	Title         string   `json:"title"`
 	FieldsUpdated []string `json:"fields_updated"`
+	DryRun        bool     `json:"dry_run,omitempty"`
 }
 
 var updateCmd = &cobra.Command{
@@ -27,7 +29,8 @@ Use the flags to specify what to update. If a field is not provided, it will rem
 To clear details or references, use the --clear-* flags.
 
 Use --stream to change the task's work stream assignment.
-Use --blocked-by to set task dependencies (comma-separated task IDs).
+Use --blocked-by to set task dependencies (comma-separated task IDs);
+an empty value (--blocked-by "") clears them.
 Use --owner to claim the task for an agent.
 Use --release to clear the owner (release the task).
 
@@ -72,7 +75,7 @@ func init() {
 	updateCmd.Flags().BoolVar(&clearReferences, "clear-references", false, "clear all references from the task")
 	updateCmd.Flags().BoolVar(&clearRequirements, "clear-requirements", false, "clear all requirements from the task")
 	updateCmd.Flags().IntVar(&updateStream, "stream", 0, "stream assignment for the task (positive integer)")
-	updateCmd.Flags().StringVar(&updateBlockedBy, "blocked-by", "", "comma-separated task IDs that must complete before this task")
+	updateCmd.Flags().StringVar(&updateBlockedBy, "blocked-by", "", "comma-separated task IDs that must complete before this task (empty value clears dependencies)")
 	updateCmd.Flags().StringVar(&updateOwner, "owner", "", "agent identifier claiming the task")
 	updateCmd.Flags().BoolVar(&updateRelease, "release", false, "clear the owner (release the task)")
 }
@@ -116,11 +119,13 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	// An explicitly supplied --requirements flag counts as an update even when
 	// its value is empty: an empty value clears the requirements (T-1974).
 	requirementsSet := updateRequirements != "" || cmd.Flags().Changed("requirements")
+	// Likewise an explicitly supplied empty --blocked-by clears dependencies (T-1493).
+	blockedBySet := updateBlockedBy != "" || cmd.Flags().Changed("blocked-by")
 
 	// Validate that at least one update field is provided
 	if updateTitle == "" && updateDetails == "" && updateReferences == "" && !requirementsSet &&
 		!clearDetails && !clearReferences && !clearRequirements &&
-		!updateStreamSet && updateBlockedBy == "" && !updateOwnerSet && !updateRelease {
+		!updateStreamSet && !blockedBySet && !updateOwnerSet && !updateRelease {
 		return fmt.Errorf("at least one update flag must be provided (--title, --details, --references, --requirements, --clear-details, --clear-references, --clear-requirements, --stream, --blocked-by, --owner, or --release)")
 	}
 
@@ -137,6 +142,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse task file: %w", err)
 	}
+	reportParseWarnings(tl)
 
 	// Find the task to verify it exists and get current values
 	targetTask := tl.FindTask(taskID)
@@ -177,8 +183,12 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if clearRequirements {
 		newRequirements = []string{}
 	} else if requirementsSet {
-		// Parse comma-separated IDs
+		// Parse comma-separated IDs. A non-empty value without any IDs (e.g.
+		// ",") is malformed, not a request to clear (T-2023).
 		newRequirements = parseRequirementIDs(updateRequirements)
+		if updateRequirements != "" && len(newRequirements) == 0 {
+			return fmt.Errorf("invalid --requirements value %q: no requirement IDs found", updateRequirements)
+		}
 
 		// Validate format
 		for _, reqID := range newRequirements {
@@ -188,55 +198,27 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Handle blocked-by. A non-empty raw flag value that parses down to zero
-	// task IDs (e.g. ",", " , ", ",,,") is malformed input, not a request to
-	// clear dependencies: task.UpdateTaskWithOptions treats a non-nil empty
-	// BlockedBy slice as the "clear" sentinel, and there is currently no way
-	// to reach that path from this command with an intentionally empty
-	// --blocked-by value (the batch JSON API can, by passing an empty list)
-	// (see T-1493), so any empty-but-non-nil slice here can only be an
-	// accident. Reject it before the file is touched (T-1906).
+	// Handle blocked-by. An explicitly empty value clears dependencies
+	// (T-1493); a non-empty value that parses down to zero task IDs (e.g. ",",
+	// " , ") is malformed input and is rejected before the file is touched
+	// (T-1906).
 	var newBlockedBy []string
-	if updateBlockedBy != "" {
+	if blockedBySet {
 		newBlockedBy = parseRequirementIDs(updateBlockedBy)
-		if len(newBlockedBy) == 0 {
+		if updateBlockedBy != "" && len(newBlockedBy) == 0 {
 			return fmt.Errorf("invalid --blocked-by value %q: no task IDs found", updateBlockedBy)
 		}
 	}
 
-	// Dry run mode - show what would be updated
-	if dryRun {
-		fmt.Printf("Would update task in file: %s\n", filename)
-		fmt.Printf("Task ID: %s\n", taskID)
-		fmt.Printf("Current title: %s\n", targetTask.Title)
-		fmt.Printf("Current details: %s\n", formatDetailsForDisplay(targetTask.Details))
-		fmt.Printf("Current references: %s\n", formatReferencesForDisplay(targetTask.References))
-		fmt.Printf("Current requirements: %s\n", formatRequirementsForDisplay(targetTask.Requirements))
-		fmt.Println()
-
-		if updateTitle != "" {
-			fmt.Printf("New title: %s\n", updateTitle)
-		}
-		if clearDetails {
-			fmt.Printf("New details: (cleared)\n")
-		} else if updateDetails != "" {
-			fmt.Printf("New details: %s\n", formatDetailsForDisplay(newDetails))
-		}
-		if clearReferences {
-			fmt.Printf("New references: (cleared)\n")
-		} else if updateReferences != "" {
-			fmt.Printf("New references: %s\n", formatReferencesForDisplay(newReferences))
-		}
-		if clearRequirements {
-			fmt.Printf("New requirements: (cleared)\n")
-		} else if requirementsSet {
-			fmt.Printf("New requirements: %s\n", formatRequirementsForDisplay(newRequirements))
-		}
-		return nil
-	}
+	// Capture current values for the dry-run preview before applying the
+	// update in memory.
+	currentTitle := targetTask.Title
+	currentDetails := slices.Clone(targetTask.Details)
+	currentReferences := slices.Clone(targetTask.References)
+	currentRequirements := slices.Clone(targetTask.Requirements)
 
 	// Check if any extended options are being used
-	hasExtendedOptions := updateStreamSet || updateBlockedBy != "" || updateOwnerSet || updateRelease
+	hasExtendedOptions := updateStreamSet || blockedBySet || updateOwnerSet || updateRelease
 
 	// Update the task
 	if hasExtendedOptions {
@@ -270,8 +252,8 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 			opts.Stream = &updateStream
 		}
 
-		// Set blocked-by if provided
-		if updateBlockedBy != "" {
+		// Set blocked-by if provided (an empty slice clears it)
+		if blockedBySet {
 			opts.BlockedBy = newBlockedBy
 		}
 
@@ -288,11 +270,6 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		if err := tl.UpdateTask(taskID, updateTitle, newDetails, newReferences, newRequirements); err != nil {
 			return fmt.Errorf("failed to update task: %w", err)
 		}
-	}
-
-	// Write the updated file
-	if err := tl.WriteFile(filename); err != nil {
-		return fmt.Errorf("failed to write updated file: %w", err)
 	}
 
 	// Collect changes for output
@@ -312,7 +289,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if updateStreamSet {
 		changes = append(changes, "stream")
 	}
-	if updateBlockedBy != "" {
+	if blockedBySet {
 		changes = append(changes, "blocked-by")
 	}
 	if updateOwnerSet {
@@ -320,6 +297,72 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 	if updateRelease {
 		changes = append(changes, "release")
+	}
+
+	// Dry run mode - the update was applied (and validated) in memory only;
+	// show what would change without writing (T-1381, T-1750)
+	if dryRun {
+		switch format {
+		case formatJSON:
+			return outputJSON(UpdateResponse{
+				Success:       true,
+				Message:       fmt.Sprintf("Would update task %s", taskID),
+				TaskID:        taskID,
+				Title:         targetTask.Title,
+				FieldsUpdated: changes,
+				DryRun:        true,
+			})
+		case formatMarkdown:
+			fmt.Printf("**Dry run:** Would update %s - %s (%s)\n", taskID, targetTask.Title, strings.Join(changes, ", "))
+			return nil
+		}
+		fmt.Printf("Would update task in file: %s\n", filename)
+		fmt.Printf("Task ID: %s\n", taskID)
+		fmt.Printf("Current title: %s\n", currentTitle)
+		fmt.Printf("Current details: %s\n", formatDetailsForDisplay(currentDetails))
+		fmt.Printf("Current references: %s\n", formatReferencesForDisplay(currentReferences))
+		fmt.Printf("Current requirements: %s\n", formatRequirementsForDisplay(currentRequirements))
+		fmt.Println()
+
+		if updateTitle != "" {
+			fmt.Printf("New title: %s\n", updateTitle)
+		}
+		if clearDetails {
+			fmt.Printf("New details: (cleared)\n")
+		} else if updateDetails != "" {
+			fmt.Printf("New details: %s\n", formatDetailsForDisplay(newDetails))
+		}
+		if clearReferences {
+			fmt.Printf("New references: (cleared)\n")
+		} else if updateReferences != "" {
+			fmt.Printf("New references: %s\n", formatReferencesForDisplay(newReferences))
+		}
+		if clearRequirements {
+			fmt.Printf("New requirements: (cleared)\n")
+		} else if requirementsSet {
+			fmt.Printf("New requirements: %s\n", formatRequirementsForDisplay(newRequirements))
+		}
+		if updateStreamSet {
+			fmt.Printf("New stream: %d\n", updateStream)
+		}
+		if blockedBySet {
+			if len(newBlockedBy) == 0 {
+				fmt.Printf("New blocked-by: (cleared)\n")
+			} else {
+				fmt.Printf("New blocked-by: %s\n", strings.Join(newBlockedBy, ", "))
+			}
+		}
+		if updateRelease {
+			fmt.Printf("New owner: (released)\n")
+		} else if updateOwnerSet {
+			fmt.Printf("New owner: %s\n", updateOwner)
+		}
+		return nil
+	}
+
+	// Write the updated file
+	if err := tl.WriteFile(filename); err != nil {
+		return fmt.Errorf("failed to write updated file: %w", err)
 	}
 
 	// Format-aware output

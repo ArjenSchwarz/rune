@@ -8,6 +8,10 @@ type StreamStatus struct {
 	Ready   []string `json:"ready"`   // Hierarchical IDs of ready tasks
 	Blocked []string `json:"blocked"` // Hierarchical IDs of blocked tasks
 	Active  []string `json:"active"`  // Hierarchical IDs of in-progress tasks
+	// Claimed holds hierarchical IDs of pending tasks that have an owner but
+	// are not started. They are not ready, so they do not make a stream
+	// available, but the stream still has pending work (T-1626).
+	Claimed []string `json:"claimed"`
 }
 
 // StreamsResult contains status for all streams
@@ -38,6 +42,7 @@ func AnalyzeStreams(tasks []Task, index *DependencyIndex) *StreamsResult {
 					Ready:   []string{},
 					Blocked: []string{},
 					Active:  []string{},
+					Claimed: []string{},
 				}
 			}
 
@@ -55,7 +60,7 @@ func AnalyzeStreams(tasks []Task, index *DependencyIndex) *StreamsResult {
 				stream.Blocked = append(stream.Blocked, task.ID)
 			case task.Owner != "":
 				// Owned pending tasks are not ready (someone claimed but hasn't started)
-				// They're neither blocked nor active - skip them
+				stream.Claimed = append(stream.Claimed, task.ID)
 			default:
 				// Ready: pending, no blockers (or all blockers completed), no owner
 				stream.Ready = append(stream.Ready, task.ID)
@@ -140,4 +145,18 @@ func FilterByStream(tasks []Task, stream int) []Task {
 		return []Task{}
 	}
 	return result
+}
+
+// PruneToStream returns a copy of t whose descendants (at every depth) are
+// limited to tasks in the given stream. A descendant in another stream is
+// dropped along with its subtree. The original task tree is not modified.
+func PruneToStream(t Task, stream int) Task {
+	var children []Task
+	for i := range t.Children {
+		if GetEffectiveStream(&t.Children[i]) == stream {
+			children = append(children, PruneToStream(t.Children[i], stream))
+		}
+	}
+	t.Children = children
+	return t
 }

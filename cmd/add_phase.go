@@ -15,6 +15,7 @@ type AddPhaseResponse struct {
 	Message   string `json:"message"`
 	PhaseName string `json:"phase_name"`
 	File      string `json:"file"`
+	DryRun    bool   `json:"dry_run,omitempty"`
 }
 
 var addPhaseCmd = &cobra.Command{
@@ -90,6 +91,19 @@ func runAddPhase(cmd *cobra.Command, args []string) error {
 
 	// Dry run mode - just show what would be added
 	if dryRun {
+		switch format {
+		case formatJSON:
+			return outputJSON(AddPhaseResponse{
+				Success:   true,
+				Message:   fmt.Sprintf("Would add phase '%s'", phaseName),
+				PhaseName: phaseName,
+				File:      filename,
+				DryRun:    true,
+			})
+		case formatMarkdown:
+			fmt.Printf("**Dry run:** Would add phase %s to %s\n", phaseName, filename)
+			return nil
+		}
 		fmt.Printf("Would add phase to file: %s\n", filename)
 		fmt.Printf("Phase name: %s\n", phaseName)
 		fmt.Printf("Phase header: ## %s\n", phaseName)
