@@ -74,8 +74,12 @@ class SpecInfo:
 
 
 def find_spec_directories(root_dirs: List[str]) -> List[Path]:
-    """Find all directories containing tasks.md files."""
+    """Find all directories containing tasks.md files.
+
+    Each resolved directory is returned once, even when several roots overlap.
+    """
     spec_dirs = []
+    seen = set()
 
     for root in root_dirs:
         root_path = Path(root)
@@ -85,6 +89,10 @@ def find_spec_directories(root_dirs: List[str]) -> List[Path]:
         # Recursively find all tasks.md files
         for tasks_file in root_path.rglob("tasks.md"):
             spec_dir = tasks_file.parent
+            resolved = spec_dir.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
             spec_dirs.append(spec_dir)
 
     return sorted(spec_dirs)

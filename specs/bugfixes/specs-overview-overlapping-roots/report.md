@@ -1,7 +1,7 @@
 # Bugfix Report: Specs Overview Duplicates Overlapping Roots
 
 **Date:** 2026-11-04
-**Status:** Investigating
+**Status:** Fixed
 **Ticket:** T-2011
 
 ## Description of the Issue
@@ -44,7 +44,21 @@ equality check without `resolve()` would miss roots like `specs` and
 
 ## Resolution for the Issue
 
-_Pending._
+**Changes made:**
+- `scripts/specs-overview.py` `find_spec_directories` - skips a spec directory
+  whose resolved path was already found. The first-seen path is kept, so output
+  paths and names are unchanged.
+
+**Approach rationale:** deduplicating at discovery covers single-project and
+`--project-dirs` scans, because both go through `find_spec_directories`.
+Comparing resolved paths also catches equivalent spellings (`specs`, `./specs`,
+`specs/../specs`, absolute paths). Sorting is unchanged.
+
+**Alternatives considered:**
+- Normalising the roots and dropping nested ones - more code, and still needs a
+  per-directory check for symlinked or equivalent roots.
+- Deduplicating rows in `scan_specs` - runs `rune` and `git` for the duplicates
+  first.
 
 ## Regression Test
 
@@ -55,6 +69,30 @@ _Pending._
 spec directory once, and `scan_specs` emits one row per spec.
 
 **Run command:** `python3 -m unittest discover -s scripts -p 'test_*.py'`
+
+## Affected Files
+
+| File | Change |
+|------|--------|
+| `scripts/specs-overview.py` | Deduplicate discovered spec directories by resolved path |
+| `scripts/test_specs_overview.py` | `TestOverlappingRoots` regression tests |
+
+## Verification
+
+**Automated:**
+- [x] Regression tests pass (`python3 -m unittest discover -s scripts -p 'test_*.py'`, 9 tests)
+- [x] golangci-lint: 0 issues; ruff/flake8 report no new findings
+- [ ] `make check` / `make test-integration`: Go suites fail only on
+  `TestCreateBackup/error_handling_for_read_failures` and
+  `TestIntegrationRenumber/renumber_write_failure`. Both fail identically on
+  unmodified `main` (73e31eb) because the cloud container runs as root, which
+  bypasses the permission denial those tests rely on. This change touches only
+  Python.
+
+**Manual verification:**
+- The ticket repro (`--dirs specs specs/task-phases`) reports no duplicate
+  paths; `--dirs specs ./specs` also has none.
+- `--dirs specs` JSON output is byte-identical before and after the fix.
 
 ## Related
 
