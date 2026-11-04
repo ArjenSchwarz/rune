@@ -117,6 +117,13 @@ func runFind(cmd *cobra.Command, args []string) error {
 	}
 
 	if includeParent {
+		// The filters re-point a ParentID past a filtered-out parent; restore
+		// the source parent so it is added back as context.
+		for i := range results {
+			if src := taskList.FindTask(results[i].ID); src != nil {
+				results[i].ParentID = src.ParentID
+			}
+		}
 		results = taskList.InsertParents(results)
 	}
 

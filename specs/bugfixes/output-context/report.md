@@ -64,7 +64,11 @@ ordering error (T-2070).
   callers can attach context after filtering. `Find` with `IncludeParent`
   behaves as before.
 - `cmd/find.go` — search without parent context, apply filters, then call
-  `InsertParents` when `--include-parent` is set (T-2070). The table adds
+  `InsertParents` when `--include-parent` is set (T-2070). Before
+  inserting, each result's ParentID is reset to its source value: the
+  filters re-point a ParentID past a filtered-out parent (T-549), which
+  would otherwise stop a parent that matched the pattern but failed the
+  filter from being restored as context. The table adds
   Stream, BlockedBy, Owner and Requirements columns when any result has that
   data (the same conditional pattern `list` uses); Markdown adds
   `Blocked-by`, `Stream`, `Owner` and `Requirements` lines in task-file
@@ -111,7 +115,7 @@ left alone to keep the diff narrow.
 
 | Test | Ticket |
 |------|--------|
-| `TestFind_IncludeParentContextOnlyForSurvivingMatches` (max-depth, status, surviving match) | T-2070 |
+| `TestFind_IncludeParentContextOnlyForSurvivingMatches` (max-depth, status, surviving match, filtered-out matching parent) | T-2070 |
 | `TestList_EmptyResultKeepsDocumentContext` (json, markdown) | T-2100 |
 | `TestList_MarkdownIncludesDocumentReferencesWithoutAll` | T-2182 |
 | `TestResolveFilename_DiscoveryFailureVerboseGoesToStderr` | T-2127 |

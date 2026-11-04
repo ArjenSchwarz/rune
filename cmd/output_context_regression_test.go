@@ -108,6 +108,32 @@ func TestFind_IncludeParentContextOnlyForSurvivingMatches(t *testing.T) {
 			t.Errorf("expected match and its parent context, got:\n%s", out)
 		}
 	})
+
+	// The parent matches the pattern too, but the status filter removes it.
+	// It must come back as context for the surviving child.
+	t.Run("filtered-out matching parent restored as context", func(t *testing.T) {
+		file := writeContextTaskFile(t, "# T\n\n- [x] 1. Feature parent\n  - [ ] 1.1. Feature child\n")
+		useFormat(t, formatJSON)
+
+		out := runFindWith(t, file, map[string]string{"pattern": "Feature", "include-parent": "true", "status": "pending"})
+
+		var resp struct {
+			Count int `json:"count"`
+			Tasks []struct {
+				ID       string `json:"ID"`
+				ParentID string `json:"ParentID"`
+			} `json:"Tasks"`
+		}
+		if err := json.Unmarshal([]byte(out), &resp); err != nil {
+			t.Fatalf("invalid JSON: %v\n%s", err, out)
+		}
+		if resp.Count != 2 || len(resp.Tasks) != 2 {
+			t.Fatalf("want parent context and child, got:\n%s", out)
+		}
+		if resp.Tasks[0].ID != "1" || resp.Tasks[1].ID != "1.1" || resp.Tasks[1].ParentID != "1" {
+			t.Errorf("want [1, 1.1 (parent 1)], got:\n%s", out)
+		}
+	})
 }
 
 // T-2100: an empty list result must keep the file-level title and front matter.
