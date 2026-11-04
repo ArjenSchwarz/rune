@@ -155,7 +155,7 @@ If a release has issues:
 
 ## Node.js Version Migration
 
-The action currently uses Node.js 20 (`node20` in `action.yml`). When migrating to a new Node.js version:
+The action currently uses Node.js 24 (`node24` in `action.yml`). When migrating to a new Node.js version:
 
 1. Update `action.yml`: `using: 'node24'` (or relevant version)
 2. Test thoroughly across all platforms (Ubuntu, macOS, Windows)

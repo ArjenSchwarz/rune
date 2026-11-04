@@ -36,7 +36,7 @@ The closing delimiter matching also handles EOF without a trailing newline: `res
 
 ## Title Detection
 
-Title detection in `parseContent()` only considers the **first non-empty line** of the document (after front matter is stripped). If that line is an H1 (`# Title`), it is used as the document title and removed from the line array. If the first non-empty line is anything else (e.g., a task line), no title is set.
+Title detection in `parseContent()` only considers the **first non-empty line** of the document (after front matter is stripped). If that line is an H1 (`# Title`), it is used as the document title and blanked in the line array (not removed). Front matter lines are likewise replaced by blank lines, so line indices, and the `line N:` numbers in parse errors, match the source file (T-1879). If the first non-empty line is anything else (e.g., a task line), no title is set.
 
 A `# ` heading appearing later in the file (after tasks) is NOT treated as a title. It will be rejected by the task parser as unexpected content. This was fixed in T-448 — the previous implementation scanned all lines and took the first `# ` match anywhere.
 

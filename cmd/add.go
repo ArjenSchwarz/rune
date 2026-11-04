@@ -146,6 +146,21 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// The requirements file is only stored in requirement links, so without
+	// --requirements it would be silently discarded (T-2145)
+	if addRequirementsFile != "" && len(reqIDs) == 0 {
+		return fmt.Errorf("--requirements-file requires --requirements: the path is only stored in requirement links")
+	}
+
+	// A non-empty value without any IDs (e.g. ",") is malformed (T-2325)
+	var blockedBy []string
+	if addBlockedBy != "" {
+		blockedBy = parseRequirementIDs(addBlockedBy)
+		if len(blockedBy) == 0 {
+			return fmt.Errorf("invalid --blocked-by value %q: no task IDs found", addBlockedBy)
+		}
+	}
+
 	// Every flag goes through the same add path, whether or not a phase is
 	// targeted, so none of them can be silently dropped
 	op := task.Operation{
@@ -159,9 +174,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 	if addStream != 0 {
 		op.Stream = &addStream
 	}
-	if addBlockedBy != "" {
-		op.BlockedBy = parseRequirementIDs(addBlockedBy)
-	}
+	op.BlockedBy = blockedBy
 	if addOwner != "" {
 		op.Owner = &addOwner
 	}
@@ -176,6 +189,13 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to add task: %w", err)
 	}
 
+	// A subtask stays under its parent, whatever --phase says, so only a
+	// top-level task reports the phase it was added to (T-1754)
+	reportedPhase := phaseName
+	if addParent != "" {
+		reportedPhase = ""
+	}
+
 	// Dry run mode - just show what would be added
 	if dryRun {
 		switch format {
@@ -186,7 +206,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 				TaskID:  newTaskID,
 				Title:   addTitle,
 				Parent:  addParent,
-				Phase:   phaseName,
+				Phase:   reportedPhase,
 				DryRun:  true,
 			})
 		case formatMarkdown:
@@ -205,8 +225,8 @@ func runAdd(cmd *cobra.Command, args []string) error {
 		if addPosition != "" {
 			fmt.Printf("Position: %s\n", addPosition)
 		}
-		if phaseName != "" {
-			fmt.Printf("Phase: %s\n", phaseName)
+		if reportedPhase != "" {
+			fmt.Printf("Phase: %s\n", reportedPhase)
 		}
 		fmt.Printf("New task ID would be: %s\n", newTaskID)
 		return nil
@@ -240,7 +260,7 @@ func runAdd(cmd *cobra.Command, args []string) error {
 			TaskID:  newTaskID,
 			Title:   addTitle,
 			Parent:  addParent,
-			Phase:   phaseName,
+			Phase:   reportedPhase,
 		})
 	case formatMarkdown:
 		if addParent != "" {

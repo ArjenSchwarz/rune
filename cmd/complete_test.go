@@ -723,3 +723,93 @@ func TestRunProgress(t *testing.T) {
 		})
 	}
 }
+
+// TestRunCompleteDryRunReportsAutoCompletedParents is a regression test for
+// T-1934: dry-run previewed only the targeted task and omitted parents that the
+// live command auto-completes. Expected: every format previews the parent
+// auto-completion, and the file is left unchanged.
+func TestRunCompleteDryRunReportsAutoCompletedParents(t *testing.T) {
+	tests := map[string]struct {
+		format string
+		check  func(t *testing.T, output string)
+	}{
+		"json": {
+			format: formatJSON,
+			check: func(t *testing.T, output string) {
+				t.Helper()
+				var resp CompleteResponse
+				if err := json.Unmarshal([]byte(output), &resp); err != nil {
+					t.Fatalf("output is not valid JSON: %v\nGot: %s", err, output)
+				}
+				if !resp.DryRun {
+					t.Error("expected dry_run to be true")
+				}
+				if resp.CurrentStatus != statusPending {
+					t.Errorf("expected current_status %q, got %q", statusPending, resp.CurrentStatus)
+				}
+				if len(resp.AutoCompleted) != 1 || resp.AutoCompleted[0] != "1" {
+					t.Errorf("expected auto_completed [1], got %v", resp.AutoCompleted)
+				}
+			},
+		},
+		"markdown": {
+			format: formatMarkdown,
+			check: func(t *testing.T, output string) {
+				t.Helper()
+				if !strings.Contains(output, "**Dry run:** Would auto-complete: 1") {
+					t.Errorf("expected auto-complete preview, got: %s", output)
+				}
+			},
+		},
+		"table": {
+			format: "table",
+			check: func(t *testing.T, output string) {
+				t.Helper()
+				if !strings.Contains(output, "Would auto-complete parent tasks: 1") {
+					t.Errorf("expected auto-complete preview, got: %s", output)
+				}
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			filename := filepath.Join(t.TempDir(), "test.md")
+			content := "# Test Tasks\n\n- [ ] 1. Parent\n  - [x] 1.1. Done child\n  - [ ] 1.2. Last pending child\n"
+			if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			dryRun = true
+			format = tc.format
+			defer func() {
+				dryRun = false
+				format = "table"
+			}()
+
+			oldStdout := os.Stdout
+			r, w, _ := os.Pipe()
+			os.Stdout = w
+
+			err := runComplete(&cobra.Command{}, []string{filename, "1.2"})
+
+			w.Close()
+			os.Stdout = oldStdout
+			var buf bytes.Buffer
+			buf.ReadFrom(r)
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			tc.check(t, buf.String())
+
+			after, err := os.ReadFile(filename)
+			if err != nil {
+				t.Fatalf("failed to read file: %v", err)
+			}
+			if string(after) != content {
+				t.Errorf("file was modified during dry run:\n%s", after)
+			}
+		})
+	}
+}

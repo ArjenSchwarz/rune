@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -55,4 +57,19 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().StringVarP(&format, "format", "f", "table", "output format (table, markdown, json)")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "preview changes without applying them")
+	rootCmd.PersistentPreRunE = validateFormatFlag
+}
+
+// validateFormatFlag rejects an unsupported --format before any command runs,
+// so a typo is reported instead of silently producing table output (T-1243).
+// The value is lowercased, matching the batch command's existing handling.
+func validateFormatFlag(_ *cobra.Command, _ []string) error {
+	normalized := strings.ToLower(format)
+	switch normalized {
+	case formatTable, formatMarkdown, formatJSON:
+		format = normalized
+		return nil
+	default:
+		return fmt.Errorf("unsupported output format: %s", format)
+	}
 }

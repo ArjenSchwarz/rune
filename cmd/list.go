@@ -114,7 +114,7 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	if len(taskData) == 0 {
 		message := buildEmptyMessage(filename, filterOpts)
-		return outputListEmpty(message)
+		return outputListEmpty(taskList, message)
 	}
 
 	// Create output document based on format
@@ -451,14 +451,9 @@ func outputMarkdownWithFilters(taskList *task.TaskList, phaseMarkers []task.Phas
 
 	var buf strings.Builder
 
-	// Add front matter references if present and --all flag is used
-	if showAll && filteredList.FrontMatter != nil && len(filteredList.FrontMatter.References) > 0 {
-		buf.WriteString("## Document References\n\n")
-		for _, ref := range filteredList.FrontMatter.References {
-			fmt.Fprintf(&buf, "- %s\n", ref)
-		}
-		buf.WriteString("\n")
-	}
+	// Front matter references are file-level context, shown with or
+	// without --all (T-2182)
+	writeDocumentReferences(&buf, filteredList.FrontMatter)
 
 	// Render tasks with phases — pass original taskList as phase source
 	// so phase boundaries resolve correctly even if boundary tasks are filtered out
@@ -468,25 +463,51 @@ func outputMarkdownWithFilters(taskList *task.TaskList, phaseMarkers []task.Phas
 	return buf.String()
 }
 
+// writeDocumentReferences writes the front matter references section used
+// by markdown list output. It writes nothing when there are no references.
+func writeDocumentReferences(buf *strings.Builder, fm *task.FrontMatter) {
+	if fm == nil || len(fm.References) == 0 {
+		return
+	}
+	buf.WriteString("## Document References\n\n")
+	for _, ref := range fm.References {
+		fmt.Fprintf(buf, "- %s\n", ref)
+	}
+	buf.WriteString("\n")
+}
+
 // ListEmptyResponse is the JSON response structure when no tasks are found.
+// Title and FrontMatter carry the file-level context, using the same keys
+// as the non-empty list JSON (T-2100).
 type ListEmptyResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Count   int    `json:"count"`
-	Data    []any  `json:"data"`
+	Success     bool              `json:"success"`
+	Message     string            `json:"message"`
+	Count       int               `json:"count"`
+	Data        []any             `json:"data"`
+	Title       string            `json:"Title,omitempty"`
+	FrontMatter *task.FrontMatter `json:"FrontMatter,omitempty"`
 }
 
 // outputListEmpty handles format-aware output when no tasks are found.
-func outputListEmpty(message string) error {
+// JSON and markdown keep the document title and front matter (T-2100).
+func outputListEmpty(taskList *task.TaskList, message string) error {
 	switch format {
 	case formatJSON:
 		return outputJSON(ListEmptyResponse{
-			Success: true,
-			Message: message,
-			Count:   0,
-			Data:    []any{},
+			Success:     true,
+			Message:     message,
+			Count:       0,
+			Data:        []any{},
+			Title:       taskList.Title,
+			FrontMatter: taskList.FrontMatter,
 		})
 	case formatMarkdown:
+		var buf strings.Builder
+		writeDocumentReferences(&buf, taskList.FrontMatter)
+		if taskList.Title != "" {
+			fmt.Fprintf(&buf, "# %s\n\n", taskList.Title)
+		}
+		fmt.Print(buf.String())
 		outputMarkdownMessage(message)
 		return nil
 	default:

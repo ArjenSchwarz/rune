@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -139,7 +140,7 @@ func (t *Task) Validate() error {
 	if t.Title == "" {
 		return fmt.Errorf("task title cannot be empty")
 	}
-	if len(t.Title) > MaxTitleLength {
+	if utf8.RuneCountInString(t.Title) > MaxTitleLength {
 		return fmt.Errorf("task title exceeds %d characters", MaxTitleLength)
 	}
 	if !IsValidID(t.ID) {
