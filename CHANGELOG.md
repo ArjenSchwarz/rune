@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **GitHub Action**: Prefer SHA-256 checksums, fall back to verified MD5 only when an older release has no SHA-256 sidecar, and send release-download credentials with the Bearer scheme (T-1143, T-2241).
+- **GitHub Action**: Run the setup action on the `node24` runtime instead of the deprecated `node20` (T-1471).
 - **Batch Command**: Exit unsuccessfully for rejected batches, reject unknown JSON fields before writes, and preserve operation order around positioned additions (T-1789, T-1844, T-1874).
 - **Batch Command**: Reject a `status` field on an `add` operation instead of silently creating a pending task; use a subsequent `update` to set status (T-1996).
 - **Data Integrity**: Preserve unknown YAML front-matter values and tags during writes, rejecting unsupported alias relationships before rewriting (T-1845).

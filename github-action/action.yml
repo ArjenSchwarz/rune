@@ -24,8 +24,5 @@ outputs:
     description: 'The directory containing the rune binary'
 
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'dist/index.js'
-
-# Note: Node20 is current standard (Nov 2025) but will reach EOL in April 2026.
-# Plan to migrate to node24 in early 2026.
